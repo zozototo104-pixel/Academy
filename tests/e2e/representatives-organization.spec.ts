@@ -38,14 +38,18 @@ async function loginAsAdmin(page: Page) {
   })
   const body = await response.json().catch(() => ({}))
   expect(response.ok(), `Admin login failed: ${response.status()} ${JSON.stringify(body)}`).toBeTruthy()
-  expect(body?.token, 'Login must return a session token').toBeTruthy()
+  // Cookie-based login: the raw session token arrives only as the
+  // httpOnly aact_session cookie; it doubles as the bearer token.
+  const sessionCookie = response.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value).join('; ')
+  const sessionToken = decodeURIComponent(sessionCookie.match(/aact_session=([^;]+)/)?.[1] || '')
+  expect(sessionToken, 'Login must set the aact_session session cookie').toBeTruthy()
   expect(body?.user?.role, 'The QA account must be ADMIN').toBe('ADMIN')
   await page.addInitScript((arg: { token: string; origin: string }) => {
     if (window.location.origin !== arg.origin) return
     localStorage.setItem('aact_token', arg.token)
     localStorage.setItem('aact_startup_seen_v2', '1')
     sessionStorage.setItem('aact_skip_startup', '1')
-  }, { token: String(body.token), origin: QA_ORIGIN })
+  }, { token: sessionToken, origin: QA_ORIGIN })
 }
 
 async function protectQaNavigation(page: Page, reportBlockedWrite: (attempt: string) => void) {

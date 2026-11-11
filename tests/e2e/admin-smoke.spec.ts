@@ -90,16 +90,27 @@ async function loginAsAdmin(page: Page): Promise<string> {
   const body = await response.json().catch(() => ({}))
 
   expect(response.ok(), `Admin API login failed with ${response.status()}: ${JSON.stringify(body)}`).toBeTruthy()
-  expect(body?.token, 'Login response must include a session token').toBeTruthy()
+  // The login route is cookie-based: createSession sets the raw session
+  // token only as the httpOnly aact_session cookie, and the JSON body
+  // carries the user object, never a token. Session reading accepts
+  // Authorization: Bearer first, so the cookie value doubles as the
+  // bearer token used by this spec.
+  const cookieHeader = response
+    .headersArray()
+    .filter((h) => h.name.toLowerCase() === 'set-cookie')
+    .map((h) => h.value)
+    .join('; ')
+  const token = cookieHeader.match(/aact_session=([^;]+)/)?.[1] || ''
+  expect(token, 'Login must set the aact_session session cookie').toBeTruthy()
   expect(body?.user?.role, 'Smoke-test account must have ADMIN role').toBe('ADMIN')
 
-  await page.addInitScript((token: string) => {
-    localStorage.setItem('aact_token', token)
+  await page.addInitScript((t: string) => {
+    localStorage.setItem('aact_token', t)
     localStorage.setItem('aact_startup_seen_v2', '1')
     sessionStorage.setItem('aact_skip_startup', '1')
-  }, body.token)
+  }, decodeURIComponent(token))
 
-  return String(body.token)
+  return decodeURIComponent(token)
 }
 
 async function waitForAdminReady(page: Page) {

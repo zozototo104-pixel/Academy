@@ -11,7 +11,7 @@ import { ChevronDown, ChevronLeft, ShieldCheck } from 'lucide-react'
 
 type ApprovalState = 'APPROVED' | 'STALE' | 'NONE' | null
 type ReviewAttempt = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; score?: number | null; approvalState?: ApprovalState; submittedAt: string; student: { id?: string; name: string; email: string }; exam: { title: string; programTitle?: string; unitTitle?: string } }
-type ReviewDetail = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; answers: Array<{ answerId: string; order: number; questionType?: string; question: string; studentAnswer: string; modelAnswer: string; source: string; points: number | null; maxPoints: number; aiFeedback: string | null }> }
+type ReviewDetail = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; score?: number | null; answers: Array<{ answerId: string; order: number; questionType?: string; question: string; studentAnswer: string; modelAnswer: string; source: string; points: number | null; maxPoints: number; aiFeedback: string | null }> }
 type BulkReport = { approved: number; alreadyApproved: number; rejected: number; results?: Array<{ ok: boolean; code?: string }> }
 
 const studentKey = (a: ReviewAttempt) => a.student.id || a.student.email
@@ -30,13 +30,15 @@ export default function AdminGradingReviewTab() {
   const [selected, setSelected] = useState<ReviewDetail | null>(null)
   const [scores, setScores] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
-  const [busy, setBusy] = useState<'regrade' | 'approve' | 'approve-grade' | null>(null)
+  const [busy, setBusy] = useState<'regrade' | 'approve' | 'approve-grade' | 'save-grade' | null>(null)
   const [statusFilter, setStatusFilter] = useState<'NEEDS_REVIEW' | 'GRADED' | 'ALL'>('NEEDS_REVIEW')
   // null = لم يلمس الإداري التجميع بعد → أول طالب مفتوح افتراضيًا.
   const [expanded, setExpanded] = useState<Set<string> | null>(null)
   const [bulkBusy, setBulkBusy] = useState<string | null>(null)
   const [armBulk, setArmBulk] = useState<string | null>(null)
   const [bulkReport, setBulkReport] = useState<string | null>(null)
+  // Only modified answers are written. Unsaved edits must never be silently approved.
+  const pendingScoreEdits = selected ? selected.answers.filter((answer) => scores[answer.answerId] !== String(answer.points ?? '')) : []
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -133,12 +135,44 @@ export default function AdminGradingReviewTab() {
     }
   }
 
+  // Correction is saved first, with old score and per-answer values as
+  // optimistic guards. Official certification is always a separate action.
+  const saveGradedCorrections = async () => {
+    if (!selected || selected.status !== 'GRADED' || !pendingScoreEdits.length) return
+    setBusy('save-grade')
+    try {
+      const changedScores = Object.fromEntries(pendingScoreEdits.map((a) => [a.answerId, scores[a.answerId]]))
+      const expectedPoints = Object.fromEntries(pendingScoreEdits.map((a) => [a.answerId, a.points]))
+      const res = await api<{ score: number }>('/api/admin/attempts-review', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          action: 'ADJUST_GRADED', type: selected.type, attemptId: selected.id,
+          scores: changedScores, expectedPoints, expectedScore: selected.score,
+        }),
+      })
+      toast({ title: 'حُفظ تعديل التصحيح', description: `النتيجة الجديدة ${res.score}% — يمكنك الآن مصادقتها رسميًا.` })
+      setSelected(null)
+      setScores({})
+      await load().catch(() => {
+        toast({ title: 'حُفظت الدرجة لكن تعذّر تحديث القائمة', description: 'أعد فتح المحاولة لتحديث العرض.', variant: 'destructive' })
+      })
+    } catch (error: any) {
+      toast({ title: 'تعذر حفظ تعديل الدرجة', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   // مصادقة الدرجة رسميًا (المرحلة 2): صلاحية الإدارة الأصلية الكاملة
   // بالتوازي مع المشرف — سجل اعتماد محفوظ مستقل عن اعتماد نتيجة المراجعة
   // أعلاه، والخادم يرفض أي درجة غير نهائية. ضغطة ثانية على درجة مصادقة
   // بنفس القيمة لا تغيّر شيئًا (الخادم يرجع alreadyApproved).
   const approveOfficial = async () => {
     if (!selected) return
+    if (pendingScoreEdits.length) {
+      toast({ title: 'هناك درجات معدّلة لم تُحفظ', description: 'احفظ التعديل أولًا، ثم افتح المحاولة وصادق على النتيجة المحدّثة.', variant: 'destructive' })
+      return
+    }
     setBusy('approve-grade')
     try {
       const res = await api<{ alreadyApproved?: boolean }>(`/api/admin/grade-approvals`, { method: 'POST', body: JSON.stringify({ targetType: selected.type === 'UNIT' ? 'UNIT_EXAM' : 'PROGRAM_EXAM', attemptId: selected.id }) })
@@ -257,7 +291,7 @@ export default function AdminGradingReviewTab() {
       <Card className="w-full min-w-0 overflow-hidden">
         <CardContent className="min-w-0 p-3 sm:p-4">
           {!selected ? <p className="text-sm font-bold text-slate-500">اختر طالبًا ثم محاولة لعرض كل الأسئلة وإقرار النتيجة.</p> : <div className="space-y-4">
-            {selected.status === 'NEEDS_REVIEW' ? <div className="flex flex-wrap gap-2"><Button onClick={regrade} variant="outline" disabled={busy !== null}>{busy === 'regrade' ? 'جارٍ التصحيح...' : 'إعادة التصحيح الآلي'}</Button><Button onClick={approve} disabled={busy !== null} className="bg-[#0f2b46] text-[#f5f0e1]">{busy === 'approve' ? 'جارٍ الاعتماد...' : 'اعتماد النتيجة'}</Button></div> : selected.status === 'SUBMITTED' ? <div className="flex flex-wrap items-center gap-2"><Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">محاولة عالقة قيد التصحيح</Badge><Button onClick={markReview} disabled={busy !== null} variant="outline">{busy === 'regrade' ? 'جارٍ النقل...' : 'نقل إلى المراجعة'}</Button></div> : <div className="flex flex-wrap items-center gap-2"><Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">محاولة مصححة</Badge><Button onClick={approveOfficial} disabled={busy !== null} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy === 'approve-grade' ? 'جارٍ المصادقة...' : 'مصادقة الدرجة رسميًا'}</Button></div>}
+            {selected.status === 'NEEDS_REVIEW' ? <div className="flex flex-wrap gap-2"><Button onClick={regrade} variant="outline" disabled={busy !== null}>{busy === 'regrade' ? 'جارٍ التصحيح...' : 'إعادة التصحيح الآلي'}</Button><Button onClick={approve} disabled={busy !== null} className="bg-[#0f2b46] text-[#f5f0e1]">{busy === 'approve' ? 'جارٍ الاعتماد...' : 'اعتماد النتيجة'}</Button></div> : selected.status === 'SUBMITTED' ? <div className="flex flex-wrap items-center gap-2"><Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">محاولة عالقة قيد التصحيح</Badge><Button onClick={markReview} disabled={busy !== null} variant="outline">{busy === 'regrade' ? 'جارٍ النقل...' : 'نقل إلى المراجعة'}</Button></div> : <div className="flex flex-wrap items-center gap-2"><Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">محاولة مصححة</Badge>{pendingScoreEdits.length > 0 && <Button onClick={saveGradedCorrections} disabled={busy !== null} className="bg-[#0f2b46] font-black text-white hover:bg-[#12365c]">{busy === 'save-grade' ? 'جارٍ حفظ الدرجات...' : 'حفظ تعديل درجات الأسئلة'}</Button>}<Button onClick={approveOfficial} disabled={busy !== null} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy === 'approve-grade' ? 'جارٍ المصادقة...' : 'مصادقة الدرجة رسميًا'}</Button></div>}
             {selected.answers.map((a) => <div key={a.answerId} className="min-w-0 break-words rounded-2xl border p-3 text-sm [overflow-wrap:anywhere]">
               <p className="font-black text-[#0f2b46]">سؤال {a.order} ({a.questionType === 'MCQ' ? 'اختيار من متعدد' : a.questionType === 'TF' ? 'صح/خطأ' : a.questionType === 'SHORT' ? 'إجابة قصيرة' : 'مقالي'}): {a.question}</p>
               <p className="mt-2 whitespace-pre-wrap rounded-xl bg-slate-50 p-2"><b>إجابة الطالب:</b> {a.studentAnswer || '—'}</p>
@@ -265,7 +299,7 @@ export default function AdminGradingReviewTab() {
               {a.source && <p className="mt-2 whitespace-pre-wrap rounded-xl bg-amber-50 p-2"><b>المصدر:</b> {a.source}</p>}
               {a.aiFeedback && <p className="mt-2 whitespace-pre-wrap rounded-xl bg-blue-50 p-2"><b>نتيجة AI:</b> {a.aiFeedback}</p>}
               <label className="mt-3 block text-xs font-black">النقاط من {a.maxPoints}</label>
-              <Input value={scores[a.answerId] || ''} onChange={(e) => setScores((prev) => ({ ...prev, [a.answerId]: e.target.value }))} />
+              <Input value={scores[a.answerId] ?? ''} onChange={(e) => setScores((prev) => ({ ...prev, [a.answerId]: e.target.value }))} />
             </div>)}
           </div>}
         </CardContent>

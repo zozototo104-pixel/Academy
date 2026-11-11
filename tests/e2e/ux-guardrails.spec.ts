@@ -11,8 +11,12 @@ async function login(page: Page, email: string, password: string) {
   const response = await page.request.post('/api/auth/login', { data: { email, password } })
   const body = await response.json().catch(() => ({}))
   expect(response.ok(), `Login failed for ${email}: ${response.status()} ${JSON.stringify(body).slice(0, 900)}`).toBeTruthy()
-  expect(body.token, 'Login response must include token').toBeTruthy()
-  return { token: String(body.token), user: body.user }
+  // Cookie-based login: the raw session token arrives only as the
+  // httpOnly aact_session cookie; it doubles as the bearer token.
+  const sessionCookie = response.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value).join('; ')
+  const sessionToken = decodeURIComponent(sessionCookie.match(/aact_session=([^;]+)/)?.[1] || '')
+  expect(sessionToken, 'Login must set the aact_session session cookie').toBeTruthy()
+  return { token: sessionToken, user: body.user }
 }
 
 async function loginAsAdmin(page: Page) {
@@ -103,21 +107,31 @@ test.describe('AACT UX guardrails suite', () => {
     await setBrowserToken(page, studentLogin.token)
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 45_000 })
     await page.waitForLoadState('networkidle', { timeout: 12_000 }).catch(() => {})
-    const programsTab = page.getByRole('tab', { name: /برامجي/ })
-    await expect(programsTab).toBeVisible()
+    // The dashboard uses a hidden Radix TabsList for state and visible navigation
+    // buttons for students. Assert the active panel, not a deliberately hidden tab.
+    const programsTab = page.getByRole('tab', { name: /برامجي/, includeHidden: true })
     await expect(programsTab, 'Student dashboard should open on programs, not payments').toHaveAttribute('data-state', 'active')
+    // Prove the programs section with the student's actual program name and real
+    // content. The program title comes from the enrollment itself, so this holds
+    // whether the student has one enrollment or several (the enrolled-programs
+    // card heading only renders when the count is not exactly one).
     await expect(page.getByText(setup.program.title).first()).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByText(/برامجي المسجل بها/)).toHaveCount(0)
     await expect(page.getByText(/ملفك الأكاديمي/).first()).toBeVisible()
     await page.getByRole('button', { name: /المحتوى والواجبات/ }).click()
     await expect(page.getByRole('tab', { name: /أدلة الدراسة/ })).toBeVisible()
-    await page.getByRole('button', { name: /جدول الدراسة/ }).click()
+    await page.getByRole('button', { name: 'جدول الدراسة', exact: true }).click()
     await expect(page.getByText(/جدول الدراسة للفصول والمواد المطلوبة/)).toBeVisible()
     checks.push({ name: 'بوابة الطالب تبدأ ببرامجي وتستخدم أقسام داخلية بدل تحميل كل البطاقات دفعة واحدة', ok: true })
 
-    await page.getByRole('tab', { name: /الدفعات/ }).click()
+    // Main Radix tabs are intentionally hidden; navigate via the always-visible
+    // student navigation entry for payments (shown unconditionally in the nav).
+    await page.getByRole('button', { name: 'المدفوعات والرسوم', exact: true }).click()
     await expect(page.getByText(/قواعد فتح الاختبارات حسب السداد/)).toBeVisible()
-    await expect(page.getByText(/يفتح امتحان الفصل الأول بعد سداد نصف الرسوم/)).toBeVisible()
+    // The payments tab explains BOTH tuition gates in the product's current
+    // wording: coverage counts payment OR waiver, so the rule says "استيفاء"
+    // (fulfilment), never the older payment-only phrasing.
+    await expect(page.getByText(/يفتح امتحان الفصل الأول بعد استيفاء نصف الرسوم الدراسية على الأقل دفعاً أو إعفاءً/)).toBeVisible()
+    await expect(page.getByText(/يفتح امتحان الفصل الثاني بعد استيفاء كامل الرسوم/)).toBeVisible()
     await expect(page.getByText(/فاتورة غير مسددة|فواتير غير مسددة/)).toHaveCount(0)
     checks.push({ name: 'تبويب الدفعات يشرح بوابات الرسوم ولا يعرض فواتير متقادمة', ok: true })
 

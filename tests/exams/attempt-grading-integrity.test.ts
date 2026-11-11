@@ -212,6 +212,7 @@ describe('منع تكرار الإجابات وعدم احتساب الأسئل�
 let auditAnswers: Array<Record<string, any>> = []
 let auditQuestions: Array<Record<string, any>> = []
 let auditFinalGrade: Record<string, any> | null = null
+let auditAttemptStatus: 'NEEDS_REVIEW' | 'GRADED' = 'NEEDS_REVIEW'
 const auditExam = (type: 'UNIT' | 'PROGRAM', include?: any) => ({
   id: type + '-exam',
   title: 'اختبار تجريبي',
@@ -231,15 +232,15 @@ const auditDb: any = {
   examAttempt: {
     findUnique: async ({ include }: any) => ({
       id: 'UNIT-attempt', userId: 'student-1', examId: 'UNIT-exam',
-      status: 'NEEDS_REVIEW', exam: auditExam('UNIT', include), answers: auditAnswers,
+      status: auditAttemptStatus, score: 40, reviewedAt: null, exam: auditExam('UNIT', include), answers: auditAnswers,
     }),
-    updateMany: async () => ({ count: 1 }),
+    updateMany: async ({ data }: any) => { if (data?.score != null) auditFinalGrade = data; return { count: 1 } },
     update: async ({ data }: any) => { auditFinalGrade = data; return data },
   },
   programExamAttempt: {
     findUnique: async ({ include }: any) => ({
       id: 'PROGRAM-attempt', userId: 'student-1', examId: 'PROGRAM-exam',
-      status: 'NEEDS_REVIEW', exam: auditExam('PROGRAM', include), answers: auditAnswers,
+      status: auditAttemptStatus, score: 40, reviewedAt: null, exam: auditExam('PROGRAM', include), answers: auditAnswers,
     }),
     updateMany: async ({ data }: any) => { auditFinalGrade = data; return { count: 1 } },
     update: async ({ data }: any) => { auditFinalGrade = data; return data },
@@ -400,4 +401,57 @@ test('إعادة تصحيح البرنامج تتجاهل سجل سؤال REJECT
   expect(auditAnswers.find((a) => a.id === 'a2')?.points).toBeNull()
   expect((auditFinalGrade as Record<string, any> | null)?.status).toBe('GRADED')
 })
+
+// Actual admin PATCH contract for correcting a graded essay in both unit and
+// semester exams. We assert answer persistence AND the recalculated attempt.
+function gradedCorrectionRequest(type: 'UNIT' | 'PROGRAM', points: unknown, oldPoints: number | null = 4, expectedScore = 40) {
+  return reviewRoute.PATCH(new NextRequest('https://academy.test/api/admin/attempts-review', {
+    method: 'PATCH', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      action: 'ADJUST_GRADED', type, attemptId: type + '-attempt',
+      expectedScore, expectedPoints: { a1: oldPoints }, scores: { a1: points },
+    }),
+  }))
+}
+for (const kind of ['UNIT', 'PROGRAM'] as const) {
+  describe('تعديل يدوي محفوظ بعد التصحيح — ' + kind, () => {
+    const setup = () => {
+      auditAttemptStatus = 'GRADED'
+      auditFinalGrade = null
+      auditQuestions = [{ id: 'q1', type: 'ESSAY', status: 'PUBLISHED', points: 10 }]
+      auditAnswers = [{ id: 'a1', questionId: 'q1', points: 4, maxPoints: 10, question: { type: 'ESSAY', points: 10 } }]
+    }
+    test('يحفظ تعديل السؤال المقالي ثم يحدّث علامة المحاولة', async () => {
+      setup()
+      const response = await gradedCorrectionRequest(kind, 8)
+      expect(response.status).toBe(200)
+      expect((await response.json()).score).toBe(80)
+      expect(auditAnswers[0].points).toBe(8)
+      expect(auditFinalGrade?.score).toBe(80)
+      expect(auditFinalGrade?.status).toBe('GRADED')
+      expect(kind === 'UNIT' || auditFinalGrade?.finalScore === 80).toBe(true)
+    })
+    test('يرفض قيمة أكبر من حد السؤال دون حفظها', async () => {
+      setup()
+      const response = await gradedCorrectionRequest(kind, 11)
+      expect(response.status).toBe(400)
+      expect(auditAnswers[0].points).toBe(4)
+      expect(auditFinalGrade).toBeNull()
+    })
+    test('يرفض تعديل نسخة قديمة من الدرجة أو السؤال', async () => {
+      setup()
+      expect((await gradedCorrectionRequest(kind, 8, 3)).status).toBe(409)
+      expect((await gradedCorrectionRequest(kind, 8, 4, 35)).status).toBe(409)
+      expect(auditAnswers[0].points).toBe(4)
+      expect(auditFinalGrade).toBeNull()
+    })
+    test('لا يسمح بمسار تعديل المحاولة المصححة قبل اكتمال التصحيح', async () => {
+      setup()
+      auditAttemptStatus = 'NEEDS_REVIEW'
+      expect((await gradedCorrectionRequest(kind, 8)).status).toBe(409)
+      expect(auditAnswers[0].points).toBe(4)
+      expect(auditFinalGrade).toBeNull()
+    })
+  })
+}
 

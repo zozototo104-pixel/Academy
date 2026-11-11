@@ -10,14 +10,23 @@ import {
   __testStickyCandidateOrderForTests,
   __testStickyScopeForTests,
   __testStrictCandidateModelsForTests,
-  __testTransientModelFailureEscalationForTests,
   textAiComplete,
 } from '../../src/lib/text-ai'
 import { verifyQuestionsWithCrossProvider } from '../../src/lib/question-verifier'
 import { isPausableQuestionBankError } from '../../src/lib/question-bank-job'
+import { encryptSecret } from '../../src/lib/secret-crypto'
 
 const originalFetch = globalThis.fetch
 const originalOpenAiCompatApiKeys = process.env.OPENAI_COMPAT_API_KEYS
+const originalSecretsKey = process.env.AACT_SECRETS_KEY
+
+// APINEX is a strict-encrypted provider: a plaintext key stored in settings
+// is (correctly) discarded when read back, so the fake store must hold the
+// key sealed — exactly as the admin panel stores it in production. The
+// isolated test encryption key is set on module load so encryptSecret and
+// the router's decrypt-on-read use it consistently; afterEach restores env.
+process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 7).toString('base64')
+const sealedApinexTestKey = encryptSecret('test-key-not-a-secret')
 
 function fakeSettingStore(initial: Record<string, string> = {}) {
   const values = new Map<string, string>(Object.entries(initial))
@@ -43,10 +52,119 @@ function fakeSettingStore(initial: Record<string, string> = {}) {
 }
 
 describe('router admin policy B1', () => {
+  test('APINEX subscription-only model 402 keeps the same key available for the next model', async () => {
+    const store = fakeSettingStore({
+      AI_TEXT_PROVIDER: 'APINEX',
+      AI_ROUTER_POLICY_SOURCE: 'admin',
+      AI_ROUTER_POLICY: 'fallback_only',
+      APINEX_API_KEY: sealedApinexTestKey,
+      APINEX_TEXT_MODEL: 'free/glm-5.3-flashx,free/deepseek-v4.1-flash',
+    })
+    __setTextAiSettingStoreForTests(store)
+    const attempted: string[] = []
+    globalThis.fetch = (async (url: any, init: any) => {
+      if (String(url).endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      const model = JSON.parse(String(init?.body || '{}')).model
+      attempted.push(model)
+      if (model === 'free/glm-5.3-flashx') {
+        return new Response(JSON.stringify({ error: { message: 'This model is currently available only with a subscription. Buy a subscription at https://apinex.bond/subscriptions to use it.' } }), { status: 402 })
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'Working model response' } }] }), { status: 200 })
+    }) as any
+    const answer = await textAiComplete({
+      system: 'Answer the user', history: [{ role: 'user', text: 'Hello' }],
+      preferredModels: [{ provider: 'APINEX', model: 'free/glm-5.3-flashx' }],
+      restrictToModels: [
+        { provider: 'APINEX', model: 'free/glm-5.3-flashx' },
+        { provider: 'APINEX', model: 'free/deepseek-v4.1-flash' },
+      ],
+    })
+    expect(answer).toContain('Working model response')
+    expect(attempted).toContain('free/glm-5.3-flashx')
+    expect(attempted).toContain('free/deepseek-v4.1-flash')
+    expect(await store.scan('AI_NO_BALANCE:APINEX:')).toEqual({})
+  })
+
+  test('explicit APINEX account credit exhaustion persists a key-wide block', async () => {
+    const store = fakeSettingStore({
+      AI_TEXT_PROVIDER: 'APINEX', AI_ROUTER_POLICY_SOURCE: 'admin', AI_ROUTER_POLICY: 'fallback_only',
+      APINEX_API_KEY: sealedApinexTestKey, APINEX_TEXT_MODEL: 'free/glm-5.3-flashx',
+    })
+    __setTextAiSettingStoreForTests(store)
+    globalThis.fetch = (async (url: any) => {
+      if (String(url).endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      return new Response(JSON.stringify({ error: { message: 'You have no credits remaining. Add credits to continue using the API.' } }), { status: 402 })
+    }) as any
+    try {
+      await textAiComplete({ system: 'Answer', history: [{ role: 'user', text: 'Hello' }],
+        restrictToModels: [{ provider: 'APINEX', model: 'free/glm-5.3-flashx' }] })
+    } catch { /* No other provider is permitted in this test. */ }
+    const blocks = await store.scan('AI_NO_BALANCE:APINEX:')
+    expect(Object.keys(blocks)).toHaveLength(1)
+    expect(Object.values(blocks)[0]).toContain('no credits remaining')
+  })
+
+  test('APINEX per-minute 429 escalates to a SHORT key cooldown from the provider retry hint, not the 15-minute default', async () => {
+    const store = fakeSettingStore({
+      AI_TEXT_PROVIDER: 'APINEX',
+      AI_ROUTER_POLICY_SOURCE: 'admin',
+      AI_ROUTER_POLICY: 'fallback_only',
+      APINEX_API_KEY: sealedApinexTestKey,
+      // The selected model is a single ID; restrictToModels below controls the candidate set.
+      APINEX_TEXT_MODEL: 'free/glm-5.3-flashx',
+    })
+    __setTextAiSettingStoreForTests(store)
+    const attempted: string[] = []
+    globalThis.fetch = (async (url: any, init: any) => {
+      if (String(url).endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      const model = JSON.parse(String(init?.body || '{}')).model
+      attempted.push(model)
+      if (model === 'free/minimax-m3.1-flash') {
+        return new Response(JSON.stringify({ choices: [{ message: { content: 'Third model response' } }] }), { status: 200 })
+      }
+      // APINEX's account-wide cap from gate #718: 15 requests per minute for
+      // the whole account, with the provider's own short retry hint. The cap
+      // is account-level evidence, so a key cooldown is correct — but its
+      // length must come from the hint (~1 minute), never from the
+      // 15-minute general fallback the pre-fix call sites dropped to.
+      return new Response(
+        JSON.stringify({ error: { message: 'Rate limit exceeded: this account is limited to 15 requests per minute. Please retry in 14 seconds.' } }),
+        { status: 429, headers: { 'retry-after': '14' } },
+      )
+    }) as any
+    const startedAt = Date.now()
+    try {
+      await textAiComplete({
+        system: 'Answer the user', history: [{ role: 'user', text: 'Hello' }],
+        restrictToModels: [
+          { provider: 'APINEX', model: 'free/glm-5.3-flashx' },
+          { provider: 'APINEX', model: 'free/deepseek-v4.1-flash' },
+          { provider: 'APINEX', model: 'free/minimax-m3.1-flash' },
+        ],
+      })
+    } catch { /* The key ban may legitimately block the third model mid-request. */ }
+    expect(attempted).toContain('free/glm-5.3-flashx')
+    expect(attempted).toContain('free/deepseek-v4.1-flash')
+    const rows = await store.scan('AI_COOLDOWN:APINEX:')
+    const keyRow = rows['AI_COOLDOWN:APINEX:1']
+    expect(keyRow).toBeTruthy()
+    const payload = JSON.parse(keyRow)
+    expect(payload.status).toBe(429)
+    const untilMs = Date.parse(payload.until)
+    expect(untilMs).toBeGreaterThan(startedAt)
+    // ~1 minute from the provider's 14-second hint (rounded up), with slack
+    // for execution time — and decisively NOT the 15 minutes recorded in the
+    // QA database during gate #718 (ban written until +15:00 pre-fix).
+    expect(untilMs).toBeLessThan(startedAt + 4 * 60_000)
+    expect(rows['AI_COOLDOWN:APINEX:1:free/glm-5.3-flashx']).toBeTruthy()
+  })
+
   afterEach(() => {
     globalThis.fetch = originalFetch
     if (originalOpenAiCompatApiKeys === undefined) delete process.env.OPENAI_COMPAT_API_KEYS
     else process.env.OPENAI_COMPAT_API_KEYS = originalOpenAiCompatApiKeys
+    if (originalSecretsKey === undefined) delete process.env.AACT_SECRETS_KEY
+    else process.env.AACT_SECRETS_KEY = originalSecretsKey
     __setTextAiSettingStoreForTests(null)
     __resetTextAiStateForTests()
   })
@@ -147,23 +265,33 @@ describe('router admin policy B1', () => {
     expect(__testResolveRouterPolicyForTests('admin', 'cost_saver', 'balanced')).toBe('cost_saver')
   })
 
-  test('503 and timeout cool known models before cooling the key', async () => {
+  test('503 and timeout cool the model only and never escalate to the key', async () => {
     __setTextAiSettingStoreForTests(fakeSettingStore())
     expect(__testHighDemandCooldownDecisionForTests('gpt-5.6-luna', 'upstream unavailable', 503)).toBe('model')
 
     const singleFailure = await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'fake-key', 1, 'gpt-5.6-luna', 'claude-sonnet-5', 'upstream 503', 503)
     expect(singleFailure).toEqual({ keyCooling: false, modelCooling: true, checkModelCooling: false })
 
-    expect(__testTransientModelFailureEscalationForTests('ALBORIHI', 'other-key', [
-      'gpt-5.6-luna',
-      'claude-sonnet-5',
-      'claude-opus-4-6',
-    ])).toEqual([false, false, true])
-
+    // Three distinct models timing out on one key must NOT ban the key:
+    // each failure cools only its own model, and an untouched sibling
+    // model stays available so the router can still fail over to it.
     await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'gpt-5.6-luna', 'claude-sonnet-5', 'timeout', 504)
     await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'claude-sonnet-5', 'gpt-5.6-luna', 'timeout', 504)
-    const thirdFailure = await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'claude-opus-4-6', 'gpt-5.6-luna', 'timeout', 504)
-    expect(thirdFailure.keyCooling).toBe(true)
+    const thirdFailure = await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'claude-opus-4-6', 'gpt-5.6', 'timeout', 504)
+    expect(thirdFailure).toEqual({ keyCooling: false, modelCooling: true, checkModelCooling: false })
+  })
+
+  test('APINEX models keep failing over after three transient failures on one key', async () => {
+    __setTextAiSettingStoreForTests(fakeSettingStore())
+
+    // Mirrors the launch-quality incident: APINEX is first in the manual
+    // order and several of its free models stumble (504, timeout, 503)
+    // inside one short window. None of that is key/account evidence, so
+    // the key must stay usable and the next APINEX model must be tried.
+    await __testApplyTransientModelFailureCooldownForTests('APINEX', 'apinex-key', 1, 'free/glm-5.3-flashx', 'free/kimi-k3', 'provider timeout', 504)
+    await __testApplyTransientModelFailureCooldownForTests('APINEX', 'apinex-key', 1, 'free/deepseek-v4.1-flash', 'free/kimi-k3', 'request timed out', undefined)
+    const thirdFailure = await __testApplyTransientModelFailureCooldownForTests('APINEX', 'apinex-key', 1, 'free/gpt-6-luna', 'free/kimi-k3', 'upstream 503', 503)
+    expect(thirdFailure).toEqual({ keyCooling: false, modelCooling: true, checkModelCooling: false })
   })
 
   test('sticky on success derives separate scopes and stays disabled by default', () => {

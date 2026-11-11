@@ -396,6 +396,7 @@ export function DashboardView() {
   const { toast } = useToast()
   const [enrollments, setEnrollments] = useState<MyEnrollment[]>([])
   const [programs, setPrograms] = useState<any[]>([])
+  const [enrollmentsLoadError, setEnrollmentsLoadError] = useState(false)
   const [active, setActive] = useState<ProgressData | null>(null)
   const [decisionDialog, setDecisionDialog] = useState<{ semester: number; mode: 'ready' | 'raise' } | null>(null)
   const [decisionBusy, setDecisionBusy] = useState(false)
@@ -526,12 +527,18 @@ export function DashboardView() {
   const loadList = useCallback(async () => {
     try {
       // الأولوية لظهور البرامج المسجلة بسرعة؛ لا ننتظر الشات والذاكرة والشارات حتى تظهر قائمة «برامجي».
+      // فشل تحميل التسجيلات لا يُبتلع بصمت: نعرض حالة خطأ مع إعادة محاولة بدل اعتبار الطالب غير مسجل.
+      let enrollmentsFailed = false
       const [p, e] = await Promise.all([
         api<{ programs: any[] }>('/api/programs?summary=1'),
-        api<{ enrollments: MyEnrollment[] }>('/api/my/enrollments').catch(() => ({ enrollments: [] as any[] })),
+        api<{ enrollments: MyEnrollment[] }>('/api/my/enrollments').catch(() => {
+          enrollmentsFailed = true
+          return { enrollments: [] as MyEnrollment[] }
+        }),
       ])
       setPrograms(p.programs)
       setEnrollments(e.enrollments || [])
+      setEnrollmentsLoadError(enrollmentsFailed)
 
       setServiceDeliverablesLoading(true)
       Promise.all([
@@ -1014,6 +1021,15 @@ export function DashboardView() {
 
       <StudentReminderBanner />
 
+      {enrollmentsLoadError && (
+        <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700" role="alert">
+          <p>تعذّر تحميل تسجيلاتك الدراسية. برامجك لم تختفِ — حدثت مشكلة أثناء التحميل.</p>
+          <Button type="button" size="sm" variant="outline" className="mt-2 border-red-300 font-black text-red-700 hover:bg-red-100" onClick={() => { void loadList() }}>
+            إعادة المحاولة
+          </Button>
+        </div>
+      )}
+
       {studentSummary && (
         <details className="mb-6 rounded-[2rem] border border-[#0f2b46]/10 bg-white/90 p-3 shadow-sm">
           <summary className="cursor-pointer rounded-2xl px-2 py-1 text-sm font-black text-[#0f2b46] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]">
@@ -1104,9 +1120,9 @@ export function DashboardView() {
           </div>
         </aside>
 
-        <div className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_320px]">
-            <div className="relative overflow-hidden rounded-[2rem] border border-blue-100 bg-gradient-to-br from-[#0f2b46] via-[#2856d6] to-[#6d5dfc] p-5 text-white shadow-sm sm:p-6">
+        <div className="min-w-0 space-y-4">
+          <div className="min-w-0 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.35fr)_320px]">
+            <div className="relative min-w-0 overflow-hidden rounded-[2rem] border border-blue-100 bg-gradient-to-br from-[#0f2b46] via-[#2856d6] to-[#6d5dfc] p-5 text-white shadow-sm sm:p-6">
               <div className="absolute -right-16 -top-16 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
               <div className="absolute -bottom-20 left-8 h-56 w-56 rounded-full bg-[#c9a227]/20 blur-3xl" />
               <div className="relative grid gap-5 md:grid-cols-[1fr_250px] md:items-center">
@@ -1205,8 +1221,8 @@ export function DashboardView() {
             ))}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-3">
-            <div className="rounded-[1.75rem] border border-[#0f2b46]/10 bg-white p-4 shadow-sm lg:col-span-2">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-3">
+            <div className="min-w-0 rounded-[1.75rem] border border-[#0f2b46]/10 bg-white p-4 shadow-sm lg:col-span-2">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-black text-[#0f2b46]">الوحدات الأقرب لك</h3>
                 <Button type="button" variant="ghost" size="sm" onClick={() => openProgramWorkspace('content')} className="text-xs font-black text-[#2f6df6]">عرض الكل</Button>

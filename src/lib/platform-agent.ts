@@ -1061,7 +1061,16 @@ export async function platformAgentComplete(opts: {
   if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) platformRoutingHints.push('قواعد التصنيف وجدت طلب تواصل/موظف؛ صغ الرد عبر النموذج ولا تستخدم رداً جاهزاً.')
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
-  const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
+  // A student's own academic record belongs to the academic supervisor, even if
+  // the probabilistic intent classifier suggests general admissions.
+  const academicStudentQuestion = user?.role === 'STUDENT' && hasStudentAcademicIntent(normalizeArabic(last))
+  // Explicit thesis-defense intent also outranks the classifier: routeAgent
+  // itself checks defense intent before exams, but that law only applies when
+  // routeAgent is consulted. A defense question that mentions «سؤال» (the
+  // launch-quality DEFENSE probe does, twice) is otherwise classified EXAMS
+  // and the deterministic router never gets a say.
+  const defenseQuestion = hasThesisDefenseIntent(normalizeArabic(last))
+  const agent = academicStudentQuestion || defenseQuestion ? routeAgent(last, user?.role) : (intentAnalysis.suggestedAgent || routeAgent(last, user?.role))
   const persona = personaForAgent(agent)
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const routingContext = platformRoutingHints.length ? ['إشارات تصنيف للنموذج فقط وليست ردوداً جاهزة:', ...platformRoutingHints].join('\n') : ''
@@ -1069,11 +1078,13 @@ export async function platformAgentComplete(opts: {
   const system = buildPlatformAgentSystem(agent, context)
   const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000))
   if (timeoutMs <= 0) throw new Error('Platform agent deadline exceeded')
-  const shouldPreferGemini = user?.role === 'STUDENT'
+  const routerPolicySource = await getSettings().catch(() => ({} as Record<string, string>))
+  const useAdminRouterPolicy = String(routerPolicySource.AI_ROUTER_POLICY_SOURCE || process.env.AI_ROUTER_POLICY_SOURCE || '').trim().toLowerCase() === 'admin'
+  const shouldPreferGemini = !useAdminRouterPolicy && (user?.role === 'STUDENT'
     || agent === 'ACADEMIC_SUPERVISOR'
     || agent === 'EXAMS'
     || agent === 'THESIS_DEFENSE'
-    || String(opts.uiContext || '').includes('Launch Quality Probe')
+    || String(opts.uiContext || '').includes('Launch Quality Probe'))
 
   const runGemini = async () => {
     const geminiReady = await ensureGeminiKey().catch(() => false)
@@ -1092,7 +1103,7 @@ export async function platformAgentComplete(opts: {
         temperature: agent === 'ADMIN_QUALITY' ? 0.25 : 0.4,
         thinkingLevel,
         maxOutputTokens: opts.mode === 'VOICE' ? 1100 : 1800,
-      }), timeoutMs, 'Gemini platform agent timed out')
+      }), Math.min(timeoutMs, Math.max(4_000, Math.floor(timeoutMs / 3))), 'Gemini platform agent timed out')
       logPlatformProviderAttempt({ ok: true, provider: 'GEMINI_DIRECT', model, agent, ms: Date.now() - started })
       return { reply: annotateReply(agent, reply, 'GEMINI'), agent, engine: 'GEMINI' as const }
     } catch (e: any) {
@@ -1110,7 +1121,7 @@ export async function platformAgentComplete(opts: {
     }
   }
 
-  const localCfg = await localAgentConfig().catch(() => null)
+  const localCfg = useAdminRouterPolicy ? null : await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
     try {
       const reply = await withPlatformTimeout(localChatComplete({
@@ -1127,7 +1138,7 @@ export async function platformAgentComplete(opts: {
     }
   }
 
-  if (!shouldPreferGemini) {
+  if (!shouldPreferGemini && !useAdminRouterPolicy) {
     try {
       const geminiReply = await runGemini()
       if (geminiReply) return geminiReply
@@ -1138,8 +1149,8 @@ export async function platformAgentComplete(opts: {
 
   const reply = await chatComplete(opts.messages, context, persona, {
     skipGemini: true,
-    timeoutMs,
-    requireModelResponse: shouldPreferGemini,
+    timeoutMs: remainingDeadlineMs(opts.deadlineMs, timeoutMs),
+    requireModelResponse: shouldPreferGemini || useAdminRouterPolicy,
     includeGeneralCatalog: !(agent === 'ACADEMIC_SUPERVISOR' || agent === 'THESIS_DEFENSE'),
     userId: opts.userId,
     taskType: opts.mode === 'VOICE' ? 'CHAT_VOICE' : 'CHAT',
@@ -1199,7 +1210,10 @@ export async function platformAgentStream(opts: {
     return { reply, agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
   }
 
-  const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
+  // Same precedence as platformAgentComplete: explicit thesis-defense intent
+  // is decided by the deterministic router, not the probabilistic classifier.
+  const defenseQuestion = hasThesisDefenseIntent(normalizeArabic(last))
+  const agent = defenseQuestion ? routeAgent(last, user?.role) : (intentAnalysis.suggestedAgent || routeAgent(last, user?.role))
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const routingContext = platformRoutingHints.length ? ['إشارات تصنيف للنموذج فقط وليست ردوداً جاهزة:', ...platformRoutingHints].join('\n') : ''
   const context = mergeContext(mergeContext(mergeContext(dataContext, routingContext), conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
@@ -1207,11 +1221,13 @@ export async function platformAgentStream(opts: {
   const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000))
   if (timeoutMs <= 0) throw new Error('Platform agent stream deadline exceeded')
   const providerDeadlineMs = Date.now() + timeoutMs
-  const shouldPreferGemini = user?.role === 'STUDENT'
+  const routerPolicySource = await getSettings().catch(() => ({} as Record<string, string>))
+  const useAdminRouterPolicy = String(routerPolicySource.AI_ROUTER_POLICY_SOURCE || process.env.AI_ROUTER_POLICY_SOURCE || '').trim().toLowerCase() === 'admin'
+  const shouldPreferGemini = !useAdminRouterPolicy && (user?.role === 'STUDENT'
     || agent === 'ACADEMIC_SUPERVISOR'
     || agent === 'EXAMS'
     || agent === 'THESIS_DEFENSE'
-    || String(opts.uiContext || '').includes('Launch Quality Probe')
+    || String(opts.uiContext || '').includes('Launch Quality Probe'))
 
   const runGeminiStream = async () => {
     const geminiReady = await ensureGeminiKey().catch(() => false)

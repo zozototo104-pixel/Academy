@@ -25,6 +25,12 @@ const knowledge = [
   { id: 'k2', programId: 'prog1', kbVersion: 2, chunkId: 'c1', category: 'CONCEPT', title: 'مفهوم الفصل الثاني', summary: 'ملخص المفهوم الثاني', excerpt: 'مقتطف المفهوم الثاني', importance: 5, pageStart: 3, pageEnd: 4 },
 ]
 const createdAssignments: any[] = []
+let gradeWrites = 0
+const gradedSubmission: any = {
+  id: 'submission-grade-test', userId: 'student-1', status: 'GRADED', score: 4,
+  feedback: 'Previous feedback', assignment: { id: 'assignment-grade-test', title: 'واجب تجريبي', points: 10, programId: 'prog1' },
+  user: { id: 'student-1', name: 'طالب', email: 'student@example.com' },
+}
 
 function matchesWhere(row: any, where: any): boolean {
   for (const [key, cond] of Object.entries(where || {})) {
@@ -40,6 +46,14 @@ function matchesWhere(row: any, where: any): boolean {
 }
 
 const fakeDb = {
+  assignmentSubmission: {
+    findUnique: async ({ where }: any) => where.id === gradedSubmission.id ? gradedSubmission : null,
+    update: async ({ data }: any) => {
+      gradeWrites += 1
+      Object.assign(gradedSubmission, data)
+      return gradedSubmission
+    },
+  },
   program: {
     findUnique: async ({ where }: any) => (where.id === program.id ? program : null),
   },
@@ -98,6 +112,8 @@ mock.module('@/lib/mailer', () => ({
   emailAssignmentPublished: async () => {},
 }))
 mock.module('@/lib/storage', () => ({ getStorageDownloadPathForKey: (k: string) => k }))
+mock.module('@/lib/enrollment-completion', () => ({ registerGraduationRequest: async () => null }))
+mock.module('@/lib/semester-raise-hooks', () => ({ matureSemesterRaisesAfterGrading: async () => null }))
 mock.module('@prisma/client', () => ({ Prisma: {} }))
 mock.module('@/lib/knowledge-bank', () => ({
   cleanAcademicGeneratedText: (s: unknown) => String(s || '').trim(),
@@ -113,12 +129,14 @@ mock.module('@/lib/academic-output-quality', () => ({
 let suggestGET: any
 let suggestPOST: any
 let savePOST: any
+let savePATCH: any
 beforeAll(async () => {
   const suggest = await import('../../src/app/api/admin/assignments/suggest/route')
   const save = await import('../../src/app/api/admin/assignments/route')
   suggestGET = suggest.GET
   suggestPOST = suggest.POST
   savePOST = save.POST
+  savePATCH = save.PATCH
 })
 
 function postReq(url: string, body: unknown) {
@@ -195,5 +213,43 @@ describe('assignment suggestions: semester scope and pinning (behavioral)', () =
     const mine = createdAssignments.filter((a) => a.title === base.title)
     expect(mine).toHaveLength(2)
     expect(mine.map((a) => a.unitId).sort()).toEqual(['u1', 'u2'])
+  })
+})
+
+function gradePatch(payload: Record<string, unknown>) {
+  return savePATCH(new NextRequest('http://t/api/admin/assignments', {
+    method: 'PATCH', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ submissionId: gradedSubmission.id, ...payload }),
+  }))
+}
+
+describe('assignment manual grade persistence (actual PATCH route)', () => {
+  test('updates an already graded submission and confirms the value read back', async () => {
+    gradedSubmission.score = 4
+    gradeWrites = 0
+    const response = await gradePatch({ status: 'GRADED', score: 8, feedback: 'Updated by admin' })
+    expect(response.status).toBe(200)
+    expect((await response.json()).submission.score).toBe(8)
+    expect(gradedSubmission.score).toBe(8)
+    expect(gradedSubmission.status).toBe('GRADED')
+    expect(gradeWrites).toBe(1)
+  })
+  test('accepts a deliberate zero, but never treats an empty grade as zero', async () => {
+    gradedSubmission.score = 4
+    gradeWrites = 0
+    const zero = await gradePatch({ status: 'GRADED', score: '0', feedback: 'Explicit zero' })
+    expect(zero.status).toBe(200)
+    expect(gradedSubmission.score).toBe(0)
+    expect((await gradePatch({ status: 'GRADED', score: '' })).status).toBe(400)
+    expect(gradedSubmission.score).toBe(0)
+    expect(gradeWrites).toBe(1)
+  })
+  test('rejects an out-of-range grade rather than silently clamping it', async () => {
+    gradedSubmission.score = 4
+    gradeWrites = 0
+    const response = await gradePatch({ status: 'GRADED', score: 11 })
+    expect(response.status).toBe(400)
+    expect(gradedSubmission.score).toBe(4)
+    expect(gradeWrites).toBe(0)
   })
 })

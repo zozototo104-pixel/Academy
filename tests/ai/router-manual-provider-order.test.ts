@@ -126,6 +126,13 @@ describe('manual provider fallback order', () => {
     expect(__testB2ProviderOrderForTests({ ...base, manualOrderEnabled: false })[0]).toBe('ALBORIHI')
   })
 
+  test('admin manual order can put Gemini first or reserve it after APINEX', () => {
+    const geminiFirst = __testB2ProviderOrderForTests({ manualOrder: 'GEMINI,APINEX', policy: 'primary_first' })
+    expect(geminiFirst.slice(0, 2)).toEqual(['GEMINI', 'APINEX'])
+    const apinexFirst = __testB2ProviderOrderForTests({ manualOrder: 'APINEX,GEMINI', policy: 'primary_first' })
+    expect(apinexFirst.slice(0, 2)).toEqual(['APINEX', 'GEMINI'])
+  })
+
   test('no saved manual order keeps the legacy coded behavior bit-for-bit', () => {
     expect(__testB2ProviderOrderForTests({ policy: 'primary_first' })).toEqual(__testPrimaryProviderOrder())
     expect(__testB2ProviderOrderForTests({ policy: 'primary_first', manualOrder: '' })).toEqual(__testPrimaryProviderOrder())

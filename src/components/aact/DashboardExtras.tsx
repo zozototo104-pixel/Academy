@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CertificateDialog, CertificateData } from '@/components/aact/CertificateDialog'
 import { StudentThesisTab } from '@/components/aact/StudentThesisTab'
+import { ScholarshipCampaignsCard } from '@/components/aact/ScholarshipCampaigns'
 import {
   Award,
   Banknote,
@@ -523,6 +524,7 @@ export function PaymentsTab() {
 
   return (
     <div className='space-y-4'>
+      <ScholarshipCampaignsCard />
       <div className='grid grid-cols-2 gap-3 sm:grid-cols-3'>
         <Card className='border-[#0f2b46]/10'><CardContent className='flex items-center gap-3 p-4'><span className='rounded-xl bg-amber-100 p-2.5 text-amber-600'><Clock3 className='h-5 w-5' /></span><div><p className='text-lg font-black text-[#0f2b46]'><Money value={totalDue} /></p><p className='text-[10px] font-bold text-slate-500'>مستحق السداد</p></div></CardContent></Card>
         <Card className='border-[#0f2b46]/10'><CardContent className='flex items-center gap-3 p-4'><span className='rounded-xl bg-emerald-100 p-2.5 text-emerald-600'><Wallet className='h-5 w-5' /></span><div><p className='text-lg font-black text-[#0f2b46]'><Money value={totalPaid} /></p><p className='text-[10px] font-bold text-slate-500'>إجمالي المسدد</p></div></CardContent></Card>

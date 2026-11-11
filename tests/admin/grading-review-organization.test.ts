@@ -28,6 +28,18 @@ describe('التجميع حسب الطالب وحالات المصادقة', () 
     expect(tab).toContain('byStudent')
     expect(tab).toContain('toggleStudent')
   })
+  test('تعديل علامة سؤال مصحح يتطلب حفظًا صريحًا قبل المصادقة الرسمية', () => {
+    expect(tab).toContain('pendingScoreEdits.length > 0 && <Button onClick={saveGradedCorrections}')
+    expect(tab).toContain("action: 'ADJUST_GRADED'")
+    expect(tab).toContain('expectedScore: selected.score')
+    expect(tab).toContain('expectedPoints')
+    expect(tab).toContain("if (pendingScoreEdits.length) {")
+    expect(tab).toContain('هناك درجات معدّلة لم تُحفظ')
+    expect(listRoute).toContain("body?.action === 'ADJUST_GRADED'")
+    expect(listRoute).toContain('requireGraded: true, strictPoints: true')
+    expect(approvalLib).toContain('existing.score === resolved.score')
+    expect(listRoute).toContain("? 'APPROVED' : 'STALE'")
+  })
   test('حالات المصادقة الثلاث ظاهرة على كل درجة', () => {
     expect(tab).toContain('مصادقة رسميًا')
     expect(tab).toContain('مصادقة قديمة — الدرجة تغيّرت')
@@ -38,6 +50,29 @@ describe('التجميع حسب الطالب وحالات المصادقة', () 
   test('حالة المصادقة تأتي من الخادم بنفس قاعدة المساواة', () => {
     expect(listRoute).toContain('db.gradeApproval.findMany')
     expect(listRoute).toContain('approvedScore.get(key) === r.score')
+  })
+})
+
+describe('حفظ علامات الأسئلة قبل المصادقة الرسمية', () => {
+  test('زر الحفظ موصول بتعديل الأسئلة ويحفظ المتغير فقط مع حماية الدرجة القديمة', () => {
+    expect(tab).toContain('onClick={saveGradedCorrections}')
+    expect(tab).toContain('pendingScoreEdits.length > 0 && <Button onClick={saveGradedCorrections}')
+    expect(tab).toContain("action: 'ADJUST_GRADED'")
+    expect(tab).toContain('expectedPoints')
+    expect(tab).toContain('expectedScore: selected.score')
+  })
+
+  test('المصادقة الرسمية تمنع التعديلات غير المحفوظة قبل طلب الحفظ الرسمي', () => {
+    const officialFlow = tab.slice(tab.indexOf('const approveOfficial = async'), tab.indexOf('const runBulk = async'))
+    expect(officialFlow).toContain('if (pendingScoreEdits.length)')
+    expect(officialFlow).toContain('احفظ التعديل أولًا')
+    expect(officialFlow.indexOf('if (pendingScoreEdits.length)')).toBeLessThan(officialFlow.indexOf('/api/admin/grade-approvals'))
+  })
+
+  test('حفظ نقاط المحاولة المصححة يمر بحارس الخادم ولا يتجاوز المصادقة', () => {
+    expect(listRoute).toContain("body?.action === 'ADJUST_GRADED'")
+    expect(listRoute).toContain('strictPoints: true')
+    expect(listRoute).toContain('requireGraded: true')
   })
 })
 

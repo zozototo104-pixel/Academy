@@ -8,6 +8,7 @@ import { EXTRA_ADMISSION_DOCS, REQUIRED_ADMISSION_DOCS, SERVICE_REQUEST_DOCS, re
 import { SUPPORTED_COUNTRIES, normalizePhone, validateApplicantFullName, validateBirthDateForMinAge, validateNationalIdOrPassport, validatePhone } from '@/lib/admission-validation'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
+import { ScholarshipProgramNotice } from '@/components/aact/ScholarshipCampaigns'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -1037,6 +1038,8 @@ export function ApplyView() {
                           </Select>
                         </div>
                       </div>
+
+                      {selectedProgramId && <ScholarshipProgramNotice programId={selectedProgramId} />}
 
                       {selectedFlow ? (
                         <div className="rounded-xl border border-[#c9a227]/30 bg-[#f7edd0]/40 p-3 text-xs font-bold leading-relaxed text-[#0f2b46]">

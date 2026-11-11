@@ -17,8 +17,12 @@ async function loginAsAdmin(request: any) {
   const response = await request.post('/api/auth/login', { data: { email, password } })
   const body = await response.json().catch(() => ({}))
   expect(response.ok(), `Admin login failed: ${response.status()} ${JSON.stringify(body).slice(0, 700)}`).toBeTruthy()
-  expect(body?.token, 'Admin login response must include token').toBeTruthy()
-  return String(body.token)
+  // Cookie-based login: the raw session token arrives only as the
+  // httpOnly aact_session cookie; it doubles as the bearer token.
+  const sessionCookie = response.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value).join('; ')
+  const sessionToken = decodeURIComponent(sessionCookie.match(/aact_session=([^;]+)/)?.[1] || '')
+  expect(sessionToken, 'Login must set the aact_session session cookie').toBeTruthy()
+  return sessionToken
 }
 
 function stamp() {
@@ -98,7 +102,10 @@ test.describe('Manual payment approval guardrails', () => {
     const directNoNotePrefix = stamp()
     prefixes.push(directNoNotePrefix)
     const directNoNote = await createPayment(directNoNotePrefix, 'DIRECT_PAYMENT')
-    await addProof(directNoNote.id, 'PENDING', 'pending')
+    // The proof is ACCEPTED on purpose: a PENDING proof trips the route's
+    // earlier 409 guard (settle via the proof buttons) before the
+    // missing-note 400 guard this scenario targets can be reached.
+    await addProof(directNoNote.id, 'ACCEPTED', 'accepted')
 
     const directNoNoteRes = await request.patch('/api/admin/payments', {
       headers,
@@ -124,7 +131,9 @@ test.describe('Manual payment approval guardrails', () => {
     const happyPrefix = stamp()
     prefixes.push(happyPrefix)
     const happyPayment = await createPayment(happyPrefix, 'DIRECT_PAYMENT')
-    await addProof(happyPayment.id, 'PENDING', 'pending')
+    // ACCEPTED (reviewable) proof: a PENDING proof is blocked by the 409
+    // pending-proof guard by design and can never reach approval here.
+    await addProof(happyPayment.id, 'ACCEPTED', 'accepted')
 
     const happyRes = await request.patch('/api/admin/payments', {
       headers,

@@ -16,6 +16,20 @@ import {
   type GeminiLivePurpose,
 } from '@/lib/gemini'
 import { appVersion, serviceConfigurationStatus } from '@/lib/monitoring'
+import { ensureLaunchQualityStudyGuide } from '@/lib/launch-quality-study-guide'
+import {
+  LAUNCH_QUALITY_EMAIL,
+  LAUNCH_QUALITY_PROGRAM_SLUG,
+  LAUNCH_QUALITY_REFERENCE,
+  LAUNCH_QUALITY_MIN_PROBE_WINDOW_MS,
+  LAUNCH_QUALITY_REQUEST_BUDGET_MS,
+  diagnosticStudentIsComplete,
+  isLaunchQualityDeadlineError,
+  launchQualityDeadlineError,
+  probeStageWindow,
+  remainingLaunchQualityBudget,
+} from '@/lib/launch-quality-diagnostic'
+import { evaluateProbeReply, normalizeArabic } from '@/lib/launch-quality-scoring'
 import { textAiDiagnostics } from '@/lib/text-ai'
 import { redactDeep } from '@/lib/secret-crypto'
 import { qaProdFixturesAllowed } from '@/lib/prod-safety'
@@ -26,7 +40,7 @@ const NextResponse = {
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 75
 
 type ProbeKind = 'PROFILE' | 'CURRICULUM' | 'THESIS' | 'DEFENSE'
 const ALL_PROBE_KINDS: ProbeKind[] = ['PROFILE', 'CURRICULUM', 'THESIS', 'DEFENSE']
@@ -37,78 +51,33 @@ function selectedProbeKinds(body: any): ProbeKind[] {
   return selected.length ? selected : ALL_PROBE_KINDS
 }
 
-function normalizeArabic(text: string) {
-  return String(text || '')
-    .toLowerCase()
-    .replace(/[إأآا]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/ؤ/g, 'و')
-    .replace(/ئ/g, 'ي')
-    .replace(/[ـًٌٍَُِّْ]/g, '')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function compact(value: unknown, max = 240) {
-  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
-}
-
-function keywordHits(reply: string, expected: string[]) {
-  const n = normalizeArabic(reply)
-  const filtered = expected.map((x) => compact(x, 80)).filter((x) => x.length >= 3)
-  const hits = filtered.filter((x) => n.includes(normalizeArabic(x)))
-  return {
-    expected: filtered,
-    hits,
-    missed: filtered.filter((x) => !hits.includes(x)),
-    score: filtered.length ? Math.round((hits.length / filtered.length) * 100) : 100,
-  }
-}
-
-function isGenericFallbackReply(reply: string) {
-  const n = normalizeArabic(reply)
-  return [
-    'وضح لي هل سوالك عن برنامج',
-    'ساعطيك جوابا مباشرا',
-    'هل سوالك عن برنامج معين الرسوم الشهاده الاعتماد او خطوات التسجيل',
-  ].some((phrase) => n.includes(normalizeArabic(phrase)))
-}
-
 function expectedAgentForProbe(kind: ProbeKind) {
   if (kind === 'PROFILE' || kind === 'CURRICULUM') return 'ACADEMIC_SUPERVISOR'
   if (kind === 'THESIS' || kind === 'DEFENSE') return 'THESIS_DEFENSE'
   return null
 }
 
-function hasGroundingForProbe(kind: ProbeKind, reply: string, student: Awaited<ReturnType<typeof findDiagnosticStudent>>) {
-  if (!student) return false
-  const n = normalizeArabic(reply)
-  const enrollment = student.enrollments[0]
-  const program = enrollment?.program
-  const thesis = student.theses[0]
-  const admission = student.ownedAdmissions[0]
-  const programTitle = program?.titleAr ? normalizeArabic(program.titleAr) : ''
-  const firstBook = program?.books?.[0]?.title ? normalizeArabic(program.books[0].title) : ''
-  const firstUnit = program?.units?.[0]?.title ? normalizeArabic(program.units[0].title) : ''
-  const thesisTitle = thesis?.title ? normalizeArabic(thesis.title) : ''
-  const reference = admission?.reference ? normalizeArabic(admission.reference) : ''
-
-  if (kind === 'PROFILE') return [normalizeArabic(student.name || ''), programTitle, reference].filter(Boolean).some((x) => n.includes(x))
-  if (kind === 'CURRICULUM') return [programTitle, firstBook, firstUnit].filter(Boolean).some((x) => n.includes(x))
-  if (kind === 'THESIS') return !!thesisTitle && (n.includes(thesisTitle) || (n.includes('منهجيه') && n.includes('نتائج')))
-  if (kind === 'DEFENSE') return !!thesisTitle && (
-    n.includes(thesisTitle)
-    || n.includes('موشرات المخاطر')
-    || n.includes('الحوكمه الموسسيه')
-    || n.includes('الحوكمه المؤسسيه')
-  )
-  return false
-}
-
 function elapsed(start: number) {
   return Math.round(performance.now() - start)
+}
+
+const PROVIDER_DIAGNOSTICS_TTL_MS = 60_000
+let providerDiagnosticsCache: { expiresAt: number; value: Awaited<ReturnType<typeof textAiDiagnostics>> } | null = null
+let providerDiagnosticsInFlight: Promise<Awaited<ReturnType<typeof textAiDiagnostics>>> | null = null
+
+async function cachedProviderDiagnostics() {
+  if (providerDiagnosticsCache && Date.now() < providerDiagnosticsCache.expiresAt) return providerDiagnosticsCache.value
+  if (providerDiagnosticsInFlight) return providerDiagnosticsInFlight
+  const pending = textAiDiagnostics().then((value) => {
+    providerDiagnosticsCache = { expiresAt: Date.now() + PROVIDER_DIAGNOSTICS_TTL_MS, value }
+    return value
+  })
+  providerDiagnosticsInFlight = pending
+  try { return await pending } finally { if (providerDiagnosticsInFlight === pending) providerDiagnosticsInFlight = null }
+}
+
+function logLaunchQualityStage(stage: string, start: number, ok: boolean) {
+  console.info(`[launch-quality] stage=${stage} durationMs=${elapsed(start)} ok=${ok}`)
 }
 
 const diagnosticStudentInclude = {
@@ -153,10 +122,6 @@ function chooseBestDiagnosticStudent<T>(students: T[]): T | null {
     .slice()
     .sort((a: any, b: any) => diagnosticStudentScore(b) - diagnosticStudentScore(a) || new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0]
 }
-
-const LAUNCH_QUALITY_EMAIL = 'launch.quality.student@aact.test'
-const LAUNCH_QUALITY_PROGRAM_SLUG = 'launch-quality-diagnostic-program'
-const LAUNCH_QUALITY_REFERENCE = 'AACT-LAUNCH-QUALITY'
 
 async function ensureLaunchQualityDiagnosticStudent() {
   const password = hashPassword(`launch-quality-${process.env.NEXTAUTH_SECRET || 'local'}`)
@@ -254,31 +219,9 @@ async function ensureLaunchQualityDiagnosticStudent() {
     },
   }))
 
-  await (db.programStudyGuide as any).upsert({
-    where: { programId_semester: { programId: program.id, semester: 1 } },
-    update: {
-      title: 'دليل دراسة الفصل الأول: الحوكمة والمخاطر',
-      overview: 'يركز هذا الدليل على قراءة الكتاب المقرر، فهم سجل المخاطر، وتطبيق الضوابط على حالة عملية.',
-      objectives: JSON.stringify(['تلخيص مفاهيم الحوكمة', 'تحليل سجل مخاطر', 'اقتراح ضوابط قابلة للقياس']),
-      keyTerms: JSON.stringify(['الحوكمة', 'سجل المخاطر', 'الخطر المتبقي', 'مؤشرات المخاطر']),
-      sections: JSON.stringify(['مفاهيم أساسية', 'تطبيقات عملية', 'أسئلة مراجعة']),
-      discussionQuestions: JSON.stringify(['لماذا لا يكفي وجود ضابط دون مؤشر قياس؟', 'كيف تشرح الفرق بين الخطر المتأصل والمتبقي؟']),
-      status: 'PUBLISHED',
-    },
-    create: {
-      programId: program.id,
-      semester: 1,
-      title: 'دليل دراسة الفصل الأول: الحوكمة والمخاطر',
-      overview: 'يركز هذا الدليل على قراءة الكتاب المقرر، فهم سجل المخاطر، وتطبيق الضوابط على حالة عملية.',
-      objectives: JSON.stringify(['تلخيص مفاهيم الحوكمة', 'تحليل سجل مخاطر', 'اقتراح ضوابط قابلة للقياس']),
-      keyTerms: JSON.stringify(['الحوكمة', 'سجل المخاطر', 'الخطر المتبقي', 'مؤشرات المخاطر']),
-      sections: JSON.stringify(['مفاهيم أساسية', 'تطبيقات عملية', 'أسئلة مراجعة']),
-      activities: JSON.stringify(['ارسم سجل مخاطر مختصر', 'اكتب توصية رقابية قابلة للتنفيذ']),
-      discussionQuestions: JSON.stringify(['لماذا لا يكفي وجود ضابط دون مؤشر قياس؟', 'كيف تشرح الفرق بين الخطر المتأصل والمتبقي؟']),
-      status: 'PUBLISHED',
-      generatedBy: 'ADMIN',
-    },
-  })
+  // بحث-أو-إنشاء آمن عند التزامن وإعادة التشغيل (لا upsert بمفتاح مركّب:
+  // النموذج بلا قيد فريد على (programId, semester) — فهرس فقط).
+  await ensureLaunchQualityStudyGuide(program.id)
 
   const unitExam = await (db.exam as any).upsert({
     where: { unitId: unit1.id },
@@ -506,6 +449,12 @@ async function findDiagnosticStudent(studentId?: string) {
     return chooseBestDiagnosticStudent(explicit)
   }
 
+  const existing = await db.user.findFirst({
+    where: { email: LAUNCH_QUALITY_EMAIL, role: 'STUDENT' },
+    include: diagnosticStudentInclude,
+  })
+  if (diagnosticStudentIsComplete(existing)) return existing
+
   const stableStudent = await ensureLaunchQualityDiagnosticStudent()
   if (!stableStudent?.id) return null
   return db.user.findFirst({
@@ -593,27 +542,77 @@ function timeoutAfter<T>(promise: Promise<T>, ms: number, message: string): Prom
   })
 }
 
-async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof findDiagnosticStudent>>, context: string) {
+// مجس فاشل صراحة عند استنفاد الميزانية قبل تشغيله: نفس شكل نتيجة خطأ
+// runAiProbe، بـpassed=false وskipped=false وخطأ يسمّي المرحلة المستنفدة.
+function deadlineFailedProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof findDiagnosticStudent>>, error: string) {
+  const expected = student ? expectedForProbe(kind, student) : []
+  const contextSufficient = kind === 'THESIS' || kind === 'DEFENSE' ? !!student?.theses?.[0]?.title : true
+  return {
+    kind,
+    question: student ? questionForProbe(kind, student) : '',
+    agent: 'ERROR',
+    expectedAgent: expectedAgentForProbe(kind),
+    engine: 'AI_PROVIDER_ROUTER_ERROR',
+    ms: 0,
+    replyChars: 0,
+    replySample: '',
+    expected,
+    keywordScore: 0,
+    hits: [],
+    missed: expected,
+    contextSufficient,
+    note: contextSufficient ? null : 'INSUFFICIENT_THESIS_CONTEXT',
+    passed: false,
+    skipped: false,
+    error,
+  }
+}
+
+async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof findDiagnosticStudent>>, context: string, requestDeadline: number) {
   const started = performance.now()
   if (!student) return { kind, skipped: true, reason: 'لا يوجد طالب مناسب للفحص' }
   const question = questionForProbe(kind, student)
   const expected = expectedForProbe(kind, student)
 
   try {
+    // نافذة مستقلة لهذا المجس: محسوبة من انقضاء طلبه هو وسقفه الخاص، وتفشل
+    // فوراً دون بدء مشية مزوّدات إذا صارت أصغر من الحد الأدنى الجدير بالبدء.
+    const window = probeStageWindow({
+      elapsedMs: Math.max(0, Math.round(performance.now() - (requestDeadline - LAUNCH_QUALITY_REQUEST_BUDGET_MS))),
+      requestBudgetMs: LAUNCH_QUALITY_REQUEST_BUDGET_MS,
+      probeCapMs: launchQualityAiTimeoutMs(),
+      minWindowMs: LAUNCH_QUALITY_MIN_PROBE_WINDOW_MS,
+    })
+    if (window.starved) throw new Error(launchQualityDeadlineError(`PROBE_${kind}`))
+    const deadlineMs = Date.now() + window.windowMs
     const result = await timeoutAfter(platformAgentComplete({
       userId: student.id,
       mode: kind === 'DEFENSE' ? 'VOICE' : 'TEXT',
       uiContext: `Launch Quality Probe: افحص معرفة الوكيل بسياق الطالب. لا تخترع بيانات غير موجودة.\n\n${context.slice(0, 12000)}`,
       messages: [{ role: 'user', content: question }],
-    }), launchQualityAiTimeoutMs(), `LAUNCH_QUALITY_AI_PROBE_TIMEOUT_${kind}`)
+      deadlineMs,
+    }), window.windowMs, launchQualityDeadlineError(`PROBE_${kind}`))
 
-    const hits = keywordHits(result.reply, expected)
     const minScore = kind === 'THESIS' && !student.theses[0] ? 0 : expected.length ? 40 : 0
     const expectedAgent = expectedAgentForProbe(kind)
     const agentMatches = expectedAgent ? result.agent === expectedAgent : true
-    const genericFallback = isGenericFallbackReply(result.reply)
-    const grounded = hasGroundingForProbe(kind, result.reply, student)
-    const passed = !genericFallback && agentMatches && grounded && hits.score >= minScore && result.reply.length >= 80
+    const enrollment = student.enrollments[0]
+    const program = enrollment?.program
+    const evaluation = evaluateProbeReply({
+      kind,
+      reply: result.reply,
+      agentMatches,
+      expected,
+      minScore,
+      context: {
+        studentName: student.name,
+        programTitle: program?.titleAr,
+        firstBook: program?.books?.[0]?.title,
+        firstUnit: program?.units?.[0]?.title,
+        thesisTitle: student.theses[0]?.title,
+        reference: student.ownedAdmissions[0]?.reference,
+      },
+    })
     return {
       kind,
       question,
@@ -625,19 +624,23 @@ async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
       replyChars: result.reply.length,
       replySample: result.reply.slice(0, 900),
       expected,
-      keywordScore: genericFallback ? 0 : hits.score,
-      hits: genericFallback ? [] : hits.hits,
-      missed: genericFallback ? expected : hits.missed,
-      genericFallback,
-      grounded,
-      passed,
+      keywordScore: evaluation.keywordScore,
+      hits: evaluation.hits,
+      missed: evaluation.missed,
+      genericFallback: evaluation.genericFallback,
+      grounded: evaluation.grounded,
+      contextSufficient: evaluation.contextSufficient,
+      note: evaluation.note,
+      passed: evaluation.passed,
     }
   } catch (e: any) {
     const error = String(e?.message || e).slice(0, 900)
+    const contextSufficient = kind === 'THESIS' || kind === 'DEFENSE' ? !!student.theses?.[0]?.title : true
     return {
       kind,
       question,
       agent: 'ERROR',
+      expectedAgent: expectedAgentForProbe(kind),
       engine: 'AI_PROVIDER_ROUTER_ERROR',
       ms: elapsed(started),
       replyChars: 0,
@@ -646,7 +649,10 @@ async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
       keywordScore: 0,
       hits: [],
       missed: expected,
+      contextSufficient,
+      note: contextSufficient ? null : 'INSUFFICIENT_THESIS_CONTEXT',
       passed: false,
+      skipped: false,
       error,
     }
   }
@@ -696,7 +702,7 @@ export async function GET() {
     const student = await findDiagnosticStudent()
     const context = student ? await buildSupervisorContext(student.id).catch(() => '') : ''
     const textModel = await geminiActiveTextModel().catch(() => '')
-    const providerDiagnostics = await textAiDiagnostics().catch((error: any) => ({ error: String(error?.message || error).slice(0, 240) }))
+    const providerDiagnostics = await cachedProviderDiagnostics().catch((error: any) => ({ error: String(error?.message || error).slice(0, 240) }))
     const voice = await liveReadiness(false, 'SUPERVISOR')
     const discussion = await liveReadiness(false, 'DISCUSSION')
     return NextResponse.json({
@@ -717,6 +723,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const started = performance.now()
   try {
     if (!qaProdFixturesAllowed()) {
       return NextResponse.json(
@@ -731,19 +738,76 @@ export async function POST(req: NextRequest) {
     const includeVoice = body.includeVoice !== false
     const probeKinds = selectedProbeKinds(body)
     const studentId = typeof body.studentId === 'string' ? body.studentId : undefined
-    const started = performance.now()
-    const student = await findDiagnosticStudent(studentId)
-    const context = student ? await buildSupervisorContext(student.id).catch(() => '') : ''
+    const requestDeadline = started + LAUNCH_QUALITY_REQUEST_BUDGET_MS
+    let stageStarted = performance.now()
+    let student: Awaited<ReturnType<typeof findDiagnosticStudent>> = null
+    // استنفاد الميزانية في أي مرحلة سابقة للمجسات أو لاحقة لها لا يخرج خطأ
+    // HTTP عاماً: يُحوَّل إلى حمولة الفحص نفسها بمجسات فاشلة صراحة تسمّي
+    // المرحلة المستنفدة (passed=false وskipped=false)، فلا نجاح وهمي ولا
+    // تخطٍّ ولا مهلة عميل صامتة.
+    let stageFailure: string | null = null
+    try {
+      student = await timeoutAfter(findDiagnosticStudent(studentId), remainingLaunchQualityBudget(requestDeadline, 'DIAGNOSTIC_STUDENT'), launchQualityDeadlineError('DIAGNOSTIC_STUDENT'))
+      logLaunchQualityStage('diagnostic-student', stageStarted, true)
+    } catch (error) {
+      logLaunchQualityStage('diagnostic-student', stageStarted, false)
+      if (!isLaunchQualityDeadlineError(error)) throw error
+      stageFailure = String((error as any)?.message || error)
+    }
+    stageStarted = performance.now()
+    let context = ''
+    if (!stageFailure) {
+      try {
+        context = student ? await timeoutAfter(buildSupervisorContext(student.id), remainingLaunchQualityBudget(requestDeadline, 'CONTEXT'), launchQualityDeadlineError('CONTEXT')) : ''
+        logLaunchQualityStage('context', stageStarted, true)
+      } catch (error) {
+        logLaunchQualityStage('context', stageStarted, false)
+        if (!isLaunchQualityDeadlineError(error)) throw error
+        stageFailure = String((error as any)?.message || error)
+      }
+    }
     const contextCoverage = buildContextCoverage(student, context)
 
-    const voiceSupervisor = includeVoice ? await liveReadiness(runVoiceToken, 'SUPERVISOR') : null
-    const voiceDiscussion = includeVoice ? await liveReadiness(runVoiceToken, 'DISCUSSION') : null
+    stageStarted = performance.now()
+    let voiceSupervisor: Awaited<ReturnType<typeof liveReadiness>> | null = null
+    let voiceDiscussion: Awaited<ReturnType<typeof liveReadiness>> | null = null
+    if (!stageFailure) {
+      try {
+        voiceSupervisor = includeVoice ? await timeoutAfter(liveReadiness(runVoiceToken, 'SUPERVISOR'), remainingLaunchQualityBudget(requestDeadline, 'VOICE'), launchQualityDeadlineError('VOICE')) : null
+        voiceDiscussion = includeVoice ? await timeoutAfter(liveReadiness(runVoiceToken, 'DISCUSSION'), remainingLaunchQualityBudget(requestDeadline, 'VOICE'), launchQualityDeadlineError('VOICE')) : null
+        if (includeVoice) logLaunchQualityStage('voice', stageStarted, true)
+      } catch (error) {
+        if (includeVoice) logLaunchQualityStage('voice', stageStarted, false)
+        if (!isLaunchQualityDeadlineError(error)) throw error
+        stageFailure = String((error as any)?.message || error)
+      }
+    }
 
     const probes: Array<Awaited<ReturnType<typeof runAiProbe>>> = []
-    if (runAi && student) {
-      for (const kind of probeKinds) probes.push(await runAiProbe(kind, student, context))
+    if (stageFailure) {
+      if (runAi) for (const kind of probeKinds) probes.push(deadlineFailedProbe(kind, student, stageFailure))
+    } else if (runAi && student) {
+      for (const kind of probeKinds) {
+        stageStarted = performance.now()
+        const result = await runAiProbe(kind, student, context, requestDeadline)
+        probes.push(result)
+        logLaunchQualityStage(`probe:${kind}`, stageStarted, result.passed === true)
+      }
     }
-    const providerDiagnostics = await textAiDiagnostics().catch((error: any) => ({ error: String(error?.message || error).slice(0, 240) }))
+    stageStarted = performance.now()
+    let providerDiagnostics: Awaited<ReturnType<typeof textAiDiagnostics>> | { error: string }
+    if (stageFailure) {
+      providerDiagnostics = { error: stageFailure }
+      logLaunchQualityStage('provider-diagnostics', stageStarted, false)
+    } else {
+      try {
+        providerDiagnostics = await timeoutAfter(cachedProviderDiagnostics(), remainingLaunchQualityBudget(requestDeadline, 'PROVIDER_DIAGNOSTICS'), launchQualityDeadlineError('PROVIDER_DIAGNOSTICS'))
+        logLaunchQualityStage('provider-diagnostics', stageStarted, true)
+      } catch (error: any) {
+        providerDiagnostics = { error: String(error?.message || error).slice(0, 240) }
+        logLaunchQualityStage('provider-diagnostics', stageStarted, false)
+      }
+    }
 
     const passedProbes = probes.filter((p: any) => p.passed).length
     const skippedProbes = probes.filter((p: any) => p.skipped).length
@@ -761,10 +825,11 @@ export async function POST(req: NextRequest) {
     const hasUsefulContext = !!contextCoverage && contextCoverage.contextChars > 500 && (
       contextCoverage.contextIncludes.programTitle || contextCoverage.contextIncludes.firstBook || contextCoverage.contextIncludes.thesisTitle
     )
-    const aiStatus = !runAi ? 'skipped' : score >= 75 && hasUsefulContext ? 'ok' : score >= 50 ? 'warn' : 'fail'
+    const aiStatus = stageFailure ? 'fail' : !runAi ? 'skipped' : score >= 75 && hasUsefulContext ? 'ok' : score >= 50 ? 'warn' : 'fail'
 
     return NextResponse.json({
       status: aiStatus,
+      ...(stageFailure ? { error: stageFailure } : {}),
       timestamp: new Date().toISOString(),
       durationMs: elapsed(started),
       runAi,
@@ -783,7 +848,9 @@ export async function POST(req: NextRequest) {
         skippedProbes,
         failedProbes,
         totalProbes: probes.length,
-        recommendation: !runAi
+        recommendation: stageFailure
+          ? `استُنفدت الميزانية الزمنية للطلب قبل إكمال الفحص: ${stageFailure}`
+          : !runAi
           ? 'لم يتم تشغيل فحوص الذكاء في هذا الطلب؛ هذا ليس دليلاً على نجاح المشرف أو المناقش.'
           : !student
             ? 'لا يوجد طالب ببيانات كافية للفحص. أنشئ طالباً تجريبياً مع برنامج و/أو بحث.'

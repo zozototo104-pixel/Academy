@@ -59,13 +59,17 @@ async function loginAsAdmin(page: Page) {
   }
 
   expect(response.ok(), `Admin API login failed with ${response.status()}: ${JSON.stringify(body).slice(0, 2000)}`).toBeTruthy()
-  expect(body?.token, 'Login response must include token').toBeTruthy()
+  // Cookie-based login: the raw session token arrives only as the
+  // httpOnly aact_session cookie; it doubles as the bearer token.
+  const sessionCookie = response.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value).join('; ')
+  const sessionToken = decodeURIComponent(sessionCookie.match(/aact_session=([^;]+)/)?.[1] || '')
+  expect(sessionToken, 'Login must set the aact_session session cookie').toBeTruthy()
   expect(body?.user?.role, 'Route smoke account must be ADMIN').toBe('ADMIN')
 
   await page.addInitScript((token: string) => {
     window.localStorage.setItem('aact_token', token)
-  }, body.token)
-  return body.token as string
+  }, sessionToken)
+  return sessionToken
 }
 
 async function collectLinks(page: Page) {
@@ -119,10 +123,28 @@ async function checkPage(page: Page, path: string, authenticated: boolean) {
   return { path, authenticated, status, finalUrl, title, errors, bodyStart: errors.length ? bodyStart : undefined }
 }
 
+// Bootstrap the protected QA preview through APIRequestContext before the browser
+// loads external assets. Vercel sets its bypass cookie on a 307 response; keeping
+// the global bypass headers in browser requests causes Google Fonts CORS failures.
+async function bootstrapPreviewProtection(page: Page) {
+  if (!process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim()) return
+
+  const response = await page.request.get('/', { maxRedirects: 0 })
+  const cookies = await page.context().cookies()
+  if (!cookies.some((cookie) => cookie.name === '_vercel_jwt')) {
+    throw new Error(`QA preview bypass cookie missing after HTTP ${response.status()}; refusing unprotected route crawl`)
+  }
+
+  // Session cookie remains scoped to the preview origin. No Vercel secret/header
+  // may be sent to third-party fonts, images, or other browser subresources.
+  await page.context().setExtraHTTPHeaders({})
+}
+
 test.describe('Platform route smoke coverage', () => {
   test.setTimeout(180_000)
 
   test('public, protected, and discovered pages do not crash', async ({ page }, testInfo: TestInfo) => {
+    await bootstrapPreviewProtection(page)
     const publicSeeds = [
       '/',
       '/admin',

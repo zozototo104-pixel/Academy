@@ -54,6 +54,23 @@ function testWorkflowTargetsQaOnly() {
   const validator = file('scripts/validate-e2e-base-url.sh')
   assert(validator.includes('academy-raqaba.vercel.app'), 'E2E validator must know production origin')
   assert(validator.includes('Refusing to run QA E2E against a production origin'), 'E2E validator must refuse production in QA-only mode')
+
+  const gate = file('.github/workflows/prelaunch-release-gate.yml')
+  const smoke = gate.split('      - name: Check health, login, programs, and home pages')[1]?.split('      - name: Sanitize production smoke diagnostics before upload')[0] || ''
+  assert(smoke.includes('x-vercel-protection-bypass'), 'protected QA HTTP smoke must send automation bypass header')
+  assert(!smoke.includes('x-vercel-set-bypass-cookie'), 'curl smoke must not request bypass cookie: Vercel otherwise redirects until curl -L fails')
+  assert(smoke.includes('if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]'), 'HTTP smoke must reject redirects and auth errors')
+  assert(smoke.includes('deep-health'), 'HTTP smoke must check application JSON health, not just HTTP 200')
+
+  const preflight = file('scripts/e2e-strict-preflight.sh')
+  assert(preflight.includes('x-vercel-protection-bypass'), 'strict QA preflight must authenticate protected preview requests')
+  assert(!preflight.includes('x-vercel-set-bypass-cookie'), 'strict curl preflight must not request a bypass cookie: Vercel would loop through 307 redirects')
+
+  const routes = file('tests/e2e/platform-routes.spec.ts')
+  assert(routes.includes("await page.request.get('/', { maxRedirects: 0 })"), 'protected route crawler must mint a Vercel bypass cookie without browser subresource requests')
+  assert(routes.includes("cookie.name === '_vercel_jwt'"), 'protected route crawler must fail closed when Vercel does not mint its bypass cookie')
+  assert(routes.includes('await page.context().setExtraHTTPHeaders({})'), 'protected route crawler must strip global Vercel headers before loading third-party resources')
+  assert(routes.indexOf('await bootstrapPreviewProtection(page)') < routes.indexOf('for (const path of publicSeeds)'), 'route crawler must initialize scoped protection before navigating to public pages')
 }
 
 function testFinallyCleanup() {
@@ -376,6 +393,15 @@ function testSecurityBatchAFollowup() {
   const adminExtras = file('src/components/aact/AdminExtras.tsx')
   assert(adminExtras.includes('activeWaiverForPayment') && adminExtras.includes('كود إعفاء نشط'), 'admin payments UI must show an active waiver badge/state')
   assert(adminExtras.includes('generatedWaiverCodes') && adminExtras.includes('نسخ الكود') && adminExtras.includes('تم النسخ'), 'admin payments UI must expose one-time raw code copy state after generation')
+  // Owner decision 2026-11-09 supersedes the absolute ban: legacy finance
+  // issuance is a transitional bridge that may exist ONLY behind the
+  // not-ready gate, while organized issuance stays the enabled path and
+  // the server refuses legacy creation once the organization is enabled.
+  assert(adminExtras.includes('const generateWaiver = async')
+    && adminExtras.includes('if (!grantOrganizationReady)')
+    && adminExtras.indexOf('generateWaiver(p,') > adminExtras.indexOf('if (!grantOrganizationReady)')
+    && adminExtras.includes("action: 'ISSUE_POLICY'") && adminExtras.includes('previewOrganizedGrant'),
+    'legacy finance issuance must stay gated behind the disabled organization, and organized issuance must exist')
   assert(adminExtras.includes('تم إرسال البريد ✅') && adminExtras.includes('فشل إرسال البريد، انسخ الكود يدوياً'), 'admin payments UI must show waiver email delivery result')
   assert(adminExtras.includes('navigator.clipboard.writeText') && adminExtras.includes("document.execCommand('copy')"), 'waiver code copy must use clipboard with textarea execCommand fallback')
   assert(adminExtras.includes('disabled={busy}') && adminExtras.includes('بعد التحديث يظهر رمز مختصر فقط'), 'waiver buttons must disable while/after active code issuance and show only preview after refresh')

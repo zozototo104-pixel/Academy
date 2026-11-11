@@ -53,7 +53,7 @@ describe('AdminFinanceTab workspace organization', () => {
   })
 
   test('confines finance workspace state before certificates', () => {
-    required(financeBlock, "const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports' | null>('payments')")
+    required(financeBlock, "const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports' | 'grants' | null>('payments')")
     required(financeBlock, 'const toggleFinanceSection =')
     required(financeBlock, "setOpenFinanceSection((current) => (current === section ? null : section))")
     required(financeBlock, "window.scrollTo({ top: y, behavior: 'auto' })")
@@ -61,9 +61,10 @@ describe('AdminFinanceTab workspace organization', () => {
     expect(certificatesAndAfter.includes('finance-section-')).toBe(false)
   })
 
-  test('renders two visual workspaces without changing behavior on open', () => {
+  test('renders three isolated visual workspaces without changing behavior on open', () => {
     required(financeBlock, 'aria-label="مساحات عمل المالية والفواتير"')
     required(financeBlock, "['payments', 'الفواتير والإثباتات والإعفاءات'")
+    required(financeBlock, "['grants', 'تنظيم المنح'")
     required(financeBlock, "['reports', 'التقارير والتحليلات'")
     required(financeBlock, 'type="button"')
     required(financeBlock, 'aria-expanded={active}')
@@ -73,13 +74,43 @@ describe('AdminFinanceTab workspace organization', () => {
     expect(financeBlock.includes('setOpenFinanceSection(value); api')).toBe(false)
   })
 
-  test('keeps both workspaces mounted and only hides their wrappers', () => {
+  test('keeps organized grant issuance off until the server migration gate is ready', () => {
+    required(financeBlock, 'setGrantOrganizationReady(response.ready === true)')
+    required(financeBlock, 'setGrantOrganizationReady(false)')
+    required(financeBlock, 'disabled={grantSaving || !grantOrganizationReady}')
+    required(financeBlock, 'if (grantOrganizationReady && !p.admission)')
+    required(financeBlock, "if (grantOrganizationReady && p.admission && ['APPLICATION_FEE'")
+    expect(financeBlock.includes('grantOrganizationReady && grantPolicies.length > 0')).toBe(false)
+    required(financeBlock, 'تنظيم المنح والحملات قيد التحصين')
+    required(financeBlock, 'إعادة إرسال تحقق')
+    required(financeBlock, 'تأكيد وصول المبلغ')
+  })
+
+  test('admin grant form captures campaign windows and scoped seat limits without local financial calculations', () => {
+    requireAll(financeBlock, [
+      'id="grant-starts-at"',
+      'id="grant-ends-at"',
+      'type="datetime-local"',
+      'new Date(grantForm.startsAt).toISOString()',
+      'new Date(grantForm.endsAt).toISOString()',
+      'grantForm.seatLimits[program.id]',
+      "aria-label={'عدد مقاعد منحة ' + program.titleAr}",
+      'seatLimits: {}',
+    ])
+    expect(financeBlock.includes("grantOrganizationReady && grantPolicies.length > 0")).toBe(false)
+    required(financeBlock, "if (grantOrganizationReady && p.admission && ['APPLICATION_FEE'")
+  })
+
+  test('keeps all three workspaces mounted and only hides their wrappers', () => {
     required(financeBlock, 'id="finance-section-reports"')
     required(financeBlock, 'id="finance-section-payments"')
+    required(financeBlock, 'id="finance-section-grants"')
     required(financeBlock, "hidden={openFinanceSection !== 'reports'}")
     required(financeBlock, "hidden={openFinanceSection !== 'payments'}")
+    required(financeBlock, "hidden={openFinanceSection !== 'grants'}")
     expect(financeBlock.includes("openFinanceSection === 'reports' &&")).toBe(false)
     expect(financeBlock.includes("openFinanceSection === 'payments' &&")).toBe(false)
+    expect(financeBlock.includes("openFinanceSection === 'grants' &&")).toBe(false)
   })
 
   test('keeps finance KPI and warning content visible outside workspaces', () => {
@@ -110,9 +141,8 @@ describe('AdminFinanceTab workspace organization', () => {
       'قبول الإثبات',
       'رفض بسبب',
       'تأكيد وصول المبلغ',
-      'كود إعفاء 30$',
-      'إعفاء جزئي',
-      'منحة كاملة',
+      'إعادة إرسال تحقق',
+      'إلغاء المنحة عن الطالب',
       'اعتماد الإعفاء',
       'تطبيق الإعفاء على البرنامج',
       'AdminPager',
@@ -145,18 +175,38 @@ describe('AdminFinanceTab workspace organization', () => {
       'setProofReviewBusy(null)',
     ])
 
-    requireAll(functionBody('generateWaiver'), [
-      "api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED' }>('/api/admin/payments/waivers', {",
-      "method: 'POST'",
-      'body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason })',
-      'setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))',
-      'await copyWaiverCode(payment.id, result.code)',
-      'load()',
+    // Transitional bridge (owner decision 2026-11-09): organized issuance
+    // requires a saved definition, a server quote, and the dedicated
+    // ISSUE_POLICY action — but while the organization is NOT enabled,
+    // the legacy generateWaiver path stays available in finance. The
+    // legacy buttons must render only inside the not-ready branch, and
+    // the server independently refuses legacy creation once enabled
+    // (GRANT_POLICY_REQUIRED, pinned in the settlement suite).
+    expect(financeBlock.includes('const generateWaiver =')).toBe(true)
+    expect(financeBlock.includes('if (!grantOrganizationReady)')).toBe(true)
+    expect(financeBlock.includes("generateWaiver(p, 'APPLICATION_FEE')")).toBe(true)
+    expect(financeBlock.includes("generateWaiver(p, 'PARTIAL_TUITION')")).toBe(true)
+    expect(financeBlock.includes("generateWaiver(p, 'FULL_SCHOLARSHIP')")).toBe(true)
+    expect(financeBlock.includes('إصدار المنح الجديدة متاح حصريًا من تنظيم المنح.')).toBe(true)
+    requireAll(functionBody('previewOrganizedGrant'), [
+      "const policyId = grantSelection[payment.id]",
+      "mode: 'quote'",
+      "setGrantQuoteDialog({ payment, quote: result.quote })",
+    ])
+    requireAll(functionBody('issueOrganizedGrant'), [
+      "action: 'ISSUE_POLICY'",
+      "policyId: quote.policy.id",
+      "signature: quote.signature",
+      "await copyWaiverCode(payment.id, result.code)",
+      "load()",
     ])
 
     requireAll(functionBody('approveWaiver'), [
-      "await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId: waiver.id }) })",
-      "toast({ title: 'تم اعتماد الإعفاء'",
+      "const decision = await api<{ organizationWarning?: string }>('/api/admin/payments/waivers', {",
+      "method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId: waiver.id })",
+      "decision.organizationWarning",
+      "تم الاعتماد المالي — مراجعة سجل المنحة مطلوبة",
+      "تم اعتماد الإعفاء",
       'load()',
     ])
 
@@ -168,6 +218,21 @@ describe('AdminFinanceTab workspace organization', () => {
       "toast({ title: 'تعذر فتح PDF الفاتورة'",
       'setPdfBusy(null)',
     ])
+  })
+
+  test('cancel scholarship control invokes existing audited reversal without bypassing financial safety', () => {
+    requireAll(functionBody('cancelStudentWaiver'), [
+      "const approved = waiver.status === 'APPROVED'",
+      "confirmAction({",
+      "method: 'PATCH'",
+      "action: 'CANCEL', waiverId: waiver.id",
+      "title: 'لم يتم إلغاء المنحة'",
+      "load()",
+    ])
+    required(financeBlock, "إلغاء المنحة عن الطالب")
+    required(financeBlock, "p.status !== 'PAID'")
+    required(financeBlock, "['ISSUED', 'VERIFIED', 'APPROVED'].includes(code.status)")
+    required(financeBlock, "onClick={() => void cancelStudentWaiver(p, cancellable)}")
   })
 
   test('keeps payment filters, statuses, purposes, and manual pending shortcut', () => {

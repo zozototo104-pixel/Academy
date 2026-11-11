@@ -28,14 +28,18 @@ async function loginAsAdmin(page: Page): Promise<string> {
   }
 
   expect(response.ok(), `Admin API login failed with ${response.status()}: ${JSON.stringify(body).slice(0, 2000)}`).toBeTruthy()
-  expect(body?.token, 'Login response must include a token').toBeTruthy()
+  // Cookie-based login: the raw session token arrives only as the
+  // httpOnly aact_session cookie; it doubles as the bearer token.
+  const sessionCookie = response.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value).join('; ')
+  const sessionToken = decodeURIComponent(sessionCookie.match(/aact_session=([^;]+)/)?.[1] || '')
+  expect(sessionToken, 'Login must set the aact_session session cookie').toBeTruthy()
   expect(body?.user?.role, 'Quality test account must have ADMIN role').toBe('ADMIN')
   await page.addInitScript((token: string) => {
     localStorage.setItem('aact_token', token)
     localStorage.setItem('aact_startup_seen_v2', '1')
     sessionStorage.setItem('aact_skip_startup', '1')
-  }, body.token)
-  return String(body.token)
+  }, sessionToken)
+  return sessionToken
 }
 
 function routeThreshold(path: string) {
@@ -95,7 +99,11 @@ function markdownReport(report: any) {
 }
 
 test.describe('AACT launch quality suite', () => {
-  test.setTimeout(240_000)
+  // سقف إجمالي متماسك مع سقوف الطلبات الجزئية: صوت 45ث + 4 مجسات × 80ث
+  // = 365ث، والباقي هامش للصفحات والجاهزية. كان السقف 240ث أصغر من مجموع
+  // سقوف المجسات نفسها، فتستهلك المجسات البطيئة ميزانية الاختبار وتجوع
+  // المجسات اللاحقة قبل أن تبدأ. سقوف كل طلب على حدة لم تتغير.
+  test.setTimeout(480_000)
 
   test('public settings never expose secret-looking keys', async ({ request }) => {
     const response = await request.get('/api/settings')
@@ -137,14 +145,37 @@ test.describe('AACT launch quality suite', () => {
     const probeKinds = ['PROFILE', 'CURRICULUM', 'THESIS', 'DEFENSE'] as const
     const probePayloads: any[] = []
     for (const probeKind of probeKinds) {
-      const probeRes = await page.request.post('/api/admin/launch-quality', {
-        headers: { Authorization: `Bearer ${token}` },
-        data: { runAi: true, runVoiceToken: false, includeVoice: false, probeKind },
-        timeout: 80_000,
-      })
-      const probeBody = await probeRes.json().catch(() => ({}))
-      expect(probeRes.ok(), `Launch quality AI probe ${probeKind} failed with ${probeRes.status()}: ${JSON.stringify(probeBody).slice(0, 1200)}`).toBeTruthy()
-      probePayloads.push(probeBody)
+      // استقلال المجسات (قرار 2026-11-10): فشل نقل أو حالة HTTP غير ناجحة
+      // لمجس واحد يُسجَّل كمسبار فاشل في التجميع ولا يوقف الحلقة، فتُقاس
+      // المجسات الباقية دائماً. الحكم النهائي لا يضعف: التجميع يشترط نجاح
+      // كل مجس ونسبة >= 75، وأي سجل فشل هنا يُسقطهما معاً.
+      try {
+        const probeRes = await page.request.post('/api/admin/launch-quality', {
+          headers: { Authorization: `Bearer ${token}` },
+          data: { runAi: true, runVoiceToken: false, includeVoice: false, probeKind },
+          timeout: 80_000,
+        })
+        const probeBody = await probeRes.json().catch(() => ({}))
+        if (!probeRes.ok()) {
+          throw new Error(`HTTP ${probeRes.status()}: ${JSON.stringify(probeBody).slice(0, 800)}`)
+        }
+        probePayloads.push(probeBody)
+      } catch (probeError: any) {
+        console.log(`[launch-quality] probe ${probeKind} transport failure recorded, continuing: ${String(probeError?.message || probeError).slice(0, 300)}`)
+        probePayloads.push({
+          probes: [{
+            kind: probeKind,
+            agent: 'ERROR',
+            expectedAgent: probeKind === 'PROFILE' || probeKind === 'CURRICULUM' ? 'ACADEMIC_SUPERVISOR' : 'THESIS_DEFENSE',
+            genericFallback: false,
+            grounded: false,
+            keywordScore: 0,
+            passed: false,
+            skipped: false,
+            error: `PROBE_TRANSPORT_FAILURE: ${String(probeError?.message || probeError).slice(0, 500)}`,
+          }],
+        })
+      }
     }
 
     const probes = probePayloads.flatMap((p) => Array.isArray(p.probes) ? p.probes : [])
@@ -210,6 +241,16 @@ test.describe('AACT launch quality suite', () => {
     expect(ai.studentContext?.contextChars || 0, 'Supervisor context must contain enough student/curriculum/research data').toBeGreaterThan(500)
     expect(ai.summary?.hasUsefulContext, 'AI context must include useful student curriculum/research data').toBe(true)
     expect(ai.summary?.score || 0, `AI probe score is too low: ${JSON.stringify(ai.summary)}`).toBeGreaterThanOrEqual(75)
+    // A high aggregate score must not conceal a failed or skipped academic AI scenario.
+    for (const kind of probeKinds) {
+      const matching = probes.filter((probe: any) => probe.kind === kind)
+      expect(matching.length, `Missing required AI E2E probe: ${kind}`).toBeGreaterThan(0)
+      for (const probe of matching) {
+        expect(probe.skipped, `Required AI E2E probe ${kind} was skipped: ${JSON.stringify(probe)}`).not.toBe(true)
+        expect(probe.passed, `Required AI E2E probe ${kind} failed: ${JSON.stringify(probe)}`).toBe(true)
+        expect(probe.genericFallback, `Required AI E2E probe ${kind} returned a generic fallback`).not.toBe(true)
+      }
+    }
     if (requireVoiceReady) {
       expect(ai.voiceReadiness?.supervisor?.ok, `Supervisor voice readiness must be OK: ${JSON.stringify(ai.voiceReadiness?.supervisor)}`).toBe(true)
       expect(ai.voiceReadiness?.discussion?.ok, `Discussion voice readiness must be OK: ${JSON.stringify(ai.voiceReadiness?.discussion)}`).toBe(true)

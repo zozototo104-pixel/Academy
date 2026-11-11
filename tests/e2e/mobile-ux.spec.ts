@@ -11,8 +11,12 @@ async function login(page: Page, email: string, password: string) {
   const response = await page.request.post('/api/auth/login', { data: { email, password } })
   const body = await response.json().catch(() => ({}))
   expect(response.ok(), `Login failed for ${email}: ${response.status()} ${JSON.stringify(body).slice(0, 900)}`).toBeTruthy()
-  expect(body.token, 'Login response must include token').toBeTruthy()
-  return { token: String(body.token), user: body.user }
+  // Cookie-based login: the raw session token arrives only as the
+  // httpOnly aact_session cookie; it doubles as the bearer token.
+  const sessionCookie = response.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value).join('; ')
+  const sessionToken = decodeURIComponent(sessionCookie.match(/aact_session=([^;]+)/)?.[1] || '')
+  expect(sessionToken, 'Login must set the aact_session session cookie').toBeTruthy()
+  return { token: sessionToken, user: body.user }
 }
 
 async function setBrowserToken(page: Page, token: string) {
@@ -148,9 +152,12 @@ test.describe('AACT mobile UX guardrails suite', () => {
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 45_000 })
     await page.waitForLoadState('networkidle', { timeout: 12_000 }).catch(() => {})
     await assertNoPageHorizontalOverflow(page, 'student-dashboard')
-    const programsTab = page.getByRole('tab', { name: /برامجي/ })
-    await expect(programsTab).toBeVisible()
+    // Main dashboard tabs live in a hidden Radix TabsList; the student navigates
+    // via visible controls (a nav select at phone width). Assert the internal
+    // active state with includeHidden, and prove the section by visible content.
+    const programsTab = page.getByRole('tab', { name: /برامجي/, includeHidden: true })
     await expect(programsTab).toHaveAttribute('data-state', 'active')
+    await expect(page.getByText(setup.program.title).first()).toBeVisible({ timeout: 30_000 })
     await page.getByRole('button', { name: /المحتوى والواجبات/ }).click()
     await expect(page.getByRole('tab', { name: /أدلة الدراسة/ })).toBeVisible()
     const visibleTabs = await page.getByRole('tab').evaluateAll((tabs) => tabs.filter((t) => (t as HTMLElement).offsetParent !== null).map((t) => {
@@ -160,7 +167,8 @@ test.describe('AACT mobile UX guardrails suite', () => {
     expect(visibleTabs.every((t) => t.height >= 32), `Mobile tabs are too cramped: ${JSON.stringify(visibleTabs)}`).toBeTruthy()
     checks.push({ name: 'تبويبات بوابة الطالب قابلة للقراءة والضغط على الهاتف', ok: true, detail: visibleTabs.map((t) => `${t.text}:${t.width}x${t.height}`).join(' / ') })
 
-    await page.getByRole('tab', { name: /الدفعات/ }).click()
+    // At phone width the visible navigation is a select; use it to open payments.
+    await page.getByLabel('القائمة الكاملة لتبويبات بوابة الطالب').selectOption('payments')
     await expect(page.getByText(/قواعد فتح الاختبارات حسب السداد/)).toBeVisible()
     await assertNoPageHorizontalOverflow(page, 'student-payments')
     checks.push({ name: 'تبويب الدفعات لا يسبب تمدداً أفقياً على الهاتف', ok: true })

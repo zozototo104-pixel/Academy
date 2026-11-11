@@ -249,7 +249,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const submissionId = asString(body.submissionId, 80)
     if (!submissionId) return NextResponse.json({ error: 'معرف التسليم مطلوب' }, { status: 400 })
-    const score = body.score == null || body.score === '' ? null : Number(body.score)
+    const score = body.score == null || String(body.score).trim() === '' ? null : Number(body.score)
     if (score != null && (!Number.isFinite(score) || score < 0)) return NextResponse.json({ error: 'درجة غير صالحة' }, { status: 400 })
     const feedback = asString(body.feedback, 4000)
     const status = asString(body.status, 30).toUpperCase()
@@ -260,7 +260,9 @@ export async function PATCH(req: NextRequest) {
       include: { assignment: { include: { program: { select: { titleAr: true } } } }, user: { select: { id: true, name: true } } },
     })
     if (!existing) return NextResponse.json({ error: 'التسليم غير موجود' }, { status: 404 })
-    const safeScore = score == null ? null : Math.min(score, existing.assignment.points)
+    if (finalStatus === 'GRADED' && score == null) return NextResponse.json({ error: 'يجب إدخال درجة الواجب قبل اعتماد تصحيحه' }, { status: 400 })
+    if (score != null && score > existing.assignment.points) return NextResponse.json({ error: `درجة الواجب يجب ألا تتجاوز ${existing.assignment.points}` }, { status: 400 })
+    const safeScore = score
 
     const submission = await db.assignmentSubmission.update({
       where: { id: submissionId },
@@ -274,29 +276,38 @@ export async function PATCH(req: NextRequest) {
       include: { user: { select: { id: true, name: true, email: true } }, assignment: true },
     })
 
-    await notify(
-      submission.userId,
-      'ASSIGNMENT',
-      finalStatus === 'NEEDS_REVISION' ? 'واجب يحتاج تعديل' : 'تم تصحيح واجبك',
-      `واجب «${submission.assignment.title}»: ${safeScore == null ? 'تمت المراجعة' : `${safeScore}/${submission.assignment.points}`}${feedback ? ` — ${feedback.slice(0, 120)}` : ''}`,
-      'dashboard'
-    )
-    if (submission.user?.email && finalStatus !== 'SUBMITTED') {
-      await emailAssignmentGraded(
-        submission.user.email,
-        submission.user.name || 'الطالب',
-        submission.assignment.title,
-        finalStatus,
-        safeScore,
-        submission.assignment.points,
-        feedback || null
+    // The grade is already committed. Delivery/audit/eligibility side effects
+    // must not turn a successful save into a misleading HTTP 500.
+    try {
+      await notify(
+        submission.userId,
+        'ASSIGNMENT',
+        finalStatus === 'NEEDS_REVISION' ? 'واجب يحتاج تعديل' : 'تم تصحيح واجبك',
+        `واجب «${submission.assignment.title}»: ${safeScore == null ? 'تمت المراجعة' : `${safeScore}/${submission.assignment.points}`}${feedback ? ` — ${feedback.slice(0, 120)}` : ''}`,
+        'dashboard'
       )
+    } catch (error) { console.error('Admin assignment grade notification failed:', error) }
+    if (submission.user?.email && finalStatus !== 'SUBMITTED') {
+      try {
+        await emailAssignmentGraded(
+          submission.user.email,
+          submission.user.name || 'الطالب',
+          submission.assignment.title,
+          finalStatus,
+          safeScore,
+          submission.assignment.points,
+          feedback || null
+        )
+      } catch (error) { console.error('Admin assignment grade email failed:', error) }
     }
-    await audit(admin, 'GRADE_ASSIGNMENT', 'AssignmentSubmission', submission.id, `تصحيح واجب ${submission.assignment.title} للطالب ${existing.user.name}`)
+    try {
+      await audit(admin, 'GRADE_ASSIGNMENT', 'AssignmentSubmission', submission.id, `تصحيح واجب ${submission.assignment.title} للطالب ${existing.user.name}`)
+    } catch (error) { console.error('Admin assignment grade audit failed:', error) }
     if (finalStatus === 'GRADED') {
-      await registerGraduationRequest({ userId: submission.userId, programId: submission.assignment.programId })
-      await matureSemesterRaisesAfterGrading(db, { userId: submission.userId, programId: submission.assignment.programId })
-        .catch((error) => console.error('Admin assignment graduation request registration failed:', error))
+      try {
+        await registerGraduationRequest({ userId: submission.userId, programId: submission.assignment.programId })
+        await matureSemesterRaisesAfterGrading(db, { userId: submission.userId, programId: submission.assignment.programId })
+      } catch (error) { console.error('Admin assignment graduation request registration failed:', error) }
     }
 
     return NextResponse.json({ submission })

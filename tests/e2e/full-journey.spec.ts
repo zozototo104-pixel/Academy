@@ -15,12 +15,26 @@ function requiredAnyEnv(names: string[]) {
   throw new Error(`Missing required environment variable. Expected one of: ${names.join(', ')}`)
 }
 
+// The login route is cookie-based: createSession sets the raw session token
+// only as the httpOnly aact_session cookie, and the JSON body carries the
+// user object, never a token. Session reading accepts Authorization: Bearer
+// first, so the cookie value doubles as the bearer token used below.
+function sessionTokenFromHeaders(headers: { name: string; value: string }[]) {
+  const cookies = headers
+    .filter((h) => h.name.toLowerCase() === 'set-cookie')
+    .map((h) => h.value)
+    .join('; ')
+  const match = cookies.match(/aact_session=([^;]+)/)
+  return match ? decodeURIComponent(match[1]) : ''
+}
+
 async function login(page: Page, email: string, password: string) {
   const response = await page.request.post('/api/auth/login', { data: { email, password } })
   const body = await response.json().catch(() => ({}))
   expect(response.ok(), `Login failed for ${email}: ${response.status()} ${JSON.stringify(body).slice(0, 700)}`).toBeTruthy()
-  expect(body.token, 'Login response must include token').toBeTruthy()
-  return { token: String(body.token), user: body.user }
+  const token = sessionTokenFromHeaders(response.headersArray())
+  expect(token, 'Login must set the aact_session session cookie').toBeTruthy()
+  return { token, user: body.user }
 }
 
 async function loginAsAdmin(page: Page) {
@@ -72,6 +86,26 @@ function md(report: any) {
 test.describe('AACT full platform journey suite', () => {
   test.setTimeout(180_000)
 
+  test('unauthenticated visitors cannot create or delete academic journey fixtures', async ({ request }) => {
+    const create = await request.post('/api/admin/full-journey', { data: {} })
+    expect([401, 403], `Unauthenticated journey creation returned ${create.status()}`).toContain(create.status())
+    const remove = await request.delete('/api/admin/full-journey', { data: { stamp: 'qa-unauthorized-probe' } })
+    expect([401, 403], `Unauthenticated journey deletion returned ${remove.status()}`).toContain(remove.status())
+  })
+
+  test('admin cleanup rejects malformed and out-of-scope fixture identifiers without deleting records', async ({ page }) => {
+    const admin = await loginAsAdmin(page)
+    for (const stamp of ['', '20261109', '../../20261109123456', '20261109123456-extra']) {
+      const response = await page.request.delete('/api/admin/full-journey', {
+        headers: { Authorization: `Bearer ${admin.token}` },
+        data: { stamp },
+      })
+      const body = await response.json().catch(() => ({}))
+      expect(response.status(), `Invalid cleanup stamp ${JSON.stringify(stamp)} was accepted`).toBe(400)
+      expect(body.ok, `Invalid cleanup stamp ${JSON.stringify(stamp)} returned success`).toBe(false)
+    }
+  })
+
   async function cleanupFullJourney(request: any, testInfo: TestInfo, target: { token: string; stamp: string }) {
     const cleanupRes = await request.delete('/api/admin/full-journey', {
       headers: { Authorization: `Bearer ${target.token}` },
@@ -111,6 +145,16 @@ test.describe('AACT full platform journey suite', () => {
     expect(setup.academicJourney?.tuitionGate?.semester2BeforeFinalPayment?.ok, 'Semester 2 exam must be blocked before full installment payment').toBe(false)
     expect(setup.academicJourney?.tuitionGate?.semester2BeforeFinalPayment?.code, 'Semester 2 block code must be TUITION_FULL_REQUIRED').toBe('TUITION_FULL_REQUIRED')
     expect(setup.academicJourney?.tuitionGate?.semester2AfterFinalPayment?.ok, 'Semester 2 exam must open after completing installment payment').toBe(true)
+    for (const semester of ['semester1', 'semester2'] as const) {
+      const state = setup.academicJourney?.semesters?.[semester]
+      expect(state, `${semester}: missing semester journey`).toBeTruthy()
+      for (const component of ['assignmentScore', 'unitQuizScore', 'examScore'] as const) {
+        expect(typeof state?.[component], `${semester}: missing ${component}`).toBe('number')
+        expect(Number.isFinite(state[component]), `${semester}: invalid ${component}`).toBe(true)
+        expect(state[component], `${semester}: ${component} must be a passing QA fixture`).toBeGreaterThanOrEqual(60)
+      }
+      expect(state?.readinessAfterMark?.complete, `${semester}: unit/assignment/exam readiness incomplete`).toBe(true)
+    }
     expect(setup.academicJourney?.semesters?.semester1?.passed, 'Semester 1 assignment/exam average must pass').toBe(true)
     expect(setup.academicJourney?.semesters?.semester1?.average || 0, 'Semester 1 average must be at least 60').toBeGreaterThanOrEqual(60)
     expect(setup.academicJourney?.semesters?.semester2?.passed, 'Semester 2 assignment/exam average must pass').toBe(true)
@@ -149,6 +193,16 @@ test.describe('AACT full platform journey suite', () => {
     await expect(admissionCard.getByText(/فواتير غير مسددة/), 'Covered tuition installments must not leave a stale unpaid tuition warning').toHaveCount(0)
 
     const studentLogin = await login(page, setup.student.email, setup.student.password)
+    expect(studentLogin.user?.role, 'The journey account must be a STUDENT, not an admin fixture').toBe('STUDENT')
+    const studentAdminExams = await page.request.get(`/api/admin/program-exams?programId=${encodeURIComponent(setup.program.id)}&includeQuestions=1`, {
+      headers: { Authorization: `Bearer ${studentLogin.token}` },
+    })
+    expect([401, 403], `Student accessed admin exam question bank: ${studentAdminExams.status()}`).toContain(studentAdminExams.status())
+    const studentAdminJourney = await page.request.post('/api/admin/full-journey', {
+      headers: { Authorization: `Bearer ${studentLogin.token}` },
+      data: {},
+    })
+    expect([401, 403], `Student created an admin journey fixture: ${studentAdminJourney.status()}`).toContain(studentAdminJourney.status())
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await page.evaluate((token) => {
       localStorage.setItem('aact_token', token)

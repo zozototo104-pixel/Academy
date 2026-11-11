@@ -844,6 +844,10 @@ async function cleanupFullJourneyByStamp(stamp: string) {
   remember('theses', await db.thesisSubmission.deleteMany({ where: { id: { in: thesisIds } } }))
   remember('studentAcademicMemory', await db.studentAcademicMemory.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
   remember('notifications', await db.notification.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
+  // Exam attempts reference the student with onDelete: Restrict, so they
+  // must be removed before the user row (their answers cascade).
+  remember('examAttempts', await db.examAttempt.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
+  remember('programExamAttempts', await db.programExamAttempt.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
   remember('admissions', await db.admissionApplication.deleteMany({ where: { id: { in: admissionIds } } }))
   remember('enrollments', await db.enrollment.deleteMany({ where: { id: { in: enrollmentIds } } }))
   remember('student', await db.user.deleteMany({ where: { email } }))
@@ -1017,6 +1021,7 @@ export async function POST() {
       questionBank: { count: scaffold.questions.length, ids: scaffold.questions.map((q) => q.id) },
     }, { status: allOk ? 200 : 207, headers: { 'Cache-Control': 'no-store' } })
   } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ ok: false, error: 'صلاحيات الإدارة مطلوبة' }, { status: 403, headers: { 'Cache-Control': 'no-store' } })
     console.error('full journey diagnostic error:', e)
     return NextResponse.json({ ok: false, error: e?.message || 'تعذر تنفيذ رحلة المنصة الكاملة' }, { status: 500 })
   }

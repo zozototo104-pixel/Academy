@@ -125,6 +125,7 @@ export async function applyScoreAdjustments(
   type: AttemptKind,
   attemptId: string,
   scores: Record<string, unknown>,
+  options?: { expectedScore?: number | null; expectedPoints?: Record<string, number | null>; requireGraded?: boolean; strictPoints?: boolean },
 ): Promise<{ score: number; passed: boolean }> {
   const answerIds = Object.keys(scores || {})
   if (!answerIds.length) throw Object.assign(new Error('NO_SCORES'), { userMessage: 'لا توجد درجات معدّلة' })
@@ -149,6 +150,12 @@ export async function applyScoreAdjustments(
     if (!['GRADED', 'NEEDS_REVIEW'].includes(attempt.status)) {
       throw Object.assign(new Error('NOT_REVIEWABLE'), { userMessage: 'هذه المحاولة ليست مصححة بعد' })
     }
+    if (options?.requireGraded && attempt.status !== 'GRADED') {
+      throw Object.assign(new Error('GRADE_NOT_FINAL'), { userMessage: 'التعديل الرسمي متاح فقط بعد اكتمال تصحيح المحاولة', status: 409 })
+    }
+    if (options && Object.prototype.hasOwnProperty.call(options, 'expectedScore') && attempt.score !== options.expectedScore) {
+      throw Object.assign(new Error('CONCURRENT_REVIEW'), { userMessage: 'تغيرت نتيجة المحاولة منذ فتحها؛ حدّث الصفحة قبل التعديل', status: 409 })
+    }
     const answerById = new Map<string, any>(attempt.answers.map((a: any) => [a.id, a]))
     for (const answerId of answerIds) {
       if (!answerById.has(answerId)) throw Object.assign(new Error('ANSWER_NOT_IN_ATTEMPT'), { userMessage: 'يوجد إجابة لا تتبع هذه المحاولة' })
@@ -156,7 +163,20 @@ export async function applyScoreAdjustments(
     const changes: Array<{ answerId: string; from: number | null; to: number | null }> = []
     for (const [answerId, raw] of Object.entries(scores)) {
       const answer = answerById.get(answerId)
-      const points = clampPoints(raw, answer.maxPoints || answer.question?.points || 0)
+      const maxPoints = Number(answer.maxPoints || answer.question?.points || 0)
+      if (options?.expectedPoints && (
+        !Object.prototype.hasOwnProperty.call(options.expectedPoints, answerId) ||
+        options.expectedPoints[answerId] !== (answer.points ?? null)
+      )) {
+        throw Object.assign(new Error('CONCURRENT_REVIEW'), { userMessage: 'تغيرت نقاط هذا السؤال منذ فتح المحاولة؛ حدّث الصفحة قبل التعديل', status: 409 })
+      }
+      if (options?.strictPoints && (
+        raw == null || String(raw).trim() === '' || !Number.isFinite(Number(raw)) ||
+        Number(raw) < 0 || Number(raw) > maxPoints
+      )) {
+        throw Object.assign(new Error('INVALID_ANSWER_POINTS'), { userMessage: `درجة السؤال يجب أن تكون بين 0 و ${maxPoints}`, status: 400 })
+      }
+      const points = clampPoints(raw, maxPoints)
       changes.push({ answerId, from: answer.points ?? null, to: points })
       const data = { points, isCorrect: points == null ? answer.isCorrect : points > 0 ? answer.isCorrect : false }
       if (type === 'UNIT') await txAny.answer.update({ where: { id: answerId }, data })
@@ -228,8 +248,16 @@ export async function applyScoreAdjustments(
     return { score, passed, userId: attempt.userId, examTitle: attempt.exam.title, programId: attempt.exam.programId as string | undefined }
   }, { timeout: 120000, maxWait: 10000 })
 
-  await completeIfEligible(result.userId, result.programId).catch(() => null)
-  await notify(result.userId, 'GENERAL', 'تمت مراجعة نتيجتك من مشرفك', `راجع ${actor.name} تصحيح «${result.examTitle}» وحدّث نتيجتك — نتيجتك الحالية: ${result.score}%.`, '/?view=dashboard')
+  // Once the transaction committed a corrected grade, ancillary services
+  // must not respond with a 500 that incorrectly implies the grade was lost.
+  await completeIfEligible(result.userId, result.programId).catch((error) => {
+    console.error('Grade correction eligibility refresh failed after save:', error)
+  })
+  try {
+    await notify(result.userId, 'GENERAL', 'تمت مراجعة نتيجتك من مشرفك', `راجع ${actor.name} تصحيح «${result.examTitle}» وحدّث نتيجتك — نتيجتك الحالية: ${result.score}%.`, '/?view=dashboard')
+  } catch (error) {
+    console.error('Grade correction notification failed after save:', error)
+  }
   return { score: result.score, passed: result.passed }
 }
 
