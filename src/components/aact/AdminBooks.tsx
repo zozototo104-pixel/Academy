@@ -2069,7 +2069,7 @@ export function AdminBooksTab() {
         if (active && response.job) {
           setBookReadJobs((previous) => ({ ...previous, [book.id]: response.job! }))
           setProgramKnowledgeV2States((previous) => ({ ...previous, [book.id]: {
-            state: response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
+            state: response.job!.status === 'FAILED' ? 'FAILED' : response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
             retryAt: response.job!.retryAt,
           } }))
         }
