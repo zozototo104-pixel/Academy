@@ -225,12 +225,54 @@ export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt
       return { local: rows, own: rows.filter((row) => row.chunkId === chunkId) }
     },
     save: async (chunk, items, capacity) => {
-      await db.$transaction([
-        ...(items.length ? [db.bookKnowledgeItem.createMany({ data: items.map((item) => ({ bookId: chunk.bookId, programId: chunk.programId, chunkId: chunk.id, pageStart: chunk.pageStart, pageEnd: chunk.pageEnd, textProvenance: chunk.textProvenance, kbVersion: 2, category: item.category, title: item.title, summary: item.summary, excerpt: item.excerpt, importance: item.importance })) })] : []),
-        db.bookChunk.update({ where: { id: chunk.id }, data: capacity === 0 ? { saturatedAt: new Date() } : { analysisPasses: { increment: 1 } } }),
-      ])
+      await db.$transaction(async (tx) => {
+        await assertBookReadLease(tx, jobId, claimedAt)
+        const current = await tx.bookChunk.findUnique({
+          where: { id: chunk.id }, select: { status: true, saturatedAt: true, analysisPasses: true },
+        })
+        if (current?.status !== 'ANALYZED' || current.saturatedAt || current.analysisPasses >= 3) return
+        // Re-check both capacity and duplicate content at commit time, not at
+        // the start of the AI call. The job-row lease lock serializes workers.
+        const rows = await tx.bookKnowledgeItem.findMany({
+          where: { bookId: chunk.bookId, kbVersion: 2, chunkId: chunk.id },
+          select: { title: true, summary: true },
+        })
+        const available = Math.max(0, 20 - rows.length)
+        const accepted: BookKnowledgeCandidate[] = []
+        for (const item of items) {
+          if (accepted.length >= available) break
+          if (!isRepeatedBookConcept(item, [...rows, ...accepted])) accepted.push(item)
+        }
+        if (accepted.length) await tx.bookKnowledgeItem.createMany({
+          data: accepted.map((item) => ({
+            bookId: chunk.bookId, programId: chunk.programId,
+            chunkId: chunk.id, pageStart: chunk.pageStart,
+            pageEnd: chunk.pageEnd, textProvenance: chunk.textProvenance,
+            kbVersion: 2, category: item.category, title: item.title,
+            summary: item.summary, excerpt: item.excerpt, importance: item.importance,
+          })),
+        })
+        await tx.bookChunk.update({
+          where: { id: chunk.id },
+          data: capacity === 0 || available === 0
+            ? { saturatedAt: new Date() }
+            : { analysisPasses: { increment: 1 } },
+        })
+      })
     },
-    finish: async (id) => { await db.bookReadJob.updateMany({ where: { id, status: 'RUNNING' }, data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null } }) },
+    finish: async (id) => {
+      await db.$transaction(async (tx) => {
+        await assertBookReadLease(tx, id, claimedAt)
+        const stillOpen = await tx.bookChunk.count({
+          where: { bookId: (await tx.bookReadJob.findUniqueOrThrow({ where: { id } })).bookId, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } },
+        })
+        if (stillOpen) return
+        await tx.bookReadJob.updateMany({
+          where: { id, status: 'RUNNING', startedAt: claimedAt },
+          data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null },
+        })
+      })
+    },
   }
   return enrichStepWithStore(jobId, deadlineMs, store)
 }
