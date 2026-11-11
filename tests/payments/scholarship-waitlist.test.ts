@@ -415,7 +415,7 @@ describe('scholarship waitlist', () => {
     expect(operations.get('op-resent')?.status).toBe('CANCELLED')
   })
 
-  test('an abandoned ISSUING operation with no links is auto-released; a linked or fresh one is not', async () => {
+  test('an old unlinked ISSUING operation is held for manual reconciliation, even when its code has no grant link', async () => {
     seedCampaign(3)
     const old = new Date(Date.now() - 60 * 60 * 1000)
     operations.set('op-abandoned', { id: 'op-abandoned', definitionId: DEF, programId: 'program-A', userId: 'crashed', admissionId: 'adm-crashed', status: 'ISSUING', createdAt: old, updatedAt: old })
@@ -423,10 +423,20 @@ describe('scholarship waitlist', () => {
     links.set('link-issuing', { id: 'link-issuing', operationId: 'op-issuing-linked', definitionId: DEF, waiverCodeId: 'some-code', paymentId: 'pay-adm-linked' })
     operations.set('op-issuing-fresh', { id: 'op-issuing-fresh', definitionId: DEF, programId: 'program-A', userId: 'fresh', admissionId: 'adm-fresh', status: 'ISSUING', createdAt: new Date(), updatedAt: new Date() })
     const released = await releaseStaleGrantOperations(db, {})
-    expect(released.map((op: any) => op.id)).toEqual(['op-abandoned'])
-    expect(operations.get('op-abandoned')?.status).toBe('CANCELLED')
+    expect(released).toEqual([])
+    expect(operations.get('op-abandoned')?.status).toBe('ISSUING')
     expect(operations.get('op-issuing-linked')?.status).toBe('ISSUING')
     expect(operations.get('op-issuing-fresh')?.status).toBe('ISSUING')
+    expect(await countOccupiedSeats(db, DEF, 'program-A')).toBe(3)
+
+    // A code can commit in the issuer before its organized ledger link.
+    // Even with no link and long after the timeout, never release its seat.
+    seedAdmission('adm-crashed', 'crashed')
+    waiverCodes.push({ id: 'code-before-link', paymentId: 'pay-adm-crashed', waiverType: 'PARTIAL_TUITION', status: 'ISSUED', expiresAt: new Date(Date.now() + 86_400_000) })
+    const lateRelease = await releaseStaleGrantOperations(db, { operationIds: ['op-abandoned'] })
+    expect(lateRelease).toEqual([])
+    expect(operations.get('op-abandoned')?.status).toBe('ISSUING')
+    expect(await countOccupiedSeats(db, DEF, 'program-A')).toBe(3)
   })
 
   test('expiry release closes a fully expired reservation and frees its seat for the waitlist', async () => {
