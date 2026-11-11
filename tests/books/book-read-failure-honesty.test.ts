@@ -58,6 +58,30 @@ describe('lease-fenced writes across book pipeline', () => {
     expect(bookAnalyzer).toContain("message.includes('BOOK_READ_LEASE_LOST')")
     expect(bookAnalyzer).toContain('const available = Math.max(0, 20 - rows.length)')
   })
+
+  it('requires the owner timestamp for all three terminal job updates', () => {
+    const terminalUpdates = bookAnalyzer.match(/where: \{ id, status: 'RUNNING', startedAt: claimedAt \}/g) || []
+    // One ENRICH completion, one failed ANALYZE, one successful ANALYZE.
+    expect(terminalUpdates.length).toBe(3)
+  })
+
+  it('releases lost ownership before classifying either driver failure as fatal', () => {
+    for (const driver of [readStep, cron]) {
+      const lost = driver.indexOf("if (message === 'BOOK_READ_LEASE_LOST')")
+      const classify = driver.indexOf('classifyBookReadFailure(message)')
+      expect(lost).toBeGreaterThan(-1)
+      expect(classify).toBeGreaterThan(lost)
+      expect(driver.slice(lost, classify)).toContain('await releaseBookReadLock(db, job.id,')
+    }
+  })
+
+  it('accepts expired manual-stop locks for rebuild, but never an active or retryable pause', () => {
+    expect(readJobRoute).toContain('active.lockedUntil <= new Date()')
+    expect(readJobRoute).toContain("active.retryAt?.getUTCFullYear() === 9999")
+    expect(readJobRoute).toContain("WHERE \"id\" = ${candidate.id} FOR UPDATE")
+    expect(readJobRoute).toContain('lockedUntil: { lte: new Date() }')
+    expect(adminBooks).toContain('new Date(activeJob.lockedUntil).getTime() <= Date.now()')
+  })
 })
 
 describe('read-step honest job states', () => {
