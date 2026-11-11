@@ -296,6 +296,15 @@ describe('direct failed-chunk API cannot skip unfinished extraction', () => {
     ]
     createdJobs = 0
     changedChunks = 0
+    rebuildSourceAvailable = true
+    linkedAcademicUnits = 0
+    linkedExamEvidence = 0
+    approvedRebuildOutlines = 0
+    draftRebuildOutlines = 1
+    rebuildKnowledgeIds = ['knowledge-1', 'knowledge-2']
+    linkedAssignments = []
+    linkedGuides = []
+    rebuildDeletionCount = 0
   })
 
   it('returns 409 with the saved extraction job and changes nothing when pages remain', async () => {
