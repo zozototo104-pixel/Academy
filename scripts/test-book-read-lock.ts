@@ -105,7 +105,7 @@ async function testFencedWritesAfterWorkerTakeover() {
     $queryRaw: async (parts: TemplateStringsArray, id: string, claimedAt: Date) => {
       // The real SQL must lock the job row, not merely check it before writes.
       assert.match(parts.join('?'), /FOR UPDATE/)
-      assert.match(parts.join('?'), /"lockedUntil" > NOW\(\)/)
+      assert.match(parts.join('?'), /"lockedUntil" > clock_timestamp\(\)/)
       return state.id === id && state.status === 'RUNNING'
         && state.startedAt.getTime() === claimedAt.getTime()
         && state.lockedUntil.getTime() > Date.now() ? [{ id }] : []
