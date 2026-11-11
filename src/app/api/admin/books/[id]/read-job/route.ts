@@ -109,14 +109,22 @@ export async function POST(request: NextRequest, context: Context) {
           currentSource.fileUrl !== source.fileUrl || currentSource.data !== source.data) {
           return { error: 'BOOK_REBUILD_SOURCE_CHANGED' as const }
         }
-        const active = await tx.bookReadJob.findFirst({
+        const candidate = await tx.bookReadJob.findFirst({
           where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } },
           orderBy: { createdAt: 'desc' },
         })
-        // Manual STOP may be rebuilt only AFTER the last worker has released
-        // its lease. Automatic pauses and running/queued work must be left alone.
+        // Lock the existing job row as well as Book. This serializes a
+        // concurrent RESUME or finishing worker with the destructive reset.
+        if (candidate) await tx.$queryRaw`SELECT "id" FROM "BookReadJob" WHERE "id" = ${candidate.id} FOR UPDATE`
+        const active = candidate
+          ? await tx.bookReadJob.findUniqueOrThrow({ where: { id: candidate.id } })
+          : null
+        // After manual STOP, an abandoned serverless worker may never return
+        // to clear lockedUntil. An EXPIRED lease is just as safe as NULL:
+        // no new worker may claim the year-9999 manual pause.
         const stoppedAndReleased = active?.status === 'PAUSED' &&
-          active.retryAt?.getUTCFullYear() === 9999 && !active.lockedUntil
+          active.retryAt?.getUTCFullYear() === 9999 &&
+          (!active.lockedUntil || active.lockedUntil <= new Date())
         if (active && !stoppedAndReleased) return { error: 'BOOK_REBUILD_JOB_ACTIVE' as const }
 
         const known = await tx.bookKnowledgeItem.findMany({
