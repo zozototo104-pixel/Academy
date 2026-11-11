@@ -36,7 +36,8 @@ export function isPrivateSeoPath(pathname: string) {
 }
 
 export function seoForPath(pathname: string): Metadata {
-  const cleanPath = pathname || '/'
+  // Keep the legacy certificate UI reachable, but give crawlers one canonical URL.
+  const cleanPath = pathname === '/certificates' ? '/verify' : (pathname || '/')
   const matched = PUBLIC_SEO_ROUTES.find((r) => r.path === cleanPath)
   const isProgramDetail = cleanPath.startsWith('/programs/')
   const title = matched?.title || (isProgramDetail ? 'تفاصيل البرنامج المهني' : SITE_NAME)
