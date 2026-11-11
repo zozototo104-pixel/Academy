@@ -3163,7 +3163,7 @@ export function AdminBooksTab() {
                               {job.status === 'PAUSED' && !manuallyStopped && job.retryAt && <p>موعد الاستئناف التلقائي: {new Date(job.retryAt).toLocaleString('ar')}</p>}
                               {['QUEUED', 'RUNNING'].includes(job.status) && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => void controlBookReadJob(b.id, 'STOP')}>إيقاف هذا الكتاب</Button>}
                               {job.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => void controlBookReadJob(b.id, 'RESUME')}>استكمال الآن</Button>}
-                              {job.status === 'FAILED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => job.phase === 'ENRICH' ? startBookEnrichment(b.id) : job.chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)}>{job.phase === 'ENRICH' ? 'إعادة محاولة استخراج المزيد' : job.chunksFailed > 0 ? 'إعادة المحاولة للمقاطع الفاشلة' : 'إعادة محاولة قراءة الكتاب'}</Button>}
+                              {job.status === 'FAILED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => job.phase === 'ENRICH' ? startBookEnrichment(b.id) : chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)}>{job.phase === 'ENRICH' ? 'إعادة محاولة استخراج المزيد' : job.chunksFailed > 0 ? 'إعادة المحاولة للمقاطع الفاشلة' : 'إعادة محاولة قراءة الكتاب'}</Button>}
                             </div>
                           })()}
                         </div>
