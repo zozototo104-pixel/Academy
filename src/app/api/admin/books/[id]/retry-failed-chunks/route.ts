@@ -19,12 +19,22 @@ export async function POST(_request: NextRequest, context: Context) {
     if (!book) return NextResponse.json({ error: 'الكتاب غير موجود' }, { status: 404 })
     try {
       const result = await db.$transaction(async (tx) => {
-        const chunks = await tx.bookChunk.updateMany({ where: { bookId: id, status: 'FAILED' }, data: { status: 'PENDING', attempts: 0, lastError: null } })
         const active = await tx.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
-        const job = active
-          ? await tx.bookReadJob.update({ where: { id: active.id }, data: { phase: 'ANALYZE', status: 'QUEUED', retryAt: null, lockedUntil: null, finishedAt: null } })
-          : await tx.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: 'ANALYZE', status: 'QUEUED' } })
-        return { chunksReset: chunks.count, jobId: job.id }
+        // Never clear an in-flight worker's lease or undo a manual STOP.
+        if (active) return { chunksReset: 0, jobId: active.id, resumed: true }
+        const chunks = await tx.bookChunk.updateMany({ where: { bookId: id, status: 'FAILED' }, data: { status: 'PENDING', attempts: 0, lastError: null } })
+        const latest = await tx.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
+        if (latest?.status === 'FAILED' && latest.phase === 'ANALYZE') {
+          // Keep the same job, its completed page/chunk counters and saved
+          // knowledge; only failed chunks go back to PENDING for another try.
+          const changed = await tx.bookReadJob.updateMany({
+            where: { id: latest.id, status: 'FAILED' },
+            data: { status: 'QUEUED', chunksFailed: 0, retryAt: null, lockedUntil: null, finishedAt: null },
+          })
+          if (changed.count) return { chunksReset: chunks.count, jobId: latest.id, resumed: true }
+        }
+        const job = await tx.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: 'ANALYZE', status: 'QUEUED' } })
+        return { chunksReset: chunks.count, jobId: job.id, resumed: false }
       })
       return NextResponse.json({ ok: true, ...result })
     } catch (error: any) {
