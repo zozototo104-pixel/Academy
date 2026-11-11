@@ -89,7 +89,7 @@ jobs:
                 AND "startedAt"=TIMESTAMP '2026-11-11 10:00:00'
                 AND "lockedUntil">clock_timestamp() FOR UPDATE;
             IF found_id IS NOT NULL THEN RAISE EXCEPTION 'expired owner was accepted'; END IF;
-          END $;
+          END $lease_check$;
           ROLLBACK;
           SQL
       - name: Build a full-schema encrypted fixture
