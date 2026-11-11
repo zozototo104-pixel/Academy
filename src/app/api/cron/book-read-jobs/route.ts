@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { claimAiHealthRun } from '@/lib/ai-health'
 import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
-import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, claimBookReadLock, classifyBookReadFailure, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
+import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, claimBookReadLock, releaseBookReadLock, classifyBookReadFailure, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
 import { textAiCheckAllModelHealth } from '@/lib/text-ai'
 
 export const runtime = 'nodejs'
