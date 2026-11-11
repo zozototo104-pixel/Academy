@@ -50,19 +50,11 @@ export async function GET(request: NextRequest) {
       } else if (job.phase === 'ENRICH') {
         await runEnrichStep(job.id, deadline)
       }
+      // Release only this invocation's lock. The shared helper preserves
+      // manual STOP and the historical auto-requeue behavior for other jobs.
+      await releaseBookReadLock(db, job.id, claimedAt, true)
       const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true, retryAt: true } })
       const manuallyStopped = current?.status === 'PAUSED' && current.retryAt?.getUTCFullYear() === 9999
-      // Preserve the original cron rescheduling for every legacy status.
-      // The only exception is a manual stop for this specific book. CAS on
-      // status (and retryAt for PAUSED) protects a concurrent STOP request.
-      if (current && current.status !== 'COMPLETED' && !manuallyStopped) await db.bookReadJob.updateMany({
-        where: {
-          id: job.id,
-          status: current.status,
-          ...(current.status === 'PAUSED' ? { retryAt: { lt: new Date('9999-01-01T00:00:00.000Z') } } : {}),
-        },
-        data: { status: 'QUEUED', lockedUntil: null, retryAt: null },
-      })
       outcomes.push({ jobId: job.id, outcome: current?.status === 'COMPLETED' ? 'COMPLETED' : manuallyStopped ? 'PAUSED_BY_ADMIN' : 'PROGRESSED' })
     } catch (error: any) {
       const message = String(error?.message || error)
