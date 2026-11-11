@@ -205,7 +205,11 @@ const retryDb: any = {
     },
     create: async ({ data }: any) => {
       createdJobs++
-      retryJob = { ...retryJob, ...data, id: 'new-analysis-job' }
+      retryJob = {
+        ...retryJob, ...data, id: 'new-analysis-job',
+        pagesDone: 0, totalPages: 0, totalChunks: 0, chunksAnalyzed: 0, chunksFailed: 0,
+        retryAt: null, lockedUntil: null,
+      }
       return { ...retryJob }
     },
   },
