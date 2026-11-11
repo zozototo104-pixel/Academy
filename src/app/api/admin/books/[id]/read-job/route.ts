@@ -80,30 +80,51 @@ export async function POST(request: NextRequest, context: Context) {
       const job = await db.bookReadJob.findUniqueOrThrow({ where: { id: current.id } })
       return NextResponse.json({ ok: true, job, manuallyStopped: job.status === 'PAUSED' && job.retryAt?.getUTCFullYear() === 9999 })
     }
-    if (mode === 'ENRICH') {
-      const readable = await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } })
-      if (!readable) return NextResponse.json({ error: 'شغّل القراءة الكاملة أولاً' }, { status: 400 })
-    }
     const existing = await db.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
     if (existing) return NextResponse.json({ ok: true, job: existing, resumed: true })
     const lastJob = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
-    const matchingFailedPhase = mode === 'ENRICH'
-      ? lastJob?.phase === 'ENRICH'
-      : ['EXTRACT', 'ANALYZE'].includes(String(lastJob?.phase || ''))
-    if (matchingFailedPhase && planBookReadJobResume(lastJob, body?.restart === true) === 'RESUME') {
-      // Continue the SAME job and saved phase: pagesDone, chunk statuses,
-      // analysisPasses, knowledge rows and page-issue ledger are untouched.
-      // The compare-and-swap also prevents two admins from both reviving it.
-      const changed = await db.bookReadJob.updateMany({
-        where: { id: lastJob!.id, status: 'FAILED' },
-        data: { status: 'QUEUED', retryAt: null, lockedUntil: null, finishedAt: null },
-      })
+    if (lastJob?.status === 'FAILED') {
+      // A failed phase must be resumed in-place, never bypassed by creating
+      // ENRICH or a fresh EXTRACT job from previously saved knowledge.
+      // EXTRACT is the UI's entry point for a failed ANALYZE phase as well.
+      const resumeMode = lastJob.phase === 'ENRICH' ? 'ENRICH' : 'EXTRACT'
+      if (!['EXTRACT', 'ANALYZE', 'ENRICH'].includes(lastJob.phase) || mode !== resumeMode || body?.restart === true) {
+        return NextResponse.json({
+          error: 'BOOK_FAILED_PHASE_RESUME_REQUIRED',
+          message: 'يجب استكمال المرحلة الفاشلة لنفس مهمة الكتاب قبل بدء مرحلة أخرى.',
+          jobId: lastJob.id, resumeMode, failedPhase: lastJob.phase,
+        }, { status: 409 })
+      }
+      // Compare-and-swap owns the recovery. For a failed ANALYZE, reset only
+      // failed chunks inside the SAME transaction; all successfully analyzed
+      // chunks, knowledge, page cursor, enhancement passes and issue ledger stay.
+      const changed = lastJob.phase === 'ANALYZE'
+        ? await db.$transaction(async (tx) => {
+            const resumed = await tx.bookReadJob.updateMany({
+              where: { id: lastJob.id, status: 'FAILED' },
+              data: { status: 'QUEUED', chunksFailed: 0, retryAt: null, lockedUntil: null, finishedAt: null },
+            })
+            if (resumed.count) await tx.bookChunk.updateMany({
+              where: { bookId: id, status: 'FAILED' },
+              data: { status: 'PENDING', attempts: 0, lastError: null },
+            })
+            return resumed
+          })
+        : await db.bookReadJob.updateMany({
+            where: { id: lastJob.id, status: 'FAILED' },
+            data: { status: 'QUEUED', retryAt: null, lockedUntil: null, finishedAt: null },
+          })
       if (changed.count) {
-        const resumed = await db.bookReadJob.findUniqueOrThrow({ where: { id: lastJob!.id } })
+        const resumed = await db.bookReadJob.findUniqueOrThrow({ where: { id: lastJob.id } })
         return NextResponse.json({ ok: true, job: resumed, resumed: true })
       }
       const winner = await db.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
       if (winner) return NextResponse.json({ ok: true, job: winner, resumed: true })
+      return NextResponse.json({ error: 'BOOK_RESUME_CONFLICT', message: 'تغيّرت حالة المهمة أثناء الاستكمال — حدّث الحالة وأعد المحاولة.' }, { status: 409 })
+    }
+    if (mode === 'ENRICH') {
+      const readable = await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } })
+      if (!readable) return NextResponse.json({ error: 'شغّل القراءة الكاملة أولاً' }, { status: 400 })
     }
     try {
       const job = await db.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: mode, status: 'QUEUED' } })
