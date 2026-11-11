@@ -286,4 +286,149 @@ describe('direct failed-chunk API cannot skip unfinished extraction', () => {
     expect(createdJobs).toBe(0)
     expect(retryJob.lockedUntil?.toISOString()).toBe('2026-11-11T21:00:00.000Z')
   })
+
+  it('rejects ENRICH with prior knowledge while PDF extraction failed on page 86', async () => {
+    const response = await requestBookJob('ENRICH')
+    const body = await response.json()
+    expect(response.status).toBe(409)
+    expect(body.error).toBe('BOOK_FAILED_PHASE_RESUME_REQUIRED')
+    expect(body.resumeMode).toBe('EXTRACT')
+    expect(retryJob.pagesDone).toBe(86)
+    expect(retryChunks[0].status).toBe('FAILED')
+    expect(createdJobs).toBe(0)
+    expect(changedChunks).toBe(0)
+  })
+
+  it('rejects ENRICH when the last ANALYZE job failed', async () => {
+    retryJob.phase = 'ANALYZE'
+    const response = await requestBookJob('ENRICH')
+    expect(response.status).toBe(409)
+    expect((await response.json()).failedPhase).toBe('ANALYZE')
+    expect(createdJobs).toBe(0)
+    expect(changedChunks).toBe(0)
+  })
+
+  it('rejects a fresh PDF read over FAILED ENRICH rather than losing saved enrichment rounds', async () => {
+    retryJob.phase = 'ENRICH'
+    const response = await requestBookJob('EXTRACT')
+    const body = await response.json()
+    expect(response.status).toBe(409)
+    expect(body.resumeMode).toBe('ENRICH')
+    expect(retryJob.phase).toBe('ENRICH')
+    expect(createdJobs).toBe(0)
+  })
+
+  it('resumes the original failed ENRICH job and retains analyzed chunks', async () => {
+    retryJob.phase = 'ENRICH'
+    retryJob.chunksFailed = 0
+    const response = await requestBookJob('ENRICH')
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.resumed).toBe(true)
+    expect(body.job.id).toBe('saved-job')
+    expect(body.job.phase).toBe('ENRICH')
+    expect(retryChunks[0].status).toBe('FAILED')
+    expect(changedChunks).toBe(0)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('resumes saved EXTRACT at page 86 instead of creating a new job', async () => {
+    const response = await requestBookJob('EXTRACT')
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.job.id).toBe('saved-job')
+    expect(body.job.pagesDone).toBe(86)
+    expect(body.job.phase).toBe('EXTRACT')
+    expect(createdJobs).toBe(0)
+  })
+
+  it('prominent read action can recover failed ANALYZE and requeue only failed chunks atomically', async () => {
+    retryJob.phase = 'ANALYZE'
+    retryJob.pagesDone = 227
+    const response = await requestBookJob('EXTRACT')
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.job.id).toBe('saved-job')
+    expect(body.job.phase).toBe('ANALYZE')
+    expect(body.job.pagesDone).toBe(227)
+    expect(body.job.chunksAnalyzed).toBe(24)
+    expect(body.job.chunksFailed).toBe(0)
+    expect(retryChunks[0].status).toBe('PENDING')
+    expect(retryChunks[1].status).toBe('ANALYZED')
+    expect(changedChunks).toBe(1)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('resumes failed ANALYZE even with zero FAILED chunks (e.g. provider error)', async () => {
+    retryJob.phase = 'ANALYZE'
+    retryChunks[0].status = 'ANALYZED'
+    const response = await requestBookJob('EXTRACT')
+    expect(response.status).toBe(200)
+    expect(retryJob.phase).toBe('ANALYZE')
+    expect(retryJob.status).toBe('QUEUED')
+    expect(changedChunks).toBe(0)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('rejects a forced fresh restart while a saved failed phase needs recovery', async () => {
+    const response = await requestBookJob('EXTRACT', { restart: true })
+    expect(response.status).toBe(409)
+    expect(retryJob.status).toBe('FAILED')
+    expect(retryJob.pagesDone).toBe(86)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('rejects direct chunk retry for failed ENRICH without changing saved chunks or job', async () => {
+    retryJob.phase = 'ENRICH'
+    const response = await requestFailedChunkRetry()
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toBe('BOOK_ANALYSIS_PHASE_REQUIRED')
+    expect(retryJob.phase).toBe('ENRICH')
+    expect(retryChunks[0].status).toBe('FAILED')
+    expect(changedChunks).toBe(0)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('rejects direct chunk retry after completed reading rather than creating an empty analysis job', async () => {
+    retryJob.phase = 'DONE'
+    retryJob.status = 'COMPLETED'
+    const response = await requestFailedChunkRetry()
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toBe('BOOK_ANALYSIS_PHASE_REQUIRED')
+    expect(retryJob.status).toBe('COMPLETED')
+    expect(changedChunks).toBe(0)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('rejects direct analysis retry when no failed chunks actually exist', async () => {
+    retryJob.phase = 'ANALYZE'
+    retryChunks[0].status = 'ANALYZED'
+    const response = await requestFailedChunkRetry()
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toBe('BOOK_NO_FAILED_CHUNKS')
+    expect(retryJob.status).toBe('FAILED')
+    expect(changedChunks).toBe(0)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('still permits a new enrichment job after a genuinely completed read', async () => {
+    retryJob.phase = 'DONE'
+    retryJob.status = 'COMPLETED'
+    const response = await requestBookJob('ENRICH')
+    expect(response.status).toBe(200)
+    expect((await response.json()).resumed).toBe(false)
+    expect(createdJobs).toBe(1)
+    expect(retryJob.phase).toBe('ENRICH')
+  })
+
+  it('two admins racing to resume one failed job do not create duplicate jobs', async () => {
+    retryJob.phase = 'ANALYZE'
+    const [a, b] = await Promise.all([requestBookJob('EXTRACT'), requestBookJob('EXTRACT')])
+    expect(a.status).toBe(200)
+    expect(b.status).toBe(200)
+    expect((await a.json()).job.id).toBe('saved-job')
+    expect((await b.json()).job.id).toBe('saved-job')
+    expect(createdJobs).toBe(0)
+    expect(changedChunks).toBe(1)
+  })
 })
