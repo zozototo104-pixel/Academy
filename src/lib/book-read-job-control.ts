@@ -199,7 +199,7 @@ export function isTransientBookReadError(message: unknown): boolean {
 
 export function planBookReadJobResume(lastJob: { status?: string | null; phase?: string | null } | null | undefined, restart?: boolean): 'RESUME' | 'CREATE' {
   if (restart) return 'CREATE'
-  if (lastJob?.status === 'FAILED' && ['EXTRACT', 'ANALYZE'].includes(String(lastJob.phase || ''))) return 'RESUME'
+  if (lastJob?.status === 'FAILED' && ['EXTRACT', 'ANALYZE', 'ENRICH'].includes(String(lastJob.phase || ''))) return 'RESUME'
   return 'CREATE'
 }
 
