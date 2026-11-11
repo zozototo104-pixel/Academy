@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { PDFDocument } from 'pdf-lib'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
+import { audit } from '@/lib/notify'
 
 export const runtime = 'nodejs'
 type Context = { params: Promise<{ id: string }> }
