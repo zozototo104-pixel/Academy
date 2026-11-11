@@ -61,6 +61,10 @@ function testWorkflowTargetsQaOnly() {
   assert(!smoke.includes('x-vercel-set-bypass-cookie'), 'curl smoke must not request bypass cookie: Vercel otherwise redirects until curl -L fails')
   assert(smoke.includes('if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]'), 'HTTP smoke must reject redirects and auth errors')
   assert(smoke.includes('deep-health'), 'HTTP smoke must check application JSON health, not just HTTP 200')
+
+  const preflight = file('scripts/e2e-strict-preflight.sh')
+  assert(preflight.includes('x-vercel-protection-bypass'), 'strict QA preflight must authenticate protected preview requests')
+  assert(!preflight.includes('x-vercel-set-bypass-cookie'), 'strict curl preflight must not request a bypass cookie: Vercel would loop through 307 redirects')
 }
 
 function testFinallyCleanup() {
