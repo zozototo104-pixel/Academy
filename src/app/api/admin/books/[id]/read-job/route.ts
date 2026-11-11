@@ -9,7 +9,15 @@ export const runtime = 'nodejs'
 type Context = { params: Promise<{ id: string }> }
 
 async function authorize() {
-  await requireAdmin()
+  return requireAdmin()
+}
+
+// Book knowledge IDs also occur in legacy JSON/text evidence lists. Never
+// erase referenced evidence during a manual rebuild, even if there is no FK.
+function usesAnyKnowledgeId(value: unknown, ids: string[]): boolean {
+  if (value == null || !ids.length) return false
+  const serialized = typeof value === 'string' ? value : JSON.stringify(value)
+  return ids.some((id) => serialized.includes(id))
 }
 
 export async function GET(_request: NextRequest, context: Context) {
