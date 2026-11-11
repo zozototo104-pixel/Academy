@@ -333,7 +333,7 @@ export async function analyzeStepWithStore(
 }
 
 /** Requires the read-step lock to have been claimed before invocation. */
-export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
+export async function runAnalyzeStep(jobId: string, deadlineMs: number, claimedAt: Date) {
   const store: AnalyzeStepStore = {
     getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, programId: true, phase: true, status: true } }),
     nextChunk: (bookId, excludeIds) => db.bookChunk.findFirst({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] }, id: { notIn: excludeIds } }, orderBy: { index: 'asc' }, select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, attempts: true } }),
