@@ -146,10 +146,10 @@ export async function runNextKnowledgeAiRepairStep() {
   if (!REPAIR_SUPPORTED_PROVIDERS.has(repairProvider) || (repairProvider !== 'AUTO' && !chosenModel.length)) {
     return { status: 'INVALID_REPAIR_MODEL_CONFIGURATION' }
   }
-  // A configurable extra delay may only SLOW down repair, never bypass
-  // the global 90-second safety budget or compete with student requests.
+  // An administrator-set interval of zero adds no artificial restriction.
+  // Provider quota errors are handled by the existing router and pause state.
   const seconds = Number(config.AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS || 0)
-  const intervalMs = Math.max(90_000, Number.isFinite(seconds) ? Math.max(0, Math.min(3600, Math.floor(seconds))) * 1000 : 0)
+  const intervalMs = Number.isFinite(seconds) ? Math.max(0, Math.min(3600, Math.floor(seconds))) * 1000 : 0
   if (intervalMs > 0) {
     await db.setting.upsert({ where: { key: REPAIR_RATE_GATE }, create: { key: REPAIR_RATE_GATE, value: '0' }, update: {} })
     const rate = await db.setting.findUniqueOrThrow({ where: { key: REPAIR_RATE_GATE }, select: { value: true } })
