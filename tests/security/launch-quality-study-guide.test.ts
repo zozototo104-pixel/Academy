@@ -605,6 +605,36 @@ describe('semester guide: automatic missing unit guide backed by knowledge sourc
     expect(body.error).toContain('STUDY_GUIDE_UNIT_REFERENCES_MISSING')
     expect(guides).toHaveLength(0)
   })
+
+  test('draft sections marked for historical source review cannot be published', async () => {
+    resetAutoGuideFixture()
+    const testDb: any = fakeDb
+    const oldFindUnique = testDb.programStudyGuide.findUnique
+    const oldUpdate = testDb.programStudyGuide.update
+    const guide = {
+      id: 'historical-source-review', programId: AUTO_PROGRAM_ID, status: 'DRAFT',
+      sourceKnowledgeIds: JSON.stringify([AUTO_KNOWLEDGE_ID]),
+      sections: JSON.stringify([
+        { title: 'محور موثق', sourceKnowledgeIds: [AUTO_KNOWLEDGE_ID] },
+        { title: 'محور قديم', sourceKnowledgeIds: [], sourceReviewRequired: true },
+      ]),
+    }
+    try {
+      testDb.programStudyGuide.findUnique = async () => guide
+      testDb.programStudyGuide.update = async () => { throw new Error('Publish must not write') }
+      const { PATCH: updateGuide } = await import('../../src/app/api/admin/study-guides/route')
+      const response = await updateGuide({ json: async () => ({
+        id: guide.id, status: 'PUBLISHED',
+      }) } as any)
+      expect(response.status).toBe(422)
+      const body = await response.json()
+      expect(body.error).toContain('STUDY_GUIDE_SECTION_SOURCE_REVIEW_REQUIRED')
+      expect(guide.status).toBe('DRAFT')
+    } finally {
+      testDb.programStudyGuide.findUnique = oldFindUnique
+      testDb.programStudyGuide.update = oldUpdate
+    }
+  })
 })
 
 
