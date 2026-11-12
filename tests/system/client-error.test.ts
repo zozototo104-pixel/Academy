@@ -31,7 +31,8 @@ describe('client error reporting', () => {
       const payload = JSON.parse(String(report![1]))
       expect(payload.message).toContain('Blocked aria-hidden')
       expect(payload.digest).toBe('abc123')
-      expect(payload.url).toContain('tab=students')
+      expect(payload.url).toBe('https://example.test/admin')
+      expect(payload.url).not.toContain('tab=students')
       expect(payload.userAgent).toContain('iPhone')
     } finally {
       console.error = original
