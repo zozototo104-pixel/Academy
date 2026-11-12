@@ -5324,7 +5324,7 @@ export function AdminKnowledgeAiRepairTab() {
           </div>
           <div className="max-w-xl space-y-2">
             <Label>اختر البرنامج المراد تصحيح معرفته</Label>
-            <Select value={programId} onValueChange={setProgramId}>
+            <Select value={programId} onValueChange={(next) => { setProgramId(next); setJob(null); setLoadingStatus(true) }}>
               <SelectTrigger className="w-full text-right"><SelectValue placeholder={loadingPrograms ? 'جارٍ تحميل البرامج…' : 'اختر البرنامج'} /></SelectTrigger>
               <SelectContent>
                 {programs.map((program) => (
