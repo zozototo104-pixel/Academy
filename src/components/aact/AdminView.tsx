@@ -447,6 +447,13 @@ export function AdminView() {
     try {
       await api('/api/admin/students/email-change', { method: 'POST', body: JSON.stringify({ userId: emailChangeStudent.id, newEmail: emailChangeValue.trim(), purpose: emailChangePurpose }) })
       toast({ title: 'أرسلنا رابط التأكيد', description: 'سيُعتمد البريد الجديد عندما يضغط الطالب رابط التأكيد الواصل إليه.' })
+      // Harden the dialog close on iOS Safari: blur the focused submit
+      // button before unmounting the dialog, so focus is not left inside
+      // a subtree Radix is about to remove — the prime suspect for the
+      // crash screen right after this action. Hardening, not a proven
+      // fix: the error report (see src/app/error.tsx) will prove the real
+      // cause if the crash ever recurs.
+      try { (document.activeElement as HTMLElement | null)?.blur?.() } catch { /* ignore */ }
       setEmailChangeStudent(null)
       setEmailChangeValue('')
     } catch (e: any) {
