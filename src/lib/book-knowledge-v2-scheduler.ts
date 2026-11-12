@@ -40,8 +40,12 @@ export async function scheduleProgramKnowledgeV2(programId: string, semester?: n
 // BookReadJob or changes the reading/enrichment pipeline above.
 const REPAIR_PREFIX = 'KNOWLEDGE_AI_REPAIR_JOB:'
 const REPAIR_RATE_GATE = 'KNOWLEDGE_AI_REPAIR_NEXT_CALL'
-const REPAIR_INTERVAL_MS = 90_000 // globally at most one background call/90s
 const REPAIR_LEASE_MS = 110_000
+const REPAIR_SUPPORTED_PROVIDERS = new Set<TextAiProvider>([
+  'GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER',
+  'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL',
+  'CLOUDFLARE', 'APINEX', 'OXION', 'AUTO',
+])
 
 export type KnowledgeAiRepairJob = {
   programId: string
