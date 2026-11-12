@@ -63,7 +63,10 @@ export default function AccountEmailDialog({ open, onClose }: { open: boolean; o
         method: 'POST',
         body: JSON.stringify({ newEmail, purpose, password: purpose === 'LOGIN' ? password : undefined }),
       })
-      toast({ title: 'أرسلنا رابط التأكيد', description: `افتح بريد ${newEmail} واضغط رابط التأكيد لإتمام التغيير. لن يتغير أي شيء قبل التأكيد.` })
+      // Show the persisted pending state immediately; refreshing /auth/me
+      // may fail transiently without undoing a successful POST.
+      setMe((current) => current ? { ...current, pendingEmail: newEmail.toLowerCase(), pendingEmailPurpose: purpose } : current)
+      toast({ title: 'الطلب بانتظار التأكيد', description: `أرسلنا رابطاً إلى ${newEmail}. البريد المعتمد لن يتغير حتى تفتح الرابط وتؤكد الطلب.` })
       setLoginEmail('')
       setPassword('')
       setNotifEmail('')
