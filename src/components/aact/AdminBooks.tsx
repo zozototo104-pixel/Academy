@@ -2415,7 +2415,7 @@ export function AdminBooksTab() {
           .sort((a, b) => a.semester - b.semester))
       toast({
         title: 'تم توليد دليل الدراسة',
-        description: `${d.guide.title}${d.autoCreatedUnitGuides ? ` · أُنشئ ${d.autoCreatedUnitGuides} دليل وحدة ناقص تلقائياً` : ''}`,
+        description: `${d.guide.title}${autoCreatedUnitGuides ? ` · أُنشئ ${autoCreatedUnitGuides} دليل وحدة ناقص تلقائياً` : ''}`,
       })
     } catch (e: any) {
       toast({ title: 'تعذر توليد دليل الدراسة', description: e.message, variant: 'destructive' })
