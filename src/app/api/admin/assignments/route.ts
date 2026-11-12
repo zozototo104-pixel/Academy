@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'صياغة الواجب تبدو مشوهة أو مأخوذة من OCR غير صالح. أعد توليده أو حرره يدوياً.' }, { status: 400 })
     }
 
-    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
+    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, category: true, maxStudyDays: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
     // Old clients omit unitId: preserve their existing assignment link on update.
