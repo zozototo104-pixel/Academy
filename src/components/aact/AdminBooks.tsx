@@ -5349,7 +5349,7 @@ export function AdminKnowledgeAiRepairTab() {
             {statusError && <p role="alert" className="mt-3 text-xs font-bold text-red-700">{statusError}</p>}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={start} disabled={!programId || busy || loadingStatus || running} className="bg-[#0f2b46] text-white">
+            <Button onClick={start} disabled={!repairConfigLoaded || !programId || busy || loadingStatus || running || (repairProvider !== 'AUTO' && !repairModel.trim())} className="bg-[#0f2b46] text-white">
               {busy && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
               {job?.status === 'PAUSED' ? 'استكمال مهمة التصحيح' : job?.status === 'COMPLETED' ? 'بدء فحص جديد' : 'بدء التصحيح الذكي'}
             </Button>
