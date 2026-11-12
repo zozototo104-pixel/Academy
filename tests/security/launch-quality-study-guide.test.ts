@@ -350,3 +350,46 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(source).not.toContain("if (!title || !summary || looksLikeBrokenAcademicOutput")
   })
 })
+
+describe('saved study-guide visibility and citation integrity contracts', () => {
+  const adminRoute = readFileSync(new URL('../../src/app/api/admin/study-guides/route.ts', import.meta.url), 'utf8')
+  const adminBooks = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
+  const studentRoute = readFileSync(new URL('../../src/app/api/study-guides/route.ts', import.meta.url), 'utf8')
+  const studentDashboard = readFileSync(new URL('../../src/components/aact/DashboardView.tsx', import.meta.url), 'utf8')
+
+  test('all persisted semester guides stay visible to admin without truncating sections', () => {
+    const displayBlock = adminBooks.split('const displayStudyGuides = useMemo(')[1]?.split('const hiddenKnowledgeItemsCount')[0] || ''
+    expect(displayBlock).toContain('rootStudyGuides.map')
+    expect(displayBlock).not.toContain('.slice(0, 8)')
+    expect(displayBlock).not.toContain('.filter((guide)')
+    expect(adminBooks).toContain('flaggedStudyGuidesCount')
+    expect(adminBooks).toContain('missingReferenceCount')
+  })
+
+  test('save and publish verify the real referenced book, analyzed chunk and pages', () => {
+    expect(adminRoute).toContain('async function assertStudyGuideReferences(')
+    expect(adminRoute).toContain("chunk.status !== 'ANALYZED'")
+    expect(adminRoute).toContain('item.pageStart < chunk.pageStart')
+    expect(adminRoute).toContain('item.pageEnd > chunk.pageEnd')
+    expect(adminRoute).toContain('await assertStudyGuideReferences(programId, generated)')
+    expect(adminRoute).toContain('isPublishingOrRevisingReferences')
+    expect(adminRoute).toContain('await assertStudyGuideReferences(existing.programId')
+    expect(adminRoute).toContain('missingReferenceCount:')
+    expect(adminRoute).toContain("status: 422")
+    expect(adminRoute).toContain('STUDY_GUIDE_UNIT_SOURCE_MISSING')
+  })
+
+  test('student guide returns complete sections and actual page/citation fields', () => {
+    const mapBlock = studentRoute.split('function mapGuide(g: any)')[1]?.split('export async function GET')[0] || ''
+    expect(mapBlock).toContain('sourceKnowledgeIds:')
+    expect(mapBlock).toContain('pageRefs:')
+    expect(mapBlock).not.toContain('.slice(0, 8)')
+    expect(studentDashboard).toContain('عرض جميع محاور الدليل')
+    expect(studentDashboard).toContain('section.pageRefs?.join')
+  })
+
+  test('knowledge repair remains manually triggered and rule-based repair is unchanged', () => {
+    expect(adminBooks).toContain('تصحيح بالقواعد (حذف الفارغ فقط)')
+    expect(adminBooks).toContain('export function AdminKnowledgeAiRepairTab()')
+  })
+})
