@@ -2402,10 +2402,11 @@ export function AdminBooksTab() {
     if (!programId) return
     setGeneratingGuideSemester(String(semester))
     try {
-      const d = await api<{ guide: StudyGuideRow; autoCreatedUnitGuides?: number }>('/api/admin/study-guides', {
+      const d = await api<{ guide: StudyGuideRow }>('/api/admin/study-guides', {
         method: 'POST',
         body: JSON.stringify({ programId, semester, status: 'PUBLISHED' }),
       })
+      const autoCreatedUnitGuides = (d as typeof d & { autoCreatedUnitGuides?: number }).autoCreatedUnitGuides
       if (knowledgeRepairProgramRef.current !== programId) return
       // Preserve unit guides; the standard list refresh loads auto-created drafts
       // on the next visit without adding an extra API call to this action.
