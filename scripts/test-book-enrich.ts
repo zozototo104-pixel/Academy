@@ -70,6 +70,30 @@ async function main() {
   assert.equal(resumed.added, 1, 'success after zero accepted continues')
   assert.equal(passes, 2)
   assert.equal(saved.length, 2)
+  // An exhausted provider defers only its chunk; the next valid chunk can
+  // still be enriched, and the previously saved knowledge is untouched.
+  const deferredChunks: string[] = []
+  const successfulChunks: string[] = []
+  const chunks = ['bad', 'good']
+  const isolatedStore: EnrichStepStore = {
+    getJob: async () => ({ id: 'job', bookId: 'book', phase: 'ENRICH' }),
+    nextChunk: async () => {
+      const id = chunks.find((item) => !deferredChunks.includes(item) && !successfulChunks.includes(item))
+      return id ? { id, bookId: 'book', programId: 'program', index: id === 'bad' ? 0 : 1, text: evidence, pageStart: 1, pageEnd: 1, textProvenance: 'NATIVE_TEXT', analysisPasses: 0 } : null
+    },
+    existing: async () => ({ own: [], local: [] }),
+    defer: async (id, reason) => { assert.equal(reason, 'INVALID_JSON_RESPONSE'); deferredChunks.push(id) },
+    save: async (chunk, items) => { successfulChunks.push(chunk.id); assert.equal(items.length, 1) },
+    finish: async () => { throw new Error('deferred chunks are not complete') },
+  }
+  const firstFailure = await enrichStepWithStore('job', Date.now() + 30_000, isolatedStore, async () => { throw new Error('INVALID_JSON_RESPONSE') })
+  assert.equal(firstFailure.completed, false)
+  assert.equal(firstFailure.added, 0)
+  assert.deepEqual(deferredChunks, ['bad'])
+  const secondSuccess = await enrichStepWithStore('job', Date.now() + 30_000, isolatedStore, async () => [candidate])
+  assert.equal(secondSuccess.added, 1)
+  assert.deepEqual(successfulChunks, ['good'])
+  assert.deepEqual(deferredChunks, ['bad'], 'failing chunk remains retryable')
   console.log('book enrichment behavior tests passed')
 }
 
