@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
 
     const assignment = await db.programAssignment.findUnique({
       where: { id: assignmentId },
-      include: { program: { select: { id: true, titleAr: true } } },
+      include: { program: { select: { id: true, titleAr: true, category: true, maxStudyDays: true, semestersCount: true } } },
     })
     if (!assignment || assignment.status !== 'PUBLISHED') return NextResponse.json({ error: 'الواجب غير متاح للتسليم' }, { status: 404 })
 
