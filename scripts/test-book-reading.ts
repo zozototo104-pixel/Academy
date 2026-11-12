@@ -176,7 +176,7 @@ async function postgresAnalysisCompletionRegression() {
   if (process.env.BOOK_READ_PG_CONTRACT !== '1') return
   // This may create/delete ONLY disposable CI fixtures; it must never run against production.
   const url = process.env.DATABASE_URL || ''
-  if (!/^postgres(?:ql)?:\\/\\/[^@]+@(?:localhost|127\\.0\\.0\\.1):5432\\/academy_restore_smoke(?:[?]|$)/.test(url)) {
+  if (!/^postgres(?:ql)?:\/\/[^@]+@(?:localhost|127\.0\.0\.1):5432\/academy_restore_smoke(?:[?]|$)/.test(url)) {
     throw new Error('BOOK_READ_PG_CONTRACT_REQUIRES_ISOLATED_CI_DATABASE')
   }
   const { db } = await import('../src/lib/db')
