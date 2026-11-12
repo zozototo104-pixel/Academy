@@ -6,8 +6,9 @@ export type AssignmentWindow = {
   mode: 'UNIT' | 'UNIT_DAYS' | 'ENROLLMENT_DAYS' | 'LEGACY_FIXED' | 'NONE'
 }
 
-// The same academic calendar as the unit/exam gates. A linked assignment
-// becomes available with its teaching unit, never on the student's first day.
+// The same academic calendar as the unit/exam deadlines. A linked assignment's
+// deadline clock starts at the student's unit date, NOT at enrollment. This
+// timestamp is informational: students may submit early, as with unit exams.
 // An optional shorter day limit begins on the UNIT start and cannot outlive it.
 // Legacy non-unit fixed deadlines remain unchanged until explicitly converted.
 export function assignmentWindow(args: {
