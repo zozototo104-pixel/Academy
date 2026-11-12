@@ -84,7 +84,7 @@ export async function extractNumberedPdfPages(buffer: Buffer, pageNumbers: reado
   }
 }
 
-async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null } | null): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string }> {
+async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null } | null, imageMode = false): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string }> {
   if (!pageNumbers.length || pageNumbers.length > 8) throw new Error('OCR_PAGE_RANGE_INVALID')
   if (deadlineMs - Date.now() < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const original = await PDFDocument.load(buffer)
