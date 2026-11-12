@@ -152,15 +152,11 @@ export async function runNextKnowledgeAiRepairStep() {
   // Provider quota errors are handled by the existing router and pause state.
   const seconds = Number(config.AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS || 0)
   const intervalMs = Number.isFinite(seconds) ? Math.max(0, Math.min(3600, Math.floor(seconds))) * 1000 : 0
-  if (intervalMs > 0) {
-    await db.setting.upsert({ where: { key: REPAIR_RATE_GATE }, create: { key: REPAIR_RATE_GATE, value: '0' }, update: {} })
-    const rate = await db.setting.findUniqueOrThrow({ where: { key: REPAIR_RATE_GATE }, select: { value: true } })
-    if (Number(rate.value) > now) return { status: 'BUDGET' }
-    const rateClaim = await db.setting.updateMany({
-      where: { key: REPAIR_RATE_GATE, value: rate.value }, data: { value: String(now + intervalMs) },
-    })
-    if (!rateClaim.count) return { status: 'BUDGET' }
-  }
+  const requestedCalls = Number(config.AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN || 1)
+  const maxCallsPerRun = Number.isFinite(requestedCalls) ? Math.max(1, Math.min(10, Math.floor(requestedCalls))) : 1
+  // The cron's question-bank phase can consume up to 50 seconds before us.
+  // Stop BEFORE starting a model call if the remaining worker budget is tight.
+  const stopStartingAt = Date.now() + 175_000
 
   const claim: KnowledgeAiRepairJob = { ...state, status: 'RUNNING', leaseToken: randomUUID(), leaseUntil: now + REPAIR_LEASE_MS }
   const token = JSON.stringify(claim)
