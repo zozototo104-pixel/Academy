@@ -3434,9 +3434,9 @@ export function AdminBooksTab() {
                 </div>
               </div>
 
-              {hiddenStudyGuidesCount > 0 && (
+              {flaggedStudyGuidesCount > 0 && (
                 <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-800">
-                  تم إخفاء {hiddenStudyGuidesCount} دليل دراسة يبدو مشوهاً. أعد توليد الدليل بعد تنظيف بنك المعرفة.
+                  يوجد {flaggedStudyGuidesCount} دليل يحتاج مراجعة النص العربي. لا نخفي الأدلة المحفوظة عن الإدارة ولا نحذفها أو نعيد توليدها تلقائياً.
                 </div>
               )}
 
