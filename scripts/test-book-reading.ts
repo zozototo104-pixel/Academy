@@ -172,6 +172,69 @@ async function exhaustedAnalysisChunkDoesNotBlockTheRest() {
   assert.deepEqual(entries.map((entry) => entry.status), ['FAILED', 'ANALYZED'])
 }
 
+async function postgresAnalysisCompletionRegression() {
+  if (process.env.BOOK_READ_PG_CONTRACT !== '1') return
+  // This may create/delete ONLY disposable CI fixtures; it must never run against production.
+  const url = process.env.DATABASE_URL || ''
+  if (!/^postgres(?:ql)?:\\/\\/[^@]+@(?:localhost|127\\.0\\.0\\.1):5432\\/academy_restore_smoke(?:[?]|$)/.test(url)) {
+    throw new Error('BOOK_READ_PG_CONTRACT_REQUIRES_ISOLATED_CI_DATABASE')
+  }
+  const { db } = await import('../src/lib/db')
+  const { runAnalyzeStep } = await import('../src/lib/book-chunk-analyzer')
+  const nonce = Date.now().toString(36)
+  const programId = 'book-gate-ci-' + nonce
+  const pageLedger = 'BOOK_PAGE_ISSUES:[{"page":2,"kind":"UNREADABLE","reason":"OCR_FAILED"}]'
+  await db.program.create({ data: { id: programId, slug: programId, titleAr: 'اختبار حارس قراءة الكتب', description: 'CI only', category: 'DIPLOMA' } })
+  try {
+    for (const mode of ['partial', 'all-failed', 'all-good'] as const) {
+      const bookId = programId + '-' + mode
+      const jobId = 'job-' + bookId
+      const claimedAt = new Date()
+      const failed = mode !== 'all-good'
+      const analyzed = mode !== 'all-failed'
+      await db.book.create({ data: { id: bookId, programId, title: mode } })
+      await db.bookChunk.createMany({ data: [
+        { id: bookId + '-0', bookId, programId, index: 0, pageStart: 1, pageEnd: 1,
+          text: 'نص كتاب موثق', charCount: 14, contentHash: 'ci-' + mode + '-0',
+          textProvenance: 'NATIVE_TEXT', status: analyzed ? 'ANALYZED' : 'FAILED', attempts: analyzed ? 0 : 3 },
+        { id: bookId + '-1', bookId, programId, index: 1, pageStart: 3, pageEnd: 3,
+          text: 'نص آخر موثق', charCount: 13, contentHash: 'ci-' + mode + '-1',
+          textProvenance: 'NATIVE_TEXT', status: failed ? 'FAILED' : 'ANALYZED', attempts: failed ? 3 : 0 },
+      ] })
+      await db.bookReadJob.create({ data: { id: jobId, bookId, programId, phase: 'ANALYZE',
+        status: 'RUNNING', startedAt: claimedAt, lockedUntil: new Date(Date.now() + 200_000),
+        chunksAnalyzed: analyzed ? 1 : 0, chunksFailed: failed ? (analyzed ? 1 : 2) : 0,
+        pagesDone: 3, totalPages: 3, totalChunks: 2, lastError: pageLedger } })
+      if (analyzed) await db.bookKnowledgeItem.create({ data: {
+        id: bookId + '-evidence', bookId, programId, chunkId: bookId + '-0',
+        title: 'مصدر موثق', summary: 'معلومة مأخوذة من نص الكتاب',
+        excerpt: 'نص كتاب موثق', textProvenance: 'NATIVE_TEXT', pageStart: 1, pageEnd: 1, kbVersion: 2,
+      } })
+      const before = await db.bookKnowledgeItem.count({ where: { bookId } })
+      const run = () => runAnalyzeStep(jobId, Date.now() + 40_000, claimedAt)
+      // Two contenders for the same lease: only the live owner may update
+      // a terminal state; an already-finished second call is a harmless no-op.
+      const outcomes = mode === 'partial' ? await Promise.allSettled([run(), run()]) : [await Promise.resolve(run()).then(
+        (value) => ({ status: 'fulfilled', value } as const),
+        (reason) => ({ status: 'rejected', reason } as const),
+      )]
+      assert(outcomes.some((item) => item.status === 'fulfilled'), mode + ': a valid owner must finish')
+      const final = await db.bookReadJob.findUniqueOrThrow({ where: { id: jobId } })
+      assert.equal(final.status, mode === 'all-failed' ? 'FAILED' : 'COMPLETED')
+      assert.equal(final.phase, mode === 'all-failed' ? 'ANALYZE' : 'DONE')
+      assert.deepEqual(parseBookPageReadIssues(final.lastError).map((x) => x.page), [2], 'page gaps survive terminal transitions')
+      assert.equal(Boolean(final.lastError?.includes('BOOK_ANALYSIS_PARTIAL:')), mode === 'partial')
+      assert.equal(await db.bookKnowledgeItem.count({ where: { bookId } }), before, 'existing source-backed knowledge stays unchanged')
+      const reopened = await runAnalyzeStep(jobId, Date.now() + 40_000, claimedAt)
+      assert.equal(reopened.completed, mode !== 'all-failed', 'final API result must match persisted status')
+    }
+    console.log('book analysis completion verified against isolated PostgreSQL: partial, total failure, normal, concurrency, provenance')
+  } finally {
+    await db.program.delete({ where: { id: programId } })
+    await db.$disconnect()
+  }
+}
+
 function ocrSoloStateSurvivesPipelineWrites() {
   const marked = withBookOcrSoloPages(null, [4, 3])
   assert.deepEqual(parseBookOcrSoloPages(marked), [3, 4], 'حالة المحاولة الفردية تُحفظ وتُقرأ مرتبة')
