@@ -5197,6 +5197,30 @@ export function AdminKnowledgeAiRepairTab() {
 
   useEffect(() => {
     let active = true
+    api<{ values: Record<string, string> }>('/api/admin/system')
+      .then((result) => {
+        if (!active) return
+        setRepairProvider(result.values.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO')
+        setRepairModel(result.values.AI_KNOWLEDGE_REPAIR_MODEL || '')
+        setRepairInterval(result.values.AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS || '0')
+        setRepairConfigLoaded(true)
+      })
+      .catch((error: any) => { if (active) setStatusError(error.message || 'تعذر تحميل إعداد مزوّد التصحيح') })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (repairProvider === 'AUTO') { setRepairModels([]); return }
+    let active = true
+    api<{ models: string[] }>('/api/admin/system', {
+      method: 'POST', body: JSON.stringify({ action: 'text-ai-models', provider: repairProvider }),
+    }).then((result) => { if (active) setRepairModels(result.models || []) })
+      .catch(() => { if (active) setRepairModels([]) })
+    return () => { active = false }
+  }, [repairProvider])
+
+  useEffect(() => {
+    let active = true
     api<{ programs: ProgramOption[] }>('/api/programs?summary=1&public=1')
       .then((data) => { if (active) setPrograms(Array.isArray(data.programs) ? data.programs : []) })
       .catch((error: any) => { if (active) setStatusError(error.message || 'تعذر تحميل البرامج') })
