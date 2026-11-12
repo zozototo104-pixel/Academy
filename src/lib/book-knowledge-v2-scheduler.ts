@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { randomUUID } from 'node:crypto'
 import { planKnowledgeItemCleanup, validateGroundedKnowledgeRepair, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
+import { looksLikeBrokenAcademicOutput } from '@/lib/knowledge-bank'
 import { textAiCompleteJson, type TextAiProvider, type TextAiPreferredModel } from '@/lib/text-ai'
 
 /** Preserve the existing program/semester scope. Never invokes the legacy v1 builder. */
