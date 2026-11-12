@@ -222,7 +222,13 @@ export async function runNextKnowledgeAiRepairStep() {
       }
       let parsed: unknown
       try { parsed = JSON.parse(result) } catch { parsed = null }
-      const accepted = validateGroundedKnowledgeRepair(parsed, evidence)
+      const candidate = validateGroundedKnowledgeRepair(parsed, evidence)
+      // A source-verbatim phrase can still be classified as malformed by the
+      // platform's richer academic quality gate. Never publish hidden output.
+      const accepted = candidate
+        && !looksLikeBrokenAcademicOutput(`${candidate.title}. ${candidate.summary}`)
+        && !looksLikeBrokenAcademicOutput(candidate.excerpt)
+        ? candidate : null
       if (accepted) {
         // Check both the source and the job lease before applying any output.
         const sourceStillCurrent = await db.bookChunk.findFirst({
