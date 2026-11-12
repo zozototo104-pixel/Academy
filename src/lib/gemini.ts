@@ -622,6 +622,17 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
     if (keyError) continue
     break
   }
+  if (routerError && opts.taskType === 'BOOK_ENRICH') {
+    // Native Gemini is a final fallback. Its last 401 used to overwrite
+    // every router failure, concealing working keys and exhausted models.
+    const safe = (value: unknown) => String((value as Error)?.message || value || 'unknown')
+      .replace(/(?:sk-|AIza)[A-Za-z0-9_\-]{8,}/g, '[REDACTED]')
+      .replace(/(?:bearer|api[_-]?key)\s*[:=]\s*[^\s,;]+/gi, '[REDACTED]')
+      .slice(0, 1800)
+    const combined: any = new Error(`BOOK_AI_PROVIDER_EXHAUSTED: ROUTER=[${safe(routerError)}] NATIVE=[${safe(lastErr)}]`)
+    combined.code = 'BOOK_AI_PROVIDER_EXHAUSTED'
+    throw combined
+  }
   throw lastErr
 }
 
