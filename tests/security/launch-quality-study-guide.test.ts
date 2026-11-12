@@ -161,10 +161,13 @@ describe('study-guide Arabic visibility: reject broken OCR without hiding correc
     expect(looksLikeBrokenGeneratedArabic(valid)).toBe(false)
   })
 
-  test('standalone OCR-token يف remains rejected inside a longer broken sentence', async () => {
-    const { looksLikeBrokenGeneratedArabic } = await import('../../src/lib/academic-output-quality')
-    const broken = 'يعرض الفصل العلمي موضوع إدارة المشروع يف قراءة نصوص الكتاب ويوضح أثر القرار على العمل'
-    expect(looksLikeBrokenGeneratedArabic(broken)).toBe(true)
+  test('repairable standalone OCR يف becomes في before quality classification', async () => {
+    const { cleanAcademicOutput, looksLikeBrokenGeneratedArabic } = await import('../../src/lib/academic-output-quality')
+    const source = 'يعرض الفصل العلمي موضوع إدارة المشروع يف قراءة نصوص الكتاب ويوضح أثر القرار على العمل'
+    const cleaned = cleanAcademicOutput(source)
+    expect(cleaned).toContain('في قراءة نصوص الكتاب')
+    expect(cleaned).not.toContain('يف قراءة')
+    expect(looksLikeBrokenGeneratedArabic(cleaned)).toBe(false)
   })
 
   test('real corrupted OCR and internal placeholders stay blocked', async () => {
