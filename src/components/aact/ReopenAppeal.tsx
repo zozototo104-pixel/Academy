@@ -31,15 +31,31 @@ function loadMyAppeals(): Promise<MyAppeal[]> {
   return appealsCache
 }
 
-export function AssignmentReopenAppeal({
+// سياق العرض: 'assignment' = زر بطاقة الواجب (الافتراضي — نصه بلا أي
+// تغيير)، 'exam' = زر شاشة امتحان الوحدة المغلق. الالتماس نفسه في
+// الحالتين: على مستوى الوحدة، عبر المسار الخادمي نفسه، وبنفس المنحة.
+export function ReopenAppeal({
   programId,
   semester,
   unitId,
+  context = 'assignment',
 }: {
   programId: string
   semester: number
   unitId?: string | null
+  context?: 'assignment' | 'exam'
 }) {
+  const isExam = context === 'exam'
+  const intro = isExam
+    ? 'انتهت نافذة هذا الامتحان. إذا كان عندك سبب وجيه، قدّم التماس إعادة فتح — الإدارة تبتّ فيه خلال 7 أيام، والقبول يفتح لك الامتحان من جديد ضمن فترة الفصل.'
+    : 'انتهى موعد هذا الواجب. إذا كان عندك سبب وجيه للتأخر، قدّم التماس إعادة فتح — الإدارة تبتّ فيه خلال 7 أيام، والقبول يفتح لك التسليم من جديد ضمن فترة الفصل.'
+  const approvedText = isExam
+    ? 'لديك منحة إعادة فتح معتمدة من الإدارة — يمكنك تقديم هذا الامتحان الآن رغم انتهاء نافذته، ما دامت فترة الفصل قائمة.'
+    : 'لديك منحة إعادة فتح معتمدة من الإدارة — يمكنك تسليم هذا الواجب الآن رغم انتهاء موعده، ما دامت فترة الفصل قائمة.'
+  const rejectedText = isExam
+    ? 'رُفض التماس سابق لهذا الامتحان — يمكنك التقديم مجددًا إذا كان عندك سبب جديد.'
+    : 'رُفض التماس سابق لهذا الواجب — يمكنك التقديم مجددًا إذا كان عندك سبب جديد.'
+  const buttonText = isExam ? 'التماس إعادة فتح الامتحان' : 'التماس إعادة فتح التسليم'
   const { toast } = useToast()
   const [appeals, setAppeals] = useState<MyAppeal[] | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -69,7 +85,7 @@ export function AssignmentReopenAppeal({
   if (approved) {
     return (
       <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-[11px] font-bold leading-5 text-emerald-800">
-        لديك منحة إعادة فتح معتمدة من الإدارة — يمكنك تسليم هذا الواجب الآن رغم انتهاء موعده، ما دامت فترة الفصل قائمة.
+        {approvedText}
       </p>
     )
   }
@@ -111,14 +127,14 @@ export function AssignmentReopenAppeal({
   return (
     <div className="mt-3 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-3" dir="rtl">
       <p className="text-[11px] font-bold leading-5 text-amber-800">
-        انتهى موعد هذا الواجب. إذا كان عندك سبب وجيه للتأخر، قدّم التماس إعادة فتح — الإدارة تبتّ فيه خلال 7 أيام، والقبول يفتح لك التسليم من جديد ضمن فترة الفصل.
+        {intro}
       </p>
       {wasRejected && (
-        <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">رُفض التماس سابق لهذا الواجب — يمكنك التقديم مجددًا إذا كان عندك سبب جديد.</p>
+        <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">{rejectedText}</p>
       )}
       {!formOpen ? (
         <Button onClick={() => setFormOpen(true)} variant="outline" className="mt-2 border-amber-400 font-black text-amber-800 hover:bg-amber-100">
-          <DoorOpen className="ml-1 h-4 w-4" /> التماس إعادة فتح التسليم
+          <DoorOpen className="ml-1 h-4 w-4" /> {buttonText}
         </Button>
       ) : (
         <div className="mt-2 space-y-2">
@@ -136,3 +152,6 @@ export function AssignmentReopenAppeal({
     </div>
   )
 }
+
+// الاسم القديم — بطاقة الواجب تستورده كما هو، بلا أي تغيير في نصها.
+export const AssignmentReopenAppeal = ReopenAppeal
