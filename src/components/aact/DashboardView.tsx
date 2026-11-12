@@ -1861,7 +1861,7 @@ export function DashboardView() {
                               </div>
                             )}
 
-                            {!graded && (
+                            {!graded && !opensLater && (
                               <div className="mt-3 grid gap-2 md:grid-cols-[1fr_220px]">
                                 <Textarea
                                   rows={3}
