@@ -11,6 +11,22 @@ import { withTimedResponse, withTiming } from '@/lib/timing'
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
+// Keep AI repairs bounded per request; the UI continues with a cursor.
+// Large chunks may only be used when the old excerpt locates the evidence.
+const AI_REPAIR_SCAN_BATCH = 60
+const AI_REPAIR_MAX_CALLS = 3
+function knowledgeRepairEvidence(chunkText: string, previousExcerpt: string | null): string | null {
+  const text = String(chunkText || '').trim()
+  if (text.length < 180) return null
+  if (text.length <= 16000) return text
+  const anchor = String(previousExcerpt || '').trim()
+  if (anchor.length < 35) return null
+  const index = text.indexOf(anchor.slice(0, 120))
+  if (index < 0) return null
+  const start = Math.max(0, index - 6500)
+  return text.slice(start, start + 16000)
+}
+
 function categoryStats(items: { category: string; importance: number }[]) {
   const stats: Record<string, { count: number; avgImportance: number }> = {}
   for (const item of items) {
