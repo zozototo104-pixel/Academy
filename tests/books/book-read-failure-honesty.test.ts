@@ -52,7 +52,9 @@ describe('lease-fenced writes across book pipeline', () => {
   })
 
   it('fences enrichment knowledge, passes, analysis counters, failures and completion', () => {
-    expect((bookAnalyzer.match(/await assertBookReadLease\(tx, /g) || []).length).toBe(5)
+    // Enrichment deferral also writes its checkpoint under the owned lease.
+    expect((bookAnalyzer.match(/await assertBookReadLease\(tx, /g) || []).length).toBe(6)
+    expect(bookAnalyzer).toContain('defer: async (chunkId, reason) => {')
     expect(bookAnalyzer).not.toContain('db.bookKnowledgeItem.createMany(')
     expect(bookAnalyzer).not.toContain('db.bookReadJob.update({')
     expect(bookAnalyzer).toContain("message.includes('BOOK_READ_LEASE_LOST')")
