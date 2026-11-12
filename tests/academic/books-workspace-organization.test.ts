@@ -153,14 +153,26 @@ function apiSurface(): { count: number; digest: string } {
   const aiRepairCalls = calls.filter((call) =>
     call.includes("'/api/admin/knowledge-bank'") && call.includes("action: 'repair-ai'"))
   assert.equal(aiRepairCalls.length, 1, 'expected one new source-grounded AI repair POST')
-  assert.ok(aiRepairCalls[0].includes("method: 'POST'") && aiRepairCalls[0].includes('programId: target') &&
-    !aiRepairCalls[0].includes('cursor'), 'AI repair must only enqueue a scoped background job, not run a browser cursor loop')
+  assert.ok(aiRepairCalls[0].includes("method: 'POST'") && aiRepairCalls[0].includes('programId: selectedProgramId') &&
+    !aiRepairCalls[0].includes('cursor'), 'AI repair must enqueue from the standalone admin tab, not run in the books workspace')
   const aiRefreshCalls = calls.filter((call) =>
     call.includes('/api/admin/knowledge-bank?programId=') && call.includes('encodeURIComponent(programId)') && call.includes('repairStatus=1'))
   assert.equal(aiRefreshCalls.length, 1, 'expected one read-only job-status poll for background AI repair')
+  // The standalone tab independently lists programs; keep exactly the original
+  // API call plus one identical reviewed duplicate for its own selector.
+  const programListCalls = calls.filter((call) => call.includes("'/api/programs?summary=1&public=1'"))
+  assert.equal(programListCalls.length, 2, 'expected one book selector and one standalone AI repair selector')
+  assert.equal(programListCalls[0], programListCalls[1], 'program-list requests must stay identical')
+  let omittedDuplicateProgramLookup = false
   const protectedCalls = calls
-    .filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) &&
-      !bookRebuildCalls.includes(call) && !aiRepairCalls.includes(call) && !aiRefreshCalls.includes(call))
+    .filter((call) => {
+      if (programListCalls.includes(call) && !omittedDuplicateProgramLookup) {
+        omittedDuplicateProgramLookup = true
+        return false
+      }
+      return !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) &&
+        !bookRebuildCalls.includes(call) && !aiRepairCalls.includes(call) && !aiRefreshCalls.includes(call)
+    })
     .map((call) => {
       if (suggestedAssignmentSaveCalls.includes(call)) return call.replace('dueDays: s.semester === 3 || !s.unitId ? 14 : null', 'dueDays: null')
       if (knowledgeRepairCalls.includes(call)) return call.replace('; needsReview?: number', '').replace('programId: targetProgramId', 'programId')
@@ -168,7 +180,7 @@ function apiSurface(): { count: number; digest: string } {
     })
     .sort()
   return {
-    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length,
+    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - 1,
     digest: digest(protectedCalls.join('\n')),
   }
 }
