@@ -28,10 +28,11 @@ function mapGuide(g: any) {
         summary,
         outcomes: sanitizeAcademicList(s?.outcomes, ['شرح المحور وربطه بالتطبيق المهني'], 5, 180),
         sourceTitles: sanitizeAcademicList(s?.sourceTitles, ['بنك المعرفة'], 5, 160),
+        sourceKnowledgeIds: Array.isArray(s?.sourceKnowledgeIds) ? s.sourceKnowledgeIds.filter((id: unknown) => typeof id === 'string') : [],
+        pageRefs: Array.isArray(s?.pageRefs) ? s.pageRefs.filter((ref: unknown) => typeof ref === 'string') : [],
       }
     })
     .filter((s: any) => s.title && s.summary && !looksLikeBrokenGeneratedArabic(`${s.title}. ${s.summary}`))
-    .slice(0, 8)
 
   const title = cleanText(g.title, 'دليل الدراسة', 220)
   const overview = cleanText(g.overview, 'دليل دراسة منظم يربط الكتب المقررة بالتطبيق المهني والاختبارات.', 7000)
