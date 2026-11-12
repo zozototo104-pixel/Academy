@@ -235,7 +235,44 @@ export async function POST(req: NextRequest) {
             unchanged++
           }
         }
-        if (deleteIds.length) { const result = await withTiming('db_knowledge_bank_sanitize_delete_many', () => db.bookKnowledgeItem.deleteMany({ where: { id: { in: deleteIds } } })); deleted += result.count }
+        if (deleteIds.length) {
+          // Empty rows can still be used by a saved guide, generated unit,
+          // assignment or exam. Never orphan those source IDs while cleaning.
+          const parseList = (value: unknown): any[] => {
+            if (Array.isArray(value)) return value
+            if (typeof value !== 'string') return []
+            try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : [] } catch { return [] }
+          }
+          const idsFrom = (value: unknown): string[] => parseList(value).filter((id): id is string => typeof id === 'string')
+          const [guides, units, assignments, questions, bankQuestions, programQuestions] = await Promise.all([
+            db.programStudyGuide.findMany({ where: { programId }, select: { sourceKnowledgeIds: true, sections: true } }),
+            db.unit.findMany({ where: { programId }, select: { content: true } }),
+            db.programAssignment.findMany({ where: { programId }, select: { sourceKnowledgeIds: true } }),
+            db.question.findMany({ where: { knowledgeItemId: { in: deleteIds } }, select: { knowledgeItemId: true } }),
+            db.questionBankItem.findMany({ where: { knowledgeItemId: { in: deleteIds } }, select: { knowledgeItemId: true } }),
+            db.programQuestion.findMany({ where: { knowledgeItemId: { in: deleteIds } }, select: { knowledgeItemId: true } }),
+          ])
+          const linked = new Set<string>([
+            ...guides.flatMap((guide) => [
+              ...idsFrom(guide.sourceKnowledgeIds),
+              ...parseList(guide.sections).flatMap((section) => idsFrom(section?.sourceKnowledgeIds)),
+            ]),
+            ...units.flatMap((unit) => parseList(unit.content).flatMap((section) => idsFrom(section?.sourceKnowledgeIds))),
+            ...assignments.flatMap((assignment) => idsFrom(assignment.sourceKnowledgeIds)),
+            ...questions.map((question) => question.knowledgeItemId).filter((id): id is string => !!id),
+            ...bankQuestions.map((question) => question.knowledgeItemId).filter((id): id is string => !!id),
+            ...programQuestions.map((question) => question.knowledgeItemId).filter((id): id is string => !!id),
+          ])
+          for (const row of rows.filter((item) => deleteIds.includes(item.id))) {
+            if (linked.has(row.id)) { needsReview++; continue }
+            // An item fixed concurrently must never be deleted from a stale
+            // cleanup page: require its original optimistic timestamp.
+            const result = await withTiming('db_knowledge_bank_sanitize_delete_empty', () =>
+              db.bookKnowledgeItem.deleteMany({ where: { id: row.id, programId, updatedAt: row.updatedAt } }))
+            if (result.count) deleted += result.count
+            else needsReview++
+          }
+        }
         if (updates.length) { await Promise.all(updates); updated += updates.length }
         if (rows.length < 500) break
       }
