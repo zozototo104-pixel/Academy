@@ -160,6 +160,12 @@ function apiSurface(): { count: number; digest: string } {
   assert.equal(aiRefreshCalls.length, 1, 'expected one read-only job-status poll for background AI repair')
   // The standalone tab independently lists programs; keep exactly the original
   // API call plus one identical reviewed duplicate for its own selector.
+  const aiSettingsCalls = calls.filter((call) => call.includes("'/api/admin/system'"))
+  assert.equal(aiSettingsCalls.length, 3, 'standalone repair must only read, discover and PATCH its own model configuration')
+  assert.ok(aiSettingsCalls.some((call) => call.includes('values: Record<string, string>')), 'load saved repair selection')
+  assert.ok(aiSettingsCalls.some((call) => call.includes("action: 'text-ai-models'") && call.includes('provider: repairProvider')), 'reuse existing /models discovery')
+  assert.ok(aiSettingsCalls.some((call) => call.includes("method: 'PATCH'") && call.includes('AI_KNOWLEDGE_REPAIR_PROVIDER') &&
+    call.includes('AI_KNOWLEDGE_REPAIR_MODEL')), 'persist dedicated model before enqueue')
   const programListCalls = calls.filter((call) => call.includes("'/api/programs?summary=1&public=1'"))
   assert.equal(programListCalls.length, 2, 'expected one book selector and one standalone AI repair selector')
   assert.equal(programListCalls[0], programListCalls[1], 'program-list requests must stay identical')
