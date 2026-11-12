@@ -224,6 +224,13 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
   return { completed: false, added: accepted.length }
 }
 
+// A provider outage is not a completed enrichment pass. Deferred chunks
+// stay eligible for a future attempt but do not block other chunks today.
+export function __testEnrichDeferralForTests(lastError: string | null | undefined, now = Date.now()): { attempts: number; ready: boolean } {
+  const match = /^BOOK_ENRICH_WAIT:(\d+):(\d+)(?::|$)/.exec(String(lastError || ''))
+  return match ? { attempts: Number(match[1]), ready: Number(match[2]) <= now } : { attempts: 0, ready: true }
+}
+
 /** Requires the shared read-step job lock. Processes exactly one chunk per call. */
 export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt: Date) {
   const store: EnrichStepStore = {
