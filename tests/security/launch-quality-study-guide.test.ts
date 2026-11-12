@@ -862,4 +862,13 @@ describe('manual review UI: the admin panel reaches the review queue and the man
     expect(adminBooks).toContain('expectedUpdatedAt: item.updatedAt')
     expect(adminBooks).toContain('اعتماد التصحيح')
   })
+
+  test('review queue and cursor are cleared when the administrator switches programs', () => {
+    const adminBooks = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
+    const resetBlock = adminBooks.split('Review results are program-scoped.')[1]?.split('const [rebuildingBookId')[0] || ''
+    expect(resetBlock).toContain('setManualReviewItems([])')
+    expect(resetBlock).toContain('setManualReviewCursor(null)')
+    expect(resetBlock).toContain('setManualReviewEditingId(null)')
+    expect(resetBlock).toContain('}, [programId])')
+  })
 })
