@@ -256,6 +256,38 @@ export function planKnowledgeItemCleanup(
   return { action: 'KEEP' }
 }
 
+// AI repairs are accepted only when they are complete, academically readable,
+// and explicitly anchored to an exact excerpt from the same source chunk.
+// No guessed citation, metadata, category, IDs or new item may be written.
+export function validateGroundedKnowledgeRepair(
+  value: unknown,
+  sourceText: string,
+): { title: string; summary: string; excerpt: string } | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const input = value as Record<string, unknown>
+  if (typeof input.title !== 'string' || typeof input.summary !== 'string' || typeof input.excerpt !== 'string') return null
+  const title = input.title.trim()
+  const summary = input.summary.trim()
+  const excerpt = input.excerpt.trim()
+  if (title.length < 10 || title.length > 160 || summary.length < 55 || summary.length > 1800 || excerpt.length < 35 || excerpt.length > 1000) return null
+  if (cleanAcademicOutput(title, 1800) !== title || cleanAcademicOutput(summary, 2000) !== summary || cleanAcademicOutput(excerpt, 1200) !== excerpt) return null
+  if (planKnowledgeItemCleanup({ title, summary, excerpt }).action !== 'KEEP') return null
+
+  // The evidence must be an exact, contiguous quote, tolerating only
+  // whitespace normalization. A plausible-looking invented quote is rejected.
+  const whitespace = (s: string) => s.replace(/\s+/g, ' ').trim()
+  if (!whitespace(sourceText).includes(whitespace(excerpt))) return null
+
+  // A quote alone is insufficient: the title and explanation must retain
+  // concrete vocabulary from the actual source (not only generic prose).
+  const terms = (s: string) => [...new Set(normalizeAcademic(s).split(' ').filter((w) => w.length >= 4))]
+  const sourceTerms = new Set(terms(sourceText))
+  const titleTerms = terms(title)
+  const summaryTerms = terms(summary)
+  if (titleTerms.filter((w) => sourceTerms.has(w)).length < 2 || summaryTerms.filter((w) => sourceTerms.has(w)).length < 5) return null
+  return { title, summary, excerpt }
+}
+
 export function acceptableAcademicText(value: unknown, opts?: { min?: number; maxLatinRatio?: number }): boolean {
   const raw = cleanAcademicOutput(value, 5000)
   const min = opts?.min ?? 20
