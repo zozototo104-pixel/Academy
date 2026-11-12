@@ -104,6 +104,9 @@ function repairSourceWindow(text: string, previousExcerpt: string | null) {
     const from = Math.max(0, index - 1800)
     evidence = source.slice(from, from + 4800)
   }
+  // Test the RAW source too: the display-quality filter applies OCR cleanup
+  // first, which could otherwise hide an actually damaged source paragraph.
+  if (/(^|[^\p{L}\p{N}])(?:يف|ويف|الثاين|اختاذ|اختاد|القررا|مبعن)(?=$|[^\p{L}\p{N}])/u.test(evidence)) return null
   if (looksLikeBrokenGeneratedArabic(evidence)) return null
   return evidence
 }
