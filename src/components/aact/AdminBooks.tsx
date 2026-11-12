@@ -5241,8 +5241,6 @@ export function AdminKnowledgeAiRepairTab() {
         if (active) setLoadingStatus(false)
       }
     }
-    setJob(null)
-    setLoadingStatus(true)
     void refreshStatus()
     const timer = setInterval(() => { void refreshStatus() }, 15_000)
     return () => { active = false; clearInterval(timer) }
