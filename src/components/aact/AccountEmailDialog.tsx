@@ -26,13 +26,17 @@ export default function AccountEmailDialog({ open, onClose }: { open: boolean; o
   const [password, setPassword] = useState('')
   const [notifEmail, setNotifEmail] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState(false)
 
   const load = useCallback(async () => {
     try {
       const d = await api<{ user: MeInfo | null }>('/api/auth/me')
       setMe(d.user)
+      setLoadError(false)
     } catch {
-      setMe(null)
+      // Preserve the last known account state, especially after a successful
+      // request. A transient read failure must not look like endless loading.
+      setLoadError(true)
     }
   }, [])
 
@@ -41,8 +45,8 @@ export default function AccountEmailDialog({ open, onClose }: { open: boolean; o
   useEffect(() => {
     let live = true
     api<{ user: MeInfo | null }>('/api/auth/me')
-      .then((d) => { if (live) setMe(d.user) })
-      .catch(() => { if (live) setMe(null) })
+      .then((d) => { if (live) { setMe(d.user); setLoadError(false) } })
+      .catch(() => { if (live) setLoadError(true) })
     return () => { live = false }
   }, [])
 
