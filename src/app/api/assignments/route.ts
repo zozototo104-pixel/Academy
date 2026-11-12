@@ -196,6 +196,7 @@ export async function POST(req: NextRequest) {
           enrollment: ctx.enrollment,
           program: ctx.program,
           semester: assignment.semester,
+          unitId: unitIsTeaching ? assignment.unitId : null,
         })
         if (!verdict.ok) return NextResponse.json({ error: verdict.message, code: verdict.code }, { status: 403 })
       }
