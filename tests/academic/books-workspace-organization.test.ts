@@ -163,7 +163,8 @@ function apiSurface(): { count: number; digest: string } {
   // every original endpoint, method, payload and header.
   const manualReviewCalls = calls.filter((call) =>
     (call.includes('/api/admin/knowledge-bank?programId=') && call.includes('&review=1')) ||
-    (call.includes("'/api/admin/knowledge-bank'") && call.includes("method: 'PATCH'") && call.includes('expectedUpdatedAt')))
+    (call.includes("'/api/admin/knowledge-bank'") && call.includes("method: 'PATCH'") &&
+      call.includes('expectedUpdatedAt') && !call.includes("action: 'restore-source'")))
   assert.equal(manualReviewCalls.length, 2, 'expected one review-queue GET and one manual-review PATCH')
   assert.ok(manualReviewCalls.some((call) => call.includes('encodeURIComponent(cursor)')), 'review queue must page by cursor')
   assert.ok(manualReviewCalls.some((call) => call.includes('manualReviewForm.title') && call.includes('manualReviewForm.summary') && call.includes('manualReviewForm.excerpt')), 'manual save must send all three corrected fields')
