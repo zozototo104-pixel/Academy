@@ -137,6 +137,41 @@ async function analyzeResumeRegression() {
   assert.equal(completedJob, true)
 }
 
+async function exhaustedAnalysisChunkDoesNotBlockTheRest() {
+  const source = 'تقوم الدراسات الأكاديمية على جمع الأدلة والتحقق من دقتها بصورة متكررة مع الالتزام بالتوثيق العلمي ومراجعة البيانات قبل اعتماد النتائج النهائية.'
+  const entries = [
+    { id: 'bad', index: 0, text: `bad ${source}`, attempts: 2, status: 'PENDING' },
+    { id: 'good', index: 1, text: `good ${source}`, attempts: 0, status: 'PENDING' },
+  ]
+  let completed = false
+  const store = {
+    getJob: async () => ({ id: 'job', bookId: 'book', programId: 'program', phase: 'ANALYZE', status: 'RUNNING' }),
+    nextChunk: async (_bookId: string, excluded: string[]) => {
+      const row = entries.find((entry) => entry.status === 'PENDING' && !excluded.includes(entry.id))
+      return row ? { ...row, bookId: 'book', programId: 'program', pageStart: row.index + 1, pageEnd: row.index + 1, textProvenance: 'NATIVE_TEXT' } : null
+    },
+    priorItems: async () => [],
+    saveAnalyzed: async (chunk: { id: string }) => { entries.find((item) => item.id === chunk.id)!.status = 'ANALYZED' },
+    saveFailure: async (id: string, _jobId: string, error: string, exhausted: boolean) => {
+      assert(error.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE'))
+      const row = entries.find((entry) => entry.id === id)!
+      row.attempts++
+      if (exhausted) row.status = 'FAILED'
+    },
+    complete: async () => { completed = true },
+  }
+  const result = await analyzeStepWithStore('job', Date.now() + 60_000, store as any,
+    (async ({ chunkText }: { chunkText: string }) => {
+      if (chunkText.startsWith('bad ')) throw new Error('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
+      return [{ category: 'THEORY', title: 'المنهج العلمي', summary: 'المنهج الموثق للتحقق من النتائج', excerpt: source, importance: 80 }]
+    }) as any)
+  assert.equal(result.failed, 1, 'provider exhaustion is recorded for its own chunk')
+  assert.equal(result.analyzed, 1, 'the following chunk is analyzed normally')
+  assert.equal(result.completed, true, 'the analyzer reaches completion instead of crashing')
+  assert.equal(completed, true)
+  assert.deepEqual(entries.map((entry) => entry.status), ['FAILED', 'ANALYZED'])
+}
+
 function ocrSoloStateSurvivesPipelineWrites() {
   const marked = withBookOcrSoloPages(null, [4, 3])
   assert.deepEqual(parseBookOcrSoloPages(marked), [3, 4], 'حالة المحاولة الفردية تُحفظ وتُقرأ مرتبة')
