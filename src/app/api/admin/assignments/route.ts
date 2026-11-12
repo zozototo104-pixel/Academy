@@ -185,6 +185,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'بعض عناصر المعرفة لا تنتمي للوحدة والبرنامج المحددين' }, { status: 400 })
       }
     }
+    // New assignments always use a per-enrollment day duration. Keep old
+    // fixed deadlines only when editing a legacy assignment that still sends
+    // its original dueAt; entering a new day duration clears dueAt in the UI.
+    const durationRaw = body.dueDays
+    const hasDuration = durationRaw !== '' && durationRaw !== null && durationRaw !== undefined
+    const duration = hasDuration ? Number(durationRaw) : null
+    if (hasDuration && (!Number.isInteger(duration) || duration! < 1 || duration! > 365)) {
+      return NextResponse.json({ error: 'مدة تسليم الواجب يجب أن تكون عدد أيام صحيحًا من 1 إلى 365' }, { status: 400 })
+    }
+    const legacyFixed = id && body.dueAt !== '' && body.dueAt !== null && body.dueAt !== undefined
+    if (duration == null && !legacyFixed) {
+      return NextResponse.json({ error: 'حدد مدة تسليم الواجب بالأيام من تاريخ تسجيل الطالب' }, { status: 400 })
+    }
     const data = {
       programId,
       unitId: requestedUnitId,
