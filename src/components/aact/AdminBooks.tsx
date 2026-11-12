@@ -3114,6 +3114,7 @@ export function AdminBooksTab() {
                     {sanitizingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <AlertTriangle className="ml-2 h-4 w-4" />}
                     تصحيح العناصر المشوّهة بالقواعد والذكاء (حذف الفارغ فقط)
                   </Button>
+                  {knowledgeRepairProgress && <p role="status" aria-live="polite" className="max-w-sm rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-900">{knowledgeRepairProgress}</p>}
                   <Button onClick={rebuildKnowledge} disabled={rebuildingKnowledge || books.length === 0} className="bg-[#0f2b46] text-xs font-black text-[#e0b83a] hover:bg-[#12365c]">
                     {rebuildingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-2 h-4 w-4" />}
                     بناء/تحديث بنك المعرفة
