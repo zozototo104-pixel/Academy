@@ -364,7 +364,10 @@ export async function analyzeStepWithStore(
     if (!chunk) {
       if (attempted.size > analyzed + failed) return { analyzed, failed, completed: false, paused: false }
       await store.complete(job.bookId, jobId)
-      return { analyzed, failed, completed: true, paused: false }
+      // Completion can legitimately resolve to FAILED (zero analyzed chunks),
+      // or remain RUNNING if pending work appeared. Reflect the persisted job.
+      const finalJob = await store.getJob(jobId)
+      return { analyzed, failed, completed: finalJob?.status === 'COMPLETED', paused: false }
     }
     attempted.add(chunk.id)
     try {
