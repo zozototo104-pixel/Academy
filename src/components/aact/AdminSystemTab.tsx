@@ -627,6 +627,36 @@ export function AdminSystemTab() {
     }
   }
 
+  const saveKnowledgeRepair = async () => {
+    const selection = {
+      AI_KNOWLEDGE_REPAIR_PROVIDER: repairProviderForModels,
+      AI_KNOWLEDGE_REPAIR_MODEL: repairProviderForModels === 'AUTO' ? '' : selectedRepairModel.trim(),
+      AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS: form.AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS || '0',
+    }
+    if (repairProviderForModels !== 'AUTO' && !selection.AI_KNOWLEDGE_REPAIR_MODEL) {
+      toast({ title: 'اختر نموذج التصحيح', description: 'المزوّد المحدد يحتاج اسم نموذج قبل الحفظ.', variant: 'destructive' })
+      return
+    }
+    setSavingKnowledgeRepair(true)
+    try {
+      const result = await api<{ ok: boolean; values: Record<string, string> }>('/api/admin/system', {
+        method: 'PATCH', body: JSON.stringify(selection),
+      })
+      // Keep unrelated unsaved form fields untouched.
+      setForm((prev) => ({
+        ...prev,
+        AI_KNOWLEDGE_REPAIR_PROVIDER: result.values.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO',
+        AI_KNOWLEDGE_REPAIR_MODEL: result.values.AI_KNOWLEDGE_REPAIR_MODEL || '',
+        AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS: result.values.AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS || '0',
+      }))
+      toast({ title: 'حُفظ اختيار التصحيح', description: 'هذا الاختيار خاص بمهمة تصحيح المعرفة؛ إعدادات الطلاب وبقية الذكاء لم تتغير.' })
+    } catch (error: any) {
+      toast({ title: 'تعذر حفظ إعداد التصحيح', description: error.message || 'حاول مجدداً', variant: 'destructive' })
+    } finally {
+      setSavingKnowledgeRepair(false)
+    }
+  }
+
   const uploadBinanceQr = async (file?: File | null) => {
     if (!file) return
     setPaymentQrUploading(true)
