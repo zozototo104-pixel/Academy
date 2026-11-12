@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { ReopenAppeal } from '@/components/aact/ReopenAppeal'
 import {
   ArrowLeft, ArrowRight, Loader2, ClipboardCheck, Bot, Sparkles,
   CheckCircle2, XCircle, AlertTriangle, Trophy, FileQuestion, Timer,
@@ -165,6 +166,9 @@ export function ExamView() {
   const [appealBusy, setAppealBusy] = useState(false)
   // التماس مراجعة امتحان الوحدة: متاح فقط لمن له مشرف بشري معيّن
   const [unitAppeal, setUnitAppeal] = useState<{ canAppeal: boolean; status: string; response: string | null } | null>(null)
+  // نافذة الوحدة المنتهية: سياق الالتماس المرفق من مسار التفاصيل —
+  // يُعرض زر الالتماس على شاشة الامتحان المغلق نفسها.
+  const [windowEnded, setWindowEnded] = useState<{ programId: string; semester: number; unitId: string } | null>(null)
 
   const syncCountdown = useCallback(() => {
     const countdown = countdownRef.current
@@ -217,6 +221,7 @@ export function ExamView() {
     setAppealSent(false)
     setAppealReason('')
     setUnitAppeal(null)
+    setWindowEnded(null)
     const url =
       activeExamKind === 'final'
         ? `/api/program-exam/detail?examId=${activeExamId}`
@@ -308,6 +313,9 @@ export function ExamView() {
         }
         const message = examErrorMessage(e)
         toast({ title: 'تنبيه الاختبار', description: message, variant: 'destructive' })
+        if (e.code === 'UNIT_WINDOW_ENDED' && e.data?.unitId) {
+          setWindowEnded({ programId: String(e.data.programId || ''), semester: Number(e.data.semester), unitId: String(e.data.unitId) })
+        }
         if (e.status === 402 || e.code === 'PENDING_PAYMENT' || e.code === 'ENROLLMENT_NOT_ACTIVE') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'payments' })
         else if ((e.status === 403 || e.status === 409) && ['ALREADY_PASSED', 'PASSED_ALREADY', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'MAX_ATTEMPTS_REACHED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(e.code || ''))) {
           submittedRef.current = true
@@ -639,6 +647,24 @@ export function ExamView() {
     )
   }
   if (!data) {
+    if (windowEnded) {
+      return (
+        <div className="mx-auto max-w-2xl px-4 py-10" dir="rtl">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 text-right">
+            <p className="text-sm font-black text-amber-900">انتهت نافذة هذا الامتحان</p>
+            <p className="mt-1 text-xs font-bold leading-6 text-amber-800">
+              لا تُقبل محاولة جديدة بعد انتهاء نافذة الوحدة — لكن يمكنك تقديم التماس إعادة فتح من هنا، ما دام الفصل قائمًا. إذا وافقت الإدارة، يُفتح لك الامتحان من جديد.
+            </p>
+            <ReopenAppeal context="exam" programId={windowEnded.programId} semester={windowEnded.semester} unitId={windowEnded.unitId} />
+          </div>
+          <div className="mt-4 text-center">
+            <button className="font-bold text-[#a8841a] underline" onClick={() => navigate('dashboard')}>
+              العودة للبوابة
+            </button>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center text-slate-500">
         الاختبار غير متاح —{' '}
