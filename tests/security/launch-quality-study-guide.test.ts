@@ -309,6 +309,23 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(repairPanel).toContain('repairStatus=1')
   })
 
+  test('rules-only cleanup NEVER automatically starts AI repair', () => {
+    const books = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
+    const route = readFileSync(new URL('../../src/app/api/admin/knowledge-bank/route.ts', import.meta.url), 'utf8')
+    const rulesHandler = books.split('const sanitizeKnowledge = async () => {')[1]?.split('const refreshCurriculumUnits')[0] || ''
+    const aiPanel = books.split('export function AdminKnowledgeAiRepairTab()')[1] || ''
+    const rulesRoute = route.split("if (action === 'sanitize' || action === 'clean')")[1]?.split("if (action === 'rebuild-book'")[0] || ''
+    expect(rulesHandler).toContain("action: 'sanitize'")
+    expect(rulesHandler).not.toContain("action: 'repair-ai'")
+    expect(rulesHandler).not.toContain('startKnowledgeAiRepair')
+    expect(books).toContain('onClick={sanitizeKnowledge}')
+    expect(rulesRoute).not.toContain('enqueueKnowledgeAiRepairJob')
+    expect(rulesRoute).not.toContain('textAiCompleteJson(')
+    expect(aiPanel).toContain("action: 'repair-ai'")
+    expect(aiPanel).toContain('onClick={start}')
+    expect(aiPanel).toContain('بدء التصحيح الذكي')
+  })
+
   test('already valid content stays intact', async () => {
     const { planKnowledgeItemCleanup } = await import('../../src/lib/academic-output-quality')
     const item = {
