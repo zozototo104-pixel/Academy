@@ -36,7 +36,9 @@ describe('per-enrollment assignment windows', () => {
 
   test('a historical fixed date cannot close a linked unit before it opens', () => {
     const w = assignmentWindow({ ...unitArgs, enrolledAt: new Date('2026-02-01T00:00:00Z'),
-      dueAtFixed: '2026-01-10T00:00:00Z' })
+      dueDays: 7, dueAtFixed: '2026-01-10T00:00:00Z' })
+    // Stale days from the old fixed-date rule are ignored until the admin
+    // explicitly clears dueAt by editing the new day-duration field.
     expect(w.mode).toBe('UNIT')
     expect(w.opensAt.toISOString()).toBe('2026-02-16T00:00:00.000Z')
     expect(w.dueAt?.toISOString()).toBe('2026-03-03T00:00:00.000Z')
