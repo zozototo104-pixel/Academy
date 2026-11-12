@@ -215,6 +215,38 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     }).action).toBe('REVIEW')
   })
 
+  test('AI repair accepts a complete correction only when the excerpt is verbatim book evidence', async () => {
+    const { validateGroundedKnowledgeRepair } = await import('../../src/lib/academic-output-quality')
+    const source = 'تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية. يساعد هذا النهج في توزيع المسؤوليات وتحديد مؤشرات الأداء ومراقبة الانحرافات أثناء مراحل التنفيذ، مع توثيق النتائج وتصحيح خطة المشروع كلما ظهرت معطيات جديدة.'
+    const proposed = {
+      title: 'تخطيط الموارد وتحليل المخاطر في إدارة المشاريع',
+      summary: 'تربط إدارة المشاريع بين تخطيط الموارد ومراجعة المخاطر وتحليل التكلفة والجودة وتوزيع المسؤوليات، وتستخدم مؤشرات الأداء لمراقبة الانحرافات وتصحيح خطة المشروع أثناء التنفيذ.',
+      excerpt: 'تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية.',
+    }
+    expect(validateGroundedKnowledgeRepair(proposed, source)).toEqual(proposed)
+    expect(validateGroundedKnowledgeRepair({ ...proposed, excerpt: 'تعتمد إدارة المشاريع على تخطيط الموارد ومنع المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية.' }, source)).toBeNull()
+    expect(validateGroundedKnowledgeRepair({ ...proposed, summary: 'مقتطف داعم عن مجال العمل.' }, source)).toBeNull()
+    expect(validateGroundedKnowledgeRepair({ ...proposed, summary: 'يركّز على اختراع محتوى لا يرتبط بالمادة الأصلية ولا يصف أي مصطلحات موجودة في مصدر الكتاب المرفق.' }, source)).toBeNull()
+    expect(validateGroundedKnowledgeRepair({ title: proposed.title }, source)).toBeNull()
+    expect(validateGroundedKnowledgeRepair(proposed, '')).toBeNull()
+  })
+
+  test('formatted but non-empty original text is never deleted after cleanup', async () => {
+    const { planKnowledgeItemCleanup } = await import('../../src/lib/academic-output-quality')
+    expect(planKnowledgeItemCleanup({ title: '***', summary: '', excerpt: null }).action).toBe('REVIEW')
+  })
+
+  test('AI repair API only updates existing IDs after checking original chunk and current version', () => {
+    const source = readFileSync(new URL('../../src/app/api/admin/knowledge-bank/route.ts', import.meta.url), 'utf8')
+    const ai = source.split("if (action === 'repair-ai')")[1]?.split("if (action === 'sanitize'")[0] || ''
+    expect(ai).toContain("db.bookChunk.findFirst")
+    expect(ai).toContain('validateGroundedKnowledgeRepair(output, evidence)')
+    expect(ai).toContain('db.bookKnowledgeItem.updateMany')
+    expect(ai).toContain('updatedAt: row.updatedAt')
+    expect(ai).not.toContain('db.bookKnowledgeItem.create')
+    expect(ai).not.toContain('db.bookKnowledgeItem.delete')
+  })
+
   test('already valid content stays intact', async () => {
     const { planKnowledgeItemCleanup } = await import('../../src/lib/academic-output-quality')
     const item = {
