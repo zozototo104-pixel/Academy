@@ -139,13 +139,7 @@ export async function requestEmailChange(input: {
     // Preserve any older pending request and its token when delivery fails.
     await db.user.updateMany({
       where: { id: user.id, emailVerificationTokenHash: token.tokenHash },
-      data: {
-        pendingEmail: (user as any).pendingEmail ?? null,
-        pendingEmailPurpose: (user as any).pendingEmailPurpose ?? null,
-        emailVerificationTokenHash: (user as any).emailVerificationTokenHash ?? null,
-        emailVerificationExpiresAt: user.emailVerificationExpiresAt ?? null,
-        emailVerificationSentAt: user.emailVerificationSentAt ?? null,
-      } as any,
+      data: previousPending,
     })
     return {
       ok: false,
