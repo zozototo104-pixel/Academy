@@ -2,10 +2,10 @@ import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-// Academic deadline guards: assignments follow the enrolled student's
-// calendar; linked assignments open with their teaching unit. Historical
-// fixed deadlines remain stored for backward compatibility. Video checks
-// below remain unrelated and unchanged.
+// Academic deadline guards: assignments follow each enrollment's calendar;
+// linked assignments count their deadline from the teaching-unit schedule,
+// but students may submit early (as with units and unit exams). Historical
+// fixed deadlines remain backward-compatible. Video checks stay unchanged.
 
 const root = join(import.meta.dir, '../..')
 const schema = readFileSync(join(root, 'prisma/schema.prisma'), 'utf8')
