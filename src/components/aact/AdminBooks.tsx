@@ -3643,6 +3643,28 @@ export function AdminBooksTab() {
                         </div>
                       </div>
 
+                      {(guide.missingReferenceCount || 0) > 0 && (
+                        <details className="mt-3 rounded-xl border border-red-200 bg-red-50/60 p-3">
+                          <summary className="cursor-pointer text-[11px] font-black text-red-800">
+                            فحص الاستشهادات المفقودة ({guide.missingReferenceCount}) — موضعها في الدليل
+                          </summary>
+                          <p className="mt-2 text-[11px] leading-5 text-red-800">
+                            هذه المعرّفات غير موجودة في بنك معرفة البرنامج. المعلومات أدناه من الدليل الأصلي للمراجعة فقط؛ لا يجوز ربطها بعنصر بديل دون إثبات المصدر.
+                          </p>
+                          {(guide.missingReferenceSections || []).map((section) => (
+                            <div key={section.sectionIndex} className="mt-2 rounded-lg border border-red-100 bg-white p-2 text-[11px]">
+                              <p className="font-black text-slate-800">{section.sectionIndex + 1}. {section.title}</p>
+                              {section.sourceTitles.length > 0 && <p className="mt-1 text-slate-700">المراجع المحفوظة: {section.sourceTitles.join('، ')}</p>}
+                              {section.pageRefs.length > 0 && <p className="mt-1 text-slate-700">الصفحات المحفوظة: {section.pageRefs.join('، ')}</p>}
+                              <p className="mt-1 break-all font-mono text-[10px] text-red-700" dir="ltr">{section.missingReferenceIds.join(' · ')}</p>
+                            </div>
+                          ))}
+                          <p className="mt-2 break-all font-mono text-[10px] text-red-700" dir="ltr">
+                            {(guide.missingReferenceIds || []).join(' · ')}
+                          </p>
+                        </details>
+                      )}
+
                       <div className="mt-3 grid gap-3 lg:grid-cols-3">
                         <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
                           <p className="mb-2 text-[11px] font-black text-[#0f2b46]">أهداف التعلم ({guide.objectives.length})</p>
