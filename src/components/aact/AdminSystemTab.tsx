@@ -963,6 +963,23 @@ export function AdminSystemTab() {
     })
   }
 
+  const repairModelFallbacks: Record<string, { value: string; label: string }[]> = {
+    GEMINI: GEMINI_TEXT_ROUTER_MODEL_CHOICES, OPENAI: OPENAI_TEXT_MODEL_CHOICES,
+    ANTHROPIC: ANTHROPIC_TEXT_MODEL_CHOICES, ZAI: ZAI_TEXT_MODEL_CHOICES, GROQ: GROQ_TEXT_MODEL_CHOICES,
+    OPENROUTER: OPENROUTER_TEXT_MODEL_CHOICES, DEEPINFRA: OPEN_MODEL_GATEWAY_CHOICES,
+    TOGETHER: OPEN_MODEL_GATEWAY_CHOICES, UNOROUTER: UNOROUTER_TEXT_MODEL_CHOICES,
+    RELAYROUTER: RELAYROUTER_TEXT_MODEL_CHOICES, TOPTOOLS: TOPTOOLS_TEXT_MODEL_CHOICES,
+    ALBORIHI: ALBORIHI_TEXT_MODEL_CHOICES, MISTRAL: MISTRAL_TEXT_MODEL_CHOICES,
+    CLOUDFLARE: CLOUDFLARE_TEXT_MODEL_CHOICES, APINEX: APINEX_TEXT_MODEL_CHOICES,
+    OXION: OXION_TEXT_MODEL_CHOICES,
+  }
+  const selectedRepairModel = form.AI_KNOWLEDGE_REPAIR_MODEL || ''
+  const repairModelChoices = repairProviderForModels === 'AUTO'
+    ? [] : modelOptions(repairProviderForModels, repairModelFallbacks[repairProviderForModels] || [])
+  const repairDisplayedModels = selectedRepairModel && !repairModelChoices.some((item) => item.value === selectedRepairModel)
+    ? [{ value: selectedRepairModel, label: `${selectedRepairModel} — نموذج محفوظ` }, ...repairModelChoices]
+    : repairModelChoices
+
   const modelHint = (provider: string, fallback = '') => {
     const catalog = textModelCatalog[provider]
     return catalog?.message ? `${catalog.message}${fallback ? ` — ${fallback}` : ''}` : fallback
