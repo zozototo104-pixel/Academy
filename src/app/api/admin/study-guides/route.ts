@@ -195,9 +195,17 @@ async function buildSemesterGuide(programId: string, semester: number) {
   if (brokenUnits.length) {
     throw new Error(`STUDY_GUIDE_UNIT_SOURCE_MISSING: ${brokenUnits.length} وحدة مرتبطة بكتاب أو فهرس مفقود. راجع مصادر الوحدات قبل التوليد.`)
   }
-  if (missing.length) throw new Error(`ولّد محتوى الوحدة ${missing[0].title} أولاً`)
-
-  const unitGuides = units.map((unit) => ({ unit, guide: guideByUnit.get(unit.id)! })).filter((entry) => entry.guide)
+  const pendingUnitGuides = []
+  for (const unit of missing) {
+    const bookTitle = unit.sourceBookId ? bookTitleById.get(unit.sourceBookId) : null
+    if (!bookTitle) throw new Error(`STUDY_GUIDE_UNIT_SOURCE_MISSING: لم يُعثر على كتاب الوحدة «${unit.title}».`)
+    pendingUnitGuides.push(await buildMissingUnitGuide(programId, program.titleAr || program.titleEn || 'البرنامج الأكاديمي', unit, bookTitle))
+  }
+  const pendingById = new Map(pendingUnitGuides.map((item) => [item.unitId, item.guide]))
+  const unitGuides = units.map((unit) => ({
+    unit,
+    guide: guideByUnit.get(unit.id) || pendingById.get(unit.id)!,
+  }))
   const sourceKnowledgeIds = unique(unitGuides.flatMap(({ guide }) => parseArray(guide.sourceKnowledgeIds).map((id) => clean(id, 100))))
   if (!sourceKnowledgeIds.length) throw new Error('STUDY_GUIDE_REQUIRES_SOURCE_KNOWLEDGE_IDS')
   const title = semester === 3 ? 'دليل الفصل الدراسي العام للبحث/المشروع' : `دليل الفصل الدراسي العام ${semester === 2 ? 'الثاني' : 'الأول'}`
