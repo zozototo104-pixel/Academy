@@ -1880,7 +1880,7 @@ export function DashboardView() {
                                 </div>
                               </div>
                             )}
-                            {a.dueAt && new Date(a.dueAt).getTime() < Date.now() && !graded && !opensLater && (
+                            {a.dueAt && new Date(a.dueAt).getTime() < Date.now() && !graded && (
                               <AssignmentReopenAppeal programId={a.programId} semester={a.semester} unitId={a.unitId ?? null} />
                             )}
                           </article>
