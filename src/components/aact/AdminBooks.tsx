@@ -1476,6 +1476,24 @@ export function AdminBooksTab() {
     }
   }
 
+  const inspectSourceCandidates = async (item: ManualReviewItem) => {
+    if (!programId || sourceRecoveryBusyId) return
+    const selectedProgramId = programId
+    setSourceRecoveryBusyId(item.id)
+    try {
+      const evidence = await api<SourceRecoveryEvidence>(
+        `/api/admin/knowledge-bank?programId=${encodeURIComponent(selectedProgramId)}&sourceCandidates=1&itemId=${encodeURIComponent(item.id)}`)
+      if (knowledgeRepairProgramRef.current !== selectedProgramId) return
+      setSourceRecoveryEvidence((previous) => ({ ...previous, [item.id]: evidence }))
+    } catch (error: any) {
+      if (knowledgeRepairProgramRef.current === selectedProgramId) {
+        toast({ title: 'تعذر البحث عن المصدر الأصلي', description: error.message || 'لم يتغير عنصر المعرفة.', variant: 'destructive' })
+      }
+    } finally {
+      setSourceRecoveryBusyId(null)
+    }
+  }
+
   const saveManualReview = async (item: ManualReviewItem) => {
     if (!programId || manualReviewSaving) return
     const targetProgramId = programId
