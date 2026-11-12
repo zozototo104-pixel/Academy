@@ -393,3 +393,132 @@ describe('saved study-guide visibility and citation integrity contracts', () => 
     expect(adminBooks).toContain('export function AdminKnowledgeAiRepairTab()')
   })
 })
+
+// Behavioral regression: one click makes a missing unit draft from its already
+// generated book-grounded content, then publishes the semester aggregate.
+let autoUnits: any[] = []
+let autoBooks: any[] = []
+let autoChunks: any[] = []
+let autoKnowledge: any[] = []
+const AUTO_PROGRAM_ID = 'test-auto-semester-guide'
+const AUTO_UNIT_ID = 'unit-existing-content'
+const AUTO_BOOK_ID = 'book-backed-source'
+const AUTO_CHUNK_ID = 'chunk-analyzed-source'
+const AUTO_KNOWLEDGE_ID = 'kb-source-item'
+
+Object.assign(fakeDb, {
+  program: { findUnique: async ({ where }: any) => where.id === AUTO_PROGRAM_ID
+    ? { id: AUTO_PROGRAM_ID, titleAr: 'برنامج الاختبار', titleEn: null } : null },
+  unit: { findMany: async ({ where }: any) => autoUnits.filter((unit) =>
+    unit.programId === where.programId && (where.semester === undefined || unit.semester === where.semester)) },
+  programStudyGuide: { findMany: async ({ where }: any) => guides.filter((guide) =>
+    where.unitId?.in?.includes(guide.unitId) && where.status.in.includes(guide.status)) },
+  book: { findMany: async ({ where }: any) => autoBooks.filter((book) =>
+    where.id.in.includes(book.id) && book.programId === where.programId) },
+  bookOutlineSection: { findMany: async ({ where }: any) =>
+    where.id.in.includes('source-outline') ? [{ id: 'source-outline', outline: { bookId: AUTO_BOOK_ID } }] : [] },
+  bookChunk: { findMany: async ({ where }: any) => autoChunks.filter((chunk) =>
+    chunk.programId === where.programId && chunk.bookId === where.bookId &&
+    chunk.status === where.status && chunk.index >= where.index.gte && chunk.index <= where.index.lte) },
+  bookKnowledgeItem: { findMany: async ({ where }: any) => autoKnowledge.filter((item) =>
+    (where.id ? where.id.in.includes(item.id) : true) &&
+    (where.bookId ? where.bookId === item.bookId : true) &&
+    (where.programId ? where.programId === item.programId : true) &&
+    (where.chunkId ? where.chunkId.in.includes(item.chunkId) : true)) },
+})
+mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-guide-test', name: 'Administrator' }) }))
+mock.module('@/lib/notify', () => ({ audit: async () => {} }))
+mock.module('@/lib/timing', () => ({
+  withTiming: async (_name: string, fn: () => any) => fn(),
+  withTimedResponse: async (fn: () => any) => fn(),
+}))
+
+const { POST: postSemesterGuide } = await import('../../src/app/api/admin/study-guides/route')
+
+function resetAutoGuideFixture() {
+  reset()
+  autoUnits = [{
+    id: AUTO_UNIT_ID, programId: AUTO_PROGRAM_ID, semester: 1, order: 1,
+    title: 'إدارة المشروعات', summary: 'تشرح الوحدة الإدارة والتخطيط من صفحات الكتاب الأصلية.',
+    objectives: '["تحليل الممارسات الإدارية"]',
+    content: JSON.stringify([{ heading: 'التخطيط والتنفيذ',
+      body: 'يوضح هذا القسم من النص الأكاديمي خطوات التخطيط والتنفيذ ومتابعة النتائج وربط المهام بالمصادر الأصلية داخل نفس الوحدة.',
+      pageRefs: ['صفحات 10–12'], sourceKnowledgeIds: [AUTO_KNOWLEDGE_ID], sourceChunkIndexes: [1] }]),
+    sourceBookId: AUTO_BOOK_ID, outlineSectionId: 'source-outline',
+    chunkStartIndex: 1, chunkEndIndex: 1,
+  }]
+  autoBooks = [{ id: AUTO_BOOK_ID, programId: AUTO_PROGRAM_ID, title: 'كتاب الإدارة المعتمد' }]
+  autoChunks = [{ id: AUTO_CHUNK_ID, programId: AUTO_PROGRAM_ID, bookId: AUTO_BOOK_ID,
+    index: 1, status: 'ANALYZED', pageStart: 10, pageEnd: 12 }]
+  autoKnowledge = [{ id: AUTO_KNOWLEDGE_ID, programId: AUTO_PROGRAM_ID,
+    bookId: AUTO_BOOK_ID, chunkId: AUTO_CHUNK_ID, pageStart: 10, pageEnd: 12,
+    category: 'CONCEPT', title: 'إدارة المشروعات',
+    summary: 'يربط التخطيط المهام والموارد وطرق التنفيذ بالنتائج.',
+    excerpt: 'أهمية التخطيط المؤسسي للموارد' }]
+}
+
+async function clickSemesterGuide() {
+  const req = { json: async () => ({ programId: AUTO_PROGRAM_ID, semester: 1, status: 'PUBLISHED' }) }
+  const response = await postSemesterGuide(req as any)
+  return { response, body: await response.json() }
+}
+
+describe('semester guide: automatic missing unit guide backed by knowledge sources', () => {
+  test('one click generates a DRAFT unit guide and a published semester guide', async () => {
+    resetAutoGuideFixture()
+    const { response, body } = await clickSemesterGuide()
+    expect(response.status).toBe(200)
+    expect(body.autoCreatedUnitGuides).toBe(1)
+    const unitGuide = guides.find((g) => g.unitId === AUTO_UNIT_ID)
+    const semesterGuide = guides.find((g) => g.programId === AUTO_PROGRAM_ID && g.unitId == null)
+    expect(unitGuide?.status).toBe('DRAFT')
+    expect(unitGuide?.generatedBy).toBe('SOURCE_DERIVED')
+    expect(JSON.parse(unitGuide!.sections)[0].sourceKnowledgeIds).toEqual([AUTO_KNOWLEDGE_ID])
+    expect(JSON.parse(unitGuide!.sections)[0].sourceTitles).toEqual(['كتاب الإدارة المعتمد'])
+    expect(JSON.parse(unitGuide!.sections)[0].pageRefs).toEqual(['صفحات 10–12'])
+    expect(semesterGuide?.status).toBe('PUBLISHED')
+    expect(JSON.parse(semesterGuide!.sourceKnowledgeIds)).toContain(AUTO_KNOWLEDGE_ID)
+  })
+
+  test('repeated click keeps a single unit guide and a single semester guide', async () => {
+    resetAutoGuideFixture()
+    await clickSemesterGuide()
+    const second = await clickSemesterGuide()
+    expect(second.response.status).toBe(200)
+    expect(second.body.autoCreatedUnitGuides).toBe(0)
+    expect(guides.filter((g) => g.unitId === AUTO_UNIT_ID)).toHaveLength(1)
+    expect(guides.filter((g) => g.programId === AUTO_PROGRAM_ID && g.unitId == null)).toHaveLength(1)
+  })
+
+  test('empty unit content is reported without creating any guide', async () => {
+    resetAutoGuideFixture()
+    autoUnits[0].content = '[]'
+    const { response, body } = await clickSemesterGuide()
+    expect(response.status).toBe(422)
+    expect(body.error).toContain('STUDY_GUIDE_UNIT_CONTENT_MISSING')
+    expect(guides).toHaveLength(0)
+  })
+
+  test('a missing knowledge ID is never silently substituted or published', async () => {
+    resetAutoGuideFixture()
+    autoUnits[0].content = JSON.stringify([{ heading: 'سجل مرجعي',
+      body: 'يدرس هذا القسم موضوعًا مرتبطًا بمصدر محذوف ولا يمكن تمريره كمرجع سليم دون التحقق من الأصل.',
+      sourceKnowledgeIds: ['deleted-source-id'], sourceChunkIndexes: [1] }])
+    const { response, body } = await clickSemesterGuide()
+    expect(response.status).toBe(422)
+    expect(body.error).toContain('STUDY_GUIDE_UNIT_REFERENCES_MISSING')
+    expect(guides).toHaveLength(0)
+  })
+
+  test('source book missing blocks generation without deleting unit content', async () => {
+    resetAutoGuideFixture()
+    autoBooks = []
+    const originalContent = autoUnits[0].content
+    const { response, body } = await clickSemesterGuide()
+    expect(response.status).toBe(422)
+    expect(body.error).toContain('STUDY_GUIDE_UNIT_SOURCE_MISSING')
+    expect(guides).toHaveLength(0)
+    expect(autoUnits[0].content).toBe(originalContent)
+  })
+})
+
