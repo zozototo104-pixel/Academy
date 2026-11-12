@@ -5249,10 +5249,21 @@ export function AdminKnowledgeAiRepairTab() {
   }, [programId])
 
   const start = async () => {
-    if (!programId || busy || ['QUEUED', 'RUNNING'].includes(job?.status || '')) return
+    if (!repairConfigLoaded || !programId || busy || ['QUEUED', 'RUNNING'].includes(job?.status || '') ||
+      (repairProvider !== 'AUTO' && !repairModel.trim())) return
     const selectedProgramId = programId
     setBusy(true)
     try {
+      // Persist only the repair-specific choice before queuing the job. The
+      // student's/global AI provider settings remain completely untouched.
+      await api('/api/admin/system', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          AI_KNOWLEDGE_REPAIR_PROVIDER: repairProvider,
+          AI_KNOWLEDGE_REPAIR_MODEL: repairProvider === 'AUTO' ? '' : repairModel.trim(),
+          AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS: repairInterval || '0',
+        }),
+      })
       const result = await api<{ job: RepairStatus }>('/api/admin/knowledge-bank', {
         method: 'POST',
         body: JSON.stringify({ programId: selectedProgramId, action: 'repair-ai' }),
