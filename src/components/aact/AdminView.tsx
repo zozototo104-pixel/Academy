@@ -59,6 +59,7 @@ const AdminMessagesTab = dynamic(() => loadAdminExtrasModule().then((m) => m.Adm
 const AdminDirectMessagesTab = dynamic(() => import('@/components/aact/AdminDirectMessagesTab').then((m) => m.AdminDirectMessagesTab), { ssr: false, loading: AdminTabLoader })
 const AdminFollowUpTab = dynamic(() => import('@/components/aact/AdminFollowUpTab').then((m) => m.AdminFollowUpTab), { ssr: false, loading: AdminTabLoader })
 const AdminBooksTab = dynamic(() => loadAdminBooksModule().then((m) => m.AdminBooksTab), { ssr: false, loading: AdminTabLoader })
+const AdminKnowledgeAiRepairTab = dynamic(() => loadAdminBooksModule().then((m) => m.AdminKnowledgeAiRepairTab), { ssr: false, loading: AdminTabLoader })
 const AdminAITab = dynamic(() => loadAdminAIModule().then((m) => m.AdminAITab), { ssr: false, loading: AdminTabLoader })
 const AdminSystemTab = dynamic(() => loadAdminSystemModule().then((m) => m.AdminSystemTab), { ssr: false, loading: AdminTabLoader })
 const AdminRulesTab = dynamic(() => loadAdminRulesModule().then((m) => m.AdminRulesTab), { ssr: false, loading: AdminTabLoader })
