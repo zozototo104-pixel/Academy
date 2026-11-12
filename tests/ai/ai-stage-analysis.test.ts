@@ -68,7 +68,7 @@ describe('D2.2 analysis wiring: scope and strictness guards', () => {
     expect(analyzer).toContain('liveState: usage')
     // الوسم يُضبط قبل إعادة المحاولة العالمية داخل callAnalysisAi
     const mark = analyzer.indexOf('usage.fallbackUsed = true')
-    const retry = analyzer.indexOf('return geminiCompleteJson(withUsageCapture(baseOpts, usage))', mark)
+    const retry = analyzer.indexOf('return await geminiCompleteJson(withUsageCapture(baseOpts, usage))', mark)
     expect(mark).toBeGreaterThan(-1)
     expect(retry).toBeGreaterThan(mark)
   })
