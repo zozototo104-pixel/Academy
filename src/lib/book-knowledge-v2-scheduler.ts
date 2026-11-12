@@ -116,7 +116,7 @@ function repairSourceWindow(text: string, previousExcerpt: string | null) {
 }
 
 // Called by a server-side cron only. One AI candidate at most per tick;
-// the database rate gate prevents parallel regions/instances using APINEX.
+// the optional database rate gate only applies if enabled by the admin.
 export async function runNextKnowledgeAiRepairStep() {
   const options = await db.setting.findMany({
     where: { key: { startsWith: REPAIR_PREFIX } }, orderBy: { updatedAt: 'asc' }, take: 500,
