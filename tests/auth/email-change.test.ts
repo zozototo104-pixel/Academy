@@ -18,6 +18,7 @@ function findBy(where: Row) {
 
 const deletedSessionUserIds: string[] = []
 let failSessionRevocation = false
+let failDelivery = false
 const dbMock = {
   // Transaction test double: preserve object identity while rolling back
   // both the email mutation and the session-deletion audit on failure.
