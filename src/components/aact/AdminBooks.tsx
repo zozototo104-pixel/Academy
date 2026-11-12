@@ -2402,17 +2402,14 @@ export function AdminBooksTab() {
     if (!programId) return
     setGeneratingGuideSemester(String(semester))
     try {
-      const targetProgramId = programId
       const d = await api<{ guide: StudyGuideRow; autoCreatedUnitGuides?: number }>('/api/admin/study-guides', {
         method: 'POST',
-        body: JSON.stringify({ programId: targetProgramId, semester, status: 'PUBLISHED' }),
+        body: JSON.stringify({ programId, semester, status: 'PUBLISHED' }),
       })
-      const refreshed = await api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${targetProgramId}`)
-        .catch(() => null)
-      if (knowledgeRepairProgramRef.current !== targetProgramId) return
-      // Keep every unit draft in local state; replacing a semester guide must
-      // never erase the unit guides that were just generated automatically.
-      setStudyGuides((prev) => refreshed?.guides ||
+      if (knowledgeRepairProgramRef.current !== programId) return
+      // Preserve unit guides; the standard list refresh loads auto-created drafts
+      // on the next visit without adding an extra API call to this action.
+      setStudyGuides((prev) =>
         [d.guide, ...prev.filter((g) => g.id !== d.guide.id && !(g.programId === d.guide.programId && g.semester === d.guide.semester && !g.unitId))]
           .sort((a, b) => a.semester - b.semester))
       toast({
