@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runNextQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
+import { runNextKnowledgeAiRepairStep } from '@/lib/book-knowledge-v2-scheduler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,5 +28,10 @@ export async function GET(request: NextRequest) {
   }
   console.log('[question-bank-cron] done', { processed: outcomes.length, reason })
 
-  return NextResponse.json({ ok: true, processed: outcomes.length, reason, outcomes }, { headers: { 'Cache-Control': 'no-store' } })
+  // Academic question-bank work executes first, but an active question queue
+  // must not starve administrator-scheduled knowledge repair indefinitely.
+  // Repair has an independent provider/model and optional admin-owned pacing.
+  const knowledgeRepair = await runNextKnowledgeAiRepairStep()
+    .catch((error) => ({ status: 'REPAIR_UNAVAILABLE', reason: String((error as Error)?.message || error).slice(0, 100) }))
+  return NextResponse.json({ ok: true, processed: outcomes.length, reason, outcomes, knowledgeRepair }, { headers: { 'Cache-Control': 'no-store' } })
 }

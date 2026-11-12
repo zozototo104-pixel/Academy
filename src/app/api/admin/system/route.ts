@@ -21,6 +21,7 @@ const SYSTEM_KEYS = [
   'USDT_WALLET_ADDRESS', 'USDT_BINANCE_PAY_USER_ID', 'USDT_BINANCE_PAY_QR_IMAGE_URL', 'USDT_NETWORK', 'USDT_PAYMENT_INSTRUCTIONS',
   'TURN_URL', 'TURN_TCP_URL', 'TURN_USERNAME', 'TURN_CREDENTIAL', 'STUN_URLS',
   'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL', 'GEMINI_DISCUSSION_THINKING_LEVEL', 'GEMINI_TTS_VOICE',
+  'AI_KNOWLEDGE_REPAIR_PROVIDER', 'AI_KNOWLEDGE_REPAIR_MODEL', 'AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS', 'AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN',
   'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES', 'AI_PROVIDER_FALLBACK_ORDER', 'AI_PROVIDER_FALLBACK_ORDER_ENABLED',
   'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
   'ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEYS', 'ANTHROPIC_TEXT_MODEL',
@@ -240,6 +241,26 @@ export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json()
+    // Independent model choice for knowledge repair. Never alter global routing
+    // for students, books, exams or other AI consumers.
+    const repairProviderNames = new Set(['AUTO', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION'])
+    const repairProvider = String(body.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO').trim().toUpperCase()
+    const repairModel = String(body.AI_KNOWLEDGE_REPAIR_MODEL || '').trim()
+    if (!repairProviderNames.has(repairProvider)) return NextResponse.json({ error: 'مزوّد التصحيح غير معروف' }, { status: 400 })
+    if (repairModel && !/^[a-zA-Z0-9@][a-zA-Z0-9@_.\/:\-]{0,179}$/.test(repairModel)) return NextResponse.json({ error: 'اسم نموذج التصحيح غير صالح' }, { status: 400 })
+    if ((repairProvider === 'AUTO' && repairModel) || (repairProvider !== 'AUTO' && !repairModel)) {
+      return NextResponse.json({ error: 'اختر نموذجاً محدداً مع المزوّد، أو اختر AUTO لاستخدام الراوتر العام' }, { status: 400 })
+    }
+    const intervalRaw = String(body.AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS ?? '0').trim() || '0'
+    const interval = Number(intervalRaw)
+    if (!Number.isInteger(interval) || interval < 0 || interval > 3600) {
+      return NextResponse.json({ error: 'الفاصل بين طلبات التصحيح يجب أن يكون بين 0 و3600 ثانية' }, { status: 400 })
+    }
+    const callsRaw = String(body.AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN ?? '1').trim() || '1'
+    const callsPerRun = Number(callsRaw)
+    if (!Number.isInteger(callsPerRun) || callsPerRun < 1 || callsPerRun > 10) {
+      return NextResponse.json({ error: 'عدد محاولات التصحيح في تشغيل واحد يجب أن يكون من 1 إلى 10' }, { status: 400 })
+    }
     const updates: string[] = []
     for (const key of SYSTEM_KEYS) {
       if (!(key in body)) continue

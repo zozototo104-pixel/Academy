@@ -258,6 +258,8 @@ interface StudentAssignment {
   weight: number
   dueDays?: number | null
   dueAt?: string | null
+  opensAt?: string | null
+  dueMode?: 'UNIT' | 'UNIT_DAYS' | 'ENROLLMENT_DAYS' | 'SEMESTER_DAYS' | 'LEGACY_FIXED' | 'NONE'
   unitId?: string | null
   rubric?: string | null
   status: string
@@ -286,7 +288,7 @@ interface StudentStudyGuide {
   overview: string
   objectives: string[]
   keyTerms: string[]
-  sections: { title: string; summary: string; outcomes?: string[]; sourceTitles?: string[] }[]
+  sections: { title: string; summary: string; outcomes?: string[]; sourceTitles?: string[]; sourceKnowledgeIds?: string[]; pageRefs?: string[] }[]
   activities: string[]
   discussionQuestions: string[]
   updatedAt: string
@@ -520,7 +522,7 @@ export function DashboardView() {
       summary: cleanAcademicOutput(section.summary || 'محور منظم من الكتب المقررة.', 1600),
       outcomes: sanitizeAcademicList(section.outcomes || [], ['شرح المحور وربطه بالتطبيق المهني'], 5, 180),
       sourceTitles: sanitizeAcademicList(section.sourceTitles || [], ['بنك المعرفة'], 5, 160),
-    })).filter((section) => section.title && section.summary && !looksLikeBrokenGeneratedArabic(`${section.title}. ${section.summary}`)).slice(0, 8),
+    })).filter((section) => section.title && section.summary && !looksLikeBrokenGeneratedArabic(`${section.title}. ${section.summary}`)),
   })).filter((guide) => guide.title && guide.overview && !looksLikeBrokenGeneratedArabic(`${guide.title}. ${guide.overview}`)), [studyGuides])
 
   // Load my programs
@@ -1786,6 +1788,28 @@ export function DashboardView() {
                               {guide.discussionQuestions.slice(0, 3).map((x, i) => <p key={i}>• {x}</p>)}
                             </div>
                           </div>
+                          {guide.sections.length > 0 && (
+                            <details className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                              <summary className="cursor-pointer text-xs font-black text-[#0f2b46]">عرض جميع محاور الدليل ({guide.sections.length}) ومراجعها</summary>
+                              <div className="mt-3 space-y-3">
+                                {guide.sections.map((section, i) => (
+                                  <div key={i} className="rounded-lg border border-slate-100 p-3">
+                                    <p className="text-xs font-black text-[#0f2b46]">{i + 1}. {section.title}</p>
+                                    <p className="mt-1 whitespace-pre-wrap break-words text-[11px] font-bold leading-6 text-slate-600">{section.summary}</p>
+                                    {(section.sourceTitles || []).length > 0 && (
+                                      <p className="mt-2 text-[11px] text-slate-600">العناوين المرجعية: {section.sourceTitles?.join('، ')}</p>
+                                    )}
+                                    {(section.pageRefs || []).length > 0 && (
+                                      <p className="mt-1 text-[11px] font-bold text-slate-700">مراجع الصفحات: {section.pageRefs?.join('، ')}</p>
+                                    )}
+                                    {(section.sourceKnowledgeIds || []).length > 0 && (
+                                      <p className="mt-1 text-[10px] text-slate-500">عناصر المعرفة المرتبطة: {section.sourceKnowledgeIds?.length}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
                           {guide.keyTerms.length > 0 && (
                             <div className="mt-3 flex flex-wrap gap-1">
                               {guide.keyTerms.slice(0, 12).map((x, i) => <span key={i} className="rounded-full bg-[#f7edd0] px-2 py-1 text-[10px] font-black text-[#a8841a]">{x}</span>)}
@@ -1818,6 +1842,7 @@ export function DashboardView() {
                         const graded = submission?.status === 'GRADED'
                         const needsRevision = submission?.status === 'NEEDS_REVISION'
                         const submitted = !!submission && !needsRevision
+                        const beforeUnitStart = !!a.opensAt && (a.dueMode === 'UNIT' || a.dueMode === 'UNIT_DAYS') && new Date(a.opensAt).getTime() > Date.now()
                         return (
                           <article key={a.id} className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
                             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1831,7 +1856,13 @@ export function DashboardView() {
                                 </div>
                                 <p className="mt-2 text-xs font-bold leading-6 text-slate-600">{a.description}</p>
                                 {a.rubric && <p className="mt-2 rounded-xl bg-slate-50 p-2 text-[11px] font-bold leading-5 text-slate-500">معايير التصحيح: {a.rubric}</p>}
-                                {a.dueAt && <p className="mt-1 text-[11px] font-bold text-amber-700">آخر موعد: {new Date(a.dueAt).toLocaleDateString('ar-EG')}</p>}
+                                {a.dueMode === 'UNIT' || a.dueMode === 'UNIT_DAYS' ? (
+                                  <p className="mt-1 text-[11px] font-bold text-indigo-700">
+                                    مرتبط بالوحدة · يبدأ احتساب المهلة {a.opensAt ? new Date(a.opensAt).toLocaleDateString('ar-EG') : 'من موعد الوحدة'} · {a.dueMode === 'UNIT' ? 'تنتهي بنهاية الوحدة' : `المدة ${a.dueDays} يوم من موعد الوحدة بحد أقصى نهايتها`}
+                                  </p>
+                                ) : a.dueMode === 'ENROLLMENT_DAYS' ? <p className="mt-1 text-[11px] font-bold text-indigo-700">المدة {a.dueDays} يوم من تاريخ تسجيلك في البرنامج</p> : a.dueMode === 'SEMESTER_DAYS' ? <p className="mt-1 text-[11px] font-bold text-indigo-700">المدة {a.dueDays} يوم من تاريخ اعتماد الفصل السابق</p> : null}
+                                {a.dueAt && <p className="mt-1 text-[11px] font-bold text-amber-700">آخر موعد لك: {new Date(a.dueAt).toLocaleDateString('ar-EG')}</p>}
+                                {beforeUnitStart && <p className="mt-1 text-[11px] font-bold text-slate-600">موعد بداية احتساب المهلة: {new Date(a.opensAt!).toLocaleDateString('ar-EG')} — يمكنك التسليم مبكرًا إن أنجزت الواجب.</p>}
                               </div>
                               <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${graded ? 'bg-emerald-100 text-emerald-700' : needsRevision ? 'bg-amber-100 text-amber-700' : submitted ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
                                 {graded ? `مصحح ${submission?.score ?? '-'}/${a.points}` : needsRevision ? 'يحتاج تعديل' : submitted ? 'تم التسليم' : 'لم يسلّم بعد'}

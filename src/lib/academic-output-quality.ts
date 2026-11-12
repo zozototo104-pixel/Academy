@@ -182,7 +182,7 @@ export function looksLikeBrokenGeneratedArabic(value: unknown): boolean {
     'وفق المقطع الاتي', 'يعرض الكتاب المقطع الاتي', 'بالاعتماد علي الدليل النصي', 'يمكن تحويل المقطع', 'يجوز تعميم المقطع', 'قراءه المقطع',
     'اي استنتاج مهني هو الادق', 'يعالج الكتاب الفكره الاتيه', 'عند تحويله الي حاله مهنيه', 'امام مدير يعمل', 'موقف مستمد من الكتاب',
     'libro de la guerra', 'tratado de la perfeccion', 'tratado de la perfección', 'lehrsätze', 'lehrs atze',
-    'vellena', 'bonapert', 'بونابرت رجاء الكتاب', 'كتاب الثاين', 'الكتاب ويف', 'عام 8121', 'عام 8115', 'عام 8518',
+    'vellena', 'bonapert', 'بونابرت رجاء الكتاب', 'كتاب الثاين', 'عام 8121', 'عام 8115', 'عام 8518',
     'انظر كتاب', 'صادر بالفرنسية', 'صادر بالانجليزية', 'صادر بالإنجليزية',
   ]
   if (forbidden.some((x) => n.includes(normalizeAcademic(x)))) return true
@@ -197,28 +197,94 @@ export function looksLikeBrokenGeneratedArabic(value: unknown): boolean {
   if (latinWords >= 4 && arabicWords >= 4 && raw.length < 800 && /(?:\bde\b|\bdel\b|\bund\b|\boder\b|\breine\b|\bmit\b|\bthe\b)/i.test(raw)) return true
 
   // مؤشرات ترجمات مكسورة متكررة ظهرت من OCR.
+  // Substring fragments ending in «يف» or starting with «فيه» are gone on purpose:
+  // cleaning already repairs a standalone «يف»/«ويف» to «في»/«وفي» before this
+  // check runs, so such a fragment can only match a valid verb such as «يضيف»
+  // or a valid phrase such as «فيه قراءة». A surviving standalone token is
+  // still caught by the token check below.
   const brokenFragments = [
-    'كتاب اطلب', 'كتاب احرب', 'يف اسبانيا', 'في اسبانيا مع كتاب', 'اهنا', 'إهنا', 'مستحيله وان الثانيه ال',
+    'كتاب اطلب', 'كتاب احرب', 'في اسبانيا مع كتاب', 'اهنا', 'إهنا', 'مستحيله وان الثانيه ال',
     'هو يفتترض', 'يفترض اجتزال ان الاول', 'وان الثانيه ال', 'هذا المنهج منذ زمن بعيد حيث ظهر',
     'استخدم هذا المنهج منذ زمن بعيد حيث ظهر', 'بدات الاعلان عن نفسه', 'السيما عند موسسي الفكر',
-    'الاستراتيجي ال عسكري', 'بشكل واضح يف اسبانيا', 'مع كتاب اطلب', 'مع كتاب احرب', 'كتاب حرب هو', 'ويف', 'الثاين',
+    'الاستراتيجي ال عسكري', 'مع كتاب اطلب', 'مع كتاب احرب', 'كتاب حرب هو', 'ويف', 'الثاين',
     'مسو وتفوق', 'صوت الى استراتيجية', 'صوت الي استراتيجية', 'صوت الى استراتيجيه', 'صوت الي استراتيجيه',
-    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر', 'مبدى الموضوعيه يف', 'مبدأ الموضوعية يف',
-    'فيه قراءة', 'فيه تحليل', 'فيه بداية', 'فيه صناعة', 'فيه سياق', 'فيه اختيار', 'فيه اختاد', 'فيه اختاذ',
-    'يف قراءة', 'يف تحليل', 'يف اختاذ', 'يف اتخاذ', 'يف بداية', 'يف صناعة', 'يف سياق', 'يف إطار', 'يف اطار',
+    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر',
   ]
   if (brokenFragments.some((x) => n.includes(normalizeAcademic(x)))) return true
 
   const normalizedTokens = n.split(' ')
   const weirdTokenCount = normalizedTokens.filter((t) => ['يف', 'الثاين', 'ويف', 'اختاذ', 'اختاد', 'القررا', 'مبعن', 'املوضوعيه', 'املوضوعية', 'القرا', 'املبادي', 'االستراتيجيه', 'املكتسب'].includes(t)).length
   if (weirdTokenCount >= 1 && arabicWords >= 8) return true
-  if ((n.includes('يف ') || n.includes(' ويف ') || n.includes('فيه ')) && /(القرار|الاداره|المهني|الاستراتيجي|المشروع|الكتاب|المحتوي|المحتوى|القراءه|القراءة)/u.test(n)) return true
+  // OCR fragments must be standalone tokens. Searching for 'يف ' also matches
+  // the ending of valid verbs such as «يضيف». «فيه» is a normal Arabic word
+  // and must never trigger this broad OCR heuristic by itself.
+  if (normalizedTokens.some((token) => ['يف', 'ويف'].includes(token)) && /(القرار|الاداره|المهني|الاستراتيجي|المشروع|الكتاب|المحتوي|المحتوى|القراءه|القراءة)/u.test(n)) return true
 
   // تكرار عالٍ أو كلمات قصيرة جداً يدل على تشوه OCR.
   const veryShort = ws.filter((w) => w.length <= 2).length
   if (ws.length >= 18 && veryShort / ws.length > 0.45) return true
 
   return false
+}
+
+export type KnowledgeItemCleanupPlan =
+  | { action: 'KEEP' }
+  | { action: 'DELETE_EMPTY' }
+  | { action: 'REVIEW'; reason: 'UNRESOLVED' }
+  | { action: 'UPDATE'; data: { title: string; summary: string; excerpt: string | null } }
+
+// Never delete a book-derived knowledge item merely because a heuristic rejects
+// it. Repair every text field first, and only persist if ALL fields pass.
+// Unresolved rows keep their original text, source IDs and guide references.
+export function planKnowledgeItemCleanup(
+  row: { title: string; summary: string; excerpt?: string | null },
+  isBroken: (text: string) => boolean = looksLikeBrokenGeneratedArabic,
+): KnowledgeItemCleanupPlan {
+  const fullClean = (value: string) => cleanAcademicOutput(value, Math.max(1800, value.length + 128))
+  const title = fullClean(row.title || '')
+  const summary = fullClean(row.summary || '')
+  const excerpt = row.excerpt == null ? null : fullClean(row.excerpt)
+  // Only truly empty stored fields may be deleted. Markup or damaged text
+  // that becomes blank after cleaning still counts as original user data.
+  if (![row.title, row.summary, row.excerpt].some((value) => String(value || '').trim())) return { action: 'DELETE_EMPTY' }
+  // Never commit a partial repair: if ANY field remains empty/corrupted,
+  // leave all original fields and reference identifiers untouched.
+  if (!title || !summary || (row.excerpt && !excerpt)
+    || isBroken(`${title}. ${summary}`) || (excerpt && isBroken(excerpt))) {
+    return { action: 'REVIEW', reason: 'UNRESOLVED' }
+  }
+  if (title !== row.title || summary !== row.summary || excerpt !== (row.excerpt ?? null)) {
+    return { action: 'UPDATE', data: { title, summary, excerpt } }
+  }
+  return { action: 'KEEP' }
+}
+
+// AI repairs are accepted only when they are complete, academically readable,
+// and explicitly anchored to an exact excerpt from the same source chunk.
+// No guessed citation, metadata, category, IDs or new item may be written.
+export function validateGroundedKnowledgeRepair(
+  value: unknown,
+  sourceText: string,
+): { title: string; summary: string; excerpt: string } | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const input = value as Record<string, unknown>
+  if (typeof input.title !== 'string' || typeof input.summary !== 'string' || typeof input.excerpt !== 'string') return null
+  const title = input.title.trim()
+  const summary = input.summary.trim()
+  const excerpt = input.excerpt.trim()
+  if (title.length < 10 || title.length > 160 || summary.length < 55 || summary.length > 1800 || excerpt.length < 35 || excerpt.length > 1000) return null
+  if (cleanAcademicOutput(title, 1800) !== title || cleanAcademicOutput(summary, 2000) !== summary || cleanAcademicOutput(excerpt, 1200) !== excerpt) return null
+  if (planKnowledgeItemCleanup({ title, summary, excerpt }).action !== 'KEEP') return null
+
+  // No lexical-similarity heuristic can prove a model's summary is truthful:
+  // it can add an invented causal claim using the same vocabulary.
+  // For automatic acceptance, each field MUST be an exact contiguous span
+  // from a readable source. Paraphrases belong in human review, not auto-save.
+  const whitespace = (s: string) => s.replace(/\s+/g, ' ').trim()
+  const source = whitespace(sourceText)
+  if (looksLikeBrokenGeneratedArabic(source)) return null
+  if (![title, summary, excerpt].every((field) => source.includes(whitespace(field)))) return null
+  return { title, summary, excerpt }
 }
 
 export function acceptableAcademicText(value: unknown, opts?: { min?: number; maxLatinRatio?: number }): boolean {

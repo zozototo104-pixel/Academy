@@ -59,6 +59,7 @@ const AdminMessagesTab = dynamic(() => loadAdminExtrasModule().then((m) => m.Adm
 const AdminDirectMessagesTab = dynamic(() => import('@/components/aact/AdminDirectMessagesTab').then((m) => m.AdminDirectMessagesTab), { ssr: false, loading: AdminTabLoader })
 const AdminFollowUpTab = dynamic(() => import('@/components/aact/AdminFollowUpTab').then((m) => m.AdminFollowUpTab), { ssr: false, loading: AdminTabLoader })
 const AdminBooksTab = dynamic(() => loadAdminBooksModule().then((m) => m.AdminBooksTab), { ssr: false, loading: AdminTabLoader })
+const AdminKnowledgeAiRepairTab = dynamic(() => loadAdminBooksModule().then((m) => m.AdminKnowledgeAiRepairTab), { ssr: false, loading: AdminTabLoader })
 const AdminAITab = dynamic(() => loadAdminAIModule().then((m) => m.AdminAITab), { ssr: false, loading: AdminTabLoader })
 const AdminSystemTab = dynamic(() => loadAdminSystemModule().then((m) => m.AdminSystemTab), { ssr: false, loading: AdminTabLoader })
 const AdminRulesTab = dynamic(() => loadAdminRulesModule().then((m) => m.AdminRulesTab), { ssr: false, loading: AdminTabLoader })
@@ -447,6 +448,13 @@ export function AdminView() {
     try {
       await api('/api/admin/students/email-change', { method: 'POST', body: JSON.stringify({ userId: emailChangeStudent.id, newEmail: emailChangeValue.trim(), purpose: emailChangePurpose }) })
       toast({ title: 'أرسلنا رابط التأكيد', description: 'سيُعتمد البريد الجديد عندما يضغط الطالب رابط التأكيد الواصل إليه.' })
+      // Harden the dialog close on iOS Safari: blur the focused submit
+      // button before unmounting the dialog, so focus is not left inside
+      // a subtree Radix is about to remove — the prime suspect for the
+      // crash screen right after this action. Hardening, not a proven
+      // fix: the error report (see src/app/error.tsx) will prove the real
+      // cause if the crash ever recurs.
+      try { (document.activeElement as HTMLElement | null)?.blur?.() } catch { /* ignore */ }
       setEmailChangeStudent(null)
       setEmailChangeValue('')
     } catch (e: any) {
@@ -467,7 +475,7 @@ export function AdminView() {
     const tab = new URLSearchParams(window.location.search).get('tab')
     const allowed = new Set([
       'admissions', 'service-requests', 'rules', 'students', 'supervisors', 'agents',
-      'representatives', 'books', 'study-schedule', 'quality', 'attempts',
+      'representatives', 'books', 'knowledge-ai-repair', 'study-schedule', 'quality', 'attempts',
       'grading-review', 'thesis', 'ai', 'finance', 'certs', 'legacy-graduates',
       'system', 'announcements', 'lectures', 'meetings', 'ai-stage-profiles',
       'settings', 'admins', 'audit', 'messages', 'admin-messages',
@@ -1993,6 +2001,7 @@ export function AdminView() {
             </p>
             <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
               <TabsTrigger value="books" className="gap-1 text-[10px] font-bold sm:text-xs">الكتب والاختبارات</TabsTrigger>
+              <TabsTrigger value="knowledge-ai-repair" className="gap-1 text-[10px] font-bold sm:text-xs">تصحيح المعرفة بالذكاء</TabsTrigger>
               <TabsTrigger value="study-schedule" className="gap-1 text-[10px] font-bold sm:text-xs">جدول الدراسة</TabsTrigger>
               <TabsTrigger value="quality" className="gap-1 text-[10px] font-bold sm:text-xs">مركز الجودة</TabsTrigger>
               <TabsTrigger value="attempts" className="gap-1 text-[10px] font-bold sm:text-xs">نتائج الامتحانات</TabsTrigger>
@@ -2626,6 +2635,11 @@ export function AdminView() {
         {/* الكتب المقررة والاختبارات الشاملة */}
         <TabsContent value="books" className="w-full min-w-0 max-w-full overflow-x-hidden">
           <AdminBooksTab />
+        </TabsContent>
+
+        {/* إدارة مستقلة لتصحيح المعرفة بالذكاء دون المساس بقراءة الكتب */}
+        <TabsContent value="knowledge-ai-repair" className="w-full min-w-0 max-w-full overflow-x-hidden">
+          <AdminKnowledgeAiRepairTab />
         </TabsContent>
 
         {/* جدول الدراسة */}

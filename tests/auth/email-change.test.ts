@@ -18,6 +18,7 @@ function findBy(where: Row) {
 
 const deletedSessionUserIds: string[] = []
 let failSessionRevocation = false
+let failDelivery = false
 const dbMock = {
   // Transaction test double: preserve object identity while rolling back
   // both the email mutation and the session-deletion audit on failure.
@@ -53,6 +54,12 @@ const dbMock = {
       Object.assign(u, data)
       return u
     },
+    updateMany: async ({ where, data }: any) => {
+      const u = findBy(where)
+      if (!u) return { count: 0 }
+      Object.assign(u, data)
+      return { count: 1 }
+    },
   },
   auditLog: { create: async ({ data }: any) => { audits.push(data); return data } },
 }
@@ -61,7 +68,7 @@ mock.module('@/lib/db', () => ({ db: dbMock }))
 // ---------- mailer capture ----------
 const confirmMails: any[] = []
 mock.module('@/lib/mailer', () => ({
-  emailEmailChangeConfirm: async (...args: any[]) => { confirmMails.push(args); return true },
+  emailEmailChangeConfirm: async (...args: any[]) => { confirmMails.push(args); return !failDelivery },
   emailEmailChangeNotice: async () => true,
   emailWelcome: async () => true,
 }))
@@ -120,6 +127,39 @@ describe('requestEmailChange', () => {
     expect(confirmMails.length).toBe(1)
     expect(confirmMails[0][0]).toBe('new@student.com')
     expect(confirmMails[0][3]).toBe('LOGIN')
+  })
+
+  test('failed confirmation delivery restores an older pending request and returns 503', async () => {
+    users.length = 0; confirmMails.length = 0
+    const originalSentAt = new Date(Date.now() - 11 * 60_000)
+    const originalExpiresAt = new Date(Date.now() + 3600_000)
+    const u = seed({
+      pendingEmail: 'previous@student.com',
+      pendingEmailPurpose: 'NOTIFICATION',
+      emailVerificationTokenHash: 'older-token',
+      emailVerificationSentAt: originalSentAt,
+      emailVerificationExpiresAt: originalExpiresAt,
+    })
+    sessionUser = u
+    failDelivery = true
+    try {
+      const res = await studentPost(new NextRequest('https://example.test/api/auth/email-change', {
+        method: 'POST',
+        body: JSON.stringify({ newEmail: 'new@student.com', purpose: 'LOGIN', password: 'pw123456' }),
+      }))
+      expect(res.status).toBe(503)
+      expect((await res.json()).code).toBe('EMAIL_DELIVERY_FAILED')
+      expect(u.email).toBe('old@student.com')
+      expect(u.pendingEmail).toBe('previous@student.com')
+      expect(u.pendingEmailPurpose).toBe('NOTIFICATION')
+      expect(u.emailVerificationTokenHash).toBe('older-token')
+      expect(u.emailVerificationSentAt).toEqual(originalSentAt)
+      expect(u.emailVerificationExpiresAt).toEqual(originalExpiresAt)
+      expect(confirmMails).toHaveLength(1)
+    } finally {
+      failDelivery = false
+      sessionUser = null
+    }
   })
 
   test('LOGIN with a wrong password is refused and stores nothing', async () => {
@@ -236,6 +276,49 @@ describe('routes', () => {
     sessionUser = seed({ id: 'admin1', role: 'ADMIN', email: 'admin@aact.com' })
     const res = await adminPost(new NextRequest('https://example.test/api/admin/students/email-change', { method: 'POST', body: JSON.stringify({ userId: target.id, newEmail: 'new@aact.com', purpose: 'NOTIFICATION' }) }))
     expect(res.status).toBe(400)
+  })
+
+  test('admin email-change journey: send confirmation, verify new mailbox, revoke login sessions', async () => {
+    users.length = 0; confirmMails.length = 0; deletedSessionUserIds.length = 0
+    const target = seed({ id: 'student-admin-email', email: 'old@student.com' })
+    sessionUser = seed({ id: 'admin-change-email', email: 'admin@aact.com', role: 'ADMIN' })
+    try {
+      const req = new NextRequest('https://example.test/api/admin/students/email-change', {
+        method: 'POST',
+        body: JSON.stringify({ userId: target.id, newEmail: 'new@student.com', purpose: 'LOGIN' }),
+      })
+      const start = await adminPost(req)
+      expect(start.status).toBe(200)
+      expect((await start.json()).pendingEmail).toBe('new@student.com')
+      expect(target.email).toBe('old@student.com')
+      expect(target.pendingEmail).toBe('new@student.com')
+      expect(confirmMails).toHaveLength(1)
+      expect(confirmMails[0][0]).toBe('new@student.com')
+      const confirmUrl = String(confirmMails[0][2])
+      expect(new URL(confirmUrl).searchParams.has('token')).toBe(true)
+      const confirmed = await verifyGet(new NextRequest(confirmUrl))
+      expect(confirmed.status).toBe(307)
+      expect(target.email).toBe('new@student.com')
+      expect(target.pendingEmail).toBeNull()
+      expect(deletedSessionUserIds).toContain(target.id)
+    } finally { sessionUser = null }
+  })
+
+  test('admin email-change journey: failed mail returns 503, restores previous pending state and does not swap email', async () => {
+    users.length = 0; confirmMails.length = 0
+    const target = seed({ id: 'student-failed-email', email: 'old@student.com' })
+    sessionUser = seed({ id: 'admin-failed-mail', email: 'admin@aact.com', role: 'ADMIN' })
+    failDelivery = true
+    try {
+      const res = await adminPost(new NextRequest('https://example.test/api/admin/students/email-change', {
+        method: 'POST',
+        body: JSON.stringify({ userId: target.id, newEmail: 'undelivered@student.com', purpose: 'LOGIN' }),
+      }))
+      expect(res.status).toBe(503)
+      expect((await res.json()).code).toBe('EMAIL_DELIVERY_FAILED')
+      expect(target.email).toBe('old@student.com')
+      expect(target.pendingEmail).toBeNull()
+    } finally { failDelivery = false; sessionUser = null }
   })
 
   test('verify-email route: a token carrying a LOGIN pending change redirects as verified with the NEW email', async () => {

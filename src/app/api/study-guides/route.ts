@@ -28,10 +28,11 @@ function mapGuide(g: any) {
         summary,
         outcomes: sanitizeAcademicList(s?.outcomes, ['شرح المحور وربطه بالتطبيق المهني'], 5, 180),
         sourceTitles: sanitizeAcademicList(s?.sourceTitles, ['بنك المعرفة'], 5, 160),
+        sourceKnowledgeIds: Array.isArray(s?.sourceKnowledgeIds) ? s.sourceKnowledgeIds.filter((id: unknown) => typeof id === 'string') : [],
+        pageRefs: Array.isArray(s?.pageRefs) ? s.pageRefs.filter((ref: unknown) => typeof ref === 'string') : [],
       }
     })
     .filter((s: any) => s.title && s.summary && !looksLikeBrokenGeneratedArabic(`${s.title}. ${s.summary}`))
-    .slice(0, 8)
 
   const title = cleanText(g.title, 'دليل الدراسة', 220)
   const overview = cleanText(g.overview, 'دليل دراسة منظم يربط الكتب المقررة بالتطبيق المهني والاختبارات.', 7000)
@@ -45,6 +46,7 @@ function mapGuide(g: any) {
     overview,
     objectives: sanitizeAcademicList(jsonArray(g.objectives), ['فهم محاور البرنامج وربطها بالتطبيق المهني'], 10, 220),
     keyTerms: sanitizeAcademicList(jsonArray(g.keyTerms), [], 18, 90),
+    sourceKnowledgeIds: jsonArray(g.sourceKnowledgeIds),
     sections,
     activities: sanitizeAcademicList(jsonArray(g.activities), ['قراءة المحاور وكتابة ملخص تطبيقي قصير.'], 8, 300),
     discussionQuestions: sanitizeAcademicList(jsonArray(g.discussionQuestions), ['كيف يمكن توظيف هذا المحور في حالة مهنية؟'], 10, 320),

@@ -1,10 +1,31 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  const reported = useRef(false)
   useEffect(() => {
     console.error('AACT client error boundary:', error)
+    // The browser console never reaches the server, so send the real error
+    // to /api/client-error once. Without this, a crash screen — such as the
+    // one after the admin email-change dialog — stays a mystery forever:
+    // the next occurrence lands in the Vercel runtime logs with its
+    // message, stack, page URL and browser, and the exact cause can be
+    // fixed instead of guessed.
+    if (reported.current) return
+    reported.current = true
+    try {
+      const payload = JSON.stringify({
+        message: String((error as any)?.message || error),
+        stack: typeof (error as any)?.stack === 'string' ? (error as any).stack : '',
+        digest: (error as any)?.digest || '',
+        url: typeof window !== 'undefined' ? window.location.href : '',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      })
+      fetch('/api/client-error', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }).catch(() => {})
+    } catch {
+      // Reporting must never cause a second crash.
+    }
   }, [error])
 
   return (

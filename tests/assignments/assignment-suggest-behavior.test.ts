@@ -204,7 +204,9 @@ describe('assignment suggestions: semester scope and pinning (behavioral)', () =
     const base = {
       programId: 'prog1', semester: 3, type: 'REPORT', points: 15, weight: 10,
       title: 'عنوان مكرر مقصود للاختبار السلوكي الكامل هنا', description: 'وصف الواجب الموثق بالمصادر الأصلية للوحدة المرجعية المحددة حصرًا دون أي مصادر خارجية أخرى.',
-      dueDays: null, dueAt: null, rubric: 'التوثيق ١٠٠٪', status: 'DRAFT',
+      // Semester-3 units from S1/S2 are evidence references, not teaching units
+      // for scheduling. The admin must set an enrollment-relative duration.
+      dueDays: 14, dueAt: null, rubric: 'التوثيق ١٠٠٪', status: 'DRAFT',
     }
     const r1 = await savePOST(postReq('http://t/api/admin/assignments', { ...base, unitId: 'u1', sourceKnowledgeIds: ['k1'] }))
     const r2 = await savePOST(postReq('http://t/api/admin/assignments', { ...base, unitId: 'u2', sourceKnowledgeIds: ['k2'] }))
@@ -213,6 +215,22 @@ describe('assignment suggestions: semester scope and pinning (behavioral)', () =
     const mine = createdAssignments.filter((a) => a.title === base.title)
     expect(mine).toHaveLength(2)
     expect(mine.map((a) => a.unitId).sort()).toEqual(['u1', 'u2'])
+    expect(mine.map((a) => a.sourceKnowledgeIds).sort()).toEqual([['k1'], ['k2']])
+    expect(mine.every((a) => a.semester === 3 && a.dueDays === 14 && a.dueAt === null)).toBe(true)
+  })
+
+  test('semester-3 research sourced from earlier units requires a real day duration', async () => {
+    const title = 'بحث توثيقي يتطلب مدة تسليم واضحة لكل طالب'
+    const before = createdAssignments.length
+    const response = await savePOST(postReq('http://t/api/admin/assignments', {
+      programId: 'prog1', semester: 3, unitId: 'u1', sourceKnowledgeIds: ['k1'],
+      type: 'REPORT', points: 15, weight: 10, title,
+      description: 'بحث يستشهد بمصادر الوحدة الأولى دون تطبيق نافذتها الزمنية على الفصل الثالث.',
+      dueDays: null, dueAt: null, status: 'DRAFT',
+    }))
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('مدة تسليم الواجب بالأيام')
+    expect(createdAssignments).toHaveLength(before)
   })
 })
 

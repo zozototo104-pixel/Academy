@@ -26,13 +26,17 @@ export default function AccountEmailDialog({ open, onClose }: { open: boolean; o
   const [password, setPassword] = useState('')
   const [notifEmail, setNotifEmail] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState(false)
 
   const load = useCallback(async () => {
     try {
       const d = await api<{ user: MeInfo | null }>('/api/auth/me')
       setMe(d.user)
+      setLoadError(false)
     } catch {
-      setMe(null)
+      // Preserve the last known account state, especially after a successful
+      // request. A transient read failure must not look like endless loading.
+      setLoadError(true)
     }
   }, [])
 
@@ -41,8 +45,8 @@ export default function AccountEmailDialog({ open, onClose }: { open: boolean; o
   useEffect(() => {
     let live = true
     api<{ user: MeInfo | null }>('/api/auth/me')
-      .then((d) => { if (live) setMe(d.user) })
-      .catch(() => { if (live) setMe(null) })
+      .then((d) => { if (live) { setMe(d.user); setLoadError(false) } })
+      .catch(() => { if (live) setLoadError(true) })
     return () => { live = false }
   }, [])
 
@@ -59,7 +63,10 @@ export default function AccountEmailDialog({ open, onClose }: { open: boolean; o
         method: 'POST',
         body: JSON.stringify({ newEmail, purpose, password: purpose === 'LOGIN' ? password : undefined }),
       })
-      toast({ title: 'أرسلنا رابط التأكيد', description: `افتح بريد ${newEmail} واضغط رابط التأكيد لإتمام التغيير. لن يتغير أي شيء قبل التأكيد.` })
+      // Show the persisted pending state immediately; refreshing /auth/me
+      // may fail transiently without undoing a successful POST.
+      setMe((current) => current ? { ...current, pendingEmail: newEmail.toLowerCase(), pendingEmailPurpose: purpose } : current)
+      toast({ title: 'الطلب بانتظار التأكيد', description: `أرسلنا رابطاً إلى ${newEmail}. البريد المعتمد لن يتغير حتى تفتح الرابط وتؤكد الطلب.` })
       setLoginEmail('')
       setPassword('')
       setNotifEmail('')
@@ -75,6 +82,7 @@ export default function AccountEmailDialog({ open, onClose }: { open: boolean; o
     setBusy('CANCEL')
     try {
       await api('/api/auth/email-change', { method: 'DELETE' })
+      setMe((current) => current ? { ...current, pendingEmail: null, pendingEmailPurpose: null } : current)
       toast({ title: 'تم إلغاء الطلب', description: 'ألغي تغيير البريد المنتظر.' })
       await load()
     } catch (e: any) {
@@ -96,9 +104,22 @@ export default function AccountEmailDialog({ open, onClose }: { open: boolean; o
         </div>
 
         {!me ? (
-          <p className="py-6 text-center text-sm font-bold text-slate-500">جارٍ التحميل…</p>
+          loadError ? (
+            <div className="py-6 text-center">
+              <p className="text-sm font-bold text-rose-700">تعذر تحميل حالة البريد مؤقتاً. لا يمكن تأكيد حالة التغيير من هذه القراءة؛ حاول مجدداً.</p>
+              <button type="button" onClick={load} className={`${btnCls} mt-3`}>إعادة تحميل الحالة</button>
+            </div>
+          ) : (
+            <p className="py-6 text-center text-sm font-bold text-slate-500">جارٍ التحميل…</p>
+          )
         ) : (
           <div className="space-y-5 text-right">
+            {loadError && (
+              <p className="rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900">
+                تعذر تحديث حالة البريد من الخادم مؤقتاً؛ البيانات المعروضة هي آخر حالة معروفة.
+                <button type="button" onClick={load} className="mr-2 underline">تحديث الآن</button>
+              </p>
+            )}
             <div className="rounded-2xl bg-slate-50 px-4 py-3">
               <p className="text-[11px] font-black text-slate-400">بريد الدخول الحالي</p>
               <p className="truncate text-sm font-black text-[#0f2b46]" dir="ltr">{me.email}</p>

@@ -2,9 +2,10 @@ import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-// Guards for the 2026-10-25-a package: assignment deadline is a fixed
-// calendar date chosen by the admin (never days, never AI-suggested), and
-// lecture videos gain title/description editing plus admin-only deletion.
+// Academic deadline guards: assignments follow each enrollment's calendar;
+// linked assignments count their deadline from the teaching-unit schedule,
+// but students may submit early (as with units and unit exams). Historical
+// fixed deadlines remain backward-compatible. Video checks stay unchanged.
 
 const root = join(import.meta.dir, '../..')
 const schema = readFileSync(join(root, 'prisma/schema.prisma'), 'utf8')
@@ -12,6 +13,8 @@ const adminBooks = readFileSync(join(root, 'src/components/aact/AdminBooks.tsx')
 const dashboard = readFileSync(join(root, 'src/components/aact/DashboardView.tsx'), 'utf8')
 const suggestRoute = readFileSync(join(root, 'src/app/api/admin/assignments/suggest/route.ts'), 'utf8')
 const adminAssignmentsRoute = readFileSync(join(root, 'src/app/api/admin/assignments/route.ts'), 'utf8')
+const studentAssignmentsRoute = readFileSync(join(root, 'src/app/api/assignments/route.ts'), 'utf8')
+const dueDateLib = readFileSync(join(root, 'src/lib/assignment-due-date.ts'), 'utf8')
 const videoRoute = readFileSync(join(root, 'src/app/api/admin/lectures/videos/[id]/route.ts'), 'utf8')
 const storage = readFileSync(join(root, 'src/lib/storage.ts'), 'utf8')
 const adminLectures = readFileSync(join(root, 'src/components/aact/AdminLectures.tsx'), 'utf8')
@@ -21,24 +24,61 @@ const migrationSql = migrationDirs
   .map((d) => readFileSync(join(root, 'prisma/migrations', d, 'migration.sql'), 'utf8'))
   .join('\n')
 
-describe('assignment fixed-date guards', () => {
-  test('schema and migration carry dueAt on ProgramAssignment', () => {
+describe('assignment per-enrollment deadlines and teaching unit gates', () => {
+  test('historical fixed deadlines and migrations remain readable', () => {
     expect(schema).toContain('dueAt')
+    expect(schema).toContain('dueDays')
     expect(migrationSql).toContain('ADD COLUMN "dueAt"')
   })
-  test('admin form offers a calendar date, not a days duration', () => {
-    expect(adminBooks).toContain('آخر موعد تسليم الواجب')
-    expect(adminBooks).toContain('type="date"')
-    expect(adminBooks).not.toContain('مدة التسليم بالأيام')
+  test('admin configures a duration in days, with optional default unit window', () => {
+    expect(adminBooks).toContain('مدة تسليم الواجب بالأيام (اختياري للواجب المرتبط بوحدة)')
+    expect(adminBooks).toContain('type="number" min={1} max={365}')
+    expect(adminBooks).toContain("dueDays: e.target.value, dueAt: ''")
+    expect(adminBooks).toContain('اترك عدد الأيام فارغاً لاستخدام مدة الوحدة كاملة')
+    expect(adminAssignmentsRoute).toContain('const teachingUnit = effectiveUnitId')
   })
-  test('student label is a real deadline, never "مقترح"', () => {
+  test('student sees the deadline clock, and can submit before the nominal unit start', () => {
     expect(dashboard).not.toContain('آخر موعد مقترح')
-    expect(dashboard).toContain('آخر موعد:')
+    expect(dashboard).toContain('آخر موعد لك:')
+    expect(dashboard).toContain('const beforeUnitStart =')
+    expect(dashboard).toContain("!graded && (")
+    expect(dashboard).toContain('يمكنك التسليم مبكرًا')
+    expect(dashboard).not.toContain('!graded && !beforeUnitStart')
+    expect(dashboard).not.toContain('الواجب غير متاح بعد')
   })
-  test('AI suggestions never set a deadline', () => {
+  test('AI suggestions do not fabricate a deadline; unit-linked items use the unit window', () => {
     expect(suggestRoute).toContain('dueDays: null')
     expect(suggestRoute).not.toContain('asInt(item?.dueDays')
+    expect(adminBooks).toContain("dueDays: s.semester === 3 || !s.unitId ? '14' : ''")
+    expect(adminBooks).toContain('dueDays: s.semester === 3 || !s.unitId ? 14 : null')
     expect(adminAssignmentsRoute).toContain('dueAt:')
+  })
+  test('GET/POST share deadlines but POST must never reject before unit start', () => {
+    expect(studentAssignmentsRoute).toContain('const window = assignmentWindow({')
+    expect(studentAssignmentsRoute).toContain('opensAt: window.opensAt')
+    expect(studentAssignmentsRoute).toContain('dueAt: window.dueAt')
+    expect(studentAssignmentsRoute).toContain('window.dueAt && Date.now() > window.dueAt.getTime()')
+    expect(studentAssignmentsRoute).not.toContain('Date.now() < window.opensAt.getTime()')
+    expect(studentAssignmentsRoute).not.toContain('ASSIGNMENT_NOT_OPEN')
+    expect(studentAssignmentsRoute).toContain('unitId: unitIsTeaching ? assignment.unitId : null')
+  })
+  test('advanced-semester deadlines anchor to the previous semester approval', () => {
+    expect(dueDateLib).toContain("'SEMESTER_DAYS'")
+    expect(dueDateLib).toContain('semesterOpenedAt')
+    expect(dueDateLib).toContain('semesterOpenedAtFromApproval')
+    expect(dueDateLib).toContain('args.semester > 1')
+    expect(studentAssignmentsRoute).toContain('storedSemesterApproval')
+    expect(studentAssignmentsRoute).toContain('semesterResultApproval')
+    expect(studentAssignmentsRoute).toContain('semesterOpenedAt')
+    expect(studentAssignmentsRoute).toContain('openedAtByKey')
+    expect(studentAssignmentsRoute).toContain('a.semester - 1')
+    expect(dashboard).toContain('من تاريخ اعتماد الفصل السابق')
+    expect(adminBooks).toContain('اعتماد الفصل السابق')
+  })
+  test('the admin cannot create new fixed calendar deadlines', () => {
+    expect(adminAssignmentsRoute).toContain("if (suppliedLegacyDate && !legacyFixed)")
+    expect(adminAssignmentsRoute).toContain('dueAt: legacyFixed ? existingScope!.dueAt : null')
+    expect(adminAssignmentsRoute).toContain('Number.isInteger(duration)')
   })
 })
 

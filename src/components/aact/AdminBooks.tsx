@@ -23,6 +23,7 @@ import {
 import { QuestionReviewDialog, AdminAppealsSection } from '@/components/aact/AdminExamReview'
 import { AdminPager, pageItems, safePage } from '@/components/aact/AdminListTools'
 import { useAdminActionDialog } from './AdminActionDialog'
+import { TEXT_PROVIDER_CHOICES } from './AdminSystemTab'
 
 const FULL_EXAM_TARGET = 80
 const MAX_BOOK_FILE_SIZE = 10 * 1024 * 1024
@@ -261,6 +262,36 @@ interface KnowledgeItemRow {
   textProvenance?: string | null
   kbVersion?: number
   createdAt: string
+}
+
+interface ManualReviewItem {
+  id: string
+  programId: string
+  title: string
+  summary: string
+  excerpt: string
+  bookTitle: string | null
+  pageStart: number | null
+  pageEnd: number | null
+  updatedAt: string
+  reason: 'SOURCE_UNVERIFIED' | 'TEXT_UNRESOLVED'
+  sourceValid: boolean
+  sourceTextPreview: string | null
+}
+
+type SourceRecoveryEvidence = {
+  bookTitle?: string
+  reason: string | null
+  examinedChunks: number
+  truncated: boolean
+  candidates: Array<{
+    chunkId: string
+    chunkIndex: number
+    pageStart: number
+    pageEnd: number
+    matchLevel: 'FULL_EXCERPT' | 'PREFIX_ONLY'
+    sourceTextPreview: string
+  }>
 }
 
 type BookReadJobRow = {
@@ -567,6 +598,11 @@ interface StudyGuideRow {
   activities: string[]
   discussionQuestions: string[]
   sourceKnowledgeIds?: string[]
+  referenceCount?: number
+  missingReferenceCount?: number
+  sourceReviewRequiredCount?: number
+  missingReferenceIds?: string[]
+  missingReferenceSections?: Array<{ sectionIndex: number; title: string; sourceTitles: string[]; pageRefs: string[]; missingReferenceIds: string[] }>
   status: string
   updatedAt: string
 }
@@ -771,6 +807,32 @@ export function AdminBooksTab() {
   const cognitiveOverrideResolveRef = useRef<((reason: string | null) => void) | null>(null)
   const [rebuildingKnowledge, setRebuildingKnowledge] = useState(false)
   const [sanitizingKnowledge, setSanitizingKnowledge] = useState(false)
+  const [knowledgeRepairProgress, setKnowledgeRepairProgress] = useState<string | null>(null)
+  const [manualReviewOpen, setManualReviewOpen] = useState(false)
+  const [manualReviewItems, setManualReviewItems] = useState<ManualReviewItem[]>([])
+  const [manualReviewCursor, setManualReviewCursor] = useState<string | null>(null)
+  const [manualReviewHasMore, setManualReviewHasMore] = useState(false)
+  const [manualReviewLoading, setManualReviewLoading] = useState(false)
+  const [manualReviewError, setManualReviewError] = useState<string | null>(null)
+  const [manualReviewEditingId, setManualReviewEditingId] = useState<string | null>(null)
+  const [manualReviewForm, setManualReviewForm] = useState({ title: '', summary: '', excerpt: '' })
+  const [manualReviewSaving, setManualReviewSaving] = useState(false)
+  const [sourceRecoveryEvidence, setSourceRecoveryEvidence] = useState<Record<string, SourceRecoveryEvidence>>({})
+  const [sourceRecoveryBusyId, setSourceRecoveryBusyId] = useState<string | null>(null)
+  const knowledgeRepairProgramRef = useRef(programId)
+  useEffect(() => { knowledgeRepairProgramRef.current = programId }, [programId])
+  // Review results are program-scoped. Never show another program's items
+  // or reuse its pagination cursor after the administrator switches programs.
+  useEffect(() => {
+    setManualReviewOpen(false)
+    setManualReviewItems([])
+    setManualReviewCursor(null)
+    setManualReviewHasMore(false)
+    setManualReviewEditingId(null)
+    setManualReviewError(null)
+    setSourceRecoveryEvidence({})
+    setSourceRecoveryBusyId(null)
+  }, [programId])
   const [rebuildingBookId, setRebuildingBookId] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [bookUploadProgress, setBookUploadProgress] = useState<number | null>(null)
@@ -946,11 +1008,15 @@ export function AdminBooksTab() {
       summary: cleanAcademicOutput(section.summary || 'محور منظم من الكتب المقررة.', 1600),
       outcomes: sanitizeAcademicList(section.outcomes || [], ['شرح المحور وربطه بالتطبيق المهني'], 5, 180),
       sourceTitles: sanitizeAcademicList(section.sourceTitles || [], ['بنك المعرفة'], 5, 160),
-    })).filter((section) => section.title && section.summary && !looksLikeBrokenGeneratedArabic(`${section.title}. ${section.summary}`)).slice(0, 8),
-  })).filter((guide) => guide.title && guide.overview && !looksLikeBrokenGeneratedArabic(`${guide.title}. ${guide.overview}`)), [rootStudyGuides])
+    })).filter((section) => section.title && section.summary),
+  })), [rootStudyGuides])
 
   const hiddenKnowledgeItemsCount = Math.max(0, knowledgeItems.length - displayKnowledgeItems.length)
-  const hiddenStudyGuidesCount = Math.max(0, rootStudyGuides.length - displayStudyGuides.length)
+  // Admins must see every stored guide, including drafts needing review.
+  // Quality warnings must not silently hide a persisted, published guide.
+  const flaggedStudyGuidesCount = rootStudyGuides.filter((guide) =>
+    looksLikeBrokenGeneratedArabic(`${cleanAcademicOutput(guide.title, 220)}. ${cleanAcademicOutput(guide.overview, 5000)}`)
+  ).length
 
   const academicPlanPreview = useMemo(() => {
     if (!selectedProgram) return null
@@ -1371,20 +1437,120 @@ export function AdminBooksTab() {
   }
 
   const sanitizeKnowledge = async () => {
-    if (!programId) return
+    if (!programId || sanitizingKnowledge) return
+    const targetProgramId = programId
     setSanitizingKnowledge(true)
+    setKnowledgeRepairProgress('جارٍ تصحيح أخطاء OCR بالقواعد فقط؛ لا يُحذف إلا الفارغ فعلياً…')
     try {
-      const d = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; deleted?: number; updated?: number }>('/api/admin/knowledge-bank', {
+      const rules = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; deleted?: number; updated?: number; needsReview?: number }>('/api/admin/knowledge-bank', {
         method: 'POST',
-        body: JSON.stringify({ programId, action: 'sanitize' }),
+        body: JSON.stringify({ programId: targetProgramId, action: 'sanitize' }),
       })
-      setKnowledgeItems(d.items || [])
-      setKnowledgeStats(d.stats || {})
-      toast({ title: 'تم تنظيف بنك المعرفة', description: `حُذف ${d.deleted || 0} عنصر مشوه، وتحدّث ${d.updated || 0} عنصر. العناصر النظيفة الآن: ${d.count || 0}` })
+      if (knowledgeRepairProgramRef.current === targetProgramId) {
+        setKnowledgeItems(rules.items || [])
+        setKnowledgeStats(rules.stats || {})
+      }
+      toast({ title: 'انتهى التصحيح بالقواعد', description: `صُحّح ${rules.updated || 0} عنصر، وحُذف ${rules.deleted || 0} فارغ بالكامل فقط. بقي ${rules.needsReview || 0} عنصر للمراجعة دون تعديل جزئي.` })
     } catch (e: any) {
-      toast({ title: 'تعذر تنظيف بنك المعرفة', description: e.message, variant: 'destructive' })
+      toast({ title: 'تعذر التصحيح بالقواعد', description: e.message || 'حاول مجدداً؛ لم تُحذف العناصر المشوّهة.', variant: 'destructive' })
     } finally {
+      setKnowledgeRepairProgress(null)
       setSanitizingKnowledge(false)
+    }
+  }
+
+  const loadManualReview = async (cursor?: string | null) => {
+    if (!programId || manualReviewLoading) return
+    const targetProgramId = programId
+    setManualReviewLoading(true)
+    setManualReviewError(null)
+    try {
+      const res = await api<{ items: ManualReviewItem[]; nextCursor: string | null; hasMore: boolean }>(`/api/admin/knowledge-bank?programId=${targetProgramId}&review=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+      if (knowledgeRepairProgramRef.current !== targetProgramId) return
+      setManualReviewItems((prev) => (cursor ? [...prev, ...(res.items || [])] : res.items || []))
+      setManualReviewCursor(res.nextCursor || null)
+      setManualReviewHasMore(!!res.hasMore)
+    } catch (e: any) {
+      setManualReviewError(e.message || 'تعذر تحميل قائمة المراجعة')
+    } finally {
+      setManualReviewLoading(false)
+    }
+  }
+
+  const inspectSourceCandidates = async (item: ManualReviewItem) => {
+    if (!programId || sourceRecoveryBusyId) return
+    const selectedProgramId = programId
+    setSourceRecoveryBusyId(item.id)
+    try {
+      const evidence = await api<SourceRecoveryEvidence>(
+        `/api/admin/knowledge-bank?programId=${encodeURIComponent(selectedProgramId)}&sourceCandidates=1&itemId=${encodeURIComponent(item.id)}`)
+      if (knowledgeRepairProgramRef.current !== selectedProgramId) return
+      setSourceRecoveryEvidence((previous) => ({ ...previous, [item.id]: evidence }))
+    } catch (error: any) {
+      if (knowledgeRepairProgramRef.current === selectedProgramId) {
+        toast({ title: 'تعذر البحث عن المصدر الأصلي', description: error.message || 'لم يتغير عنصر المعرفة.', variant: 'destructive' })
+      }
+    } finally {
+      setSourceRecoveryBusyId(null)
+    }
+  }
+
+  const restoreOriginalSource = async (item: ManualReviewItem, match: SourceRecoveryEvidence['candidates'][number]) => {
+    const evidence = sourceRecoveryEvidence[item.id]
+    if (!programId || sourceRecoveryBusyId || match.matchLevel !== 'FULL_EXCERPT' ||
+        evidence?.candidates.filter((candidate) => candidate.matchLevel === 'FULL_EXCERPT').length !== 1) return
+    const ok = await askAdminConfirm({
+      title: 'تأكيد استعادة المصدر الأصلي',
+      description: `المقتطف محفوظ حرفيًا في مقطع وحيد من الكتاب المرتبط بالعنصر. سيتم ربط العنصر نفسه بالمقطع ونطاق صفحاته ${match.pageStart}–${match.pageEnd}، دون تغيير النص أو المعرّف أو أي دليل دراسة. هل تعتمد هذا المصدر؟`,
+      confirmLabel: 'اعتماد المصدر الموثق',
+    })
+    if (!ok) return
+    const selectedProgramId = programId
+    setSourceRecoveryBusyId(item.id)
+    try {
+      const result = await api<{ id: string; chunkId: string; pageStart: number; pageEnd: number; updatedAt: string | null }>('/api/admin/knowledge-bank', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          action: 'restore-source', programId: selectedProgramId, id: item.id, chunkId: match.chunkId,
+          confirmSource: true, expectedUpdatedAt: item.updatedAt,
+        }),
+      })
+      if (knowledgeRepairProgramRef.current !== selectedProgramId) return
+      setManualReviewItems((previous) => previous.map((row) => row.id === item.id
+        ? { ...row, sourceValid: true, sourceTextPreview: match.sourceTextPreview, pageStart: result.pageStart,
+          pageEnd: result.pageEnd, updatedAt: result.updatedAt || row.updatedAt, reason: 'TEXT_UNRESOLVED' as const }
+        : row))
+      toast({ title: 'تم استعادة ربط المصدر', description: 'حُفظ المقطع ونطاق صفحاته على العنصر الأصلي؛ المحتوى والأدلة لم تتغير.' })
+    } catch (error: any) {
+      if (knowledgeRepairProgramRef.current === selectedProgramId) {
+        toast({ title: 'تعذر اعتماد المصدر', description: error.message || 'لم يتغير عنصر المعرفة.', variant: 'destructive' })
+      }
+    } finally {
+      setSourceRecoveryBusyId(null)
+    }
+  }
+
+  const saveManualReview = async (item: ManualReviewItem) => {
+    if (!programId || manualReviewSaving) return
+    const targetProgramId = programId
+    setManualReviewSaving(true)
+    try {
+      await api('/api/admin/knowledge-bank', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          programId: targetProgramId, id: item.id,
+          title: manualReviewForm.title, summary: manualReviewForm.summary, excerpt: manualReviewForm.excerpt,
+          expectedUpdatedAt: item.updatedAt,
+        }),
+      })
+      if (knowledgeRepairProgramRef.current !== targetProgramId) return
+      setManualReviewItems((prev) => prev.filter((row) => row.id !== item.id))
+      setManualReviewEditingId(null)
+      toast({ title: 'تم اعتماد التصحيح اليدوي', description: 'حُفظ النص المصحح على نفس العنصر دون تغيير مرجعه.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ المراجعة اليدوية', description: e.message || 'حاول مجدداً؛ لم يُحفظ أي تعديل جزئي.', variant: 'destructive' })
+    } finally {
+      setManualReviewSaving(false)
     }
   }
 
@@ -2391,8 +2557,17 @@ export function AdminBooksTab() {
         method: 'POST',
         body: JSON.stringify({ programId, semester, status: 'PUBLISHED' }),
       })
-      setStudyGuides((prev) => [d.guide, ...prev.filter((g) => !(g.programId === d.guide.programId && g.semester === d.guide.semester))].sort((a, b) => a.semester - b.semester))
-      toast({ title: 'تم توليد دليل الدراسة', description: d.guide.title })
+      const autoCreatedUnitGuides = (d as typeof d & { autoCreatedUnitGuides?: number }).autoCreatedUnitGuides
+      if (knowledgeRepairProgramRef.current !== programId) return
+      // Preserve unit guides; the standard list refresh loads auto-created drafts
+      // on the next visit without adding an extra API call to this action.
+      setStudyGuides((prev) =>
+        [d.guide, ...prev.filter((g) => g.id !== d.guide.id && !(g.programId === d.guide.programId && g.semester === d.guide.semester && !g.unitId))]
+          .sort((a, b) => a.semester - b.semester))
+      toast({
+        title: 'تم توليد دليل الدراسة',
+        description: `${d.guide.title}${autoCreatedUnitGuides ? ` · أُنشئ ${autoCreatedUnitGuides} دليل وحدة ناقص تلقائياً` : ''}`,
+      })
     } catch (e: any) {
       toast({ title: 'تعذر توليد دليل الدراسة', description: e.message, variant: 'destructive' })
     } finally {
@@ -2509,7 +2684,7 @@ export function AdminBooksTab() {
       type: s.type || 'CASE_STUDY',
       points: String(s.points || 15),
       weight: String(s.weight || 0),
-      dueDays: '',
+      dueDays: s.semester === 3 || !s.unitId ? '14' : '',
       dueAt: '',
       rubric: s.rubric || '',
       status: 'PUBLISHED',
@@ -2532,7 +2707,7 @@ export function AdminBooksTab() {
           type: s.type,
           points: s.points,
           weight: s.weight,
-          dueDays: null,
+          dueDays: s.semester === 3 || !s.unitId ? 14 : null,
           dueAt: null,
           rubric: s.rubric,
           status: 'PUBLISHED',
@@ -3072,8 +3247,9 @@ export function AdminBooksTab() {
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={sanitizeKnowledge} disabled={sanitizingKnowledge || knowledgeItems.length === 0} variant="outline" className="border-amber-300 text-xs font-black text-amber-700">
                     {sanitizingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <AlertTriangle className="ml-2 h-4 w-4" />}
-                    تنظيف العناصر المشوهة
+                    تصحيح بالقواعد (حذف الفارغ فقط)
                   </Button>
+                  {knowledgeRepairProgress && <p role="status" aria-live="polite" className="max-w-sm rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-900">{knowledgeRepairProgress}</p>}
                   <Button onClick={rebuildKnowledge} disabled={rebuildingKnowledge || books.length === 0} className="bg-[#0f2b46] text-xs font-black text-[#e0b83a] hover:bg-[#12365c]">
                     {rebuildingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-2 h-4 w-4" />}
                     بناء/تحديث بنك المعرفة
@@ -3083,9 +3259,108 @@ export function AdminBooksTab() {
 
               {hiddenKnowledgeItemsCount > 0 && (
                 <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-800">
-                  تم إخفاء {hiddenKnowledgeItemsCount} عنصر معرفة يبدو مشوهاً أو مختلط اللغة من العرض. اضغط «تنظيف العناصر المشوهة» لحذفه من قاعدة البيانات، ثم أعد بناء بنك المعرفة.
+                  تم إخفاء {hiddenKnowledgeItemsCount} عنصر يبدو مشوّهًا أو مختلط اللغة من العرض فقط، دون حذفه من القاعدة. «تصحيح بالقواعد» يصلح الأخطاء البسيطة ويحذف الفارغ بالكامل فقط؛ و«تصحيح بالذكاء» مهمة خلفية اختيارية تعتمد على نص الكتاب وتترك ما لا يمكن إثباته للمراجعة.
                 </div>
               )}
+
+              <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-3 ring-1 ring-slate-100">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-black text-[#0f2b46]">المراجعة اليدوية للعناصر المشوّهة</p>
+                    <p className="mt-1 max-w-3xl text-[11px] font-bold leading-5 text-slate-500">عناصر تركها «تصحيح بالقواعد» والتصحيح الذكي دون تعديل جزئي. صحّح النصوص الثلاثة كاملة من نص الكتاب، ويُحفظ التصحيح على نفس العنصر دون تغيير مرجعه.</p>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={manualReviewLoading || !programId} onClick={async () => { setManualReviewOpen(true); if (manualReviewItems.length === 0) await loadManualReview(null) }}>
+                    {manualReviewLoading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                    عرض عناصر المراجعة
+                  </Button>
+                </div>
+                {manualReviewOpen && (
+                  <div className="mt-3 space-y-3">
+                    {manualReviewError && <p className="rounded-xl bg-red-50 p-2 text-[11px] font-bold text-red-700">{manualReviewError}</p>}
+                    {manualReviewItems.length === 0 && !manualReviewLoading && <p className="text-[11px] font-bold text-slate-500">لا توجد عناصر بانتظار المراجعة اليدوية لهذا البرنامج.</p>}
+                    {manualReviewItems.map((item) => (
+                      <div key={item.id} className="rounded-xl border border-slate-100 p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className={item.reason === 'SOURCE_UNVERIFIED' ? 'border-red-300 text-xs text-red-700' : 'border-amber-300 text-xs text-amber-700'}>
+                            {item.reason === 'SOURCE_UNVERIFIED' ? 'المصدر غير موثّق' : 'النص يحتاج تصحيحاً'}
+                          </Badge>
+                          {item.bookTitle && <span className="text-[11px] font-bold text-slate-500">{item.bookTitle}</span>}
+                          {item.pageStart != null && item.pageEnd != null && <span className="text-[11px] text-slate-500">صفحات {item.pageStart}–{item.pageEnd}</span>}
+                        </div>
+                        {manualReviewEditingId === item.id ? (
+                          <div className="mt-2 space-y-2">
+                            <div>
+                              <Label className="text-[11px]">العنوان</Label>
+                              <Input value={manualReviewForm.title} onChange={(e) => setManualReviewForm((f) => ({ ...f, title: e.target.value }))} dir="rtl" className="bg-white" />
+                            </div>
+                            <div>
+                              <Label className="text-[11px]">الشرح</Label>
+                              <Textarea value={manualReviewForm.summary} onChange={(e) => setManualReviewForm((f) => ({ ...f, summary: e.target.value }))} rows={3} dir="rtl" className="bg-white" />
+                            </div>
+                            <div>
+                              <Label className="text-[11px]">المقتطف (يجب أن يكون جزءًا حرفيًا من مقطع الكتاب)</Label>
+                              <Textarea value={manualReviewForm.excerpt} onChange={(e) => setManualReviewForm((f) => ({ ...f, excerpt: e.target.value }))} rows={3} dir="rtl" className="bg-white" />
+                            </div>
+                            {item.sourceValid && item.sourceTextPreview && (
+                              <details className="rounded-lg bg-slate-50 p-2">
+                                <summary className="cursor-pointer text-[11px] font-black text-slate-600">عرض نص المقطع الأصلي</summary>
+                                <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-600">{item.sourceTextPreview}</p>
+                              </details>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" disabled={manualReviewSaving || !item.sourceValid} onClick={() => saveManualReview(item)}>اعتماد التصحيح</Button>
+                              <Button size="sm" variant="outline" onClick={() => setManualReviewEditingId(null)}>إلغاء</Button>
+                            </div>
+                            {!item.sourceValid && <p className="text-[11px] font-bold text-red-700">مصدر العنصر أو صفحاته غير موثقة؛ يلزم استعادة المصدر قبل اعتماد أي تصحيح.</p>}
+                          </div>
+                        ) : (
+                          <div className="mt-2">
+                            <p className="text-xs font-black text-[#0f2b46]">{item.title}</p>
+                            <p className="mt-1 break-words text-[11px] leading-5 text-slate-600">{item.summary}</p>
+                            <p className="mt-1 break-words text-[11px] leading-5 text-slate-500">{item.excerpt}</p>
+                            <Button size="sm" variant="outline" className="mt-2 h-7 text-[11px]" onClick={() => { setManualReviewEditingId(item.id); setManualReviewForm({ title: item.title, summary: item.summary, excerpt: item.excerpt }) }}>تصحيح يدويًا</Button>
+                          </div>
+                        )}
+                        {!item.sourceValid && (
+                          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/40 p-2">
+                            <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={sourceRecoveryBusyId !== null} onClick={() => inspectSourceCandidates(item)}>
+                              {sourceRecoveryBusyId === item.id && <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" />}
+                              البحث في الكتاب الأصلي عن المقتطف
+                            </Button>
+                            {sourceRecoveryEvidence[item.id] && (
+                              <div className="mt-2 space-y-2 text-[11px] text-slate-700">
+                                <p>تم فحص {sourceRecoveryEvidence[item.id].examinedChunks} مقطعًا محللًا من الكتاب نفسه.
+                                  {sourceRecoveryEvidence[item.id].truncated ? ' البحث محدود بأول 500 مقطع؛ النتيجة غير شاملة.' : ''}</p>
+                                {!sourceRecoveryEvidence[item.id].candidates.length && <p className="font-bold text-amber-800">لم تثبت مطابقة حرفية للمقتطف؛ العنصر محفوظ دون تغيير.</p>}
+                                {sourceRecoveryEvidence[item.id].candidates.map((candidate) => (
+                                  <details key={candidate.chunkId} className="rounded-lg border border-amber-200 bg-white p-2">
+                                    <summary className="cursor-pointer font-bold">
+                                      {candidate.matchLevel === 'FULL_EXCERPT' ? 'تطابق المقتطف كاملًا' : 'تطابق بداية المقتطف فقط — غير مؤكد'}
+                                      {' '}· مقطع {candidate.chunkIndex} · صفحات {candidate.pageStart}–{candidate.pageEnd}
+                                    </summary>
+                                    <p className="mt-2 whitespace-pre-wrap break-words leading-6">{candidate.sourceTextPreview}</p>
+                                    {candidate.matchLevel === 'FULL_EXCERPT' &&
+                                      !sourceRecoveryEvidence[item.id].truncated &&
+                                      sourceRecoveryEvidence[item.id].candidates.filter((match) => match.matchLevel === 'FULL_EXCERPT').length === 1 ? (
+                                      <Button size="sm" variant="outline" className="mt-2 border-emerald-300 text-[11px] text-emerald-800"
+                                        disabled={sourceRecoveryBusyId !== null} onClick={() => restoreOriginalSource(item, candidate)}>
+                                        اعتماد ربط المصدر بعد مراجعة النص
+                                      </Button>
+                                    ) : (
+                                      <p className="mt-2 font-bold text-red-700">تطابق غير كافٍ لاعتماد المصدر؛ لم نعدّل العنصر ولا نخمّن صفحاته.</p>
+                                    )}
+                                  </details>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {manualReviewHasMore && <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={manualReviewLoading} onClick={() => loadManualReview(manualReviewCursor)}>عرض المزيد</Button>}
+                  </div>
+                )}
+              </div>
 
               <div className="grid gap-2 sm:grid-cols-4">
                 {Object.entries(displayKnowledgeStats).length ? Object.entries(displayKnowledgeStats).slice(0, 8).map(([cat, stat]) => (
@@ -3420,9 +3695,9 @@ export function AdminBooksTab() {
                 </div>
               </div>
 
-              {hiddenStudyGuidesCount > 0 && (
+              {flaggedStudyGuidesCount > 0 && (
                 <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-800">
-                  تم إخفاء {hiddenStudyGuidesCount} دليل دراسة يبدو مشوهاً. أعد توليد الدليل بعد تنظيف بنك المعرفة.
+                  يوجد {flaggedStudyGuidesCount} دليل يحتاج مراجعة النص العربي. لا نخفي الأدلة المحفوظة عن الإدارة ولا نحذفها أو نعيد توليدها تلقائياً.
                 </div>
               )}
 
@@ -3443,6 +3718,21 @@ export function AdminBooksTab() {
                             <Badge variant="outline" className={`text-[10px] font-black ${guide.status === 'PUBLISHED' ? 'border-emerald-200 text-emerald-700' : guide.status === 'DRAFT' ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-500'}`}>
                               {guide.status === 'PUBLISHED' ? 'منشور للطلاب' : guide.status === 'DRAFT' ? 'مسودة' : 'مؤرشف'}
                             </Badge>
+                            {typeof guide.missingReferenceCount === 'number' && guide.missingReferenceCount > 0 && (
+                              <Badge variant="outline" className="border-red-300 text-[10px] font-black text-red-700">
+                                يحتاج إصلاح مراجع ({guide.missingReferenceCount} مفقودة)
+                              </Badge>
+                            )}
+                            {guide.referenceCount === 0 && (
+                              <Badge variant="outline" className="border-amber-300 text-[10px] font-black text-amber-700">
+                                بلا مراجع معرفة موثقة
+                              </Badge>
+                            )}
+                            {(guide.sourceReviewRequiredCount || 0) > 0 && (
+                              <Badge variant="outline" className="border-red-300 text-[10px] font-black text-red-700">
+                                محاور تنتظر توثيق المصدر ({guide.sourceReviewRequiredCount})
+                              </Badge>
+                            )}
                           </div>
                           <h3 className="text-sm font-black leading-6 text-[#0f2b46]">{guide.title}</h3>
                           <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{guide.overview}</p>
@@ -3464,6 +3754,28 @@ export function AdminBooksTab() {
                           <Button size="sm" variant="ghost" onClick={() => deleteStudyGuide(guide.id)} className="h-8 px-2 text-red-500 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>
                       </div>
+
+                      {(guide.missingReferenceCount || 0) > 0 && (
+                        <details className="mt-3 rounded-xl border border-red-200 bg-red-50/60 p-3">
+                          <summary className="cursor-pointer text-[11px] font-black text-red-800">
+                            فحص الاستشهادات المفقودة ({guide.missingReferenceCount}) — موضعها في الدليل
+                          </summary>
+                          <p className="mt-2 text-[11px] leading-5 text-red-800">
+                            هذه المعرّفات غير موجودة في بنك معرفة البرنامج. المعلومات أدناه من الدليل الأصلي للمراجعة فقط؛ لا يجوز ربطها بعنصر بديل دون إثبات المصدر.
+                          </p>
+                          {(guide.missingReferenceSections || []).map((section) => (
+                            <div key={section.sectionIndex} className="mt-2 rounded-lg border border-red-100 bg-white p-2 text-[11px]">
+                              <p className="font-black text-slate-800">{section.sectionIndex + 1}. {section.title}</p>
+                              {section.sourceTitles.length > 0 && <p className="mt-1 text-slate-700">المراجع المحفوظة: {section.sourceTitles.join('، ')}</p>}
+                              {section.pageRefs.length > 0 && <p className="mt-1 text-slate-700">الصفحات المحفوظة: {section.pageRefs.join('، ')}</p>}
+                              <p className="mt-1 break-all font-mono text-[10px] text-red-700" dir="ltr">{section.missingReferenceIds.join(' · ')}</p>
+                            </div>
+                          ))}
+                          <p className="mt-2 break-all font-mono text-[10px] text-red-700" dir="ltr">
+                            {(guide.missingReferenceIds || []).join(' · ')}
+                          </p>
+                        </details>
+                      )}
 
                       <div className="mt-3 grid gap-3 lg:grid-cols-3">
                         <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
@@ -3627,10 +3939,15 @@ export function AdminBooksTab() {
                   <Textarea rows={3} value={assignmentForm.description} onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })} placeholder="اكتب المطلوب من الطالب، طريقة التحليل، وعدد الكلمات أو شكل الملف المطلوب" className="mt-1 text-xs" />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-black text-slate-500">آخر موعد تسليم الواجب (تاريخ ثابت لكل الطلاب)</Label>
-                  <Input type="date" value={assignmentForm.dueAt} onChange={(e) => setAssignmentForm({ ...assignmentForm, dueAt: e.target.value })} className="mt-1 text-xs" />
-                  {assignmentForm.id && !assignmentForm.dueAt && assignmentForm.dueDays ? (
-                    <p className="mt-1 text-[10px] font-bold text-amber-700">موعد قديم محسوب بالأيام: {assignmentForm.dueDays} يوم من تسجيل الطالب — حدّد تاريخًا أعلاه لاستبداله، أو اتركه فاضيًا ليبقى الحساب القديم.</p>
+                  <Label className="text-[10px] font-black text-slate-500">مدة تسليم الواجب بالأيام (اختياري للواجب المرتبط بوحدة)</Label>
+                  <Input type="number" min={1} max={365} step={1} value={assignmentForm.dueDays} onChange={(e) => setAssignmentForm({ ...assignmentForm, dueDays: e.target.value, dueAt: '' })} placeholder="مثال: 14" className="mt-1 text-xs" />
+                  {assignmentForm.unitId && curriculumUnits.some((u) => u.id === assignmentForm.unitId && Number(u.semester) === Number(assignmentForm.semester)) ? (
+                    <p className="mt-1 text-[11px] font-bold text-emerald-800">مرتبط بوحدة دراسية: يبدأ احتساب مهلة الواجب مع موعد الوحدة لكل طالب، وتنتهي افتراضياً عند نهايتها. يمكن للطالب التسليم مبكرًا ما دام الفصل متاحًا. {assignmentForm.dueAt ? 'هذا واجب قديم: تُستخدم مدة الوحدة كاملة إلى أن تعدّل حقل الأيام.' : assignmentForm.dueDays ? 'المدة المحددة تبدأ من فتح الوحدة ولا تتجاوز نهاية الوحدة.' : 'اترك عدد الأيام فارغاً لاستخدام مدة الوحدة كاملة.'}</p>
+                  ) : (
+                    <p className="mt-1 text-[11px] font-bold text-slate-600">غير مرتبط بوحدة في هذا الفصل: أدخل مدة بالأيام تُحسب من تاريخ تسجيل كل طالب في البرنامج.</p>
+                  )}
+                  {assignmentForm.id && assignmentForm.dueAt ? (
+                    <p className="mt-1 text-[10px] font-bold text-amber-700">هذا الواجب له تاريخ ثابت قديم. {assignmentForm.unitId ? 'ستُستخدم نافذة الوحدة للواجب المرتبط بها.' : 'سيبقى التاريخ القديم حتى تختار مدة جديدة بالأيام.'} تغيير حقل الأيام يستبدل التاريخ القديم.</p>
                   ) : null}
                 </div>
                 <div>
@@ -3714,6 +4031,12 @@ export function AdminBooksTab() {
                           {a.weight > 0 && <Badge className="bg-emerald-50 text-[10px] text-emerald-700 hover:bg-emerald-50">وزن {a.weight}%</Badge>}
                           <Badge variant="outline" className={`text-[10px] ${a.status === 'PUBLISHED' ? 'border-emerald-200 text-emerald-700' : a.status === 'DRAFT' ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-500'}`}>{a.status === 'PUBLISHED' ? 'منشور' : a.status === 'DRAFT' ? 'مسودة' : 'مؤرشف'}</Badge>
                         </div>
+                        <p className="mt-1 text-[11px] font-bold text-indigo-700">
+                          {a.unitId && curriculumUnits.some((u) => u.id === a.unitId && Number(u.semester) === Number(a.semester))
+                            ? `تبدأ مهلة الواجب عند موعد الوحدة لكل طالب (والتسليم المبكر متاح)، وتنتهي ${a.dueAt ? 'مع نهاية الوحدة تلقائياً (تاريخ ثابت قديم محفوظ)' : a.dueDays ? `بعد ${a.dueDays} يوم من بداية الوحدة (أو نهايتها، أيهما أقرب)` : 'مع نهاية الوحدة تلقائياً'}`
+                            : a.dueAt ? `موعد ثابت قديم: ${new Date(a.dueAt).toLocaleDateString('ar-EG')} — عدّله إلى أيام لكل طالب`
+                            : a.dueDays ? `المدة: ${a.dueDays} يوم من ${Number(a.semester) > 1 ? 'اعتماد الفصل السابق' : 'تسجيل الطالب'}` : 'لا توجد مهلة محددة'}
+                        </p>
                         <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{a.description}</p>
                         {a.rubric && <p className="mt-1 rounded-lg bg-slate-50 p-2 text-[11px] font-bold leading-5 text-slate-500">معايير التصحيح: {a.rubric}</p>}
                       </div>
@@ -5146,6 +5469,202 @@ export function AdminBooksTab() {
         </DialogContent>
       </Dialog>
       {actionDialog}
+    </div>
+  )
+}
+
+// A dedicated main-administration workspace. The existing books tab retains
+// only deterministic rules; no AI repair executes in this React component.
+export function AdminKnowledgeAiRepairTab() {
+  const { toast } = useToast()
+  const [programs, setPrograms] = useState<ProgramOption[]>([])
+  const [programId, setProgramId] = useState('')
+  const selectedAiRepairProgramRef = useRef(programId)
+  useEffect(() => { selectedAiRepairProgramRef.current = programId }, [programId])
+  const [loadingPrograms, setLoadingPrograms] = useState(true)
+  const [loadingStatus, setLoadingStatus] = useState(false)
+  const [statusError, setStatusError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [repairConfigLoaded, setRepairConfigLoaded] = useState(false)
+  const [repairProvider, setRepairProvider] = useState('AUTO')
+  const [repairModel, setRepairModel] = useState('')
+  const [repairInterval, setRepairInterval] = useState('0')
+  const [repairCallsPerRun, setRepairCallsPerRun] = useState('1')
+  const [repairModels, setRepairModels] = useState<string[]>([])
+  type RepairStatus = {
+    status: 'QUEUED' | 'RUNNING' | 'PAUSED' | 'COMPLETED'
+    scanned: number; repaired: number; needsReview: number; missingSource: number
+    attempts: number; lastError: string | null
+  }
+  const [job, setJob] = useState<RepairStatus | null>(null)
+
+  useEffect(() => {
+    let active = true
+    api<{ values: Record<string, string> }>('/api/admin/system')
+      .then((result) => {
+        if (!active) return
+        setRepairProvider(result.values.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO')
+        setRepairModel(result.values.AI_KNOWLEDGE_REPAIR_MODEL || '')
+        setRepairInterval(result.values.AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS || '0')
+        setRepairCallsPerRun(result.values.AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN || '1')
+        setRepairConfigLoaded(true)
+      })
+      .catch((error: any) => { if (active) setStatusError(error.message || 'تعذر تحميل إعداد مزوّد التصحيح') })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (repairProvider === 'AUTO') return
+    let active = true
+    api<{ models: string[] }>('/api/admin/system', {
+      method: 'POST', body: JSON.stringify({ action: 'text-ai-models', provider: repairProvider }),
+    }).then((result) => { if (active) setRepairModels(result.models || []) })
+      .catch(() => { if (active) setRepairModels([]) })
+    return () => { active = false }
+  }, [repairProvider])
+
+  useEffect(() => {
+    let active = true
+    api<{ programs: ProgramOption[] }>('/api/programs?summary=1&public=1')
+      .then((data) => { if (active) setPrograms(Array.isArray(data.programs) ? data.programs : []) })
+      .catch((error: any) => { if (active) setStatusError(error.message || 'تعذر تحميل البرامج') })
+      .finally(() => { if (active) setLoadingPrograms(false) })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!programId) return
+    let active = true
+    const refreshStatus = async () => {
+      try {
+        const result = await api<{ job: RepairStatus | null }>(`/api/admin/knowledge-bank?programId=${encodeURIComponent(programId)}&repairStatus=1`)
+        if (active) { setJob(result.job); setStatusError('') }
+      } catch (error: any) {
+        if (active) setStatusError(error.message || 'تعذر تحديث حالة مهمة التصحيح')
+      } finally {
+        if (active) setLoadingStatus(false)
+      }
+    }
+    void refreshStatus()
+    const timer = setInterval(() => { void refreshStatus() }, 15_000)
+    return () => { active = false; clearInterval(timer) }
+  }, [programId])
+
+  const start = async () => {
+    if (!repairConfigLoaded || !programId || busy || ['QUEUED', 'RUNNING'].includes(job?.status || '') ||
+      (repairProvider !== 'AUTO' && !repairModel.trim())) return
+    const selectedProgramId = programId
+    setBusy(true)
+    try {
+      // Persist only the repair-specific choice before queuing the job. The
+      // student's/global AI provider settings remain completely untouched.
+      await api('/api/admin/system', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          AI_KNOWLEDGE_REPAIR_PROVIDER: repairProvider,
+          AI_KNOWLEDGE_REPAIR_MODEL: repairProvider === 'AUTO' ? '' : repairModel.trim(),
+          AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS: repairInterval || '0',
+          AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN: repairCallsPerRun || '1',
+        }),
+      })
+      const result = await api<{ job: RepairStatus }>('/api/admin/knowledge-bank', {
+        method: 'POST',
+        body: JSON.stringify({ programId: selectedProgramId, action: 'repair-ai' }),
+      })
+      if (selectedAiRepairProgramRef.current === selectedProgramId) setJob(result.job)
+      toast({ title: 'تمت جدولة التصحيح الذكي', description: 'يستمر من الخادم دون إبقاء الصفحة مفتوحة، ويستخدم المزوّد والنموذج المختارين في إعداد تصحيح المعرفة داخل لوحة النظام.' })
+    } catch (error: any) {
+      toast({ title: 'تعذر جدولة التصحيح الذكي', description: error.message || 'لم تتغير بيانات المعرفة.', variant: 'destructive' })
+    } finally { setBusy(false) }
+  }
+
+  const statusLabel = !job ? 'لا توجد مهمة مسجلة' : job.status === 'RUNNING' ? 'قيد التنفيذ' :
+    job.status === 'QUEUED' ? 'في قائمة الانتظار' : job.status === 'PAUSED' ? 'متوقفة، ويمكن استكمالها' : 'مكتملة'
+  const running = job?.status === 'QUEUED' || job?.status === 'RUNNING'
+
+  return (
+    <div dir="rtl" className="mx-auto mt-4 w-full max-w-5xl space-y-4">
+      <Card className="border-blue-200">
+        <CardContent className="space-y-4 p-4 sm:p-6">
+          <div>
+            <h2 className="text-lg font-black text-[#0f2b46]">تصحيح عناصر المعرفة بالذكاء الاصطناعي</h2>
+            <p className="mt-2 text-sm leading-7 text-slate-600">خيار مستقل لمعالجة العناصر المشوهة فقط بمصدر الكتاب المقروء. لا يعيد إنشاء العناصر أو حذفها، ويحافظ على معرّفاتها وروابط أدلة الدراسة.</p>
+            <p className="mt-1 text-xs leading-6 text-slate-500">التصحيح بالقواعد ما زال متاحاً ضمن «الكتب والاختبارات»، ويعمل دون مزوّد ذكاء اصطناعي.</p>
+          </div>
+          <div className="grid gap-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>مزوّد الذكاء لهذا التصحيح فقط</Label>
+              <Select value={repairProvider} onValueChange={(v) => { setRepairProvider(v); setRepairModel(''); setRepairModels([]) }}>
+                <SelectTrigger className="w-full min-w-0 bg-white" dir="ltr"><SelectValue placeholder="اختر المزوّد" /></SelectTrigger>
+                <SelectContent>
+                  {[...TEXT_PROVIDER_CHOICES.filter((p) => p.value === 'AUTO'), ...TEXT_PROVIDER_CHOICES.filter((p) => p.value !== 'AUTO')].map((p) => (
+                    <SelectItem key={p.value} value={p.value} dir="ltr">{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {repairProvider === 'AUTO' ? (
+              <div className="self-center text-xs font-bold text-blue-900">AUTO: يستخدم الراوتر العام بجميع المزوّدين المتاحين، دون حظر APINEX أو أي مزوّد آخر.</div>
+            ) : (
+              <div className="space-y-2">
+                <Label>النموذج المخصص للتصحيح</Label>
+                <Select value={repairModel} onValueChange={setRepairModel}>
+                  <SelectTrigger className="w-full min-w-0 bg-white" dir="ltr"><SelectValue placeholder="اختر النموذج" /></SelectTrigger>
+                  <SelectContent>
+                    {repairModel && !repairModels.includes(repairModel) && <SelectItem value={repairModel} dir="ltr">{repairModel} — محفوظ/مخصص</SelectItem>}
+                    {repairModels.map((model) => <SelectItem key={model} value={model} dir="ltr">{model}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Input value={repairModel} onChange={(e) => setRepairModel(e.target.value)} placeholder="أو اكتب اسم نموذج متاح بحسابك" dir="ltr" className="min-w-0 bg-white" />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>الفاصل الاختياري بين طلبات التصحيح (ثوانٍ)</Label>
+              <Input type="number" min={0} max={3600} value={repairInterval} onChange={(e) => setRepairInterval(e.target.value)} dir="ltr" className="bg-white" />
+              <p className="text-[11px] text-slate-500">0 = لا تأخير إضافي؛ تبقى قيود المزوّد الفعلية نافذة.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>محاولات الذكاء في كل تشغيل خلفي</Label>
+              <Input type="number" min={1} max={10} step={1} value={repairCallsPerRun} onChange={(e) => setRepairCallsPerRun(e.target.value)} dir="ltr" className="bg-white" />
+              <p className="text-[11px] text-slate-500">من 1 إلى 10، حسب حصتك. كل تشغيل محدود بمهلة الخادم حتى لو اخترت 10.</p>
+            </div>
+            <p className="self-center text-xs font-bold text-blue-900">
+              المزوّد والنموذج هنا مستقلان عن الطلاب والقراءة والتحليل، وسيُحفظان عند بدء التصحيح.
+            </p>
+          </div>
+          <div className="max-w-xl space-y-2">
+            <Label>اختر البرنامج المراد تصحيح معرفته</Label>
+            <Select value={programId} onValueChange={(next) => { setProgramId(next); setJob(null); setLoadingStatus(true) }}>
+              <SelectTrigger className="w-full text-right"><SelectValue placeholder={loadingPrograms ? 'جارٍ تحميل البرامج…' : 'اختر البرنامج'} /></SelectTrigger>
+              <SelectContent>
+                {programs.map((program) => (
+                  <SelectItem key={program.id} value={program.id}>{program.titleAr}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p role="status" aria-live="polite" className="text-sm font-black text-[#0f2b46]">حالة المهمة: {loadingStatus ? 'جارٍ التحقق…' : statusLabel}</p>
+            {job && (
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <p>المفحوصة: <b>{job.scanned}</b></p>
+                <p>المصححة: <b>{job.repaired}</b></p>
+                <p>للمراجعة: <b>{job.needsReview}</b></p>
+                <p>دون مصدر كافٍ: <b>{job.missingSource}</b></p>
+              </div>
+            )}
+            {job?.lastError && <p className="mt-3 text-xs font-bold text-amber-800">{job.lastError}</p>}
+            {statusError && <p role="alert" className="mt-3 text-xs font-bold text-red-700">{statusError}</p>}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={start} disabled={!repairConfigLoaded || !programId || busy || loadingStatus || running || (repairProvider !== 'AUTO' && !repairModel.trim())} className="bg-[#0f2b46] text-white">
+              {busy && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+              {job?.status === 'PAUSED' ? 'استكمال مهمة التصحيح' : job?.status === 'COMPLETED' ? 'بدء فحص جديد' : 'بدء التصحيح الذكي'}
+            </Button>
+            <p className="text-xs leading-6 text-slate-500">المهمة تعمل في الخلفية؛ لا يوجد منع برمجي لـAPINEX أو غيره، ويمكنك ضبط الفاصل حسب حصتك. تنفّذها جدولة المنصة دون الحاجة لإبقاء الصفحة مفتوحة.</p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

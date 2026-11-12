@@ -122,6 +122,17 @@ function apiSurface(): { count: number; digest: string } {
   assert.equal(rejectionCalls.length, 1, 'expected exactly one reviewed outline rejection call')
   const rosterCalls = calls.filter((call) => call.includes('/api/supervisor/assignments?mode=roster&programId=') && call.includes('&semester=') && call.includes('encodeURIComponent(cursor)'))
   assert.equal(rosterCalls.length, 1, 'expected exactly one reviewed admin roster GET')
+  // The assignment-suggestion POST intentionally gained a semester-3 day
+  // duration because its S1/S2 unit is evidence only, not a teaching schedule.
+  // Explicitly assert that reviewed payload, then normalize ONLY its day
+  // expression against the frozen original API digest below. Any different
+  // method, endpoint, evidence identifiers or other call still fails the pin.
+  const suggestedAssignmentSaveCalls = calls.filter((call) =>
+    call.includes("'/api/admin/assignments'") && call.includes("sourceKnowledgeIds: s.sourceKnowledgeIds || null"))
+  assert.equal(suggestedAssignmentSaveCalls.length, 1, 'expected one reviewed suggested assignment save API call')
+  assert.ok(suggestedAssignmentSaveCalls[0].includes('dueDays: s.semester === 3 || !s.unitId ? 14 : null'),
+    'semester-3 suggestions need enrollment-relative days, teaching units use their unit deadline')
+
   // Two separately reviewed administrative controls use the existing read-job
   // API: ordinary STOP/RESUME and deliberate confirmed REBUILD. Keep every
   // older API expression under the unchanged frozen digest.
@@ -129,8 +140,82 @@ function apiSurface(): { count: number; digest: string } {
   assert.equal(bookControlCalls.length, 1, 'expected exactly one per-book stop/resume API call')
   const bookRebuildCalls = calls.filter((call) => call.includes('/api/admin/books/${book.id}/read-job') && call.includes('REBUILD_FROM_ZERO') && call.includes('confirmBookTitle: book.title'))
   assert.equal(bookRebuildCalls.length, 1, 'expected exactly one explicit confirmed book rebuild call')
-  const protectedCalls = calls.filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) && !bookRebuildCalls.includes(call)).sort()
-  return { count: calls.length - bookControlCalls.length - bookRebuildCalls.length, digest: digest(protectedCalls.join('\n')) }
+  // The sanitizer's response type gained one reviewed diagnostic field; its
+  // endpoint, method, action payload, and all other requests stay frozen.
+  const knowledgeRepairCalls = calls.filter((call) =>
+    call.includes("'/api/admin/knowledge-bank'") && call.includes("action: 'sanitize'"))
+  assert.equal(knowledgeRepairCalls.length, 1, 'expected exactly one admin knowledge repair request')
+  assert.ok(knowledgeRepairCalls[0].includes('needsReview?: number'),
+    'repair response must report records left untouched for manual review')
+  // 2026-11-12: only two extra calls are intentionally added for source-grounded
+  // AI correction: one paginated POST and one refresh GET. Preserve the frozen
+  // digest for every original endpoint, method, payload and header.
+  const aiRepairCalls = calls.filter((call) =>
+    call.includes("'/api/admin/knowledge-bank'") && call.includes("action: 'repair-ai'"))
+  assert.equal(aiRepairCalls.length, 1, 'expected one new source-grounded AI repair POST')
+  assert.ok(aiRepairCalls[0].includes("method: 'POST'") && aiRepairCalls[0].includes('programId: selectedProgramId') &&
+    !aiRepairCalls[0].includes('cursor'), 'AI repair must enqueue from the standalone admin tab, not run in the books workspace')
+  const aiRefreshCalls = calls.filter((call) =>
+    call.includes('/api/admin/knowledge-bank?programId=') && call.includes('encodeURIComponent(programId)') && call.includes('repairStatus=1'))
+  assert.equal(aiRefreshCalls.length, 1, 'expected one read-only job-status poll for background AI repair')
+  // 2026-11-12: two intentionally added calls wire the manual-review UI to
+  // the review queue and the manual save. Preserve the frozen digest for
+  // every original endpoint, method, payload and header.
+  const manualReviewCalls = calls.filter((call) =>
+    (call.includes('/api/admin/knowledge-bank?programId=') && call.includes('&review=1')) ||
+    (call.includes("'/api/admin/knowledge-bank'") && call.includes("method: 'PATCH'") &&
+      call.includes('expectedUpdatedAt') && !call.includes("action: 'restore-source'")))
+  assert.equal(manualReviewCalls.length, 2, 'expected one review-queue GET and one manual-review PATCH')
+  assert.ok(manualReviewCalls.some((call) => call.includes('encodeURIComponent(cursor)')), 'review queue must page by cursor')
+  assert.ok(manualReviewCalls.some((call) => call.includes('manualReviewForm.title') && call.includes('manualReviewForm.summary') && call.includes('manualReviewForm.excerpt')), 'manual save must send all three corrected fields')
+  // Source recovery adds one read-only, same-book search and one explicitly
+  // confirmed PATCH. Both are reviewed individually; all historical calls
+  // remain protected by the original frozen digest.
+  const sourceCandidateCalls = calls.filter((call) =>
+    call.includes('&sourceCandidates=1') && call.includes('&itemId=') &&
+    call.includes('encodeURIComponent(item.id)'))
+  assert.equal(sourceCandidateCalls.length, 1, 'expected one read-only, item-scoped source candidate lookup')
+  const sourceRestoreCalls = calls.filter((call) =>
+    call.includes("'/api/admin/knowledge-bank'") && call.includes("method: 'PATCH'") &&
+    call.includes("action: 'restore-source'"))
+  assert.equal(sourceRestoreCalls.length, 1, 'expected one explicit source-restoration PATCH')
+  assert.ok(sourceRestoreCalls[0].includes('confirmSource: true') &&
+    sourceRestoreCalls[0].includes('expectedUpdatedAt: item.updatedAt') &&
+    sourceRestoreCalls[0].includes('chunkId: match.chunkId'),
+    'source restoration requires explicit confirmation, original chunk and optimistic concurrency')
+  // The standalone tab independently lists programs; keep exactly the original
+  // API call plus one identical reviewed duplicate for its own selector.
+  const aiSettingsCalls = calls.filter((call) => call.includes("'/api/admin/system'"))
+  assert.equal(aiSettingsCalls.length, 3, 'standalone repair must only read, discover and PATCH its own model configuration')
+  assert.ok(aiSettingsCalls.some((call) => call.includes('values: Record<string, string>')), 'load saved repair selection')
+  assert.ok(aiSettingsCalls.some((call) => call.includes("action: 'text-ai-models'") && call.includes('provider: repairProvider')), 'reuse existing /models discovery')
+  assert.ok(aiSettingsCalls.some((call) => call.includes("method: 'PATCH'") && call.includes('AI_KNOWLEDGE_REPAIR_PROVIDER') &&
+    call.includes('AI_KNOWLEDGE_REPAIR_MODEL')), 'persist dedicated model before enqueue')
+  const programListCalls = calls.filter((call) => call.includes("'/api/programs?summary=1&public=1'"))
+  assert.equal(programListCalls.length, 2, 'expected one book selector and one standalone AI repair selector')
+  assert.equal(programListCalls[0], programListCalls[1], 'program-list requests must stay identical')
+  let omittedDuplicateProgramLookup = false
+  const protectedCalls = calls
+    .filter((call) => {
+      if (programListCalls.includes(call) && !omittedDuplicateProgramLookup) {
+        omittedDuplicateProgramLookup = true
+        return false
+      }
+      return !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) &&
+        !bookRebuildCalls.includes(call) && !aiRepairCalls.includes(call) && !aiRefreshCalls.includes(call) &&
+        !aiSettingsCalls.includes(call) && !manualReviewCalls.includes(call) &&
+        !sourceCandidateCalls.includes(call) && !sourceRestoreCalls.includes(call)
+    })
+    .map((call) => {
+      if (suggestedAssignmentSaveCalls.includes(call)) return call.replace('dueDays: s.semester === 3 || !s.unitId ? 14 : null', 'dueDays: null')
+      if (knowledgeRepairCalls.includes(call)) return call.replace('; needsReview?: number', '').replace('programId: targetProgramId', 'programId')
+      return call
+    })
+    .sort()
+  return {
+    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - aiSettingsCalls.length - manualReviewCalls.length - sourceCandidateCalls.length - sourceRestoreCalls.length - 1,
+    digest: digest(protectedCalls.join('\n')),
+  }
 }
 
 function currentBooksSlice(): string {
@@ -167,6 +252,15 @@ describe('books workspace organization guard', () => {
     const surface = apiSurface()
     assert.equal(surface.count, ORIGINAL_API_CALL_COUNT)
     assert.equal(surface.digest, ORIGINAL_API_DIGEST)
+  })
+
+  it('manual review UI reaches the review queue and the manual save', () => {
+    assert.ok(SOURCE.includes('المراجعة اليدوية للعناصر المشوّهة'))
+    assert.ok(SOURCE.includes('عرض عناصر المراجعة'))
+    assert.ok(SOURCE.includes('المصدر غير موثّق'))
+    assert.ok(SOURCE.includes('sourceTextPreview'))
+    assert.ok(SOURCE.includes('تصحيح يدويًا'))
+    assert.ok(SOURCE.includes('اعتماد التصحيح'))
   })
 
   it('program selection and its data reset stay wired', () => {

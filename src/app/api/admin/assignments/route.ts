@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
 import { matureSemesterRaisesAfterGrading } from '@/lib/semester-raise-hooks'
+import { getProgramMaxDays } from '@/lib/program-duration'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { emailAssignmentGraded, emailAssignmentPublished } from '@/lib/mailer'
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'صياغة الواجب تبدو مشوهة أو مأخوذة من OCR غير صالح. أعد توليده أو حرره يدوياً.' }, { status: 400 })
     }
 
-    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
+    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, category: true, maxStudyDays: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
     // Old clients omit unitId: preserve their existing assignment link on update.
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
       }
     }
     const existingScope = id ? await db.programAssignment.findUnique({
-      where: { id }, select: { id: true, programId: true, unitId: true, sourceKnowledgeIds: true },
+      where: { id }, select: { id: true, programId: true, unitId: true, sourceKnowledgeIds: true, dueAt: true },
     }) : null
     if (id && (!existingScope || existingScope.programId !== programId)) {
       return NextResponse.json({ error: 'الواجب غير موجود لهذا البرنامج' }, { status: 404 })
@@ -185,6 +186,33 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'بعض عناصر المعرفة لا تنتمي للوحدة والبرنامج المحددين' }, { status: 400 })
       }
     }
+    // New assignments always use a per-enrollment day duration. Keep old
+    // fixed deadlines only when editing a legacy assignment that still sends
+    // its original dueAt; entering a new day duration clears dueAt in the UI.
+    const durationRaw = body.dueDays
+    const hasDuration = durationRaw !== '' && durationRaw !== null && durationRaw !== undefined
+    const duration = hasDuration ? Number(durationRaw) : null
+    if (hasDuration && (!Number.isInteger(duration) || duration! < 1 || duration! > 365)) {
+      return NextResponse.json({ error: 'مدة تسليم الواجب يجب أن تكون عدد أيام صحيحًا من 1 إلى 365' }, { status: 400 })
+    }
+    const suppliedLegacyDate = body.dueAt !== '' && body.dueAt !== null && body.dueAt !== undefined
+    const legacyFixed = !!id && suppliedLegacyDate && !!existingScope?.dueAt
+      && String(body.dueAt).slice(0, 10) === existingScope.dueAt.toISOString().slice(0, 10)
+    if (suppliedLegacyDate && !legacyFixed) {
+      return NextResponse.json({ error: 'لا يمكن إنشاء موعد ثابت جديد؛ حدد مدة بالأيام بدل التاريخ' }, { status: 400 })
+    }
+    // Linked to a teaching unit? Its default deadline is the unit's end.
+    // Semester-3 source references to older units do NOT impose that window.
+    const semester = asInt(body.semester, 1, 1, 3)
+    const teachingUnit = effectiveUnitId
+      ? await db.unit.findFirst({ where: { id: effectiveUnitId, programId, semester }, select: { id: true } })
+      : null
+    if (duration == null && !legacyFixed && !teachingUnit) {
+      return NextResponse.json({ error: 'حدد مدة تسليم الواجب بالأيام؛ الواجب المرتبط بوحدة دراسية يستخدم مدتها تلقائياً' }, { status: 400 })
+    }
+    if (teachingUnit && getProgramMaxDays(program) == null && !legacyFixed) {
+      return NextResponse.json({ error: 'حدد مدة البرنامج الدراسية أولاً حتى يمكن حساب موعد فتح الوحدة ونهايتها للواجب' }, { status: 400 })
+    }
     const data = {
       programId,
       unitId: requestedUnitId,
@@ -196,15 +224,10 @@ export async function POST(req: NextRequest) {
       type: asType(body.type),
       points: asInt(body.points, 10, 1, 100),
       weight: asInt(body.weight, 0, 0, 100),
-      dueDays: body.dueDays === '' || body.dueDays == null ? null : asInt(body.dueDays, 14, 1, 365),
-      // تاريخ ثابت يحدده الأدمن؛ إذا وُضع، يُقدَّم على المدة بالأيام عند الطالب.
-      // تاريخ بدون وقت يُفسَّر على أنه نهاية ذلك اليوم (23:59:59 بتوقيت UTC)
-      // حتى لا يُحظر الطالب في بداية اليوم الذي اختاره الأدمن.
-      dueAt: body.dueAt === '' || body.dueAt == null ? null : (() => {
-        const raw = String(body.dueAt).trim()
-        const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T23:59:59.999Z`) : new Date(raw)
-        return Number.isNaN(d.getTime()) ? null : d
-      })(),
+      dueDays: duration,
+      // Legacy edits retain their original fixed deadline until the admin
+      // explicitly chooses a new duration. New assignments never get one.
+      dueAt: legacyFixed ? existingScope!.dueAt : null,
       rubric: asString(body.rubric, 4000) || null,
       status: asStatus(body.status),
     }

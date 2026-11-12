@@ -111,6 +111,17 @@ export async function requestEmailChange(input: {
   }
 
   const token = createEmailVerificationToken()
+  // Resolve configuration errors before storing a request the user cannot confirm.
+  const confirmUrl = emailVerificationUrl(input.req, token.token)
+  // Capture the old state before any write. This also protects against
+  // callers/test doubles that mutate the original user object in place.
+  const previousPending = {
+    pendingEmail: (user as any).pendingEmail ?? null,
+    pendingEmailPurpose: (user as any).pendingEmailPurpose ?? null,
+    emailVerificationTokenHash: (user as any).emailVerificationTokenHash ?? null,
+    emailVerificationExpiresAt: user.emailVerificationExpiresAt ?? null,
+    emailVerificationSentAt: user.emailVerificationSentAt ?? null,
+  }
   await db.user.update({
     where: { id: user.id },
     data: {
@@ -122,7 +133,22 @@ export async function requestEmailChange(input: {
     } as any,
   })
 
-  await emailEmailChangeConfirm(newEmail, user.name, emailVerificationUrl(input.req, token.token), purpose).catch(() => false)
+  const delivered = await emailEmailChangeConfirm(newEmail, user.name, confirmUrl, purpose).catch(() => false)
+  if (!delivered) {
+    // Conditional rollback: never erase a newer email-change request.
+    // Preserve any older pending request and its token when delivery fails.
+    await db.user.updateMany({
+      where: { id: user.id, emailVerificationTokenHash: token.tokenHash },
+      data: previousPending,
+    })
+    return {
+      ok: false,
+      status: 503,
+      code: 'EMAIL_DELIVERY_FAILED',
+      message: 'تعذر إرسال رابط التأكيد إلى البريد الجديد. لم يتغير البريد، ويمكنك المحاولة مجدداً.',
+    }
+  }
+
   await audit('EMAIL_CHANGE_REQUESTED', byAdmin || { id: user.id, name: user.name }, user.id, JSON.stringify({ purpose, newEmail, byAdmin: !!byAdmin }))
   return { ok: true }
 }

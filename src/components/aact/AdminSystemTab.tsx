@@ -205,7 +205,7 @@ const GEMINI_THINKING_CHOICES = [
   { value: 'low', label: 'Low — سرعة أعلى' },
 ]
 
-const TEXT_PROVIDER_CHOICES = [
+export const TEXT_PROVIDER_CHOICES = [
   { value: 'GEMINI', label: 'Gemini Router — مفاتيح Gemini متعددة للنصوص' },
   { value: 'AUTO', label: 'تلقائي — Router بين كل المزودين المتاحين' },
   { value: 'OPENAI', label: 'OpenAI / ChatGPT للنصوص' },
