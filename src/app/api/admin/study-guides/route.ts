@@ -103,9 +103,15 @@ type ProgramUnit = Awaited<ReturnType<typeof unitGuidesForProgram>>['units'][num
 // A missing unit guide can be assembled from existing, sourced unit content.
 // No model call, guessed source or new academic claim is needed.
 async function buildMissingUnitGuide(programId: string, programTitle: string, unit: ProgramUnit, bookTitle: string) {
-  const content = (parseArray(unit.content) as UnitContentSection[])
-    .filter((section) => clean(section?.body, 10000).length >= 30)
+  const content = parseArray(unit.content) as UnitContentSection[]
   if (!content.length) throw new Error(`STUDY_GUIDE_UNIT_CONTENT_MISSING: «${unit.title}» ليس لها محتوى دراسي مولّد، ولا يمكن توليد دليل موثق لها.`)
+  // Every saved heading is part of the source material, including short ones.
+  // Never silently discard a populated section or build a "complete" guide
+  // from only a subset of the unit's sections.
+  const incompleteIndex = content.findIndex((section) => !section || typeof section.body !== 'string' || !section.body.trim())
+  if (incompleteIndex !== -1) {
+    throw new Error(`STUDY_GUIDE_UNIT_CONTENT_INCOMPLETE: المحور ${incompleteIndex + 1} في «${unit.title}» فارغ؛ صحح المحتوى قبل إنشاء الدليل.`)
+  }
   if (!unit.sourceBookId) throw new Error(`STUDY_GUIDE_UNIT_SOURCE_MISSING: مصدر الوحدة «${unit.title}» غير محدد.`)
   const allIndexes = unique(content.flatMap((section) =>
     parseArray(section.sourceChunkIndexes).map(Number).filter(Number.isInteger)))
