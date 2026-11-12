@@ -5176,6 +5176,8 @@ export function AdminKnowledgeAiRepairTab() {
   const { toast } = useToast()
   const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [programId, setProgramId] = useState('')
+  const selectedAiRepairProgramRef = useRef(programId)
+  useEffect(() => { selectedAiRepairProgramRef.current = programId }, [programId])
   const [loadingPrograms, setLoadingPrograms] = useState(true)
   const [loadingStatus, setLoadingStatus] = useState(false)
   const [statusError, setStatusError] = useState('')
