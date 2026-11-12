@@ -3723,7 +3723,7 @@ export function AdminBooksTab() {
                           {a.unitId && curriculumUnits.some((u) => u.id === a.unitId && Number(u.semester) === Number(a.semester))
                             ? `تبدأ مهلة الواجب عند موعد الوحدة لكل طالب (والتسليم المبكر متاح)، وتنتهي ${a.dueAt ? 'مع نهاية الوحدة تلقائياً (تاريخ ثابت قديم محفوظ)' : a.dueDays ? `بعد ${a.dueDays} يوم من بداية الوحدة (أو نهايتها، أيهما أقرب)` : 'مع نهاية الوحدة تلقائياً'}`
                             : a.dueAt ? `موعد ثابت قديم: ${new Date(a.dueAt).toLocaleDateString('ar-EG')} — عدّله إلى أيام لكل طالب`
-                            : a.dueDays ? `المدة: ${a.dueDays} يوم من تسجيل الطالب` : 'لا توجد مهلة محددة'}
+                            : a.dueDays ? `المدة: ${a.dueDays} يوم من ${Number(a.semester) > 1 ? 'اعتماد الفصل السابق' : 'تسجيل الطالب'}` : 'لا توجد مهلة محددة'}
                         </p>
                         <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{a.description}</p>
                         {a.rubric && <p className="mt-1 rounded-lg bg-slate-50 p-2 text-[11px] font-bold leading-5 text-slate-500">معايير التصحيح: {a.rubric}</p>}

@@ -5,7 +5,8 @@ import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { notify } from '@/lib/notify'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
 import { deleteStoredFile, getStorageDownloadPathForKey, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
-import { assignmentWindow } from '@/lib/assignment-due-date'
+import { assignmentWindow, semesterOpenedAtFromApproval } from '@/lib/assignment-due-date'
+import { storedSemesterApproval } from '@/lib/semester-approval'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { submissionWindowCheck, windowContextFor } from '@/lib/semester-lifecycle'
 import { hasApprovedReopenGrant } from '@/lib/reopen-appeals'
@@ -26,11 +27,11 @@ const ALLOWED_EXT = /\.(pdf|doc|docx|xls|xlsx|txt|png|jpe?g)$/i
 type AssignmentEnrollment = { createdAt: Date; extensionDays: number }
 type AssignmentUnit = { id: string; semester: number; order: number }
 
-function mapAssignment(a: any, enrollment: AssignmentEnrollment, units: AssignmentUnit[]) {
+function mapAssignment(a: any, enrollment: AssignmentEnrollment, units: AssignmentUnit[], semesterOpenedAt?: Date | null) {
   const window = assignmentWindow({
     enrolledAt: enrollment.createdAt, extensionDays: enrollment.extensionDays,
     semester: a.semester, unitId: a.unitId, dueDays: a.dueDays,
-    dueAtFixed: a.dueAt, program: a.program, units,
+    dueAtFixed: a.dueAt, program: a.program, units, semesterOpenedAt,
   })
   const submission = a.submissions?.[0] || null
   const title = cleanAcademicOutput(a.title, 220)
@@ -79,11 +80,19 @@ export async function GET(req: NextRequest) {
     const programId = req.nextUrl.searchParams.get('programId') || undefined
     const enrollments = await db.enrollment.findMany({
       where: { userId: user.id, status: { in: ['ACTIVE', 'COMPLETED'] }, ...(programId ? { programId } : {}) },
-      select: { programId: true, createdAt: true, extensionDays: true },
+      select: { id: true, programId: true, createdAt: true, extensionDays: true },
     })
     const enrollmentMap = new Map(enrollments.map((e) => [e.programId, e]))
     const programIds = enrollments.map((e) => e.programId)
     if (programIds.length === 0) return NextResponse.json({ assignments: [] })
+
+    // Previous-semester approval dates anchor advanced-semester deadlines:
+    // one bulk read for every enrollment, keyed by enrollment + semester.
+    const approvalRows = await db.semesterResultApproval.findMany({
+      where: { enrollmentId: { in: enrollments.map((e) => e.id) } },
+      select: { enrollmentId: true, semester: true, decidedAt: true, updatedAt: true, createdAt: true },
+    })
+    const openedAtByKey = new Map(approvalRows.map((ap) => [`${ap.enrollmentId}:${ap.semester}`, semesterOpenedAtFromApproval(ap)]))
 
     const units = await db.unit.findMany({
       where: { programId: { in: programIds } },
@@ -101,9 +110,11 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    return NextResponse.json({ assignments: assignments.map((a) =>
-      mapAssignment(a, enrollmentMap.get(a.programId)!, unitsByProgram.get(a.programId) || []),
-    ).filter(Boolean) })
+    return NextResponse.json({ assignments: assignments.map((a) => {
+      const enrollment = enrollmentMap.get(a.programId)!
+      const openedAt = openedAtByKey.get(`${enrollment.id}:${a.semester - 1}`) ?? null
+      return mapAssignment(a, enrollment, unitsByProgram.get(a.programId) || [], openedAt)
+    }).filter(Boolean) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
     console.error('student assignments GET error:', e)
@@ -167,11 +178,18 @@ export async function POST(req: NextRequest) {
       select: { id: true, semester: true, order: true },
     }) : []
     const unitIsTeaching = units.some((u) => u.id === assignment.unitId && u.semester === assignment.semester)
+    // Advanced-semester deadlines anchor to the previous semester's
+    // approval date (see assignment-due-date.ts); without an approval
+    // record the enrollment anchor applies.
+    const prevApproval = assignment.semester > 1
+      ? await storedSemesterApproval(db, enrollment.id, assignment.semester - 1)
+      : null
+    const semesterOpenedAt = semesterOpenedAtFromApproval(prevApproval)
     const window = assignmentWindow({
       enrolledAt: enrollment.createdAt, extensionDays: enrollment.extensionDays,
       semester: assignment.semester, unitId: assignment.unitId,
       dueDays: assignment.dueDays, dueAtFixed: assignment.dueAt,
-      program: assignment.program, units,
+      program: assignment.program, units, semesterOpenedAt,
     })
     // The unit start anchors this student's assignment deadline; it is not
     // a submission gate. Unit content and exams likewise allow early work.

@@ -3,7 +3,22 @@ import { addDays, getSemesterUnitWindows } from './program-duration'
 export type AssignmentWindow = {
   opensAt: Date
   dueAt: Date | null
-  mode: 'UNIT' | 'UNIT_DAYS' | 'ENROLLMENT_DAYS' | 'LEGACY_FIXED' | 'NONE'
+  mode: 'UNIT' | 'UNIT_DAYS' | 'ENROLLMENT_DAYS' | 'SEMESTER_DAYS' | 'LEGACY_FIXED' | 'NONE'
+}
+
+// The date a semester became available to the student: the previous
+// semester's result-approval timestamp (SemesterResultApproval.decidedAt,
+// falling back to the row's updatedAt/createdAt). Null when the student has
+// no approval record (legacy bypass) — the enrollment anchor applies.
+export function semesterOpenedAtFromApproval(approval: {
+  decidedAt?: Date | string | null
+  updatedAt?: Date | string | null
+  createdAt?: Date | string | null
+} | null | undefined): Date | null {
+  const raw = approval?.decidedAt ?? approval?.updatedAt ?? approval?.createdAt ?? null
+  if (!raw) return null
+  const date = raw instanceof Date ? raw : new Date(raw)
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
 // The same academic calendar as the unit/exam deadlines. A linked assignment's
@@ -18,6 +33,9 @@ export function assignmentWindow(args: {
   unitId?: string | null
   dueDays?: number | null
   dueAtFixed?: Date | string | null
+  // Date the student's semester became available: the previous semester's
+  // result-approval date. Only used for semester 2+ unlinked assignments.
+  semesterOpenedAt?: Date | string | null
   program: { category?: string | null; maxStudyDays?: number | null; semestersCount?: number | null }
   units: { id: string; semester: number; order: number }[]
 }): AssignmentWindow {
@@ -46,7 +64,21 @@ export function assignmentWindow(args: {
     return { opensAt: enrolledAt, dueAt: new Date(args.dueAtFixed), mode: 'LEGACY_FIXED' }
   }
   if (args.dueDays != null && args.dueDays > 0) {
-    return { opensAt: enrolledAt, dueAt: addDays(enrolledAt, args.dueDays), mode: 'ENROLLMENT_DAYS' }
+    // Advanced semesters open only after the previous semester's result is
+    // approved, so an enrollment-anchored deadline would already be expired
+    // before the student may submit. Anchor those to the previous
+    // semester's approval date when known; semester 1 and enrollments
+    // without an approval record keep the enrollment anchor.
+    let anchor = enrolledAt
+    let mode: AssignmentWindow['mode'] = 'ENROLLMENT_DAYS'
+    if (args.semester > 1 && args.semesterOpenedAt) {
+      const openedAt = new Date(args.semesterOpenedAt)
+      if (!Number.isNaN(openedAt.getTime())) {
+        anchor = openedAt
+        mode = 'SEMESTER_DAYS'
+      }
+    }
+    return { opensAt: anchor, dueAt: addDays(anchor, args.dueDays), mode }
   }
   return { opensAt: enrolledAt, dueAt: null, mode: 'NONE' }
 }

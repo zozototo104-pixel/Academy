@@ -259,7 +259,7 @@ interface StudentAssignment {
   dueDays?: number | null
   dueAt?: string | null
   opensAt?: string | null
-  dueMode?: 'UNIT' | 'UNIT_DAYS' | 'ENROLLMENT_DAYS' | 'LEGACY_FIXED' | 'NONE'
+  dueMode?: 'UNIT' | 'UNIT_DAYS' | 'ENROLLMENT_DAYS' | 'SEMESTER_DAYS' | 'LEGACY_FIXED' | 'NONE'
   unitId?: string | null
   rubric?: string | null
   status: string
@@ -1838,7 +1838,7 @@ export function DashboardView() {
                                   <p className="mt-1 text-[11px] font-bold text-indigo-700">
                                     مرتبط بالوحدة · يبدأ احتساب المهلة {a.opensAt ? new Date(a.opensAt).toLocaleDateString('ar-EG') : 'من موعد الوحدة'} · {a.dueMode === 'UNIT' ? 'تنتهي بنهاية الوحدة' : `المدة ${a.dueDays} يوم من موعد الوحدة بحد أقصى نهايتها`}
                                   </p>
-                                ) : a.dueMode === 'ENROLLMENT_DAYS' ? <p className="mt-1 text-[11px] font-bold text-indigo-700">المدة {a.dueDays} يوم من تاريخ تسجيلك في البرنامج</p> : null}
+                                ) : a.dueMode === 'ENROLLMENT_DAYS' ? <p className="mt-1 text-[11px] font-bold text-indigo-700">المدة {a.dueDays} يوم من تاريخ تسجيلك في البرنامج</p> : a.dueMode === 'SEMESTER_DAYS' ? <p className="mt-1 text-[11px] font-bold text-indigo-700">المدة {a.dueDays} يوم من تاريخ اعتماد الفصل السابق</p> : null}
                                 {a.dueAt && <p className="mt-1 text-[11px] font-bold text-amber-700">آخر موعد لك: {new Date(a.dueAt).toLocaleDateString('ar-EG')}</p>}
                                 {beforeUnitStart && <p className="mt-1 text-[11px] font-bold text-slate-600">موعد بداية احتساب المهلة: {new Date(a.opensAt!).toLocaleDateString('ar-EG')} — يمكنك التسليم مبكرًا إن أنجزت الواجب.</p>}
                               </div>
