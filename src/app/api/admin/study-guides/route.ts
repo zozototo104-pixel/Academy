@@ -136,7 +136,9 @@ async function buildSemesterGuide(programId: string, semester: number) {
       title: unit.title,
       summary: clean(`${clean(unit.summary || guide.overview, 1100)}${refs.length ? ` مراجع الصفحات: ${refs.join('، ')}.` : ''}`, 1400),
       outcomes: parseArray(unit.objectives).map((x) => clean(x, 200)).filter(Boolean).slice(0, 5),
-      sourceTitles: [unit.title],
+      sourceTitles: unit.sourceBookId && bookTitleById.has(unit.sourceBookId)
+        ? [bookTitleById.get(unit.sourceBookId)!]
+        : unique(parsed.flatMap((section) => Array.isArray(section.sourceTitles) ? section.sourceTitles : [])),
       sourceKnowledgeIds: guideIds,
       pageRefs: refs,
     }
