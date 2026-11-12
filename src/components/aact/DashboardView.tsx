@@ -1820,6 +1820,7 @@ export function DashboardView() {
                         const graded = submission?.status === 'GRADED'
                         const needsRevision = submission?.status === 'NEEDS_REVISION'
                         const submitted = !!submission && !needsRevision
+                        const opensLater = !!a.opensAt && new Date(a.opensAt).getTime() > Date.now()
                         return (
                           <article key={a.id} className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
                             <div className="flex flex-wrap items-start justify-between gap-2">
