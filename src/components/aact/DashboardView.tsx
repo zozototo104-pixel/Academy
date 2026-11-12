@@ -1834,7 +1834,13 @@ export function DashboardView() {
                                 </div>
                                 <p className="mt-2 text-xs font-bold leading-6 text-slate-600">{a.description}</p>
                                 {a.rubric && <p className="mt-2 rounded-xl bg-slate-50 p-2 text-[11px] font-bold leading-5 text-slate-500">معايير التصحيح: {a.rubric}</p>}
-                                {a.dueAt && <p className="mt-1 text-[11px] font-bold text-amber-700">آخر موعد: {new Date(a.dueAt).toLocaleDateString('ar-EG')}</p>}
+                                {a.dueMode === 'UNIT' || a.dueMode === 'UNIT_DAYS' ? (
+                                  <p className="mt-1 text-[11px] font-bold text-indigo-700">
+                                    مرتبط بالوحدة · يبدأ {a.opensAt ? new Date(a.opensAt).toLocaleDateString('ar-EG') : 'مع فتح الوحدة'} · {a.dueMode === 'UNIT' ? 'يُغلق عند نهاية الوحدة' : `متاح ${a.dueDays} يوم من فتح الوحدة بحد أقصى نهايتها`}
+                                  </p>
+                                ) : a.dueMode === 'ENROLLMENT_DAYS' ? <p className="mt-1 text-[11px] font-bold text-indigo-700">المدة {a.dueDays} يوم من تاريخ تسجيلك في البرنامج</p> : null}
+                                {a.dueAt && <p className="mt-1 text-[11px] font-bold text-amber-700">آخر موعد لك: {new Date(a.dueAt).toLocaleDateString('ar-EG')}</p>}
+                                {opensLater && <p role="status" className="mt-1 text-[11px] font-black text-amber-800">الواجب غير متاح بعد؛ يفتح مع وحدته في {new Date(a.opensAt!).toLocaleDateString('ar-EG')}</p>}
                               </div>
                               <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${graded ? 'bg-emerald-100 text-emerald-700' : needsRevision ? 'bg-amber-100 text-amber-700' : submitted ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
                                 {graded ? `مصحح ${submission?.score ?? '-'}/${a.points}` : needsRevision ? 'يحتاج تعديل' : submitted ? 'تم التسليم' : 'لم يسلّم بعد'}
