@@ -5204,6 +5204,7 @@ export function AdminKnowledgeAiRepairTab() {
         setRepairProvider(result.values.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO')
         setRepairModel(result.values.AI_KNOWLEDGE_REPAIR_MODEL || '')
         setRepairInterval(result.values.AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS || '0')
+        setRepairCallsPerRun(result.values.AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN || '1')
         setRepairConfigLoaded(true)
       })
       .catch((error: any) => { if (active) setStatusError(error.message || 'تعذر تحميل إعداد مزوّد التصحيح') })
