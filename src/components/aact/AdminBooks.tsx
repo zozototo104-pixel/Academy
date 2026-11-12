@@ -3118,9 +3118,17 @@ export function AdminBooksTab() {
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={sanitizeKnowledge} disabled={sanitizingKnowledge || knowledgeItems.length === 0} variant="outline" className="border-amber-300 text-xs font-black text-amber-700">
                     {sanitizingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <AlertTriangle className="ml-2 h-4 w-4" />}
-                    تصحيح العناصر المشوّهة بالقواعد والذكاء (حذف الفارغ فقط)
+                    تصحيح بالقواعد (حذف الفارغ فقط)
+                  </Button>
+                  <Button onClick={startKnowledgeAiRepair} disabled={startingKnowledgeAiRepair || knowledgeItems.length === 0 || ['QUEUED', 'RUNNING'].includes(knowledgeAiRepairJob?.status || '')} variant="outline" className="border-blue-300 text-xs font-black text-blue-800">
+                    {startingKnowledgeAiRepair ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-2 h-4 w-4" />}
+                    {knowledgeAiRepairJob?.status === 'PAUSED' ? 'استكمال التصحيح الذكي' : 'تصحيح بالذكاء (مهمة خلفية)'}
                   </Button>
                   {knowledgeRepairProgress && <p role="status" aria-live="polite" className="max-w-sm rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-900">{knowledgeRepairProgress}</p>}
+                  {knowledgeAiRepairJob && <p role="status" aria-live="polite" className="max-w-sm rounded-xl bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-900">
+                    التصحيح الذكي: {knowledgeAiRepairJob.status === 'COMPLETED' ? 'مكتمل' : knowledgeAiRepairJob.status === 'PAUSED' ? 'متوقف للمراجعة' : knowledgeAiRepairJob.status === 'RUNNING' ? 'قيد التنفيذ' : 'في قائمة الانتظار'} · فُحص {knowledgeAiRepairJob.scanned} · صُحح {knowledgeAiRepairJob.repaired} · للمراجعة {knowledgeAiRepairJob.needsReview} (دون مصدر كافٍ {knowledgeAiRepairJob.missingSource}).
+                    {knowledgeAiRepairJob.lastError ? ` السبب: ${knowledgeAiRepairJob.lastError}` : ''}
+                  </p>}
                   <Button onClick={rebuildKnowledge} disabled={rebuildingKnowledge || books.length === 0} className="bg-[#0f2b46] text-xs font-black text-[#e0b83a] hover:bg-[#12365c]">
                     {rebuildingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-2 h-4 w-4" />}
                     بناء/تحديث بنك المعرفة
