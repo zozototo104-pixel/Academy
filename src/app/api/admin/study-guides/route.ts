@@ -220,6 +220,11 @@ async function buildSemesterGuide(programId: string, semester: number) {
     unit,
     guide: guideByUnit.get(unit.id) || pendingById.get(unit.id)!,
   }))
+  const unresolvedUnits = unitGuides.filter(({ guide }) =>
+    (parseArray(guide.sections) as GuideSection[]).some((section) => section.sourceReviewRequired === true))
+  if (unresolvedUnits.length) {
+    throw new Error(`STUDY_GUIDE_SECTION_SOURCE_REVIEW_REQUIRED: يلزم توثيق محاور الوحدات قبل تجميع دليل الفصل: ${unresolvedUnits.map(({ unit }) => unit.title).join('، ')}`)
+  }
   const sourceKnowledgeIds = unique(unitGuides.flatMap(({ guide }) => parseArray(guide.sourceKnowledgeIds).map((id) => clean(id, 100))))
   if (!sourceKnowledgeIds.length) throw new Error('STUDY_GUIDE_REQUIRES_SOURCE_KNOWLEDGE_IDS')
   const title = semester === 3 ? 'دليل الفصل الدراسي العام للبحث/المشروع' : `دليل الفصل الدراسي العام ${semester === 2 ? 'الثاني' : 'الأول'}`
