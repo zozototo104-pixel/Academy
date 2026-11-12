@@ -104,9 +104,22 @@ export default function AccountEmailDialog({ open, onClose }: { open: boolean; o
         </div>
 
         {!me ? (
-          <p className="py-6 text-center text-sm font-bold text-slate-500">جارٍ التحميل…</p>
+          loadError ? (
+            <div className="py-6 text-center">
+              <p className="text-sm font-bold text-rose-700">تعذر تحميل حالة البريد مؤقتاً. لم يتم تغيير البريد بسبب فشل القراءة.</p>
+              <button type="button" onClick={load} className={`${btnCls} mt-3`}>إعادة تحميل الحالة</button>
+            </div>
+          ) : (
+            <p className="py-6 text-center text-sm font-bold text-slate-500">جارٍ التحميل…</p>
+          )
         ) : (
           <div className="space-y-5 text-right">
+            {loadError && (
+              <p className="rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900">
+                تعذر تحديث حالة البريد من الخادم مؤقتاً؛ البيانات المعروضة هي آخر حالة معروفة.
+                <button type="button" onClick={load} className="mr-2 underline">تحديث الآن</button>
+              </p>
+            )}
             <div className="rounded-2xl bg-slate-50 px-4 py-3">
               <p className="text-[11px] font-black text-slate-400">بريد الدخول الحالي</p>
               <p className="truncate text-sm font-black text-[#0f2b46]" dir="ltr">{me.email}</p>
