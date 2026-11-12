@@ -3282,6 +3282,7 @@ async function callProviderWithJsonRepair(provider: ConcreteProvider, s: Setting
 
   const retry = await callProvider(provider, s, key, model, {
     ...opts,
+    ...(provider === 'APINEX' && opts.taskType === 'BOOK_ENRICH' ? { apinexPromptOnlyJson: true } : {}),
     system: `${opts.system}\n\nإعادة إلزامية: الرد السابق لم يكن JSON صالحاً. أعد JSON فقط بدون أي نص تمهيدي أو Markdown أو شرح.`,
     history: [
       ...opts.history,
