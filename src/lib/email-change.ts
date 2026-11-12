@@ -113,6 +113,15 @@ export async function requestEmailChange(input: {
   const token = createEmailVerificationToken()
   // Resolve configuration errors before storing a request the user cannot confirm.
   const confirmUrl = emailVerificationUrl(input.req, token.token)
+  // Capture the old state before any write. This also protects against
+  // callers/test doubles that mutate the original user object in place.
+  const previousPending = {
+    pendingEmail: (user as any).pendingEmail ?? null,
+    pendingEmailPurpose: (user as any).pendingEmailPurpose ?? null,
+    emailVerificationTokenHash: (user as any).emailVerificationTokenHash ?? null,
+    emailVerificationExpiresAt: user.emailVerificationExpiresAt ?? null,
+    emailVerificationSentAt: user.emailVerificationSentAt ?? null,
+  }
   await db.user.update({
     where: { id: user.id },
     data: {
