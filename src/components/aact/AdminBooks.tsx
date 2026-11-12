@@ -829,6 +829,8 @@ export function AdminBooksTab() {
     setManualReviewHasMore(false)
     setManualReviewEditingId(null)
     setManualReviewError(null)
+    setSourceRecoveryEvidence({})
+    setSourceRecoveryBusyId(null)
   }, [programId])
   const [rebuildingBookId, setRebuildingBookId] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
