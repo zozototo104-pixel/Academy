@@ -885,33 +885,34 @@ describe('manual review UI: the admin panel reaches the review queue and the man
       { id: 'empty-unlinked', programId: REVIEW_PROGRAM_ID, title: '', summary: '',
         excerpt: '', bookId: REVIEW_BOOK_ID, chunkId: REVIEW_CHUNK_ID, updatedAt: stamp },
     ]
+    const testDb: any = fakeDb
     const original = {
-      guideFind: fakeDb.programStudyGuide.findMany,
-      unitFind: fakeDb.unit.findMany,
-      itemFind: fakeDb.bookKnowledgeItem.findMany,
-      itemDelete: fakeDb.bookKnowledgeItem.deleteMany,
-      assignment: fakeDb.programAssignment,
-      question: fakeDb.question,
-      questionBank: fakeDb.questionBankItem,
-      programQuestion: fakeDb.programQuestion,
+      guideFind: testDb.programStudyGuide.findMany,
+      unitFind: testDb.unit.findMany,
+      itemFind: testDb.bookKnowledgeItem.findMany,
+      itemDelete: testDb.bookKnowledgeItem.deleteMany,
+      assignment: testDb.programAssignment,
+      question: testDb.question,
+      questionBank: testDb.questionBankItem,
+      programQuestion: testDb.programQuestion,
     }
     const removed: string[] = []
     try {
-      fakeDb.programStudyGuide.findMany = async () => [
+      testDb.programStudyGuide.findMany = async () => [
         { sourceKnowledgeIds: JSON.stringify(['empty-linked']), sections: '[]' },
       ]
-      fakeDb.unit.findMany = async () => []
-      fakeDb.programAssignment = { findMany: async () => [] }
-      fakeDb.question = { findMany: async () => [] }
-      fakeDb.questionBankItem = { findMany: async () => [] }
-      fakeDb.programQuestion = { findMany: async () => [] }
-      fakeDb.bookKnowledgeItem.findMany = async ({ where, take }: any) => {
+      testDb.unit.findMany = async () => []
+      testDb.programAssignment = { findMany: async () => [] }
+      testDb.question = { findMany: async () => [] }
+      testDb.questionBankItem = { findMany: async () => [] }
+      testDb.programQuestion = { findMany: async () => [] }
+      testDb.bookKnowledgeItem.findMany = async ({ where, take }: any) => {
         if (where.kbVersion) return []
         const rows = reviewItems.filter((item) => item.programId === where.programId
           && (!where.id?.gt || item.id > where.id.gt))
         return take ? rows.slice(0, take) : rows
       }
-      fakeDb.bookKnowledgeItem.deleteMany = async ({ where }: any) => {
+      testDb.bookKnowledgeItem.deleteMany = async ({ where }: any) => {
         const item = reviewItems.find((row) => row.id === where.id && row.programId === where.programId
           && row.updatedAt.getTime() === where.updatedAt.getTime())
         if (!item) return { count: 0 }
@@ -930,15 +931,15 @@ describe('manual review UI: the admin panel reaches the review queue and the man
       expect(removed).toEqual(['empty-unlinked'])
       expect(reviewItems.some((item) => item.id === 'empty-linked')).toBe(true)
     } finally {
-      fakeDb.programStudyGuide.findMany = original.guideFind
-      fakeDb.unit.findMany = original.unitFind
-      fakeDb.bookKnowledgeItem.findMany = original.itemFind
-      if (original.itemDelete) fakeDb.bookKnowledgeItem.deleteMany = original.itemDelete
-      else delete fakeDb.bookKnowledgeItem.deleteMany
-      fakeDb.programAssignment = original.assignment
-      fakeDb.question = original.question
-      fakeDb.questionBankItem = original.questionBank
-      fakeDb.programQuestion = original.programQuestion
+      testDb.programStudyGuide.findMany = original.guideFind
+      testDb.unit.findMany = original.unitFind
+      testDb.bookKnowledgeItem.findMany = original.itemFind
+      if (original.itemDelete) testDb.bookKnowledgeItem.deleteMany = original.itemDelete
+      else delete testDb.bookKnowledgeItem.deleteMany
+      testDb.programAssignment = original.assignment
+      testDb.question = original.question
+      testDb.questionBankItem = original.questionBank
+      testDb.programQuestion = original.programQuestion
     }
   })
 
