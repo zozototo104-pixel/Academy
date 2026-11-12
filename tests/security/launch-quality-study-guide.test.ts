@@ -157,7 +157,7 @@ describe('study-guide Arabic visibility: reject broken OCR without hiding correc
 
   test('valid Arabic فيه and the professional-program context do not hide guides', async () => {
     const { looksLikeBrokenGeneratedArabic } = await import('../../src/lib/academic-output-quality')
-    const valid = 'يوضح الدليل المهني كيفية استخدام المعرفة؛ ففيه تطبيق عملي يشرح إدارة المشروع وأهداف العمل ودور المشاركين.'
+    const valid = 'يوضح الدليل المهني كيفية استخدام المعرفة؛ فيه تطبيق عملي يشرح إدارة المشروع وأهداف العمل ودور المشاركين.'
     expect(looksLikeBrokenGeneratedArabic(valid)).toBe(false)
   })
 
