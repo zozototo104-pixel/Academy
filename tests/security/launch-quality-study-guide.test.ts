@@ -414,7 +414,7 @@ Object.assign(fakeDb, {
   programStudyGuide: { findMany: async ({ where }: any) => guides.filter((guide) =>
     where.unitId?.in?.includes(guide.unitId) && where.status.in.includes(guide.status)) },
   book: { findMany: async ({ where }: any) => autoBooks.filter((book) =>
-    where.id.in.includes(book.id) && book.programId === where.programId) },
+    where.id.in.includes(book.id) && (!where.programId || book.programId === where.programId)) },
   bookOutlineSection: { findMany: async ({ where }: any) =>
     where.id.in.includes('source-outline') ? [{ id: 'source-outline', outline: { bookId: AUTO_BOOK_ID } }] : [] },
   bookChunk: { findMany: async ({ where }: any) => autoChunks.filter((chunk) =>
