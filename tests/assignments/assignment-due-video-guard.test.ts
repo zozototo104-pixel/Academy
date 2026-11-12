@@ -49,6 +49,19 @@ describe('assignment per-enrollment deadlines and teaching unit gates', () => {
     expect(adminBooks).toContain('dueDays: s.unitId ? null : 14')
     expect(adminAssignmentsRoute).toContain('dueAt:')
   })
+  test('GET and POST use the same unit calendar, and POST rejects before unit opening', () => {
+    expect(studentAssignmentsRoute).toContain('const window = assignmentWindow({')
+    expect(studentAssignmentsRoute).toContain('opensAt: window.opensAt')
+    expect(studentAssignmentsRoute).toContain('dueAt: window.dueAt')
+    expect(studentAssignmentsRoute).toContain('Date.now() < window.opensAt.getTime()')
+    expect(studentAssignmentsRoute).toContain("'ASSIGNMENT_NOT_OPEN'")
+    expect(studentAssignmentsRoute).toContain('unitId: unitIsTeaching ? assignment.unitId : null')
+  })
+  test('the admin cannot create new fixed calendar deadlines', () => {
+    expect(adminAssignmentsRoute).toContain("if (suppliedLegacyDate && !legacyFixed)")
+    expect(adminAssignmentsRoute).toContain('dueAt: legacyFixed ? existingScope!.dueAt : null')
+    expect(adminAssignmentsRoute).toContain('Number.isInteger(duration)')
+  })
 })
 
 describe('assignment source and grading guardrails', () => {
