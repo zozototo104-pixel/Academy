@@ -267,6 +267,27 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(cron.indexOf('runNextKnowledgeAiRepairStep()')).toBeGreaterThan(cron.indexOf("'[question-bank-cron] done'"))
   })
 
+  test('repair provider/model selection is isolated from student/global AI settings', () => {
+    const system = readFileSync(new URL('../../src/app/api/admin/system/route.ts', import.meta.url), 'utf8')
+    const modelPanel = readFileSync(new URL('../../src/components/aact/AdminSystemTab.tsx', import.meta.url), 'utf8')
+    const books = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
+    const worker = readFileSync(new URL('../../src/lib/book-knowledge-v2-scheduler.ts', import.meta.url), 'utf8')
+    const repairPage = books.split('export function AdminKnowledgeAiRepairTab()')[1] || ''
+    expect(system).toContain("'AI_KNOWLEDGE_REPAIR_PROVIDER', 'AI_KNOWLEDGE_REPAIR_MODEL', 'AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS'")
+    expect(system).toContain('const repairProvider =')
+    expect(system).toContain('const repairModel =')
+    expect(modelPanel).toContain('gemini-section-repair')
+    expect(modelPanel).toContain('saveKnowledgeRepair')
+    expect(repairPage).toContain('TEXT_PROVIDER_CHOICES')
+    expect(repairPage).toContain("action: 'text-ai-models'")
+    expect(repairPage).toContain("method: 'PATCH'")
+    expect(repairPage).toContain('AI_KNOWLEDGE_REPAIR_PROVIDER: repairProvider')
+    expect(repairPage).toContain('AI_KNOWLEDGE_REPAIR_MODEL:')
+    expect(worker).toContain('restrictToModels: chosenModel')
+    expect(worker).toContain('intervalMs > 0')
+    expect(worker).not.toContain("excludeProviders: ['APINEX']")
+  })
+
   test('AI repair has its own main admin navigation, not another books button', () => {
     const admin = readFileSync(new URL('../../src/components/aact/AdminView.tsx', import.meta.url), 'utf8')
     const books = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
