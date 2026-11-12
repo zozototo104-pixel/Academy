@@ -5288,6 +5288,42 @@ export function AdminKnowledgeAiRepairTab() {
             <p className="mt-2 text-sm leading-7 text-slate-600">خيار مستقل لمعالجة العناصر المشوهة فقط بمصدر الكتاب المقروء. لا يعيد إنشاء العناصر أو حذفها، ويحافظ على معرّفاتها وروابط أدلة الدراسة.</p>
             <p className="mt-1 text-xs leading-6 text-slate-500">التصحيح بالقواعد ما زال متاحاً ضمن «الكتب والاختبارات»، ويعمل دون مزوّد ذكاء اصطناعي.</p>
           </div>
+          <div className="grid gap-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>مزوّد الذكاء لهذا التصحيح فقط</Label>
+              <Select value={repairProvider} onValueChange={(v) => { setRepairProvider(v); setRepairModel('') }}>
+                <SelectTrigger className="w-full min-w-0 bg-white" dir="ltr"><SelectValue placeholder="اختر المزوّد" /></SelectTrigger>
+                <SelectContent>
+                  {[...TEXT_PROVIDER_CHOICES.filter((p) => p.value === 'AUTO'), ...TEXT_PROVIDER_CHOICES.filter((p) => p.value !== 'AUTO')].map((p) => (
+                    <SelectItem key={p.value} value={p.value} dir="ltr">{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {repairProvider === 'AUTO' ? (
+              <div className="self-center text-xs font-bold text-blue-900">AUTO: يستخدم الراوتر العام بجميع المزوّدين المتاحين، دون حظر APINEX أو أي مزوّد آخر.</div>
+            ) : (
+              <div className="space-y-2">
+                <Label>النموذج المخصص للتصحيح</Label>
+                <Select value={repairModel} onValueChange={setRepairModel}>
+                  <SelectTrigger className="w-full min-w-0 bg-white" dir="ltr"><SelectValue placeholder="اختر النموذج" /></SelectTrigger>
+                  <SelectContent>
+                    {repairModel && !repairModels.includes(repairModel) && <SelectItem value={repairModel} dir="ltr">{repairModel} — محفوظ/مخصص</SelectItem>}
+                    {repairModels.map((model) => <SelectItem key={model} value={model} dir="ltr">{model}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Input value={repairModel} onChange={(e) => setRepairModel(e.target.value)} placeholder="أو اكتب اسم نموذج متاح بحسابك" dir="ltr" className="min-w-0 bg-white" />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>الفاصل الاختياري بين طلبات التصحيح (ثوانٍ)</Label>
+              <Input type="number" min={0} max={3600} value={repairInterval} onChange={(e) => setRepairInterval(e.target.value)} dir="ltr" className="bg-white" />
+              <p className="text-[11px] text-slate-500">0 = لا تأخير إضافي؛ تبقى قيود المزوّد الفعلية نافذة.</p>
+            </div>
+            <p className="self-center text-xs font-bold text-blue-900">
+              المزوّد والنموذج هنا مستقلان عن الطلاب والقراءة والتحليل، وسيُحفظان عند بدء التصحيح.
+            </p>
+          </div>
           <div className="max-w-xl space-y-2">
             <Label>اختر البرنامج المراد تصحيح معرفته</Label>
             <Select value={programId} onValueChange={setProgramId}>
