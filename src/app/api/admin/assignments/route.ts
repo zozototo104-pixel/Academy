@@ -194,9 +194,15 @@ export async function POST(req: NextRequest) {
     if (hasDuration && (!Number.isInteger(duration) || duration! < 1 || duration! > 365)) {
       return NextResponse.json({ error: 'مدة تسليم الواجب يجب أن تكون عدد أيام صحيحًا من 1 إلى 365' }, { status: 400 })
     }
-    const legacyFixed = id && body.dueAt !== '' && body.dueAt !== null && body.dueAt !== undefined
-    if (duration == null && !legacyFixed) {
-      return NextResponse.json({ error: 'حدد مدة تسليم الواجب بالأيام من تاريخ تسجيل الطالب' }, { status: 400 })
+    const legacyFixed = !!id && body.dueAt !== '' && body.dueAt !== null && body.dueAt !== undefined
+    // Linked to a teaching unit? Its default deadline is the unit's end.
+    // Semester-3 source references to older units do NOT impose that window.
+    const semester = asInt(body.semester, 1, 1, 3)
+    const teachingUnit = effectiveUnitId
+      ? await db.unit.findFirst({ where: { id: effectiveUnitId, programId, semester }, select: { id: true } })
+      : null
+    if (duration == null && !legacyFixed && !teachingUnit) {
+      return NextResponse.json({ error: 'حدد مدة تسليم الواجب بالأيام؛ الواجب المرتبط بوحدة دراسية يستخدم مدتها تلقائياً' }, { status: 400 })
     }
     const data = {
       programId,
