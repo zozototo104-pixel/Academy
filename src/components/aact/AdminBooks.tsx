@@ -275,6 +275,7 @@ type BookReadJobRow = {
   chunksFailed: number
   lastError?: string | null
   retryAt?: string | null
+  lockedUntil?: string | null
 }
 
 type KnowledgeStats = Record<string, { count: number; avgImportance: number }>
@@ -669,8 +670,12 @@ export function AdminBooksTab() {
   const [showAllKnowledge, setShowAllKnowledge] = useState(false)
   const [knowledgeTotalCount, setKnowledgeTotalCount] = useState(0)
   const [bookReadJobs, setBookReadJobs] = useState<Record<string, BookReadJobRow>>({})
-  const [bookEnrichment, setBookEnrichment] = useState<Record<string, { totalChunks: number; saturatedChunks: number; addedItems: number }>>({})
-  const [programKnowledgeV2States, setProgramKnowledgeV2States] = useState<Record<string, { state: 'READING' | 'ENRICHING' | 'COMPLETED' | 'PAUSED'; retryAt?: string | null }>>({})
+  const [bookEnrichment, setBookEnrichment] = useState<Record<string, {
+    totalChunks: number; saturatedChunks: number; addedItems: number
+    storedChunks?: number; failedChunks?: number; knowledgeTotal?: number
+    sourcePages?: number; pagesSaved?: number
+  }>>({})
+  const [programKnowledgeV2States, setProgramKnowledgeV2States] = useState<Record<string, { state: 'READING' | 'ENRICHING' | 'COMPLETED' | 'PAUSED' | 'FAILED'; retryAt?: string | null }>>({})
   const [bookReadBusyId, setBookReadBusyId] = useState<string | null>(null)
   const bookReadInFlightRef = useRef<Set<string>>(new Set())
   const [knowledgeStats, setKnowledgeStats] = useState<KnowledgeStats>({})
@@ -1995,11 +2000,15 @@ export function AdminBooksTab() {
 
   const fetchBookReadJob = useCallback(async (bookId: string) => {
     const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-job`)
-    if (response.enrichment) setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
+    if (response.enrichment) {
+      setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
+      const total = (response.enrichment as typeof response.enrichment & { knowledgeTotal?: number }).knowledgeTotal
+      if (total !== undefined) setV2CountsByBook((previous) => previous[bookId] === total ? previous : { ...previous, [bookId]: total })
+    }
     if (response.job) {
       setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
       setProgramKnowledgeV2States((previous) => ({ ...previous, [bookId]: {
-        state: response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
+        state: response.job!.status === 'FAILED' ? 'FAILED' : response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
         retryAt: response.job!.retryAt,
       } }))
     }
@@ -2022,7 +2031,7 @@ export function AdminBooksTab() {
       if (response.job) {
         setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
         setProgramKnowledgeV2States((previous) => ({ ...previous, [bookId]: {
-          state: response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
+          state: response.job!.status === 'FAILED' ? 'FAILED' : response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
           retryAt: response.job!.retryAt,
         } }))
       } else await fetchBookReadJob(bookId)
@@ -2053,11 +2062,15 @@ export function AdminBooksTab() {
     Promise.all(books.map(async (book) => {
       try {
         const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${book.id}/read-job`)
-        if (active && response.enrichment) setBookEnrichment((previous) => ({ ...previous, [book.id]: response.enrichment! }))
+        if (active && response.enrichment) {
+          setBookEnrichment((previous) => ({ ...previous, [book.id]: response.enrichment! }))
+          const total = (response.enrichment as typeof response.enrichment & { knowledgeTotal?: number }).knowledgeTotal
+          if (total !== undefined) setV2CountsByBook((previous) => previous[book.id] === total ? previous : { ...previous, [book.id]: total })
+        }
         if (active && response.job) {
           setBookReadJobs((previous) => ({ ...previous, [book.id]: response.job! }))
           setProgramKnowledgeV2States((previous) => ({ ...previous, [book.id]: {
-            state: response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
+            state: response.job!.status === 'FAILED' ? 'FAILED' : response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
             retryAt: response.job!.retryAt,
           } }))
         }
@@ -2073,23 +2086,10 @@ export function AdminBooksTab() {
       for (const book of books) {
         void fetchBookReadJob(book.id).catch(() => {})
         const job = bookReadJobs[book.id]
-        if (job?.status === 'FAILED') {
-          const retry = bookReadRetryRef.current[book.id]
-          if (!retry || (retry.count < 3 && Date.now() >= retry.nextAt)) {
-            const count = (retry?.count || 0) + 1
-            const backoffMs = Math.min(60_000, 5_000 * (2 ** (count - 1)))
-            bookReadRetryRef.current[book.id] = { count, nextAt: Date.now() + backoffMs }
-            setBookReadRetryCounts((previous) => ({ ...previous, [book.id]: count }))
-            const retryRequest = job.chunksFailed > 0
-              ? api(`/api/admin/books/${book.id}/retry-failed-chunks`, { method: 'POST' })
-              : api(`/api/admin/books/${book.id}/read-job`, { method: 'POST', body: JSON.stringify({}) })
-            retryRequest
-              .then(() => fetchBookReadJob(book.id))
-              .then(() => advanceBookReadJob(book.id))
-              .catch((error) => console.error('auto failed book read retry failed:', error))
-          }
-          continue
-        }
+        // FAILED is terminal: never silently restart reading/enrichment merely
+        // because an admin opened this page. The manual retry button below
+        // controls recovery; PAUSED retries remain scheduled in the background.
+        if (job?.status === 'FAILED') continue
         if (job && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)) {
           if (job.status === 'PAUSED' && job.retryAt && new Date(job.retryAt).getTime() > Date.now()) continue
           void advanceBookReadJob(book.id)
@@ -2138,9 +2138,15 @@ export function AdminBooksTab() {
     setOutlineBusyId(bookId)
     try {
       const result = await api<{ outline: NonNullable<typeof bookOutlines[string]>; programDraft: typeof programOutlineDraft }>(`/api/admin/books/${bookId}/outline`, { method: 'POST' })
+      const reusedExisting = (result as typeof result & { reusedExisting?: boolean }).reusedExisting
       setBookOutlines((previous) => ({ ...previous, [bookId]: result.outline }))
       setProgramOutlineDraft(result.programDraft || [])
-      toast({ title: 'تم إنشاء مسودة فهرس الكتاب', description: `الإصدار ${result.outline.version} — ${result.outline.sections.length} أقسام` })
+      toast({
+        title: reusedExisting ? 'لم يُنشأ فهرس جديد — المسودة السابقة محفوظة' : 'تم إنشاء مسودة فهرس الكتاب',
+        description: reusedExisting
+          ? `النسخة ${result.outline.version} فيها ${result.outline.sections.length} أقسام. راجعها، وافحص الصفحات الناقصة قبل الاعتماد.`
+          : `الإصدار ${result.outline.version} — ${result.outline.sections.length} أقسام`,
+      })
     } catch (error: any) {
       toast({ title: 'تعذر بناء فهرس الكتاب', description: String(error?.message || error), variant: 'destructive' })
     } finally { setOutlineBusyId(null) }
@@ -2244,6 +2250,49 @@ export function AdminBooksTab() {
     }
   }
 
+  const rebuildBookFromZero = async (book: BookRow) => {
+    const confirmed = await askAdminConfirm({
+      title: `إعادة بناء الكتاب من الصفر: ${book.title}`,
+      description: 'إجراء مختلف عن الاستكمال: ستُزال المقاطع وعناصر المعرفة الآلية v2 ومسودات فهرس هذا الكتاب، وتُعاد قراءة ملف PDF الأصلي من الصفحة الأولى. لن يُحذف الكتاب أو ملفه أو سجلات القراءة التاريخية أو المعرفة القديمة. يُرفض الطلب إذا كانت أي بيانات ستُحذف مرتبطة بوحدات أو أسئلة أو واجبات أو أدلة أو فهرس معتمد. أوقف مهمة هذا الكتاب أولاً إن كانت تعمل. لا يمكن التراجع عن حذف البيانات المولّدة.',
+      confirmLabel: 'أؤكد إعادة البناء من الصفر',
+      danger: true,
+    })
+    if (!confirmed) return
+    setBookReadBusyId(book.id)
+    try {
+      const result = await api<{ job: BookReadJobRow; removed: { chunks: number; knowledge: number; outlines: number } }>(
+        `/api/admin/books/${book.id}/read-job`,
+        { method: 'POST', body: JSON.stringify({
+          action: 'REBUILD', confirmation: 'REBUILD_FROM_ZERO', confirmBookTitle: book.title,
+        }) },
+      )
+      delete bookReadRetryRef.current[book.id]
+      setBookReadRetryCounts((previous) => ({ ...previous, [book.id]: 0 }))
+      setBookReadJobs((previous) => ({ ...previous, [book.id]: result.job }))
+      setBookEnrichment((previous) => ({ ...previous, [book.id]: {
+        totalChunks: 0, saturatedChunks: 0, addedItems: 0,
+        storedChunks: 0, failedChunks: 0, knowledgeTotal: 0, sourcePages: 0, pagesSaved: 0,
+      } }))
+      setV2CountsByBook((previous) => ({ ...previous, [book.id]: 0 }))
+      setKnowledgeItems((previous) => previous.filter((item) => item.bookId !== book.id || item.kbVersion !== 2))
+      setProgramKnowledgeV2States((previous) => ({ ...previous, [book.id]: { state: 'READING', retryAt: null } }))
+      await loadBookOutline(book.id).catch(() => {
+        setBookOutlines((previous) => ({ ...previous, [book.id]: null }))
+      })
+      toast({
+        title: 'بدأت إعادة بناء الكتاب من الصفحة الأولى',
+        description: `المقاطع المُعاد بناؤها: ${result.removed.chunks} · عناصر المعرفة السابقة: ${result.removed.knowledge} · مسودات الفهرس: ${result.removed.outlines}. الجدولة تواصل العمل لبقية الكتب.`,
+      })
+      void advanceBookReadJob(book.id)
+    } catch (error: any) {
+      toast({
+        title: 'لم تبدأ إعادة بناء الكتاب',
+        description: String(error?.data?.message || error?.message || error),
+        variant: 'destructive',
+      })
+    } finally { setBookReadBusyId(null) }
+  }
+
   const fixBookArabicText = async (bookId: string) => {
     const ok = await askAdminConfirm({
       title: 'تصحيح النص العربي',
@@ -2283,9 +2332,36 @@ export function AdminBooksTab() {
     try {
       const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST', body: JSON.stringify({ mode: 'ENRICH' }) })
       setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
-      if (response.job.status !== 'COMPLETED' && response.job.status !== 'FAILED') void advanceBookReadJob(bookId)
+      toast({
+        title: response.job.phase === 'ENRICH' ? 'بدأ استخراج المزيد' : 'هناك مهمة قراءة أو تحليل جارية',
+        description: 'تظهر الحالة والتقدم أدناه. يمكنك إيقاف المهمة أو استكمالها دون مسح العمل المحفوظ.',
+      })
+      if (['QUEUED', 'RUNNING'].includes(response.job.status)) void advanceBookReadJob(bookId)
     } catch (error: any) {
       toast({ title: 'تعذر بدء استخراج المزيد', description: String(error?.message || error), variant: 'destructive' })
+    } finally { setBookReadBusyId(null) }
+  }
+
+  const controlBookReadJob = async (bookId: string, action: 'STOP' | 'RESUME') => {
+    setBookReadBusyId(bookId)
+    try {
+      const response = await api<{ job: BookReadJobRow; manuallyStopped?: boolean }>(`/api/admin/books/${bookId}/read-job`, {
+        method: 'POST', body: JSON.stringify({ action }),
+      })
+      setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
+      await fetchBookReadJob(bookId)
+      if (action === 'STOP') {
+        delete bookReadRetryRef.current[bookId]
+        setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
+        toast({ title: 'تم طلب إيقاف المهمة', description: 'لن تبدأ خطوات جديدة بعد انتهاء الطلب الجاري. التقدم والمعرفة المحفوظان لن يُحذفا.' })
+      } else {
+        delete bookReadRetryRef.current[bookId]
+        setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
+        toast({ title: 'تم استكمال المهمة', description: 'ستتابع من المقاطع والصفحات المتبقية دون إعادة المعالجة الناجحة.' })
+        void advanceBookReadJob(bookId)
+      }
+    } catch (error: any) {
+      toast({ title: action === 'STOP' ? 'تعذر إيقاف المهمة' : 'تعذر استكمال المهمة', description: String(error?.message || error), variant: 'destructive' })
     } finally { setBookReadBusyId(null) }
   }
 
@@ -3032,6 +3108,14 @@ export function AdminBooksTab() {
                   <div className="max-h-72 space-y-2 overflow-auto pr-1">
                     {books.length === 0 ? <p className="text-[11px] font-bold text-slate-500">لا توجد كتب بعد.</p> : books.map((b) => {
                       const countForBook = v2CountsByBook[b.id] ?? 0
+                      const activeJob = bookReadJobs[b.id]
+                      const isEnriching = activeJob?.phase === 'ENRICH' && ['QUEUED', 'RUNNING', 'PAUSED'].includes(activeJob.status)
+                      const unfinishedRead = !!activeJob && ['EXTRACT', 'ANALYZE'].includes(activeJob.phase) && ['QUEUED', 'RUNNING', 'PAUSED', 'FAILED'].includes(activeJob.status)
+                      const failedAnalysisChunks = bookEnrichment[b.id]?.failedChunks ?? activeJob?.chunksFailed ?? 0
+                      const canRebuild = !activeJob || ['COMPLETED', 'FAILED'].includes(activeJob.status) ||
+                        (activeJob.status === 'PAUSED' && !!activeJob.retryAt &&
+                          new Date(activeJob.retryAt).getUTCFullYear() === 9999 &&
+                          (!activeJob.lockedUntil || new Date(activeJob.lockedUntil).getTime() <= Date.now()))
                       return (
                         <div key={b.id} className="rounded-xl bg-[#f8fafc] p-2 text-[11px] font-bold text-slate-600">
                           <div className="flex flex-col gap-2">
@@ -3040,11 +3124,13 @@ export function AdminBooksTab() {
                               <p className="text-slate-400">{countForBook ? `${countForBook} عنصر معرفة` : 'غير محلل بعد'}</p>
                             </div>
                             <div className="flex w-full flex-col flex-wrap gap-2 sm:flex-row">
-                              <Button size="sm" variant="outline" onClick={() => startBookReadJob(b.id)} disabled={bookReadBusyId === b.id} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">قراءة وتحليل كامل</Button>
+                              <Button size="sm" variant="outline" onClick={() => activeJob?.status === 'FAILED' && activeJob.phase === 'ENRICH' ? startBookEnrichment(b.id) : activeJob?.status === 'FAILED' && activeJob.phase === 'ANALYZE' && failedAnalysisChunks > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)} disabled={bookReadBusyId === b.id} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">{activeJob?.status !== 'FAILED' ? 'قراءة وتحليل كامل' : activeJob.phase === 'ENRICH' ? 'استكمال استخراج المزيد' : activeJob.phase === 'ANALYZE' ? 'استكمال التحليل' : 'استكمال قراءة الكتاب'}</Button>
                               <Button size="sm" variant="outline" onClick={() => fixBookArabicText(b.id)} disabled={bookReadBusyId === b.id} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">تصحيح النص العربي</Button>
+                              <Button size="sm" variant="outline" onClick={() => rebuildBookFromZero(b)} disabled={bookReadBusyId === b.id || !canRebuild} title={!canRebuild ? 'أوقف معالجة هذا الكتاب وانتظر تحرير القفل أولاً' : 'إعادة القراءة والتحليل من البداية بعد تأكيد المشرف وفحص العلاقات الأكاديمية'} className="h-8 w-full border-red-300 px-2 text-[10px] font-black text-red-700 hover:bg-red-50 sm:w-auto">إعادة بناء الكتاب من الصفر</Button>
+                              {!canRebuild && <span className="self-center text-[10px] text-amber-700">أوقف مهمة هذا الكتاب أولاً، وانتظر انتهاء الخطوة الجارية.</span>}
                               {countForBook > 0 && <Button size="sm" variant="outline" disabled={outlineBusyId === b.id} onClick={() => buildOutlineForBook(b.id)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">{outlineBusyId === b.id ? 'جارٍ بناء الفهرس...' : 'بناء فهرس الكتاب'}</Button>}
                               <Button size="sm" variant="outline" disabled={outlineDebugBusyId === b.id} onClick={() => loadOutlineDebug(b.id)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">{outlineDebugBusyId === b.id ? 'جارٍ التشخيص...' : 'تشخيص الفهرس'}</Button>
-                              {countForBook > 0 && <Button size="sm" variant="outline" onClick={() => startBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || (bookEnrichment[b.id]?.totalChunks > 0 && bookEnrichment[b.id]?.saturatedChunks >= bookEnrichment[b.id]?.totalChunks)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">استخراج المزيد</Button>}
+                              {countForBook > 0 && <Button size="sm" variant="outline" onClick={() => startBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || unfinishedRead || isEnriching || (bookEnrichment[b.id]?.totalChunks > 0 && bookEnrichment[b.id]?.saturatedChunks >= bookEnrichment[b.id]?.totalChunks)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">{activeJob?.phase === 'ENRICH' && activeJob.status === 'PAUSED' ? 'الإثراء متوقف — اضغط استكمال' : bookReadBusyId === b.id || isEnriching ? 'جارٍ استخراج المزيد...' : 'استخراج المزيد'}</Button>}
                             </div>
                           </div>
                           {bookOutlines[b.id] && (() => {
@@ -3101,25 +3187,35 @@ export function AdminBooksTab() {
                               </ul>
                             </div>
                           })()}
-                          {programKnowledgeV2States[b.id] && <p className="mt-1 text-[11px] font-bold text-slate-600">{programKnowledgeV2States[b.id].state === 'READING' ? 'يُقرأ' : programKnowledgeV2States[b.id].state === 'ENRICHING' ? 'يُستخرج المزيد' : programKnowledgeV2States[b.id].state === 'COMPLETED' ? 'مكتمل' : `متوقف مؤقتاً${programKnowledgeV2States[b.id].retryAt ? ` · إعادة المحاولة ${new Date(programKnowledgeV2States[b.id].retryAt!).toLocaleString('ar')}` : ''}`}</p>}
+                          {programKnowledgeV2States[b.id] && <p className="mt-1 text-[11px] font-bold text-slate-600">{programKnowledgeV2States[b.id].state === 'READING' ? 'يُقرأ' : programKnowledgeV2States[b.id].state === 'ENRICHING' ? 'يُستخرج المزيد' : programKnowledgeV2States[b.id].state === 'COMPLETED' ? 'مكتمل' : programKnowledgeV2States[b.id].state === 'FAILED' ? 'فشل — إعادة المحاولة يدوياً' : (bookReadJobs[b.id]?.retryAt && new Date(bookReadJobs[b.id].retryAt!).getUTCFullYear() === 9999) ? 'أوقفته الإدارة مؤقتاً — الجدولة تعمل لبقية الكتب' : `متوقف مؤقتاً${programKnowledgeV2States[b.id].retryAt ? ` · إعادة المحاولة ${new Date(programKnowledgeV2States[b.id].retryAt!).toLocaleString('ar')}` : ''}`}</p>}
                           {!!bookReadRetryCounts[b.id] && bookReadRetryCounts[b.id] < 5 && <p className="mt-1 text-[11px] font-bold text-amber-700">إعادة محاولة تلقائية ({bookReadRetryCounts[b.id]}/5)</p>}
                           {bookReadRetryCounts[b.id] >= 5 && <div className="mt-1 flex items-center gap-2"><p className="text-[11px] font-bold text-red-700">فشلت 5 محاولات متتالية</p><Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => { delete bookReadRetryRef.current[b.id]; setBookReadRetryCounts((previous) => ({ ...previous, [b.id]: 0 })); void advanceBookReadJob(b.id) }}>استكمال</Button></div>}
                           {bookEnrichment[b.id]?.totalChunks > 0 && <p className="mt-1 text-[11px] text-slate-600">{bookEnrichment[b.id].saturatedChunks >= bookEnrichment[b.id].totalChunks ? 'اكتملت جولات الإثراء' : `مشبع ${bookEnrichment[b.id].saturatedChunks} من ${bookEnrichment[b.id].totalChunks} مقطع · أضيف ${bookEnrichment[b.id].addedItems} عنصر`}</p>}
                           {bookReadJobs[b.id] && (() => {
                             const job = bookReadJobs[b.id]
-                            const phase = job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.status === 'FAILED' ? 'فشل' : 'مكتمل'
+                            const manuallyStopped = job.status === 'PAUSED' && !!job.retryAt && new Date(job.retryAt).getUTCFullYear() === 9999
+                            const phase = manuallyStopped ? 'موقوف بأمر الإدارة' : job.status === 'FAILED' ? 'فشل' : job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.phase === 'ENRICH' ? 'استخراج المزيد' : 'بانتظار المعالجة'
+                            const saved = bookEnrichment[b.id]
+                            const pagesTotal = saved?.sourcePages || job.totalPages
+                            const pagesDone = saved?.pagesSaved ?? job.pagesDone
+                            const chunksTotal = saved?.storedChunks || job.totalChunks
+                            const chunksDone = saved?.totalChunks ?? job.chunksAnalyzed
+                            const chunksFailed = saved?.failedChunks ?? job.chunksFailed
                             return <div className="mt-2 space-y-1 rounded-lg border border-slate-200 bg-white p-2">
                               <p className="text-[#0f2b46]">المرحلة: {phase}</p>
-                              <p>قراءة الصفحات {job.totalPages > 0 ? `${Math.min(job.pagesDone, job.totalPages)} من ${job.totalPages}` : aiProgressLabel(job.pagesDone, job.totalPages)}</p>
-                              <div role="progressbar" aria-label="تقدم قراءة الصفحات" aria-valuenow={job.pagesDone} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalPages)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: `${aiProgressPercent(job.pagesDone, job.totalPages) ?? 0}%` }} /></div>
-                              <p>تحليل المقاطع {job.totalChunks > 0 ? `${Math.min(job.chunksAnalyzed, job.totalChunks)} من ${job.totalChunks}` : aiProgressLabel(job.chunksAnalyzed, job.totalChunks)} · عناصر المعرفة v2: {v2CountsByBook[b.id] ?? 0}</p>
-                              <div role="progressbar" aria-label="تقدم تحليل المقاطع" aria-valuenow={job.chunksAnalyzed} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalChunks)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-500" style={{ width: `${aiProgressPercent(job.chunksAnalyzed, job.totalChunks) ?? 0}%` }} /></div>
-                              <p>فشل {job.chunksFailed}</p>
+                              {manuallyStopped && <p className="text-amber-700">إيقاف هذا الكتاب فقط؛ مهمة الجدولة لم تُلغَ ولا تتوقف عن معالجة الكتب الأخرى.</p>}
+                              <p>الصفحات المحفوظة {pagesTotal > 0 ? `${Math.min(pagesDone, pagesTotal)} من ${pagesTotal}` : 'لا توجد قراءة صفحات جديدة في هذه المهمة'}</p>
+                              <div role="progressbar" aria-label="تقدم قراءة الصفحات" aria-valuenow={pagesDone} aria-valuemin={0} aria-valuemax={Math.max(1, pagesTotal)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: `${aiProgressPercent(pagesDone, pagesTotal) ?? 0}%` }} /></div>
+                              <p>المقاطع المحللة والمحفوظة {chunksTotal > 0 ? `${Math.min(chunksDone, chunksTotal)} من ${chunksTotal}` : 'لا توجد مقاطع محفوظة'} · عناصر المعرفة v2: {saved?.knowledgeTotal ?? v2CountsByBook[b.id] ?? 0}</p>
+                              <div role="progressbar" aria-label="تقدم تحليل المقاطع" aria-valuenow={chunksDone} aria-valuemin={0} aria-valuemax={Math.max(1, chunksTotal)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-500" style={{ width: `${aiProgressPercent(chunksDone, chunksTotal) ?? 0}%` }} /></div>
+                              {job.phase === 'ENRICH' && <p>استخراج المزيد: أضيف {saved?.addedItems ?? 0} عنصر في المهمة الحالية · اكتملت الجولات في {saved?.saturatedChunks ?? 0} مقطع</p>}
+                              <p>المقاطع الفاشلة المحفوظة: {chunksFailed}</p>
                               {aiStatusHelp(job.status, job.lastError) ? <p className="break-words text-red-700">{aiStatusHelp(job.status, job.lastError)}</p> : null}
                               {job.lastError && ['PAUSED', 'FAILED'].includes(String(job.status || '')) ? <p className="break-words text-[10px] text-slate-500">الكود الأصلي: {job.lastError}</p> : null}
-                              {job.status === 'PAUSED' && job.retryAt && <p>موعد الاستئناف: {new Date(job.retryAt).toLocaleString('ar')}</p>}
-                              {job.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={!!job.retryAt && new Date(job.retryAt).getTime() > Date.now()} onClick={() => advanceBookReadJob(b.id)}>استئناف</Button>}
-                              {job.status === 'FAILED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => job.chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)}>{job.chunksFailed > 0 ? 'إعادة المحاولة للمقاطع الفاشلة' : 'إعادة محاولة قراءة الكتاب'}</Button>}
+                              {job.status === 'PAUSED' && !manuallyStopped && job.retryAt && <p>موعد الاستئناف التلقائي: {new Date(job.retryAt).toLocaleString('ar')}</p>}
+                              {(['QUEUED', 'RUNNING'].includes(job.status) || (job.status === 'PAUSED' && !manuallyStopped)) && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => void controlBookReadJob(b.id, 'STOP')}>إيقاف هذا الكتاب</Button>}
+                              {job.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => void controlBookReadJob(b.id, 'RESUME')}>استكمال الآن</Button>}
+                              {job.status === 'FAILED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => job.phase === 'ENRICH' ? startBookEnrichment(b.id) : job.phase === 'ANALYZE' && chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)}>{job.phase === 'ENRICH' ? 'إعادة محاولة استخراج المزيد' : job.phase === 'ANALYZE' && chunksFailed > 0 ? 'إعادة المحاولة للمقاطع الفاشلة' : 'إعادة محاولة قراءة الكتاب'}</Button>}
                             </div>
                           })()}
                         </div>

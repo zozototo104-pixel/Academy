@@ -368,21 +368,13 @@ export async function POST(req: NextRequest) {
   const expireTime = new Date(now + sessionLimitMinutes * 60 * 1000).toISOString()
   const newSessionExpireTime = new Date(now + 60 * 1000).toISOString()
 
-  // التوكن المؤقت قصير العمر ويُستخدم مرة واحدة. الإعدادات تُرسل كأول رسالة setup عبر WebSocket.
-  // التوكن مقفل بـ liveConnectConstraints على هذا النموذج وهذا الإعداد
-  // بالضبط — كما في createGeminiLiveEphemeralToken في gemini.ts — فلا
-  // يستطيع حامله الاتصال بنموذج أو إعداد من اختياره داخل نافذة الصلاحية.
+  // بعض مشاريع Gemini Live ترفض liveConnectConstraints في /v1beta/auth_tokens
+  // بخطأ 400 قبل إنشاء الجلسة. نستخدم صيغة الرمز المؤقت السابقة المجرّبة:
+  // استخدام واحد، نافذة بدء 60 ثانية، وإعدادات Live تُرسل بعد الاتصال.
   const tokenBody = {
     uses: 1,
     expireTime,
     newSessionExpireTime,
-    liveConnectConstraints: {
-      model,
-      config: {
-        ...sdkConfig,
-        systemInstruction: { parts: [{ text: sdkConfig.systemInstruction }] },
-      },
-    },
   }
 
   try {

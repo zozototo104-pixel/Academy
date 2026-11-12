@@ -6,7 +6,7 @@ import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 import { textAiCompleteJsonWithMetadata, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRoutingOverrides } from '@/lib/ai-stage-profiles'
 import { withPipelineRun } from '@/lib/ai-pipeline-log'
-import { mergeBookPageReadIssues, parseBookOcrSoloPages, withBookOcrSoloPages, type BookPageReadIssue } from '@/lib/book-read-job-control'
+import { assertBookReadLease, mergeBookPageReadIssues, parseBookOcrSoloPages, withBookOcrSoloPages, type BookPageReadIssue } from '@/lib/book-read-job-control'
 
 export type ExtractedBookPage = { page: number; text: string; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; readError?: string }
 export type PlannedBookChunk = { index: number; pageStart: number; pageEnd: number; headingPath: string | null; text: string; charCount: number; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; contentHash: string }
@@ -302,7 +302,7 @@ export async function extractPdfBatch(input: Parameters<typeof extractPdfBatchIn
   )
 }
 
-export async function runExtractStep(jobId: string, deadlineMs: number) {
+export async function runExtractStep(jobId: string, deadlineMs: number, claimedAt: Date) {
   const job = await db.bookReadJob.findUnique({ where: { id: jobId } })
   if (!job) throw new Error('BOOK_READ_JOB_NOT_FOUND')
   if (job.phase !== 'EXTRACT') return { pagesDone: job.pagesDone, totalPages: job.totalPages, totalChunks: job.totalChunks, phase: job.phase }
@@ -315,27 +315,34 @@ export async function runExtractStep(jobId: string, deadlineMs: number) {
   if (job.pagesDone > totalPages) throw new Error('BOOK_PROGRESS_EXCEEDS_PDF')
   const store: ExtractStepStore = {
     upsertChunk: async (chunk, bookId, programId) => {
-      const existing = await db.bookChunk.findUnique({ where: { bookId_index: { bookId, index: chunk.index } }, select: { status: true, contentHash: true } })
-      if (existing?.status === 'ANALYZED' && existing.contentHash === chunk.contentHash) return
-      await db.bookChunk.upsert({
-        where: { bookId_index: { bookId, index: chunk.index } },
-        create: { ...chunk, bookId, programId, status: 'EXTRACTED' },
-        update: { ...chunk, status: 'EXTRACTED', attempts: 0, lastError: null },
+      await db.$transaction(async (tx) => {
+        await assertBookReadLease(tx, jobId, claimedAt)
+        const existing = await tx.bookChunk.findUnique({ where: { bookId_index: { bookId, index: chunk.index } }, select: { status: true, contentHash: true } })
+        if (existing?.status === 'ANALYZED' && existing.contentHash === chunk.contentHash) return
+        await tx.bookChunk.upsert({
+          where: { bookId_index: { bookId, index: chunk.index } },
+          create: { ...chunk, bookId, programId, status: 'EXTRACTED' },
+          update: { ...chunk, status: 'EXTRACTED', attempts: 0, lastError: null },
+        })
       })
     },
     saveProgress: async (id, pagesDone, totalPages, totalChunks, phase, issues = [], processedPages = []) => {
-      const previous = await db.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
-      const lastError = mergeBookPageReadIssues(previous?.lastError, processedPages, issues)
-      await db.bookReadJob.update({
-        where: { id },
-        data: { pagesDone, totalPages, totalChunks, phase, lastError },
+      await db.$transaction(async (tx) => {
+        await assertBookReadLease(tx, id, claimedAt)
+        const previous = await tx.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
+        const lastError = mergeBookPageReadIssues(previous?.lastError, processedPages, issues)
+        const saved = await tx.bookReadJob.updateMany({
+          where: { id, status: 'RUNNING', startedAt: claimedAt, pagesDone: { lte: pagesDone } },
+          data: { pagesDone, totalPages, totalChunks, phase, lastError },
+        })
+        if (!saved.count) throw new Error('BOOK_READ_PROGRESS_REGRESSION')
       })
     },
     saveOcrSoloPages: async (id, pages) => {
-      const previous = await db.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
-      await db.bookReadJob.update({
-        where: { id },
-        data: { lastError: withBookOcrSoloPages(previous?.lastError, pages) },
+      await db.$transaction(async (tx) => {
+        await assertBookReadLease(tx, id, claimedAt)
+        const previous = await tx.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
+        await tx.bookReadJob.update({ where: { id }, data: { lastError: withBookOcrSoloPages(previous?.lastError, pages) } })
       })
     },
   }

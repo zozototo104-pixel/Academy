@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { buildBookOutline } from '@/lib/book-outline'
-import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, canRunBookReadJob, claimBookReadLock, classifyBookReadFailure, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
+import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, canRunBookReadJob, claimBookReadLock, releaseBookReadLock, classifyBookReadFailure, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -54,19 +54,19 @@ export async function POST(_request: NextRequest, context: Context) {
     const deadlineMs = Date.now() + 240_000
     let result: unknown
     if (job.phase === 'EXTRACT') {
-      result = await runExtractStep(job.id, deadlineMs)
+      result = await runExtractStep(job.id, deadlineMs, now)
       if ((result as { phase?: string }).phase === 'ANALYZE' && Date.now() < deadlineMs - 1500) {
-        result = { extraction: result, analysis: await runAnalyzeStep(job.id, deadlineMs) }
+        result = { extraction: result, analysis: await runAnalyzeStep(job.id, deadlineMs, now) }
       }
     } else if (job.phase === 'ANALYZE') {
-      result = await runAnalyzeStep(job.id, deadlineMs)
+      result = await runAnalyzeStep(job.id, deadlineMs, now)
     } else if (job.phase === 'ENRICH') {
-      result = await runEnrichStep(job.id, deadlineMs)
+      result = await runEnrichStep(job.id, deadlineMs, now)
     } else {
       result = { phase: job.phase }
     }
-    const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true, phase: true, createdAt: true } })
-    if (job.phase !== 'ENRICH' && current?.status === 'COMPLETED' && current.phase === 'DONE' ) {
+    const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true, phase: true, createdAt: true, startedAt: true } })
+    if (job.phase !== 'ENRICH' && current?.status === 'COMPLETED' && current.phase === 'DONE' && current.startedAt?.getTime() === now.getTime()) {
       // A source-backed draft is created from persisted chunks; all OCR work
       // was already performed during extraction. Never regenerate knowledge.
       try {
@@ -84,11 +84,11 @@ export async function POST(_request: NextRequest, context: Context) {
         result = { reading: result, outlineWarning: 'تعذر إنشاء مسودة الفهرس تلقائياً؛ يمكنك إعادة المحاولة من زر بناء الفهرس' }
       }
     }
-    const updated = current?.status && ['COMPLETED', 'FAILED', 'PAUSED'].includes(current.status)
-      ? await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
-      // Never clear lastError here: it carries the durable per-page issue
-      // ledger (BOOK_PAGE_ISSUES) that outline approval must report.
-      : await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, retryAt: null } })
+    // Release our own lease even if an admin stopped/resumed this book while
+    // the provider call was in flight. Do not touch another worker's lease.
+    await releaseBookReadLock(db, job.id, now, false)
+    // Keep lastError untouched: it contains the per-page issue ledger.
+    const updated = await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
     const enrichment = job.phase === 'ENRICH' ? {
       totalChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
       saturatedChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', OR: [{ saturatedAt: { not: null } }, { analysisPasses: { gte: 3 } }] } }),
@@ -97,6 +97,14 @@ export async function POST(_request: NextRequest, context: Context) {
     return NextResponse.json({ ok: true, result, job: updated, enrichment })
   } catch (error: any) {
     const message = String(error?.message || error)
+    if (message === 'BOOK_READ_LEASE_LOST') {
+      // Lease expiry/takeover is NOT a fatal book error. Requeue only if
+      // this invocation still owns the job; never touch a newer worker or
+      // undo an administrator's manual STOP.
+      await releaseBookReadLock(db, job.id, now, false)
+      const current = await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
+      return NextResponse.json({ ok: true, skipped: 'LEASE_LOST', job: current })
+    }
     const providerUnavailable = message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
     // Four-way handling (Haris's taxonomy): pressure pauses and auto-retries;
     // proven billing exhaustion and missing configuration stop the job with
@@ -109,18 +117,20 @@ export async function POST(_request: NextRequest, context: Context) {
         ? `خطأ إعدادات: لا يوجد مزوّد ذكاء مُعدّ بمفتاح صالح — راجع إعدادات النظام ومفاتيح المزودين ثم أعد بدء القراءة. التفاصيل: ${message}`
         : message
     const previous = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { lastError: true } })
-    const updated = await db.bookReadJob.update({
-      where: { id: job.id },
+    const changed = await db.bookReadJob.updateMany({
+      where: { id: job.id, status: 'RUNNING', startedAt: now },
       data: {
         status: transient ? 'PAUSED' : 'FAILED',
         retryAt: transient ? new Date(Date.now() + (providerUnavailable ? BOOK_READ_RETRY_MS : BOOK_READ_TRANSIENT_RETRY_MS)) : null,
-        // Keep the per-page issue ledger alongside the operator message,
-        // exactly as the cron path does — a failed step must not erase
-        // the evidence outline approval relies on.
+        // Keep the per-page issue ledger; never overwrite an admin stop.
         lastError: preserveBookPageReadIssues(previous?.lastError, adminMessage),
         lockedUntil: null,
       },
     })
-    return NextResponse.json({ ok: false, error: adminMessage, job: updated }, { status: transient ? 503 : 500 })
+    if (!changed.count) await releaseBookReadLock(db, job.id, now, false)
+    const updated = await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
+    return changed.count
+      ? NextResponse.json({ ok: false, error: adminMessage, job: updated }, { status: transient ? 503 : 500 })
+      : NextResponse.json({ ok: true, skipped: 'STOPPED_OR_COMPLETED', job: updated })
   }
 }

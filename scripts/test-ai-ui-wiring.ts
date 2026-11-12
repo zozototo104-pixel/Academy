@@ -139,8 +139,13 @@ function testAdminAndApplyWiring() {
 function testFailedBookReadRetry() {
   const books = file('src/components/aact/AdminBooks.tsx')
   assert(books.includes("job?.status === 'FAILED'"), 'AdminBooks must detect failed book read jobs')
-  assert(books.includes('count < 3'), 'failed book read auto retry must be limited')
-  assert(books.includes('5_000 * (2 ** (count - 1))'), 'failed book read auto retry must use backoff')
+  const pollStart = books.indexOf("if (workspaceTab !== 'knowledge') return\n    const timer = setInterval")
+  const pollEnd = books.indexOf('    }, 5000)', pollStart)
+  assert(pollStart >= 0 && pollEnd > pollStart, 'AdminBooks must retain the background polling loop')
+  const polling = books.slice(pollStart, pollEnd)
+  assert(polling.includes("if (job?.status === 'FAILED') continue"), 'terminal book failures must require a manual retry')
+  assert(!polling.includes("method: 'POST'") && !polling.includes('retry-failed-chunks'), 'polling must never restart terminal book failures')
+  assert(polling.includes("['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)"), 'non-terminal queued/paused jobs must continue in the background')
   assert(books.includes('إعادة محاولة قراءة الكتاب'), 'failed book read jobs must expose a manual retry button')
   assert(books.includes('retry-failed-chunks'), 'failed chunk retry path must remain available')
 }

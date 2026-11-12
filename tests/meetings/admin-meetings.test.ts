@@ -123,7 +123,9 @@ const { collectMeetingAcademyEvidence } = await import('@/lib/meeting-assistant'
 const adminMeetingDetailRoute = await import('@/app/api/admin/meetings/[id]/route')
 const meetingRoomRoute = await import('@/app/api/meetings/[token]/room/route')
 
-const T0 = new Date('2026-11-10T12:00:00.000Z')
+// The fixture must stay valid whenever CI runs; the test still checks exact
+// join-window and expiry boundaries with explicit at(minute) inputs below.
+const T0 = new Date(Date.now() - 5 * 60_000)
 const at = (min: number) => new Date(T0.getTime() + min * 60_000)
 const meeting = (over: any = {}) => ({
   id: 'm1',

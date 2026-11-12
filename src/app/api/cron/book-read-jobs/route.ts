@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { claimAiHealthRun } from '@/lib/ai-health'
 import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
-import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, claimBookReadLock, classifyBookReadFailure, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
+import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, claimBookReadLock, releaseBookReadLock, classifyBookReadFailure, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
 import { textAiCheckAllModelHealth } from '@/lib/text-ai'
 
 export const runtime = 'nodejs'
@@ -35,25 +35,37 @@ export async function GET(request: NextRequest) {
   })
   for (const job of jobs) {
     if (Date.now() >= endAt - 48_000) break
-    if (!(await claimBookReadLock(db, job.id))) {
+    const claimedAt = new Date()
+    if (!(await claimBookReadLock(db, job.id, claimedAt))) {
       outcomes.push({ jobId: job.id, outcome: 'LOCKED' })
       continue
     }
     try {
       const deadline = Math.min(Date.now() + 240_000, endAt)
       if (job.phase === 'EXTRACT') {
-        const extraction = await runExtractStep(job.id, deadline)
-        if (extraction.phase === 'ANALYZE' && Date.now() < deadline - 1500) await runAnalyzeStep(job.id, deadline)
+        const extraction = await runExtractStep(job.id, deadline, claimedAt)
+        if (extraction.phase === 'ANALYZE' && Date.now() < deadline - 1500) await runAnalyzeStep(job.id, deadline, claimedAt)
       } else if (job.phase === 'ANALYZE') {
-        await runAnalyzeStep(job.id, deadline)
+        await runAnalyzeStep(job.id, deadline, claimedAt)
       } else if (job.phase === 'ENRICH') {
-        await runEnrichStep(job.id, deadline)
+        await runEnrichStep(job.id, deadline, claimedAt)
       }
-      const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true } })
-      if (current?.status !== 'COMPLETED') await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, retryAt: null } })
-      outcomes.push({ jobId: job.id, outcome: current?.status === 'COMPLETED' ? 'COMPLETED' : 'PROGRESSED' })
+      // Release only this invocation's lock. The shared helper preserves
+      // manual STOP and the historical auto-requeue behavior for other jobs.
+      await releaseBookReadLock(db, job.id, claimedAt, true)
+      const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true, retryAt: true } })
+      const manuallyStopped = current?.status === 'PAUSED' && current.retryAt?.getUTCFullYear() === 9999
+      outcomes.push({ jobId: job.id, outcome: current?.status === 'COMPLETED' ? 'COMPLETED' : manuallyStopped ? 'PAUSED_BY_ADMIN' : 'PROGRESSED' })
     } catch (error: any) {
       const message = String(error?.message || error)
+      if (message === 'BOOK_READ_LEASE_LOST') {
+        // An expired/overwritten lease is not a content failure. Requeue
+        // only the old owner's still-RUNNING job; CAS preserves a newer
+        // worker's lease and the admin's manual PAUSED sentinel.
+        await releaseBookReadLock(db, job.id, claimedAt, true)
+        outcomes.push({ jobId: job.id, outcome: 'LEASE_LOST' })
+        continue
+      }
       const providerUnavailable = message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
       // Four-way handling, identical to the manual read-step driver
       // (Haris's taxonomy): pressure pauses and auto-retries; proven
@@ -68,15 +80,16 @@ export async function GET(request: NextRequest) {
           ? `خطأ إعدادات: لا يوجد مزوّد ذكاء مُعدّ بمفتاح صالح — راجع إعدادات النظام ومفاتيح المزودين ثم أعد بدء القراءة. التفاصيل: ${message}`
           : message
       const previous = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { lastError: true } })
-      await db.bookReadJob.update({ where: { id: job.id }, data: {
+      const saved = await db.bookReadJob.updateMany({ where: { id: job.id, status: 'RUNNING', startedAt: claimedAt }, data: {
         status: transient ? 'PAUSED' : 'FAILED',
         retryAt: transient ? new Date(Date.now() + (providerUnavailable ? BOOK_READ_RETRY_MS : BOOK_READ_TRANSIENT_RETRY_MS)) : null,
         lockedUntil: null,
-        // Keep the per-page issue ledger alongside the operator message,
-        // exactly as the read-step path does.
+        // Preserve a manual stop and its long-lived retry guard, even when
+        // an in-flight provider call fails after the stop request.
         lastError: preserveBookPageReadIssues(previous?.lastError, adminMessage),
       } })
-      outcomes.push({ jobId: job.id, outcome: transient ? 'PAUSED' : 'FAILED' })
+      if (!saved.count) await releaseBookReadLock(db, job.id, claimedAt, true)
+      outcomes.push({ jobId: job.id, outcome: saved.count ? (transient ? 'PAUSED' : 'FAILED') : 'STOPPED_OR_COMPLETED' })
     }
   }
   return NextResponse.json({ ok: true, processed: outcomes.length, outcomes }, { headers: { 'Cache-Control': 'no-store' } })

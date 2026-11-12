@@ -19,13 +19,58 @@ export async function POST(_request: NextRequest, context: Context) {
     if (!book) return NextResponse.json({ error: 'الكتاب غير موجود' }, { status: 404 })
     try {
       const result = await db.$transaction(async (tx) => {
-        const chunks = await tx.bookChunk.updateMany({ where: { bookId: id, status: 'FAILED' }, data: { status: 'PENDING', attempts: 0, lastError: null } })
         const active = await tx.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
-        const job = active
-          ? await tx.bookReadJob.update({ where: { id: active.id }, data: { phase: 'ANALYZE', status: 'QUEUED', retryAt: null, lockedUntil: null, finishedAt: null } })
-          : await tx.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: 'ANALYZE', status: 'QUEUED' } })
-        return { chunksReset: chunks.count, jobId: job.id }
+        // Never clear an in-flight worker's lease or undo a manual STOP.
+        if (active) return { chunksReset: 0, jobId: active.id, resumed: true }
+        const latest = await tx.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
+        // A direct request must not skip unread PDF pages by creating an
+        // ANALYZE job after an EXTRACT failure. The read-job endpoint already
+        // resumes this same extraction job from its saved pagesDone cursor.
+        // Check before resetting any failed chunks: rejection is read-only.
+        if (latest?.status === 'FAILED' && latest.phase === 'EXTRACT') {
+          return { blockedByExtraction: true, jobId: latest.id, chunksReset: 0 }
+        }
+        // Only a failed ANALYZE job owns this operation. Do not create a
+        // different-phase job on completed or failed-enrichment records.
+        if (latest?.status !== 'FAILED' || latest.phase !== 'ANALYZE') {
+          return { wrongPhase: true, jobId: latest?.id ?? null, phase: latest?.phase ?? null }
+        }
+        const failedCount = await tx.bookChunk.count({ where: { bookId: id, status: 'FAILED' } })
+        if (!failedCount) return { noFailedChunks: true, jobId: latest.id }
+        // Claim the failed job before changing any chunks; both writes commit
+        // together, so a competing admin cannot reset chunks of another job.
+        const changed = await tx.bookReadJob.updateMany({
+          where: { id: latest.id, status: 'FAILED' },
+          data: { status: 'QUEUED', chunksFailed: 0, retryAt: null, lockedUntil: null, finishedAt: null },
+        })
+        if (!changed.count) return { conflict: true, jobId: latest.id }
+        const chunks = await tx.bookChunk.updateMany({
+          where: { bookId: id, status: 'FAILED' },
+          data: { status: 'PENDING', attempts: 0, lastError: null },
+        })
+        return { chunksReset: chunks.count, jobId: latest.id, resumed: true }
       })
+      if ('blockedByExtraction' in result && result.blockedByExtraction) {
+        return NextResponse.json({
+          error: 'BOOK_EXTRACTION_INCOMPLETE',
+          message: 'قراءة الكتاب فشلت قبل اكتمال الصفحات. استكمل القراءة أولاً من آخر صفحة محفوظة عبر مسار read-job؛ لا يمكن البدء بالتحليل الآن.',
+          jobId: result.jobId,
+          resumeMode: 'EXTRACT',
+        }, { status: 409 })
+      }
+      if ('wrongPhase' in result && result.wrongPhase) {
+        return NextResponse.json({
+          error: 'BOOK_ANALYSIS_PHASE_REQUIRED',
+          message: 'إعادة المقاطع الفاشلة متاحة فقط لمهمة تحليل فاشلة. استكمل المرحلة الحالية من زرها المخصص.',
+          jobId: result.jobId, failedPhase: result.phase,
+        }, { status: 409 })
+      }
+      if ('noFailedChunks' in result && result.noFailedChunks) {
+        return NextResponse.json({ error: 'BOOK_NO_FAILED_CHUNKS', message: 'لا توجد مقاطع فاشلة لإعادة تحليلها.', jobId: result.jobId }, { status: 409 })
+      }
+      if ('conflict' in result && result.conflict) {
+        return NextResponse.json({ error: 'BOOK_RETRY_CONFLICT', message: 'المهمة قيد الاستكمال بالفعل — حدّث حالتها.', jobId: result.jobId }, { status: 409 })
+      }
       return NextResponse.json({ ok: true, ...result })
     } catch (error: any) {
       if (error?.code === 'P2002') {

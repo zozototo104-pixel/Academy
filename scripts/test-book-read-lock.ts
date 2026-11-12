@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { bookReadLockWhere, canRunBookReadJob, claimBookReadLock, classifyBookReadFailure, isTransientBookReadError } from '../src/lib/book-read-job-control'
+import { assertBookReadLease, bookReadLockWhere, canRunBookReadJob, claimBookReadLock, releaseBookReadLock, planBookReadJobResume, classifyBookReadFailure, isTransientBookReadError } from '../src/lib/book-read-job-control'
 
 async function testConcurrentStepLock() {
   let lockedUntil: Date | null = null
@@ -30,6 +30,166 @@ async function testActiveJobUniqueness() {
   assert.equal(active.size, 1)
 }
 
+async function testBookScopedStopAndResume() {
+  const first = new Date('2026-11-11T12:00:00.000Z')
+  const second = new Date(first.getTime() + 1000)
+  const lease = new Date(first.getTime() + 270_000)
+  type State = { status: string; startedAt: Date; lockedUntil: Date | null; retryAt: Date | null }
+  const states = new Map<string, State>([
+    ['book-A', { status: 'RUNNING', startedAt: first, lockedUntil: lease, retryAt: null }],
+    ['book-B', { status: 'RUNNING', startedAt: second, lockedUntil: new Date(lease.getTime() + 1000), retryAt: null }],
+  ])
+  const db = { bookReadJob: { updateMany: async ({ where, data }: any) => {
+    const job = states.get(where.id)
+    if (!job || (where.status && job.status !== where.status)) return { count: 0 }
+    if (where.startedAt && job.startedAt.getTime() !== new Date(where.startedAt).getTime()) return { count: 0 }
+    if (where.retryAt instanceof Date && job.retryAt?.getTime() !== where.retryAt.getTime()) return { count: 0 }
+    if (where.OR && !where.OR.some((part: any) =>
+      ('retryAt' in part && part.retryAt === null && job.retryAt === null)
+      || (part.retryAt?.lt && job.retryAt && job.retryAt < part.retryAt.lt)
+    )) return { count: 0 }
+    Object.assign(job, data)
+    return { count: 1 }
+  } } }
+
+  // STOP A while its provider call is in flight. Its lease is freed only
+  // when the owning worker returns; B continues entirely unchanged.
+  const a = states.get('book-A')!
+  const b = states.get('book-B')!
+  a.status = 'PAUSED'
+  a.retryAt = new Date('9999-12-31T00:00:00.000Z')
+  await releaseBookReadLock(db, 'book-A', first, true)
+  assert.equal(a.status, 'PAUSED')
+  assert.equal(a.lockedUntil, null)
+  assert.equal(canRunBookReadJob(a, new Date()), false)
+  assert.equal(b.status, 'RUNNING')
+  assert.notEqual(b.lockedUntil, null)
+
+  // RESUME while the old call is still finishing. The old lease releases
+  // without waiting 270 seconds and no second worker can start before it.
+  a.status = 'QUEUED'
+  a.retryAt = null
+  a.lockedUntil = lease
+  await releaseBookReadLock(db, 'book-A', first, false)
+  assert.equal(a.status, 'QUEUED')
+  assert.equal(a.lockedUntil, null)
+  assert.equal(canRunBookReadJob(a, new Date()), true)
+
+  // A delayed older worker must never unlock a newer worker's lease.
+  a.status = 'RUNNING'
+  a.startedAt = second
+  a.lockedUntil = new Date(lease.getTime() + 1000)
+  await releaseBookReadLock(db, 'book-A', first, true)
+  assert.equal(a.status, 'RUNNING')
+  assert.equal(a.lockedUntil?.getTime(), lease.getTime() + 1000)
+
+  // Cron keeps its previous automatic-retry behavior for book B.
+  b.status = 'PAUSED'
+  b.retryAt = new Date('2026-11-11T12:01:00.000Z')
+  await releaseBookReadLock(db, 'book-B', second, true)
+  assert.equal(b.status, 'QUEUED')
+  assert.equal(b.lockedUntil, null)
+  assert.equal(b.retryAt, null)
+
+  // A provider call outlives its 270-second lease but no successor has
+  // claimed yet. The driver's LEASE_LOST handler must requeue this exact
+  // owner, not mark the book FAILED or touch another book.
+  const expiredOwner = new Date(Date.now() - 6 * 60_000)
+  states.set('book-C', {
+    status: 'RUNNING', startedAt: expiredOwner,
+    lockedUntil: new Date(Date.now() - 60_000), retryAt: null,
+  })
+  await releaseBookReadLock(db, 'book-C', expiredOwner, false)
+  assert.equal(states.get('book-C')?.status, 'QUEUED')
+  assert.equal(states.get('book-C')?.lockedUntil, null)
+  assert.equal(states.get('book-B')?.status, 'QUEUED')
+
+  // If a new worker claimed it, the obsolete owner cannot requeue,
+  // complete, or clear that newer lease.
+  const replacementOwner = new Date(Date.now())
+  const nextLock = new Date(Date.now() + 270_000)
+  states.set('book-C', {
+    status: 'RUNNING', startedAt: replacementOwner,
+    lockedUntil: nextLock, retryAt: null,
+  })
+  await releaseBookReadLock(db, 'book-C', expiredOwner, true)
+  assert.equal(states.get('book-C')?.status, 'RUNNING')
+  assert.equal(states.get('book-C')?.lockedUntil?.getTime(), nextLock.getTime())
+
+  // A manual STOP keeps its year-9999 sentinel and never auto-retries.
+  states.get('book-C')!.status = 'PAUSED'
+  states.get('book-C')!.retryAt = new Date('9999-12-31T00:00:00.000Z')
+  await releaseBookReadLock(db, 'book-C', replacementOwner, true)
+  assert.equal(states.get('book-C')?.status, 'PAUSED')
+  assert.equal(states.get('book-C')?.lockedUntil, null)
+  assert.equal(states.get('book-C')?.retryAt?.getUTCFullYear(), 9999)
+}
+
+async function testFencedWritesAfterWorkerTakeover() {
+  const now = Date.now()
+  const oldClaim = new Date(now - 80_000)
+  const freshClaim = new Date(now - 2_000)
+  const state = {
+    id: 'book-A-job', status: 'RUNNING',
+    startedAt: oldClaim, lockedUntil: new Date(now + 100_000),
+    pagesDone: 48, chunksAnalyzed: 11, knowledgeCount: 32,
+  }
+  const tx = {
+    $queryRaw: async (parts: TemplateStringsArray, id: string, claimedAt: Date) => {
+      // The real SQL must lock the job row, not merely check it before writes.
+      assert.match(parts.join('?'), /FOR UPDATE/)
+      assert.match(parts.join('?'), /"lockedUntil" > clock_timestamp\(\)/)
+      return state.id === id && state.status === 'RUNNING'
+        && state.startedAt.getTime() === claimedAt.getTime()
+        && state.lockedUntil.getTime() > Date.now() ? [{ id }] : []
+    },
+  }
+  const persist = async (claimedAt: Date, updates: { pages?: number; chunks?: number; items?: number }) => {
+    await assertBookReadLease(tx as any, state.id, claimedAt)
+    if (updates.pages !== undefined) state.pagesDone = updates.pages
+    if (updates.chunks) state.chunksAnalyzed += updates.chunks
+    if (updates.items) state.knowledgeCount += updates.items
+  }
+
+  await persist(oldClaim, { pages: 56, chunks: 1, items: 2 })
+  assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [56, 12, 34])
+
+  // A newer cron worker reclaims the very same job after an old function
+  // freezes. The old timestamp must fail for ALL three saved-data types.
+  state.startedAt = freshClaim
+  await assert.rejects(persist(oldClaim, { pages: 8, chunks: 1, items: 20 }), /BOOK_READ_LEASE_LOST/)
+  // The stale worker must not mark the newer worker's task completed either.
+  await assert.rejects((async () => {
+    await assertBookReadLease(tx as any, state.id, oldClaim)
+    state.status = 'COMPLETED'
+  })(), /BOOK_READ_LEASE_LOST/)
+  assert.equal(state.status, 'RUNNING')
+  assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [56, 12, 34])
+  await persist(freshClaim, { pages: 64, chunks: 1, items: 3 })
+  assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [64, 13, 37])
+
+  // Even when no new worker has claimed yet, an expired lease cannot write.
+  state.lockedUntil = new Date(now - 1000)
+  await assert.rejects(persist(freshClaim, { pages: 16, chunks: 1, items: 4 }), /BOOK_READ_LEASE_LOST/)
+  assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [64, 13, 37])
+
+  // Manual STOP also excludes a still-finishing provider call.
+  state.status = 'PAUSED'
+  state.lockedUntil = new Date(now + 100_000)
+  await assert.rejects(persist(freshClaim, { pages: 1, chunks: 1, items: 4 }), /BOOK_READ_LEASE_LOST/)
+  assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [64, 13, 37])
+}
+
+function testResumeFromSavedPhase() {
+  for (const phase of ['EXTRACT', 'ANALYZE', 'ENRICH']) {
+    assert.equal(planBookReadJobResume({ status: 'FAILED', phase }), 'RESUME', `failed ${phase} must continue the saved job`)
+    assert.equal(planBookReadJobResume({ status: 'FAILED', phase }, true), 'CREATE', 'only an explicit restart opts out of resume')
+  }
+  assert.equal(planBookReadJobResume({ status: 'COMPLETED', phase: 'ENRICH' }), 'CREATE')
+  assert.equal(planBookReadJobResume({ status: 'FAILED', phase: 'UNKNOWN' }), 'CREATE')
+  assert.equal(planBookReadJobResume(null), 'CREATE')
+}
+
 async function testPauseRetry() {
   const now = new Date('2026-10-08T12:00:00.000Z')
   const retryAt = new Date(now.getTime() + 60_000)
@@ -37,6 +197,14 @@ async function testPauseRetry() {
   assert.equal(canRunBookReadJob(job, now), false)
   assert.equal(canRunBookReadJob(job, new Date(retryAt.getTime() + 1)), true)
   assert.deepEqual(bookReadLockWhere('job', now).OR[1], { lockedUntil: { lt: now } })
+
+  // Only the manually stopped book becomes ineligible: cron keeps processing
+  // every other queued, running, and due-for-retry job as before.
+  const manualStop = { status: 'PAUSED', retryAt: new Date('9999-12-31T00:00:00.000Z') }
+  assert.equal(canRunBookReadJob(manualStop, now), false)
+  assert.equal(canRunBookReadJob({ status: 'QUEUED', retryAt: null }, now), true)
+  assert.equal(canRunBookReadJob({ status: 'RUNNING', retryAt: null }, now), true)
+  assert.equal(canRunBookReadJob(job, new Date(retryAt.getTime() + 1)), true)
 }
 
 function testFailureClassification() {
@@ -76,6 +244,6 @@ function testFailureClassification() {
   assert.equal(isTransientBookReadError('BOOK_PDF_REQUIRED'), false)
 }
 
-Promise.all([testConcurrentStepLock(), testActiveJobUniqueness(), testPauseRetry()])
-  .then(() => { testFailureClassification(); console.log('book read lock and retry tests passed') })
+Promise.all([testConcurrentStepLock(), testActiveJobUniqueness(), testPauseRetry(), testBookScopedStopAndResume(), testFencedWritesAfterWorkerTakeover()])
+  .then(() => { testResumeFromSavedPhase(); testFailureClassification(); console.log('book read lock and retry tests passed') })
   .catch((error) => { console.error(error); process.exitCode = 1 })

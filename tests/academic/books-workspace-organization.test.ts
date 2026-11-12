@@ -25,7 +25,7 @@ const ORIGINAL_FUNCTION_HASHES: Record<string, string> = {
   refreshProgramReadiness: '4bcfeaf821451def388c4916edb0936aea32d71c97d29a4d6e9752cbcbdd2fd8',
   suggest: 'badc7e266c544800eb1267d3d21901d3e2490f13add7025389f8ab81b2cc671a',
 }
-const ORIGINAL_API_CALL_COUNT = 81 // Existing 80 reviewed calls plus the admin semester/student roster GET
+const ORIGINAL_API_CALL_COUNT = 79 // Reviewed 81-call baseline minus two unsafe automatic FAILED-book restart POSTs
 // بصمة سطح النداءات من تعبير الاستدعاء الكامل (المسار + الخيارات: الطريقة والجسم والترويسات)،
 // لا من العنوان وحده — أي تغيير في عقد أي طلب يغيّر البصمة.
 // تحديث مقصود 2026-10-25 (PR #136): النداء 77 الوحيد المضاف هو تحليل الذكاء
@@ -71,7 +71,10 @@ const ORIGINAL_API_CALL_COUNT = 81 // Existing 80 reviewed calls plus the admin 
 // and verifies the persisted score. Its URL, method and request payload are
 // unchanged; the 81-call baseline and protected academic function hashes stay pinned.
 // Keep this declaration outside comments so TypeScript can validate the guard.
-const ORIGINAL_API_DIGEST = '68f42c49041f5971fee5da03310e035e4c7817518b33732ea62d14dfabf60229'
+// Reviewed 2026-11-11: the two POST calls that silently restarted FAILED
+// books in the 5-second UI poll have been removed. Manual retry, queued and
+// PAUSED scheduling, and all other protected API call expressions are intact.
+const ORIGINAL_API_DIGEST = '6d7014593582d1de6dda2823cd5837dd04e14af32ebbf5715e3fd434b1210bc9'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
@@ -119,8 +122,15 @@ function apiSurface(): { count: number; digest: string } {
   assert.equal(rejectionCalls.length, 1, 'expected exactly one reviewed outline rejection call')
   const rosterCalls = calls.filter((call) => call.includes('/api/supervisor/assignments?mode=roster&programId=') && call.includes('&semester=') && call.includes('encodeURIComponent(cursor)'))
   assert.equal(rosterCalls.length, 1, 'expected exactly one reviewed admin roster GET')
-  const protectedCalls = calls.filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call)).sort()
-  return { count: calls.length, digest: digest(protectedCalls.join('\n')) }
+  // Two separately reviewed administrative controls use the existing read-job
+  // API: ordinary STOP/RESUME and deliberate confirmed REBUILD. Keep every
+  // older API expression under the unchanged frozen digest.
+  const bookControlCalls = calls.filter((call) => call.includes('/api/admin/books/${bookId}/read-job') && call.includes('JSON.stringify({ action })'))
+  assert.equal(bookControlCalls.length, 1, 'expected exactly one per-book stop/resume API call')
+  const bookRebuildCalls = calls.filter((call) => call.includes('/api/admin/books/${book.id}/read-job') && call.includes('REBUILD_FROM_ZERO') && call.includes('confirmBookTitle: book.title'))
+  assert.equal(bookRebuildCalls.length, 1, 'expected exactly one explicit confirmed book rebuild call')
+  const protectedCalls = calls.filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) && !bookRebuildCalls.includes(call)).sort()
+  return { count: calls.length - bookControlCalls.length - bookRebuildCalls.length, digest: digest(protectedCalls.join('\n')) }
 }
 
 function currentBooksSlice(): string {
