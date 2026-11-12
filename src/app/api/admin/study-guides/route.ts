@@ -286,11 +286,38 @@ export async function POST(req: NextRequest) {
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     const generated = await buildSemesterGuide(programId, semester)
     await assertStudyGuideReferences(programId, generated)
-    const existing = await withTiming('db_study_guides_existing_semester', () => db.programStudyGuide.findFirst({ where: { programId, semester, unitId: null }, select: { id: true } }))
     const data = { title: generated.title, overview: generated.overview, objectives: json(generated.objectives), keyTerms: json(generated.keyTerms), sections: json(generated.sections), activities: json(generated.activities), discussionQuestions: json(generated.discussionQuestions), sourceKnowledgeIds: json(generated.sourceKnowledgeIds), status, generatedBy: 'AI' }
-    const guide = existing ? await withTiming('db_study_guides_update', () => db.programStudyGuide.update({ where: { id: existing.id }, data })) : await withTiming('db_study_guides_create', () => db.programStudyGuide.create({ data: { programId, semester, unitId: null, ...data } }))
-    await withTiming('db_audit_study_guides_generate', () => audit({ id: admin.id, name: admin.name }, 'GENERATE_STUDY_GUIDE', 'Program', programId, `توليد ${generated.title} من أدلة الوحدات`))
-    return NextResponse.json({ guide: mapGuide(guide) })
+    // Persist missing unit drafts AND the semester guide atomically. Retrying
+    // a click never makes duplicate unit guides or a duplicate semester guide.
+    const guide = await withTiming('db_study_guides_atomic_save', () => db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`study-guide:${programId}:${semester}`}))`
+      for (const draft of generated.pendingUnitGuides) {
+        const existingUnit = await tx.programStudyGuide.findFirst({
+          where: { programId, unitId: draft.unitId, status: { in: ['DRAFT', 'PUBLISHED'] } },
+          select: { id: true },
+        })
+        if (existingUnit) continue
+        const entry = draft.guide
+        await tx.programStudyGuide.create({
+          data: {
+            programId, unitId: draft.unitId, semester: draft.semester, status: 'DRAFT',
+            generatedBy: 'SOURCE_DERIVED', title: entry.title, overview: entry.overview,
+            objectives: json(entry.objectives), keyTerms: json(entry.keyTerms), sections: json(entry.sections),
+            activities: json(entry.activities), discussionQuestions: json(entry.discussionQuestions),
+            sourceKnowledgeIds: json(entry.sourceKnowledgeIds),
+          },
+        })
+      }
+      const existing = await tx.programStudyGuide.findFirst({
+        where: { programId, semester, unitId: null }, select: { id: true },
+      })
+      return existing
+        ? tx.programStudyGuide.update({ where: { id: existing.id }, data })
+        : tx.programStudyGuide.create({ data: { programId, semester, unitId: null, ...data } })
+    }, { maxWait: 20_000, timeout: 30_000 }))
+    await withTiming('db_audit_study_guides_generate', () => audit({ id: admin.id, name: admin.name }, 'GENERATE_STUDY_GUIDE', 'Program', programId, `توليد ${generated.title}؛ أدلة وحدات أُنشئت تلقائياً: ${generated.pendingUnitGuides.length}`))
+      .catch((auditError) => console.error('Study guide audit failed after commit:', auditError))
+    return NextResponse.json({ guide: mapGuide(guide), autoCreatedUnitGuides: generated.pendingUnitGuides.length })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     if (String(e?.message || '').startsWith('STUDY_GUIDE_')) {
