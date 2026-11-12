@@ -22,23 +22,30 @@ const migrationSql = migrationDirs
   .map((d) => readFileSync(join(root, 'prisma/migrations', d, 'migration.sql'), 'utf8'))
   .join('\n')
 
-describe('assignment fixed-date guards', () => {
-  test('schema and migration carry dueAt on ProgramAssignment', () => {
+describe('assignment per-enrollment deadlines and teaching unit gates', () => {
+  test('historical fixed deadlines and migrations remain readable', () => {
     expect(schema).toContain('dueAt')
+    expect(schema).toContain('dueDays')
     expect(migrationSql).toContain('ADD COLUMN "dueAt"')
   })
-  test('admin form offers a calendar date, not a days duration', () => {
-    expect(adminBooks).toContain('آخر موعد تسليم الواجب')
-    expect(adminBooks).toContain('type="date"')
-    expect(adminBooks).not.toContain('مدة التسليم بالأيام')
+  test('admin configures a duration in days, with optional default unit window', () => {
+    expect(adminBooks).toContain('مدة تسليم الواجب بالأيام (اختياري للواجب المرتبط بوحدة)')
+    expect(adminBooks).toContain('type="number" min={1} max={365}')
+    expect(adminBooks).toContain("dueDays: e.target.value, dueAt: ''")
+    expect(adminBooks).toContain('اترك عدد الأيام فارغاً لاستخدام مدة الوحدة كاملة')
+    expect(adminAssignmentsRoute).toContain('const teachingUnit = effectiveUnitId')
   })
-  test('student label is a real deadline, never "مقترح"', () => {
+  test('student sees the real opening and closing time for their unit', () => {
     expect(dashboard).not.toContain('آخر موعد مقترح')
-    expect(dashboard).toContain('آخر موعد:')
+    expect(dashboard).toContain('آخر موعد لك:')
+    expect(dashboard).toContain('const opensLater =')
+    expect(dashboard).toContain("!graded && !opensLater")
+    expect(dashboard).toContain('الواجب غير متاح بعد')
   })
-  test('AI suggestions never set a deadline', () => {
+  test('AI suggestions do not fabricate a deadline; unit-linked items use the unit window', () => {
     expect(suggestRoute).toContain('dueDays: null')
     expect(suggestRoute).not.toContain('asInt(item?.dueDays')
+    expect(adminBooks).toContain('dueDays: s.unitId ? null : 14')
     expect(adminAssignmentsRoute).toContain('dueAt:')
   })
 })
