@@ -173,7 +173,9 @@ export async function runNextKnowledgeAiRepairStep() {
     })
     let processed = 0
     for (const item of items) {
-      const plan = planKnowledgeItemCleanup(item)
+      // Use exactly the same corruption gate as the rule-based admin cleanup,
+      // so its unresolved items are not accidentally skipped by AI repair.
+      const plan = planKnowledgeItemCleanup(item, looksLikeBrokenAcademicOutput)
       if (plan.action !== 'REVIEW') {
         next.cursor = item.id; next.scanned++; processed++; continue
       }
