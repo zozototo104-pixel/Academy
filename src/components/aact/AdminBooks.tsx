@@ -600,6 +600,7 @@ interface StudyGuideRow {
   sourceKnowledgeIds?: string[]
   referenceCount?: number
   missingReferenceCount?: number
+  sourceReviewRequiredCount?: number
   missingReferenceIds?: string[]
   missingReferenceSections?: Array<{ sectionIndex: number; title: string; sourceTitles: string[]; pageRefs: string[]; missingReferenceIds: string[] }>
   status: string
