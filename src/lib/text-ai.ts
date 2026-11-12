@@ -48,6 +48,8 @@ export interface TextAiCallOpts {
   temperature?: number
   maxOutputTokens?: number
   json?: boolean
+  // Scoped to book enrichment when APINEX's structured-output compatibility fails.
+  apinexPromptOnlyJson?: boolean
   routerPolicy?: TextAiRouterPolicy
   taskLevel?: TextAiTaskLevel
   purpose?: TextAiPurpose
