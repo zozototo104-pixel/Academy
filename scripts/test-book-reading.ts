@@ -145,7 +145,7 @@ async function exhaustedAnalysisChunkDoesNotBlockTheRest() {
   ]
   let completed = false
   const store = {
-    getJob: async () => ({ id: 'job', bookId: 'book', programId: 'program', phase: 'ANALYZE', status: 'RUNNING' }),
+    getJob: async () => ({ id: 'job', bookId: 'book', programId: 'program', phase: 'ANALYZE', status: completed ? 'COMPLETED' : 'RUNNING' }),
     nextChunk: async (_bookId: string, excluded: string[]) => {
       const row = entries.find((entry) => entry.status === 'PENDING' && !excluded.includes(entry.id))
       return row ? { ...row, bookId: 'book', programId: 'program', pageStart: row.index + 1, pageEnd: row.index + 1, textProvenance: 'NATIVE_TEXT' } : null
