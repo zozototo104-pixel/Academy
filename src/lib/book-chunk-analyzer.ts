@@ -235,7 +235,36 @@ export function __testEnrichDeferralForTests(lastError: string | null | undefine
 export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt: Date) {
   const store: EnrichStepStore = {
     getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, phase: true } }),
-    nextChunk: (bookId) => db.bookChunk.findFirst({ where: { bookId, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } }, orderBy: [{ analysisPasses: 'asc' }, { index: 'asc' }], select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, analysisPasses: true } }),
+    nextChunk: async (bookId) => {
+      // Fetch only metadata first: no expensive 4KB texts until a due chunk
+      // is found. Never turn an all-deferred book into false completion.
+      const pending = await db.bookChunk.findMany({
+        where: { bookId, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } },
+        orderBy: [{ analysisPasses: 'asc' }, { index: 'asc' }],
+        select: { id: true, lastError: true },
+      })
+      const due = pending.find((item) => __testEnrichDeferralForTests(item.lastError).ready)
+      if (!due) {
+        if (pending.length) throw new Error('BOOK_ENRICH_DEFERRED')
+        return null
+      }
+      return db.bookChunk.findUnique({
+        where: { id: due.id },
+        select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, analysisPasses: true },
+      })
+    },
+    defer: async (chunkId, reason) => {
+      await db.$transaction(async (tx) => {
+        await assertBookReadLease(tx, jobId, claimedAt)
+        const chunk = await tx.bookChunk.findUnique({ where: { id: chunkId }, select: { status: true, lastError: true } })
+        if (chunk?.status !== 'ANALYZED') return
+        const attempts = Math.min(12, __testEnrichDeferralForTests(chunk.lastError).attempts + 1)
+        const retryAt = Date.now() + Math.min(60 * 60_000, Math.pow(2, Math.min(attempts - 1, 6)) * 60_000)
+        // Store diagnostic codes, not source text, credentials or provider payloads.
+        const codes = [...new Set((reason.match(/INVALID_JSON_RESPONSE|BOOK_AI_RESPONSE_TRUNCATED|BOOK_AI_PROVIDER_EXHAUSTED|AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER_FAILED|\b(?:401|403|429|500|502|503|504)\b/gi) || []).slice(0, 6))].join(',') || 'PROVIDER_ERROR'
+        await tx.bookChunk.update({ where: { id: chunkId }, data: { lastError: `BOOK_ENRICH_WAIT:${attempts}:${retryAt}:${codes}` } })
+      })
+    },
     existing: async (bookId, chunkId, index) => {
       const chunks = await db.bookChunk.findMany({ where: { bookId, index: { gte: Math.max(0, index - 2), lte: index } }, select: { id: true } })
       const rows = await db.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 2, chunkId: { in: chunks.map((chunk) => chunk.id) } }, select: { chunkId: true, title: true, summary: true } })
