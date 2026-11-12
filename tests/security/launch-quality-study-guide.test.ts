@@ -254,6 +254,7 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(worker).toContain("'AI_KNOWLEDGE_REPAIR_MODEL'")
     expect(worker).toContain("'AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS'")
     expect(worker).toContain('restrictToModels: chosenModel')
+    expect(worker).toContain('apinexPromptOnlyJson: true')
     expect(worker).not.toContain("excludeProviders: ['APINEX']")
     expect(worker).toContain("'CLOUDFLARE', 'APINEX', 'OXION', 'AUTO'")
     expect(worker).not.toContain('Math.max(90_000,')
