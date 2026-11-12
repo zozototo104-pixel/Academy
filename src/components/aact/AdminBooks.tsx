@@ -5321,6 +5321,11 @@ export function AdminKnowledgeAiRepairTab() {
               <Input type="number" min={0} max={3600} value={repairInterval} onChange={(e) => setRepairInterval(e.target.value)} dir="ltr" className="bg-white" />
               <p className="text-[11px] text-slate-500">0 = لا تأخير إضافي؛ تبقى قيود المزوّد الفعلية نافذة.</p>
             </div>
+            <div className="space-y-2">
+              <Label>محاولات الذكاء في كل تشغيل خلفي</Label>
+              <Input type="number" min={1} max={10} step={1} value={repairCallsPerRun} onChange={(e) => setRepairCallsPerRun(e.target.value)} dir="ltr" className="bg-white" />
+              <p className="text-[11px] text-slate-500">من 1 إلى 10، حسب حصتك. كل تشغيل محدود بمهلة الخادم حتى لو اخترت 10.</p>
+            </div>
             <p className="self-center text-xs font-bold text-blue-900">
               المزوّد والنموذج هنا مستقلان عن الطلاب والقراءة والتحليل، وسيُحفظان عند بدء التصحيح.
             </p>
