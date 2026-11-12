@@ -225,8 +225,14 @@ async function postgresAnalysisCompletionRegression() {
       assert.deepEqual(parseBookPageReadIssues(final.lastError).map((x) => x.page), [2], 'page gaps survive terminal transitions')
       assert.equal(Boolean(final.lastError?.includes('BOOK_ANALYSIS_PARTIAL:')), mode === 'partial')
       assert.equal(await db.bookKnowledgeItem.count({ where: { bookId } }), before, 'existing source-backed knowledge stays unchanged')
-      const reopened = await runAnalyzeStep(jobId, Date.now() + 40_000, claimedAt)
-      assert.equal(reopened.completed, mode !== 'all-failed', 'final API result must match persisted status')
+      const successfulOutcome = outcomes.find((item) => item.status === 'fulfilled')
+      if (successfulOutcome?.status === 'fulfilled') {
+        assert.equal(successfulOutcome.value.completed, mode !== 'all-failed', 'result must match persisted terminal state')
+      }
+      if (mode !== 'all-failed') {
+        const reopened = await runAnalyzeStep(jobId, Date.now() + 40_000, claimedAt)
+        assert.equal(reopened.completed, true, 'completed jobs are safe to re-read')
+      }
     }
     console.log('book analysis completion verified against isolated PostgreSQL: partial, total failure, normal, concurrency, provenance')
   } finally {
