@@ -5289,7 +5289,7 @@ export function AdminKnowledgeAiRepairTab() {
           <div className="grid gap-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>مزوّد الذكاء لهذا التصحيح فقط</Label>
-              <Select value={repairProvider} onValueChange={(v) => { setRepairProvider(v); setRepairModel('') }}>
+              <Select value={repairProvider} onValueChange={(v) => { setRepairProvider(v); setRepairModel(''); setRepairModels([]) }}>
                 <SelectTrigger className="w-full min-w-0 bg-white" dir="ltr"><SelectValue placeholder="اختر المزوّد" /></SelectTrigger>
                 <SelectContent>
                   {[...TEXT_PROVIDER_CHOICES.filter((p) => p.value === 'AUTO'), ...TEXT_PROVIDER_CHOICES.filter((p) => p.value !== 'AUTO')].map((p) => (
