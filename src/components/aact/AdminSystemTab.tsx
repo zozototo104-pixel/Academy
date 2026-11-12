@@ -1401,8 +1401,8 @@ export function AdminSystemTab() {
                   ? `الاختيار الحالي: ${repairProviderForModels} / ${selectedRepairModel}`
                   : 'يجب اختيار نموذج قبل الحفظ.'}
               </p>
-              <Button onClick={save} disabled={saving || (repairProviderForModels !== 'AUTO' && !selectedRepairModel)} className="bg-[#0f2b46] font-extrabold text-white">
-                {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ اختيار التصحيح
+              <Button onClick={saveKnowledgeRepair} disabled={savingKnowledgeRepair || (repairProviderForModels !== 'AUTO' && !selectedRepairModel)} className="bg-[#0f2b46] font-extrabold text-white">
+                {savingKnowledgeRepair ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ اختيار التصحيح فقط
               </Button>
             </div>
           </div>
