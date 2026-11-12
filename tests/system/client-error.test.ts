@@ -3,10 +3,10 @@ import { describe, expect, test } from 'bun:test'
 const { POST } = await import('../../src/app/api/client-error/route')
 const { NextRequest } = await import('next/server')
 
-function post(body: string) {
+function post(body: string, ip = '198.51.100.1') {
   return POST(new NextRequest('https://example.test/api/client-error', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-real-ip': ip },
     body,
   }) as any)
 }
