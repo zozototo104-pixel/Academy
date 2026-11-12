@@ -210,8 +210,8 @@ export async function POST(req: NextRequest) {
     if (duration == null && !legacyFixed && !teachingUnit) {
       return NextResponse.json({ error: 'حدد مدة تسليم الواجب بالأيام؛ الواجب المرتبط بوحدة دراسية يستخدم مدتها تلقائياً' }, { status: 400 })
     }
-    if (teachingUnit && getProgramMaxDays(program) == null && duration == null) {
-      return NextResponse.json({ error: 'حدد مدة البرنامج الدراسية أولاً حتى يمكن حساب نافذة الوحدة المرتبطة بالواجب' }, { status: 400 })
+    if (teachingUnit && getProgramMaxDays(program) == null && !legacyFixed) {
+      return NextResponse.json({ error: 'حدد مدة البرنامج الدراسية أولاً حتى يمكن حساب موعد فتح الوحدة ونهايتها للواجب' }, { status: 400 })
     }
     const data = {
       programId,
