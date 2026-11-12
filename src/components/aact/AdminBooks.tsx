@@ -3459,6 +3459,16 @@ export function AdminBooksTab() {
                             <Badge variant="outline" className={`text-[10px] font-black ${guide.status === 'PUBLISHED' ? 'border-emerald-200 text-emerald-700' : guide.status === 'DRAFT' ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-500'}`}>
                               {guide.status === 'PUBLISHED' ? 'منشور للطلاب' : guide.status === 'DRAFT' ? 'مسودة' : 'مؤرشف'}
                             </Badge>
+                            {typeof guide.missingReferenceCount === 'number' && guide.missingReferenceCount > 0 && (
+                              <Badge variant="outline" className="border-red-300 text-[10px] font-black text-red-700">
+                                يحتاج إصلاح مراجع ({guide.missingReferenceCount} مفقودة)
+                              </Badge>
+                            )}
+                            {guide.referenceCount === 0 && (
+                              <Badge variant="outline" className="border-amber-300 text-[10px] font-black text-amber-700">
+                                بلا مراجع معرفة موثقة
+                              </Badge>
+                            )}
                           </div>
                           <h3 className="text-sm font-black leading-6 text-[#0f2b46]">{guide.title}</h3>
                           <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{guide.overview}</p>
