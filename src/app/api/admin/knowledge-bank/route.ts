@@ -171,13 +171,22 @@ export async function POST(req: NextRequest) {
             maxOutputTokens: 1200,
             timeoutMs: 20000,
           })
-          output = JSON.parse(raw)
         } catch (error) {
-          // Router/provider unavailable or malformed JSON: never synthesize a
-          // fallback; leave this row untouched and permit an explicit retry.
-          console.warn('[knowledge-ai-repair] provider/output unavailable', { programId, itemId: row.id, reason: String((error as Error)?.message || error).slice(0, 160) })
+          // A provider outage stops additional billed calls. No failed row is
+          // modified, and the cursor stays before the unprocessed item.
+          console.warn('[knowledge-ai-repair] provider unavailable', { programId, itemId: row.id, reason: String((error as Error)?.message || error).slice(0, 160) })
           paused = true
           break
+        }
+        let output: unknown
+        try {
+          output = JSON.parse(raw)
+        } catch {
+          // One malformed model reply is not a reason to halt other sources.
+          needsReview++
+          lastCursor = row.id
+          scanned++
+          continue
         }
         const valid = validateGroundedKnowledgeRepair(output, evidence)
         if (valid) {
