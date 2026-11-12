@@ -127,14 +127,36 @@ export async function runNextKnowledgeAiRepairStep() {
       (state.status === 'RUNNING' && (state.leaseUntil || 0) < now)))
   if (!choice?.state) return { status: 'NO_JOB' }
   const { row, state } = choice
-  // At most one repair provider request across all programs per 90 seconds.
-  await db.setting.upsert({ where: { key: REPAIR_RATE_GATE }, create: { key: REPAIR_RATE_GATE, value: '0' }, update: {} })
-  const rate = await db.setting.findUniqueOrThrow({ where: { key: REPAIR_RATE_GATE }, select: { value: true } })
-  if (Number(rate.value) > now) return { status: 'BUDGET' }
-  const rateClaim = await db.setting.updateMany({
-    where: { key: REPAIR_RATE_GATE, value: rate.value }, data: { value: String(now + REPAIR_INTERVAL_MS) },
+  // Dedicated admin settings, independent of the primary AI router choices.
+  // By default no extra delay is imposed; provider-specific quotas still
+  // apply, and each cron invocation processes one AI candidate at most.
+  const repairSettings = await db.setting.findMany({
+    where: { key: { in: [
+      'AI_KNOWLEDGE_REPAIR_PROVIDER',
+      'AI_KNOWLEDGE_REPAIR_MODEL',
+      'AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS',
+    ] } },
+    select: { key: true, value: true },
   })
-  if (!rateClaim.count) return { status: 'BUDGET' }
+  const config = Object.fromEntries(repairSettings.map((item) => [item.key, item.value]))
+  const repairProvider = String(config.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO').toUpperCase() as TextAiProvider
+  const repairModel = String(config.AI_KNOWLEDGE_REPAIR_MODEL || '').trim()
+  const chosenModel: TextAiPreferredModel[] = repairProvider !== 'AUTO' && REPAIR_SUPPORTED_PROVIDERS.has(repairProvider) && repairModel
+    ? [{ provider: repairProvider, model: repairModel }] : []
+  if (!REPAIR_SUPPORTED_PROVIDERS.has(repairProvider) || (repairProvider !== 'AUTO' && !chosenModel.length)) {
+    return { status: 'INVALID_REPAIR_MODEL_CONFIGURATION' }
+  }
+  const seconds = Number(config.AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS || 0)
+  const intervalMs = Number.isFinite(seconds) ? Math.max(0, Math.min(3600, Math.floor(seconds))) * 1000 : 0
+  if (intervalMs > 0) {
+    await db.setting.upsert({ where: { key: REPAIR_RATE_GATE }, create: { key: REPAIR_RATE_GATE, value: '0' }, update: {} })
+    const rate = await db.setting.findUniqueOrThrow({ where: { key: REPAIR_RATE_GATE }, select: { value: true } })
+    if (Number(rate.value) > now) return { status: 'BUDGET' }
+    const rateClaim = await db.setting.updateMany({
+      where: { key: REPAIR_RATE_GATE, value: rate.value }, data: { value: String(now + intervalMs) },
+    })
+    if (!rateClaim.count) return { status: 'BUDGET' }
+  }
 
   const claim: KnowledgeAiRepairJob = { ...state, status: 'RUNNING', leaseToken: randomUUID(), leaseUntil: now + REPAIR_LEASE_MS }
   const token = JSON.stringify(claim)
