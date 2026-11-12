@@ -153,11 +153,11 @@ function apiSurface(): { count: number; digest: string } {
   const aiRepairCalls = calls.filter((call) =>
     call.includes("'/api/admin/knowledge-bank'") && call.includes("action: 'repair-ai'"))
   assert.equal(aiRepairCalls.length, 1, 'expected one new source-grounded AI repair POST')
-  assert.ok(aiRepairCalls[0].includes("method: 'POST'") && aiRepairCalls[0].includes('cursor') &&
-    aiRepairCalls[0].includes('programId: targetProgramId'), 'AI repair must be program-scoped and paginated')
+  assert.ok(aiRepairCalls[0].includes("method: 'POST'") && aiRepairCalls[0].includes('programId: target') &&
+    !aiRepairCalls[0].includes('cursor'), 'AI repair must only enqueue a scoped background job, not run a browser cursor loop')
   const aiRefreshCalls = calls.filter((call) =>
-    call.includes('/api/admin/knowledge-bank?programId=') && call.includes('encodeURIComponent(targetProgramId)'))
-  assert.equal(aiRefreshCalls.length, 1, 'expected one GET refresh after AI repair')
+    call.includes('/api/admin/knowledge-bank?programId=') && call.includes('encodeURIComponent(programId)') && call.includes('repairStatus=1'))
+  assert.equal(aiRefreshCalls.length, 1, 'expected one read-only job-status poll for background AI repair')
   const protectedCalls = calls
     .filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) &&
       !bookRebuildCalls.includes(call) && !aiRepairCalls.includes(call) && !aiRefreshCalls.includes(call))
