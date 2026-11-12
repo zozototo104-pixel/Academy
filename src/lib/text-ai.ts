@@ -2726,7 +2726,8 @@ function openAiChatCompletionsBody(provider: string, baseUrl: string, model: str
     messages: toOpenAiChatMessages(opts),
     max_tokens: chatCompletionsMaxTokens(provider, baseUrl, opts),
     temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
-    ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
+    ...(opts.json && !(provider === 'APINEX' && opts.apinexPromptOnlyJson) ? { response_format: { type: 'json_object' } } : {}),
+    ...(provider === 'APINEX' && opts.taskType === 'BOOK_ENRICH' ? { reasoning_effort: 'low' } : {}),
     ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
     ...nvidiaChatBodyExtras(provider, baseUrl, model),
   }
