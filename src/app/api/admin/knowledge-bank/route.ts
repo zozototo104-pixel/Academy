@@ -40,6 +40,46 @@ export async function GET(req: NextRequest) {
     const program = await withTiming('db_knowledge_bank_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
+    if (req.nextUrl.searchParams.get('sourceCandidates') === '1') {
+      // Read-only recovery assistance. Search ONLY the item's own book.
+      // A matching 60-character prefix is a hint, not verified provenance;
+      // even a full-text hit does not assign an exact PDF page automatically.
+      const itemId = String(req.nextUrl.searchParams.get('itemId') || '').slice(0, 100)
+      if (!itemId) return NextResponse.json({ error: 'معرف عنصر المعرفة مطلوب' }, { status: 400 })
+      const item = await db.bookKnowledgeItem.findFirst({ where: { id: itemId, programId } })
+      if (!item) return NextResponse.json({ error: 'عنصر المعرفة غير موجود في البرنامج' }, { status: 404 })
+      if (!item.bookId) return NextResponse.json({ candidates: [], examinedChunks: 0, truncated: false, reason: 'NO_BOOK' })
+      const book = await db.book.findFirst({
+        where: { id: item.bookId, programId }, select: { id: true, title: true },
+      })
+      if (!book) return NextResponse.json({ candidates: [], examinedChunks: 0, truncated: false, reason: 'BOOK_MISSING' })
+      const chunks = await db.bookChunk.findMany({
+        where: { programId, bookId: item.bookId, status: 'ANALYZED' },
+        orderBy: { index: 'asc' }, take: 501,
+        select: { id: true, index: true, pageStart: true, pageEnd: true, text: true },
+      })
+      const normalize = (text: string) => text.replace(/\s+/g, '').toLowerCase()
+      const excerpt = normalize(String(item.excerpt || '').trim())
+      const candidates = chunks.slice(0, 500).flatMap((chunk) => {
+        if (excerpt.length < 60 || !chunk.text) return []
+        const source = normalize(chunk.text)
+        const full = source.includes(excerpt)
+        if (!full && !source.includes(excerpt.slice(0, 60))) return []
+        return [{
+          chunkId: chunk.id, chunkIndex: chunk.index,
+          pageStart: chunk.pageStart, pageEnd: chunk.pageEnd,
+          matchLevel: full ? 'FULL_EXCERPT' : 'PREFIX_ONLY',
+          sourceTextPreview: chunk.text.slice(0, 5000),
+        }]
+      }).sort((a, b) => (a.matchLevel === 'FULL_EXCERPT' ? 0 : 1) -
+                         (b.matchLevel === 'FULL_EXCERPT' ? 0 : 1)).slice(0, 5)
+      return NextResponse.json({
+        itemId, bookTitle: book.title, candidates,
+        examinedChunks: Math.min(500, chunks.length), truncated: chunks.length > 500,
+        reason: candidates.length ? null : 'NO_TEXT_MATCH',
+      }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+
     if (req.nextUrl.searchParams.get('review') === '1') {
       // Cursor-based review over the actual table: the normal 140/2000-item
       // preview deliberately hides suspect content and cannot be used as a queue.
