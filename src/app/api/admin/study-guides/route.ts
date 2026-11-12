@@ -141,11 +141,13 @@ async function buildMissingUnitGuide(programId: string, programTitle: string, un
   const sections: GuideSection[] = content.map((section, index) => {
     const ids = unique(parseArray(section.sourceKnowledgeIds).map((id) => clean(id, 100)))
     const indexes = unique(parseArray(section.sourceChunkIndexes).map(Number).filter(Number.isInteger))
-    const matched = ids.length
-      ? ids.map((id) => knowledgeById.get(id)).filter((item): item is NonNullable<typeof item> => !!item)
-      : knowledge.filter((item) => item.chunkId && indexes.includes(indexByChunk.get(item.chunkId) ?? -1)).slice(0, 5)
-    if (!matched.length || (ids.length && matched.length !== ids.length)) {
-      throw new Error(`STUDY_GUIDE_UNIT_REFERENCES_MISSING: المحور ${index + 1} في «${unit.title}» يفتقد عناصر معرفة مرتبطة بمقطعه الصحيح.`)
+    // Page/chunk proximity is not proof that an item supports this heading.
+    // Only IDs explicitly saved with this source section may be cited.
+    const matched = ids.map((id) => knowledgeById.get(id)).filter((item): item is NonNullable<typeof item> => !!item)
+    if (!ids.length || matched.length !== ids.length ||
+        (indexes.length > 0 && matched.some((item) =>
+          !item.chunkId || !indexes.includes(indexByChunk.get(item.chunkId) ?? -1)))) {
+      throw new Error(`STUDY_GUIDE_UNIT_REFERENCES_MISSING: المحور ${index + 1} في «${unit.title}» يفتقد معرّفات معرفة موثقة لنفس مقاطع المحور؛ لا يجوز تخمين المراجع من المجاورة.`)
     }
     const refs = unique(matched.map((item) => pageRef(item.pageStart, item.pageEnd)).filter(Boolean))
     if (!refs.length) throw new Error(`STUDY_GUIDE_UNIT_REFERENCES_MISSING: لا توجد صفحات مثبتة للمحور ${index + 1} في «${unit.title}».`)
