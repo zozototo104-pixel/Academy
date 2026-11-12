@@ -119,6 +119,67 @@ export async function GET(req: NextRequest) {
   })
 }
 
+// Admin-reviewed correction is intentionally separate from automatic cleanup.
+// Preserve original item ID, book, chunk and page references on every edit.
+export async function PATCH(req: NextRequest) {
+  return withTimedResponse(async () => {
+    try {
+      const admin = await requireAdmin()
+      const body = await req.json().catch(() => ({}))
+      const programId = String(body.programId || '').trim()
+      const id = String(body.id || '').trim()
+      if (!programId || !id) return NextResponse.json({ error: 'البرنامج والعنصر مطلوبان' }, { status: 400 })
+      if (typeof body.title !== 'string' || typeof body.summary !== 'string' || typeof body.excerpt !== 'string') {
+        return NextResponse.json({ error: 'اكتب عنوان العنصر وشرحه ومقتطف المصدر كاملاً قبل الاعتماد' }, { status: 422 })
+      }
+      const title = body.title.trim()
+      const summary = body.summary.trim()
+      const excerpt = body.excerpt.trim()
+      if (title.length < 6 || title.length > 220 || summary.length < 20 || summary.length > 1800 || excerpt.length < 20 || excerpt.length > 1500) {
+        return NextResponse.json({ error: 'عنوان أو شرح أو مقتطف المصدر غير مكتمل أو يتجاوز الحد المسموح' }, { status: 422 })
+      }
+      if (planKnowledgeItemCleanup({ title, summary, excerpt }, looksLikeBrokenAcademicOutput).action !== 'KEEP') {
+        return NextResponse.json({ error: 'بقي تشوه أو جزء ناقص؛ راجع النصوص الثلاثة كاملة' }, { status: 422 })
+      }
+      const item = await db.bookKnowledgeItem.findFirst({ where: { id, programId } })
+      if (!item) return NextResponse.json({ error: 'عنصر المعرفة غير موجود في هذا البرنامج' }, { status: 404 })
+      if (!item.bookId || !item.chunkId || item.pageStart == null || item.pageEnd == null) {
+        return NextResponse.json({ error: 'مصدر العنصر أو صفحات الكتاب مفقودة؛ يلزم استعادة المصدر قبل اعتماد التصحيح' }, { status: 422 })
+      }
+      const [book, chunk] = await Promise.all([
+        db.book.findFirst({ where: { id: item.bookId, programId }, select: { id: true } }),
+        db.bookChunk.findFirst({ where: { id: item.chunkId, programId, bookId: item.bookId }, select: { status: true, text: true, pageStart: true, pageEnd: true } }),
+      ])
+      if (!book || !chunk || chunk.status !== 'ANALYZED' ||
+          item.pageStart < chunk.pageStart || item.pageEnd > chunk.pageEnd || item.pageStart > item.pageEnd) {
+        return NextResponse.json({ error: 'الكتاب أو المقطع أو نطاق الصفحات غير قابل للتحقق؛ لم نغيّر العنصر' }, { status: 422 })
+      }
+      const compact = (text: string) => text.replace(/\s+/g, ' ').trim()
+      if (!compact(chunk.text).includes(compact(excerpt))) {
+        return NextResponse.json({ error: 'المقتطف المكتوب ليس جزءًا حرفيًا من مقطع الكتاب المرتبط؛ صححه من النص الأصلي' }, { status: 422 })
+      }
+      const expectedAt = new Date(String(body.expectedUpdatedAt || ''))
+      if (Number.isNaN(expectedAt.getTime()) || expectedAt.getTime() !== item.updatedAt.getTime()) {
+        return NextResponse.json({ error: 'العنصر تغيّر منذ فتحه؛ حدّث القائمة قبل حفظ مراجعتك' }, { status: 409 })
+      }
+      const updated = await db.bookKnowledgeItem.updateMany({
+        where: { id, programId, updatedAt: item.updatedAt },
+        data: { title, summary, excerpt },
+      })
+      if (updated.count !== 1) {
+        return NextResponse.json({ error: 'العنصر تغيّر بالتزامن؛ لم يتم حفظ تعديل جزئي' }, { status: 409 })
+      }
+      await audit(admin, 'MANUAL_REVIEW_KNOWLEDGE_ITEM', 'BookKnowledgeItem', id,
+        'تصحيح يدوي كامل ومعتمد من مصدر الكتاب، دون تغيير المعرّف أو المراجع')
+      return NextResponse.json({ ok: true, id, title, summary, excerpt })
+    } catch (e: any) {
+      if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+      console.error('knowledge manual review error:', e)
+      return NextResponse.json({ error: 'تعذر حفظ المراجعة اليدوية' }, { status: 500 })
+    }
+  })
+}
+
 // POST /api/admin/knowledge-bank — action: rebuild | rebuild-book
 export async function POST(req: NextRequest) {
   return withTimedResponse(async () => {
