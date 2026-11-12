@@ -207,7 +207,6 @@ export async function runNextKnowledgeAiRepairStep() {
           taskLevel: chosenModel.length ? 'GENERAL' : 'ACADEMIC_CRITICAL',
           taskType: 'BOOK_KNOWLEDGE_REPAIR',
           temperature: 0, maxOutputTokens: 1200, timeoutMs: 20_000,
-          excludeProviders: ['APINEX'],
           ...(chosenModel.length ? { preferredModels: chosenModel, restrictToModels: chosenModel } : {}),
         })
       } catch {
