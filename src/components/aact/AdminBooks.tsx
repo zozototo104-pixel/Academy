@@ -5229,7 +5229,7 @@ export function AdminKnowledgeAiRepairTab() {
   }, [])
 
   useEffect(() => {
-    if (!programId) { setJob(null); return }
+    if (!programId) return
     let active = true
     const refreshStatus = async () => {
       try {
