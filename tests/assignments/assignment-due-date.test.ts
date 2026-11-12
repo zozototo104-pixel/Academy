@@ -12,7 +12,7 @@ const units = [
 const unitArgs = { program, units, semester: 1, unitId: 'u2', dueDays: null, dueAtFixed: null }
 
 describe('per-enrollment assignment windows', () => {
-  test('a linked assignment only starts when that student reaches the unit', () => {
+  test('linked assignment deadline clock starts with each student’s unit date', () => {
     const early = assignmentWindow({ ...unitArgs, enrolledAt: new Date('2026-01-01T00:00:00Z') })
     const late = assignmentWindow({ ...unitArgs, enrolledAt: new Date('2026-02-01T00:00:00Z') })
     expect(early.mode).toBe('UNIT')
