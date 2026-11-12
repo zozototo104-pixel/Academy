@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { clientIpFromHeaders, enforceApiRateLimit } from '@/lib/rate-limit'
 
 // Receives a client-side error report from the app error boundary
 // (src/app/error.tsx). The browser console alone never reaches the server,
