@@ -101,7 +101,7 @@ afterAll(() => {
 describe('APINEX book JSON compatibility (isolated to book enrichment)', () => {
   test('visible answer can be a string or text parts; never treat reasoning as an answer', () => {
     expect(textAi.__testChatCompletionVisibleTextForTests({ content: '{"items":[]}' })).toBe('{"items":[]}')
-    expect(textAi.__testChatCompletionVisibleTextForTests({ content: [{ type: 'text', text: '{"items":' }, { type: 'text', text: '[]}' }] })).toBe('{"items":\\n[]}')
+    expect(textAi.__testChatCompletionVisibleTextForTests({ content: [{ type: 'text', text: '{"items":' }, { type: 'text', text: '[]}' }] })).toBe('{"items":\n[]}')
     expect(textAi.__testChatCompletionVisibleTextForTests({ reasoning_content: '{"items":[]}', content: null })).toBe('')
   })
 
