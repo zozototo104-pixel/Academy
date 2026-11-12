@@ -199,9 +199,13 @@ export async function runNextKnowledgeAiRepairStep() {
           history: [{ role: 'user', text: JSON.stringify({
             original: { title: item.title, summary: item.summary, excerpt: item.excerpt }, sourceText: evidence,
           }) }],
-          purpose: 'REVIEW', taskLevel: 'ACADEMIC_CRITICAL', taskType: 'BOOK_KNOWLEDGE_REPAIR',
+          purpose: 'REVIEW',
+          // An explicitly selected model is used exactly as chosen; global
+          // academic allowlist settings do not silently replace that choice.
+          taskLevel: chosenModel.length ? 'GENERAL' : 'ACADEMIC_CRITICAL',
+          taskType: 'BOOK_KNOWLEDGE_REPAIR',
           temperature: 0, maxOutputTokens: 1200, timeoutMs: 20_000,
-          excludeProviders: ['APINEX'],
+          ...(chosenModel.length ? { preferredModels: chosenModel, restrictToModels: chosenModel } : {}),
         })
       } catch {
         next.status = 'PAUSED'
