@@ -3152,6 +3152,15 @@ async function callZaiVision(model: string, opts: TextAiCallOpts): Promise<strin
   return text
 }
 
+// OpenAI-compatible gateways may return text as an array of content parts.
+// Reasoning content is deliberately excluded: it is not an academic answer.
+export function __testChatCompletionVisibleTextForTests(message: any): string {
+  const content = message?.content
+  if (typeof content === 'string') return content.trim()
+  if (!Array.isArray(content)) return ''
+  return content.map((part: any) => typeof part === 'string' ? part : (part?.type === 'text' && typeof part?.text === 'string' ? part.text : '')).filter(Boolean).join('\n').trim()
+}
+
 async function callChatCompletions(provider: string, baseUrl: string, key: string, model: string, opts: TextAiCallOpts): Promise<string> {
   const providerOpts = withNvidiaNoThinkDirective(provider, baseUrl, model, opts)
   const response = await fetchWithTimeout(provider, `${baseUrl}/chat/completions`, {
