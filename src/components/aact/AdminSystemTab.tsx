@@ -1283,58 +1283,6 @@ export function AdminSystemTab() {
           </div>
           </div>
 
-          <div id="gemini-section-repair" role="region" aria-label="مزوّد تصحيح عناصر المعرفة" hidden={openGeminiSection !== 'repair'}>
-            <div className="space-y-4 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
-              <div>
-                <h4 className="text-sm font-black text-blue-900">مزوّد ونموذج تصحيح عناصر المعرفة — إعداد مستقل</h4>
-                <p className="mt-1 text-[11px] font-bold leading-relaxed text-blue-800">
-                  هذا الخيار مخصص لزر تصحيح المعرفة بالذكاء فقط، ولا يغيّر اختيار المزوّد للطلاب أو استخراج الكتب أو التحليل أو الامتحانات.
-                  يستخدم نفس قوائم النماذج المكتشفة في اختبار المزوّدين. AUTO يترك الاختيار لراوتر النصوص العام.
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label className="text-xs font-black text-blue-900">المزوّد الخاص بتصحيح المعرفة</Label>
-                  <Select value={repairProviderForModels} onValueChange={(provider) => setForm((prev) => ({
-                    ...prev, AI_KNOWLEDGE_REPAIR_PROVIDER: provider, AI_KNOWLEDGE_REPAIR_MODEL: '',
-                  }))}>
-                    <SelectTrigger className="w-full min-w-0 bg-white" dir="ltr"><SelectValue placeholder="اختر المزوّد" /></SelectTrigger>
-                    <SelectContent>
-                      {[...TEXT_PROVIDER_CHOICES.filter((p) => p.value === 'AUTO'), ...TEXT_PROVIDER_CHOICES.filter((p) => p.value !== 'AUTO' && p.value !== 'APINEX')].map((p) => (
-                        <SelectItem key={p.value} value={p.value} dir="ltr">{p.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {repairProviderForModels === 'AUTO' ? (
-                  <p className="self-center text-xs font-bold text-blue-900">النموذج تلقائي حسب إعدادات الراوتر العامة مع استبعاد APINEX حتى لا يؤثر التصحيح الخلفي على حصة الطلاب.</p>
-                ) : (
-                  <div className="space-y-1">
-                    <Label className="text-xs font-black text-blue-900">النموذج المستخدم حصراً للتصحيح</Label>
-                    <Select value={selectedRepairModel} onValueChange={(model) => set('AI_KNOWLEDGE_REPAIR_MODEL', model)}>
-                      <SelectTrigger className="w-full min-w-0 bg-white" dir="ltr"><SelectValue placeholder="اختر النموذج من كتالوج المزوّد" /></SelectTrigger>
-                      <SelectContent>
-                        {repairDisplayedModels.map((m) => <SelectItem key={m.value} value={m.value} dir="ltr">{m.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[10px] font-bold text-blue-700">{textModelCatalog[repairProviderForModels]?.message || 'القائمة تحمل النماذج المكتشفة والخيارات المعروفة للمزوّد.'}</p>
-                    <Input value={selectedRepairModel} onChange={(e) => set('AI_KNOWLEDGE_REPAIR_MODEL', e.target.value)} placeholder="أو اكتب اسم النموذج في حسابك إن لم يظهر بالكتالوج" dir="ltr" className="h-9 min-w-0 bg-white text-sm" />
-                    <p className="text-[10px] font-bold text-blue-700">يُستخدم الاسم المحفوظ حرفياً دون تغيير المزود العام؛ التأكد من توفره يتم عند التنفيذ.</p>
-                  </div>
-                )}
-                {F('AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS', 'الفاصل الاختياري بين طلبات التصحيح (ثوانٍ)', '0', 'number', 'الحد الأدنى الآمن دائماً 90 ثانية عالمياً. القيمة 0 تعني الاكتفاء بهذا الحد؛ ويمكن اختيار فاصل أطول لتخفيف الاستهلاك.')}
-              </div>
-              <p className="text-[11px] font-bold text-blue-900">
-                {repairProviderForModels === 'AUTO' ? 'الاختيار الحالي: الراوتر العام' : selectedRepairModel
-                  ? `الاختيار الحالي: ${repairProviderForModels} / ${selectedRepairModel}`
-                  : 'يجب اختيار نموذج قبل الحفظ.'}
-              </p>
-              <Button onClick={saveKnowledgeRepair} disabled={savingKnowledgeRepair || (repairProviderForModels !== 'AUTO' && !selectedRepairModel)} className="bg-[#0f2b46] font-extrabold text-white">
-                {savingKnowledgeRepair ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ اختيار التصحيح فقط
-              </Button>
-            </div>
-          </div>
-
           <div id="gemini-section-routing" role="region" aria-label="سياسات توجيه الذكاء" hidden={openGeminiSection !== 'routing'}>
           <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
             <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
