@@ -1359,6 +1359,8 @@ export function AdminSystemTab() {
                       </SelectContent>
                     </Select>
                     <p className="text-[10px] font-bold text-blue-700">{textModelCatalog[repairProviderForModels]?.message || 'القائمة تحمل النماذج المكتشفة والخيارات المعروفة للمزوّد.'}</p>
+                    <Input value={selectedRepairModel} onChange={(e) => set('AI_KNOWLEDGE_REPAIR_MODEL', e.target.value)} placeholder="أو اكتب اسم النموذج في حسابك إن لم يظهر بالكتالوج" dir="ltr" className="h-9 min-w-0 bg-white text-sm" />
+                    <p className="text-[10px] font-bold text-blue-700">يُستخدم الاسم المحفوظ حرفياً دون تغيير المزود العام؛ التأكد من توفره يتم عند التنفيذ.</p>
                   </div>
                 )}
                 {F('AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS', 'الفاصل الاختياري بين طلبات التصحيح (ثوانٍ)', '0', 'number', '0 يعني بلا تأخير إضافي من نظام التصحيح؛ حدود المزوّد الفعلية تبقى نافذة. يمكن رفع الفاصل حسب حصتك.')}
