@@ -155,6 +155,18 @@ describe('study-guide Arabic visibility: reject broken OCR without hiding correc
     expect(looksLikeBrokenGeneratedArabic(overview)).toBe(false)
   })
 
+  test('valid Arabic فيه and the professional-program context do not hide guides', async () => {
+    const { looksLikeBrokenGeneratedArabic } = await import('../../src/lib/academic-output-quality')
+    const valid = 'يوضح الدليل المهني كيفية استخدام المعرفة؛ ففيه تطبيق عملي يشرح إدارة المشروع وأهداف العمل ودور المشاركين.'
+    expect(looksLikeBrokenGeneratedArabic(valid)).toBe(false)
+  })
+
+  test('standalone OCR-token يف remains rejected inside a longer broken sentence', async () => {
+    const { looksLikeBrokenGeneratedArabic } = await import('../../src/lib/academic-output-quality')
+    const broken = 'يعرض الفصل العلمي موضوع إدارة المشروع يف قراءة نصوص الكتاب ويوضح أثر القرار على العمل'
+    expect(looksLikeBrokenGeneratedArabic(broken)).toBe(true)
+  })
+
   test('real corrupted OCR and internal placeholders stay blocked', async () => {
     const { looksLikeBrokenGeneratedArabic } = await import('../../src/lib/academic-output-quality')
     expect(looksLikeBrokenGeneratedArabic('تُعرض هذه الفقرة من كتاب احرب في إدارة المشروع وتحليل معطياته التنظيمية.')).toBe(true)
