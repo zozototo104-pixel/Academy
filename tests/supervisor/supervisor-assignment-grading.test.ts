@@ -534,13 +534,22 @@ describe('admin assignment source persistence — verified program/unit/knowledg
     expect(assignmentCreates).toHaveLength(0)
   })
 
-  test('legacy manual assignment without source/unit still saves without invented provenance', async () => {
+  test('unlinked manual assignment with a day duration saves without invented provenance', async () => {
     const route = await import('@/app/api/admin/assignments/route')
-    const res = await route.POST(save({ unitId: null }))
+    const res = await route.POST(save({ unitId: null, dueDays: 14 }))
     expect(res.status).toBe(200)
     expect(assignmentCreates).toHaveLength(1)
     expect(assignmentCreates[0].sourceKnowledgeIds).toBeUndefined()
     expect(assignmentCreates[0].unitId).toBeNull()
+    expect(assignmentCreates[0].dueDays).toBe(14)
+  })
+
+  test('new unlinked assignment cannot be saved without a duration', async () => {
+    const route = await import('@/app/api/admin/assignments/route')
+    const res = await route.POST(save({ unitId: null, dueDays: null }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toContain('مدة تسليم الواجب بالأيام')
+    expect(assignmentCreates).toHaveLength(0)
   })
 })
 
