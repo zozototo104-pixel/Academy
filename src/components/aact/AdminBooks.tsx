@@ -3627,10 +3627,15 @@ export function AdminBooksTab() {
                   <Textarea rows={3} value={assignmentForm.description} onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })} placeholder="اكتب المطلوب من الطالب، طريقة التحليل، وعدد الكلمات أو شكل الملف المطلوب" className="mt-1 text-xs" />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-black text-slate-500">آخر موعد تسليم الواجب (تاريخ ثابت لكل الطلاب)</Label>
-                  <Input type="date" value={assignmentForm.dueAt} onChange={(e) => setAssignmentForm({ ...assignmentForm, dueAt: e.target.value })} className="mt-1 text-xs" />
-                  {assignmentForm.id && !assignmentForm.dueAt && assignmentForm.dueDays ? (
-                    <p className="mt-1 text-[10px] font-bold text-amber-700">موعد قديم محسوب بالأيام: {assignmentForm.dueDays} يوم من تسجيل الطالب — حدّد تاريخًا أعلاه لاستبداله، أو اتركه فاضيًا ليبقى الحساب القديم.</p>
+                  <Label className="text-[10px] font-black text-slate-500">مدة تسليم الواجب بالأيام (اختياري للواجب المرتبط بوحدة)</Label>
+                  <Input type="number" min={1} max={365} step={1} value={assignmentForm.dueDays} onChange={(e) => setAssignmentForm({ ...assignmentForm, dueDays: e.target.value, dueAt: '' })} placeholder="مثال: 14" className="mt-1 text-xs" />
+                  {assignmentForm.unitId && curriculumUnits.some((u) => u.id === assignmentForm.unitId && Number(u.semester) === Number(assignmentForm.semester)) ? (
+                    <p className="mt-1 text-[11px] font-bold text-emerald-800">مرتبط بوحدة دراسية: يفتح الواجب عند بدء الوحدة لكل طالب، ويغلق افتراضياً عند نهايتها. {assignmentForm.dueDays ? 'المدة المحددة تبدأ من فتح الوحدة ولا تتجاوز نهاية الوحدة.' : 'اترك عدد الأيام فارغاً لاستخدام مدة الوحدة كاملة.'}</p>
+                  ) : (
+                    <p className="mt-1 text-[11px] font-bold text-slate-600">غير مرتبط بوحدة في هذا الفصل: أدخل مدة بالأيام تُحسب من تاريخ تسجيل كل طالب في البرنامج.</p>
+                  )}
+                  {assignmentForm.id && assignmentForm.dueAt ? (
+                    <p className="mt-1 text-[10px] font-bold text-amber-700">هذا الواجب له تاريخ ثابت قديم. {assignmentForm.unitId ? 'ستُستخدم نافذة الوحدة للواجب المرتبط بها.' : 'سيبقى التاريخ القديم حتى تختار مدة جديدة بالأيام.'} تغيير حقل الأيام يستبدل التاريخ القديم.</p>
                   ) : null}
                 </div>
                 <div>
