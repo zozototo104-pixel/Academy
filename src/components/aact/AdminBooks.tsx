@@ -2402,12 +2402,23 @@ export function AdminBooksTab() {
     if (!programId) return
     setGeneratingGuideSemester(String(semester))
     try {
-      const d = await api<{ guide: StudyGuideRow }>('/api/admin/study-guides', {
+      const targetProgramId = programId
+      const d = await api<{ guide: StudyGuideRow; autoCreatedUnitGuides?: number }>('/api/admin/study-guides', {
         method: 'POST',
-        body: JSON.stringify({ programId, semester, status: 'PUBLISHED' }),
+        body: JSON.stringify({ programId: targetProgramId, semester, status: 'PUBLISHED' }),
       })
-      setStudyGuides((prev) => [d.guide, ...prev.filter((g) => !(g.programId === d.guide.programId && g.semester === d.guide.semester))].sort((a, b) => a.semester - b.semester))
-      toast({ title: 'تم توليد دليل الدراسة', description: d.guide.title })
+      const refreshed = await api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${targetProgramId}`)
+        .catch(() => null)
+      if (knowledgeRepairProgramRef.current !== targetProgramId) return
+      // Keep every unit draft in local state; replacing a semester guide must
+      // never erase the unit guides that were just generated automatically.
+      setStudyGuides((prev) => refreshed?.guides ||
+        [d.guide, ...prev.filter((g) => g.id !== d.guide.id && !(g.programId === d.guide.programId && g.semester === d.guide.semester && !g.unitId))]
+          .sort((a, b) => a.semester - b.semester))
+      toast({
+        title: 'تم توليد دليل الدراسة',
+        description: `${d.guide.title}${d.autoCreatedUnitGuides ? ` · أُنشئ ${d.autoCreatedUnitGuides} دليل وحدة ناقص تلقائياً` : ''}`,
+      })
     } catch (e: any) {
       toast({ title: 'تعذر توليد دليل الدراسة', description: e.message, variant: 'destructive' })
     } finally {
