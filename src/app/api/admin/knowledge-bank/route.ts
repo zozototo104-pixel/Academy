@@ -44,22 +44,28 @@ export async function GET(req: NextRequest) {
       // Cursor-based review over the actual table: the normal 140/2000-item
       // preview deliberately hides suspect content and cannot be used as a queue.
       let cursor = String(req.nextUrl.searchParams.get('cursor') || '').slice(0, 100)
-      const rowsForReview: Awaited<ReturnType<typeof db.bookKnowledgeItem.findMany>> = []
-      let hasMore = false
+      const collected: Awaited<ReturnType<typeof db.bookKnowledgeItem.findMany>> = []
+      let hasMoreRows = false
       for (let scan = 0; scan < 4; scan++) {
         const rows = await db.bookKnowledgeItem.findMany({
           where: { programId, ...(cursor ? { id: { gt: cursor } } : {}) },
           orderBy: { id: 'asc' }, take: 100,
         })
-        if (!rows.length) { hasMore = false; break }
+        if (!rows.length) { hasMoreRows = false; break }
         cursor = rows[rows.length - 1].id
-        rowsForReview.push(...rows.filter((row) =>
+        collected.push(...rows.filter((row) =>
           planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput).action === 'REVIEW' ||
           !row.bookId || !row.chunkId || row.pageStart == null || row.pageEnd == null
         ))
-        hasMore = rows.length === 100
-        if (rowsForReview.length >= 20 || !hasMore) break
+        hasMoreRows = rows.length === 100
+        if (!hasMoreRows) break
       }
+      // Paginate the collected review rows, not the scanned window: the old
+      // code stopped after the first 20 matches and reported hasMore=false
+      // whenever the table held fewer than 100 rows, silently dropping the rest.
+      const rowsForReview = collected.slice(0, 20)
+      const hasMore = collected.length > 20 || hasMoreRows
+      const nextCursor = hasMore ? (collected.length > 20 ? rowsForReview[rowsForReview.length - 1].id : cursor) : null
       const bookIds = [...new Set(rowsForReview.map((row) => row.bookId).filter((id): id is string => !!id))]
       const chunkIds = [...new Set(rowsForReview.map((row) => row.chunkId).filter((id): id is string => !!id))]
       const [books, chunks] = await Promise.all([
@@ -82,7 +88,7 @@ export async function GET(req: NextRequest) {
           sourceValid, sourceTextPreview: sourceValid ? chunk!.text.slice(0, 6000) : null,
         }
       })
-      return NextResponse.json({ items, nextCursor: hasMore ? cursor : null, hasMore }, { headers: { 'Cache-Control': 'no-store' } })
+      return NextResponse.json({ items, nextCursor, hasMore }, { headers: { 'Cache-Control': 'no-store' } })
     }
 
     const showAll = req.nextUrl.searchParams.get('all') === '1'

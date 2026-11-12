@@ -158,6 +158,15 @@ function apiSurface(): { count: number; digest: string } {
   const aiRefreshCalls = calls.filter((call) =>
     call.includes('/api/admin/knowledge-bank?programId=') && call.includes('encodeURIComponent(programId)') && call.includes('repairStatus=1'))
   assert.equal(aiRefreshCalls.length, 1, 'expected one read-only job-status poll for background AI repair')
+  // 2026-11-12: two intentionally added calls wire the manual-review UI to
+  // the review queue and the manual save. Preserve the frozen digest for
+  // every original endpoint, method, payload and header.
+  const manualReviewCalls = calls.filter((call) =>
+    (call.includes('/api/admin/knowledge-bank?programId=') && call.includes('&review=1')) ||
+    (call.includes("'/api/admin/knowledge-bank'") && call.includes("method: 'PATCH'") && call.includes('expectedUpdatedAt')))
+  assert.equal(manualReviewCalls.length, 2, 'expected one review-queue GET and one manual-review PATCH')
+  assert.ok(manualReviewCalls.some((call) => call.includes('encodeURIComponent(cursor)')), 'review queue must page by cursor')
+  assert.ok(manualReviewCalls.some((call) => call.includes('manualReviewForm.title') && call.includes('manualReviewForm.summary') && call.includes('manualReviewForm.excerpt')), 'manual save must send all three corrected fields')
   // The standalone tab independently lists programs; keep exactly the original
   // API call plus one identical reviewed duplicate for its own selector.
   const aiSettingsCalls = calls.filter((call) => call.includes("'/api/admin/system'"))
@@ -178,7 +187,7 @@ function apiSurface(): { count: number; digest: string } {
       }
       return !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) &&
         !bookRebuildCalls.includes(call) && !aiRepairCalls.includes(call) && !aiRefreshCalls.includes(call) &&
-        !aiSettingsCalls.includes(call)
+        !aiSettingsCalls.includes(call) && !manualReviewCalls.includes(call)
     })
     .map((call) => {
       if (suggestedAssignmentSaveCalls.includes(call)) return call.replace('dueDays: s.semester === 3 || !s.unitId ? 14 : null', 'dueDays: null')
@@ -187,7 +196,7 @@ function apiSurface(): { count: number; digest: string } {
     })
     .sort()
   return {
-    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - aiSettingsCalls.length - 1,
+    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - aiSettingsCalls.length - manualReviewCalls.length - 1,
     digest: digest(protectedCalls.join('\n')),
   }
 }
@@ -226,6 +235,15 @@ describe('books workspace organization guard', () => {
     const surface = apiSurface()
     assert.equal(surface.count, ORIGINAL_API_CALL_COUNT)
     assert.equal(surface.digest, ORIGINAL_API_DIGEST)
+  })
+
+  it('manual review UI reaches the review queue and the manual save', () => {
+    assert.ok(SOURCE.includes('المراجعة اليدوية للعناصر المشوّهة'))
+    assert.ok(SOURCE.includes('عرض عناصر المراجعة'))
+    assert.ok(SOURCE.includes('المصدر غير موثّق'))
+    assert.ok(SOURCE.includes('sourceTextPreview'))
+    assert.ok(SOURCE.includes('تصحيح يدويًا'))
+    assert.ok(SOURCE.includes('اعتماد التصحيح'))
   })
 
   it('program selection and its data reset stay wired', () => {

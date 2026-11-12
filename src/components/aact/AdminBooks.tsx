@@ -264,6 +264,21 @@ interface KnowledgeItemRow {
   createdAt: string
 }
 
+interface ManualReviewItem {
+  id: string
+  programId: string
+  title: string
+  summary: string
+  excerpt: string
+  bookTitle: string | null
+  pageStart: number | null
+  pageEnd: number | null
+  updatedAt: string
+  reason: 'SOURCE_UNVERIFIED' | 'TEXT_UNRESOLVED'
+  sourceValid: boolean
+  sourceTextPreview: string | null
+}
+
 type BookReadJobRow = {
   id: string
   bookId: string
@@ -775,6 +790,15 @@ export function AdminBooksTab() {
   const [rebuildingKnowledge, setRebuildingKnowledge] = useState(false)
   const [sanitizingKnowledge, setSanitizingKnowledge] = useState(false)
   const [knowledgeRepairProgress, setKnowledgeRepairProgress] = useState<string | null>(null)
+  const [manualReviewOpen, setManualReviewOpen] = useState(false)
+  const [manualReviewItems, setManualReviewItems] = useState<ManualReviewItem[]>([])
+  const [manualReviewCursor, setManualReviewCursor] = useState<string | null>(null)
+  const [manualReviewHasMore, setManualReviewHasMore] = useState(false)
+  const [manualReviewLoading, setManualReviewLoading] = useState(false)
+  const [manualReviewError, setManualReviewError] = useState<string | null>(null)
+  const [manualReviewEditingId, setManualReviewEditingId] = useState<string | null>(null)
+  const [manualReviewForm, setManualReviewForm] = useState({ title: '', summary: '', excerpt: '' })
+  const [manualReviewSaving, setManualReviewSaving] = useState(false)
   const knowledgeRepairProgramRef = useRef(programId)
   useEffect(() => { knowledgeRepairProgramRef.current = programId }, [programId])
   const [rebuildingBookId, setRebuildingBookId] = useState<string | null>(null)
@@ -1400,6 +1424,48 @@ export function AdminBooksTab() {
     } finally {
       setKnowledgeRepairProgress(null)
       setSanitizingKnowledge(false)
+    }
+  }
+
+  const loadManualReview = async (cursor?: string | null) => {
+    if (!programId || manualReviewLoading) return
+    const targetProgramId = programId
+    setManualReviewLoading(true)
+    setManualReviewError(null)
+    try {
+      const res = await api<{ items: ManualReviewItem[]; nextCursor: string | null; hasMore: boolean }>(`/api/admin/knowledge-bank?programId=${targetProgramId}&review=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+      if (knowledgeRepairProgramRef.current !== targetProgramId) return
+      setManualReviewItems((prev) => (cursor ? [...prev, ...(res.items || [])] : res.items || []))
+      setManualReviewCursor(res.nextCursor || null)
+      setManualReviewHasMore(!!res.hasMore)
+    } catch (e: any) {
+      setManualReviewError(e.message || 'تعذر تحميل قائمة المراجعة')
+    } finally {
+      setManualReviewLoading(false)
+    }
+  }
+
+  const saveManualReview = async (item: ManualReviewItem) => {
+    if (!programId || manualReviewSaving) return
+    const targetProgramId = programId
+    setManualReviewSaving(true)
+    try {
+      await api('/api/admin/knowledge-bank', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          programId: targetProgramId, id: item.id,
+          title: manualReviewForm.title, summary: manualReviewForm.summary, excerpt: manualReviewForm.excerpt,
+          expectedUpdatedAt: item.updatedAt,
+        }),
+      })
+      if (knowledgeRepairProgramRef.current !== targetProgramId) return
+      setManualReviewItems((prev) => prev.filter((row) => row.id !== item.id))
+      setManualReviewEditingId(null)
+      toast({ title: 'تم اعتماد التصحيح اليدوي', description: 'حُفظ النص المصحح على نفس العنصر دون تغيير مرجعه.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ المراجعة اليدوية', description: e.message || 'حاول مجدداً؛ لم يُحفظ أي تعديل جزئي.', variant: 'destructive' })
+    } finally {
+      setManualReviewSaving(false)
     }
   }
 
@@ -3111,6 +3177,71 @@ export function AdminBooksTab() {
                   تم إخفاء {hiddenKnowledgeItemsCount} عنصر يبدو مشوّهًا أو مختلط اللغة من العرض فقط، دون حذفه من القاعدة. «تصحيح بالقواعد» يصلح الأخطاء البسيطة ويحذف الفارغ بالكامل فقط؛ و«تصحيح بالذكاء» مهمة خلفية اختيارية تعتمد على نص الكتاب وتترك ما لا يمكن إثباته للمراجعة.
                 </div>
               )}
+
+              <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-3 ring-1 ring-slate-100">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-black text-[#0f2b46]">المراجعة اليدوية للعناصر المشوّهة</p>
+                    <p className="mt-1 max-w-3xl text-[11px] font-bold leading-5 text-slate-500">عناصر تركها «تصحيح بالقواعد» والتصحيح الذكي دون تعديل جزئي. صحّح النصوص الثلاثة كاملة من نص الكتاب، ويُحفظ التصحيح على نفس العنصر دون تغيير مرجعه.</p>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={manualReviewLoading || !programId} onClick={async () => { setManualReviewOpen(true); if (manualReviewItems.length === 0) await loadManualReview(null) }}>
+                    {manualReviewLoading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                    عرض عناصر المراجعة
+                  </Button>
+                </div>
+                {manualReviewOpen && (
+                  <div className="mt-3 space-y-3">
+                    {manualReviewError && <p className="rounded-xl bg-red-50 p-2 text-[11px] font-bold text-red-700">{manualReviewError}</p>}
+                    {manualReviewItems.length === 0 && !manualReviewLoading && <p className="text-[11px] font-bold text-slate-500">لا توجد عناصر بانتظار المراجعة اليدوية لهذا البرنامج.</p>}
+                    {manualReviewItems.map((item) => (
+                      <div key={item.id} className="rounded-xl border border-slate-100 p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className={item.reason === 'SOURCE_UNVERIFIED' ? 'border-red-300 text-xs text-red-700' : 'border-amber-300 text-xs text-amber-700'}>
+                            {item.reason === 'SOURCE_UNVERIFIED' ? 'المصدر غير موثّق' : 'النص يحتاج تصحيحاً'}
+                          </Badge>
+                          {item.bookTitle && <span className="text-[11px] font-bold text-slate-500">{item.bookTitle}</span>}
+                          {item.pageStart != null && item.pageEnd != null && <span className="text-[11px] text-slate-500">صفحات {item.pageStart}–{item.pageEnd}</span>}
+                        </div>
+                        {manualReviewEditingId === item.id ? (
+                          <div className="mt-2 space-y-2">
+                            <div>
+                              <Label className="text-[11px]">العنوان</Label>
+                              <Input value={manualReviewForm.title} onChange={(e) => setManualReviewForm((f) => ({ ...f, title: e.target.value }))} dir="rtl" className="bg-white" />
+                            </div>
+                            <div>
+                              <Label className="text-[11px]">الشرح</Label>
+                              <Textarea value={manualReviewForm.summary} onChange={(e) => setManualReviewForm((f) => ({ ...f, summary: e.target.value }))} rows={3} dir="rtl" className="bg-white" />
+                            </div>
+                            <div>
+                              <Label className="text-[11px]">المقتطف (يجب أن يكون جزءًا حرفيًا من مقطع الكتاب)</Label>
+                              <Textarea value={manualReviewForm.excerpt} onChange={(e) => setManualReviewForm((f) => ({ ...f, excerpt: e.target.value }))} rows={3} dir="rtl" className="bg-white" />
+                            </div>
+                            {item.sourceValid && item.sourceTextPreview && (
+                              <details className="rounded-lg bg-slate-50 p-2">
+                                <summary className="cursor-pointer text-[11px] font-black text-slate-600">عرض نص المقطع الأصلي</summary>
+                                <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-600">{item.sourceTextPreview}</p>
+                              </details>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" disabled={manualReviewSaving || !item.sourceValid} onClick={() => saveManualReview(item)}>اعتماد التصحيح</Button>
+                              <Button size="sm" variant="outline" onClick={() => setManualReviewEditingId(null)}>إلغاء</Button>
+                            </div>
+                            {!item.sourceValid && <p className="text-[11px] font-bold text-red-700">مصدر العنصر أو صفحاته غير موثقة؛ يلزم استعادة المصدر قبل اعتماد أي تصحيح.</p>}
+                          </div>
+                        ) : (
+                          <div className="mt-2">
+                            <p className="text-xs font-black text-[#0f2b46]">{item.title}</p>
+                            <p className="mt-1 break-words text-[11px] leading-5 text-slate-600">{item.summary}</p>
+                            <p className="mt-1 break-words text-[11px] leading-5 text-slate-500">{item.excerpt}</p>
+                            <Button size="sm" variant="outline" className="mt-2 h-7 text-[11px]" onClick={() => { setManualReviewEditingId(item.id); setManualReviewForm({ title: item.title, summary: item.summary, excerpt: item.excerpt }) }}>تصحيح يدويًا</Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {manualReviewHasMore && <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={manualReviewLoading} onClick={() => loadManualReview(manualReviewCursor)}>عرض المزيد</Button>}
+                  </div>
+                )}
+              </div>
 
               <div className="grid gap-2 sm:grid-cols-4">
                 {Object.entries(displayKnowledgeStats).length ? Object.entries(displayKnowledgeStats).slice(0, 8).map(([cat, stat]) => (

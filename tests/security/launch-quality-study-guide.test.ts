@@ -526,3 +526,295 @@ describe('semester guide: automatic missing unit guide backed by knowledge sourc
   })
 })
 
+
+describe('manual review: unified quality checkers never flag valid يضيف/فيه text', () => {
+  test('valid verbs ending in يف and valid فيه phrases pass BOTH checkers', async () => {
+    const { looksLikeBrokenGeneratedArabic } = await import('../../src/lib/academic-output-quality')
+    const { looksLikeBrokenAcademicOutput } = await import('../../src/lib/knowledge-bank')
+    const valid = [
+      'لذلك لا يضيف قوالب عامة ولا مصطلحات خارج الكتب.',
+      'الكتاب يضيف قراءة جديدة في الفصل المهني.',
+      'المدرب يضيف تحليل المشروع ويضيف سياق العمل.',
+      'فيه قراءة متأنية تساعد الطالب على الفهم.',
+      'المشروع فيه تحليل دقيق للنتائج.',
+      'الوحدة تضيف بداية واضحة وسياقًا عمليًا لإطار القرار.',
+    ]
+    for (const text of valid) {
+      expect(looksLikeBrokenGeneratedArabic(text)).toBe(false)
+      expect(looksLikeBrokenAcademicOutput(text)).toBe(false)
+    }
+  })
+
+  test('real garbled OCR still fails BOTH checkers', async () => {
+    const { looksLikeBrokenGeneratedArabic } = await import('../../src/lib/academic-output-quality')
+    const { looksLikeBrokenAcademicOutput } = await import('../../src/lib/knowledge-bank')
+    const broken = [
+      'تُعرض هذه الفقرة من كتاب احرب في إدارة المشروع وتحليل معطياته التنظيمية.',
+      'مقتطف داعم عن إدارة المشاريع وطرق التقييم في الفصل الدراسي.',
+      'صوت الى استراتيجية يشرح إدارة المشروعات والقرارات.',
+    ]
+    for (const text of broken) {
+      expect(looksLikeBrokenGeneratedArabic(text)).toBe(true)
+      expect(looksLikeBrokenAcademicOutput(text)).toBe(true)
+    }
+  })
+
+  test('the planner keeps a valid يضيف item instead of queuing it for review', async () => {
+    const { planKnowledgeItemCleanup } = await import('../../src/lib/academic-output-quality')
+    const { looksLikeBrokenAcademicOutput } = await import('../../src/lib/knowledge-bank')
+    const row = {
+      title: 'إدارة المشروعات تضيف قراءة جديدة',
+      summary: 'يوضح هذا المفهوم كيف تضيف إدارة المشروعات تحليل المخاطر وسياق القرار إلى خطة العمل.',
+      excerpt: 'الكتاب يضيف قراءة جديدة في الفصل المهني.',
+    }
+    expect(planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput).action).toBe('KEEP')
+  })
+})
+
+// Manual-review queue + save: the backend the admin panel now calls.
+// The fake models the real queries (id cursor, take, orderBy, optimistic
+// concurrency) so the queue and the PATCH are proven behaviorally, not pinned.
+let reviewItems: any[] = []
+let reviewBooks: any[] = []
+let reviewChunks: any[] = []
+const REVIEW_PROGRAM_ID = AUTO_PROGRAM_ID
+const REVIEW_BOOK_ID = 'book-review-source'
+const REVIEW_CHUNK_ID = 'chunk-review-source'
+const REVIEW_CHUNK_TEXT = 'تخطيط الموارد وتحليل المخاطر في إدارة المشاريع. تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية. يساعد هذا النهج في توزيع المسؤوليات وتحديد مؤشرات الأداء ومراقبة الانحرافات أثناء مراحل التنفيذ، مع توثيق النتائج وتصحيح خطة المشروع كلما ظهرت معطيات جديدة. الكتاب يضيف قراءة جديدة في الفصل المهني.'
+const REVIEW_UPDATED_AT = new Date('2026-11-12T10:00:00.000Z')
+
+Object.assign(fakeDb, {
+  bookKnowledgeItem: {
+    findMany: async ({ where, orderBy, take }: any) => {
+      let rows = [...autoKnowledge, ...reviewItems].filter((item) =>
+        (where?.id ? (where.id.in ? where.id.in.includes(item.id) : where.id.gt ? item.id > where.id.gt : true) : true) &&
+        (where?.bookId ? where.bookId === item.bookId : true) &&
+        (where?.programId ? where.programId === item.programId : true) &&
+        (where?.chunkId ? where.chunkId.in.includes(item.chunkId) : true))
+      if (orderBy?.id === 'asc') rows = [...rows].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      return take ? rows.slice(0, take) : rows
+    },
+    findFirst: async ({ where }: any) => [...autoKnowledge, ...reviewItems].find((item) => item.id === where.id && item.programId === where.programId) || null,
+    updateMany: async ({ where, data }: any) => {
+      const row = [...autoKnowledge, ...reviewItems].find((item) =>
+        item.id === where.id && item.programId === where.programId && item.updatedAt.getTime() === where.updatedAt.getTime())
+      if (!row) return { count: 0 }
+      Object.assign(row, data)
+      row.updatedAt = new Date()
+      return { count: 1 }
+    },
+  },
+  book: {
+    findMany: async ({ where }: any) => [...autoBooks, ...reviewBooks].filter((book) =>
+      where.id.in.includes(book.id) && (!where.programId || book.programId === where.programId)),
+    findFirst: async ({ where }: any) => [...autoBooks, ...reviewBooks].find((book) => book.id === where.id && book.programId === where.programId) || null,
+  },
+  bookChunk: {
+    findMany: async ({ where }: any) => [...autoChunks, ...reviewChunks].filter((chunk) =>
+      (!where.id || where.id.in.includes(chunk.id)) &&
+      (!where.programId || chunk.programId === where.programId) &&
+      (!where.bookId || chunk.bookId === where.bookId) &&
+      (!where.status || chunk.status === where.status) &&
+      (!where.index || (where.index.in ? where.index.in.includes(chunk.index) :
+        chunk.index >= where.index.gte && chunk.index <= where.index.lte))),
+    findFirst: async ({ where }: any) => [...autoChunks, ...reviewChunks].find((chunk) =>
+      chunk.id === where.id && chunk.programId === where.programId && chunk.bookId === where.bookId) || null,
+  },
+})
+
+const { GET: getKnowledgeBank, PATCH: patchKnowledgeBank } = await import('../../src/app/api/admin/knowledge-bank/route')
+
+function resetReviewFixture() {
+  reset()
+  autoUnits = []
+  autoBooks = []
+  autoChunks = []
+  autoKnowledge = []
+  reviewBooks = [{ id: REVIEW_BOOK_ID, programId: REVIEW_PROGRAM_ID, title: 'كتاب المراجعة المعتمد' }]
+  reviewChunks = [{ id: REVIEW_CHUNK_ID, programId: REVIEW_PROGRAM_ID, bookId: REVIEW_BOOK_ID,
+    index: 1, status: 'ANALYZED', pageStart: 10, pageEnd: 40, text: REVIEW_CHUNK_TEXT }]
+  reviewItems = [
+    {
+      id: 'review-valid-yadeef', programId: REVIEW_PROGRAM_ID, bookId: REVIEW_BOOK_ID, chunkId: REVIEW_CHUNK_ID,
+      pageStart: 10, pageEnd: 12, category: 'CONCEPT',
+      title: 'إدارة المشروعات تضيف قراءة جديدة',
+      summary: 'يوضح هذا المفهوم كيف تضيف إدارة المشروعات تحليل المخاطر وسياق القرار إلى خطة العمل.',
+      excerpt: 'الكتاب يضيف قراءة جديدة في الفصل المهني.',
+      updatedAt: REVIEW_UPDATED_AT,
+    },
+    {
+      id: 'review-broken-text', programId: REVIEW_PROGRAM_ID, bookId: REVIEW_BOOK_ID, chunkId: REVIEW_CHUNK_ID,
+      pageStart: 10, pageEnd: 12, category: 'CONCEPT',
+      title: 'مقتطف داعم عن إدارة المشاريع وطرق التقييم',
+      summary: 'يوضح هذا المفهوم إجراءات القرار في إدارة المشاريع.',
+      excerpt: 'تفاصيل صحيحة من محتوى الكتاب.',
+      updatedAt: REVIEW_UPDATED_AT,
+    },
+    {
+      id: 'review-no-source', programId: REVIEW_PROGRAM_ID, bookId: null, chunkId: null,
+      pageStart: null, pageEnd: null, category: 'CONCEPT',
+      title: 'إدارة المشروعات تضيف قراءة جديدة',
+      summary: 'يوضح هذا المفهوم كيف تضيف إدارة المشروعات تحليل المخاطر وسياق القرار إلى خطة العمل.',
+      excerpt: 'الكتاب يضيف قراءة جديدة في الفصل المهني.',
+      updatedAt: REVIEW_UPDATED_AT,
+    },
+  ]
+}
+
+async function getReviewPage(cursor?: string | null) {
+  const url = `http://localhost/api/admin/knowledge-bank?programId=${REVIEW_PROGRAM_ID}&review=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`
+  const response = await getKnowledgeBank({ nextUrl: new URL(url) } as any)
+  return { response, body: await response.json() }
+}
+
+async function patchReview(body: Record<string, any>) {
+  const response = await patchKnowledgeBank({ json: async () => body } as any)
+  return { response, body: await response.json() }
+}
+
+describe('manual review queue: valid يضيف items stay out, broken and sourceless items queue with reasons', () => {
+  test('queue lists the broken-text and no-source items only, with source preview for the verified one', async () => {
+    resetReviewFixture()
+    const { response, body } = await getReviewPage()
+    expect(response.status).toBe(200)
+    expect(body.items).toHaveLength(2)
+    expect(body.items.map((item: any) => item.id).sort()).toEqual(['review-broken-text', 'review-no-source'])
+    const broken = body.items.find((item: any) => item.id === 'review-broken-text')
+    expect(broken.reason).toBe('TEXT_UNRESOLVED')
+    expect(broken.sourceValid).toBe(true)
+    expect(broken.sourceTextPreview).toContain('تخطيط الموارد وتحليل المخاطر')
+    expect(broken.bookTitle).toBe('كتاب المراجعة المعتمد')
+    const sourceless = body.items.find((item: any) => item.id === 'review-no-source')
+    expect(sourceless.reason).toBe('SOURCE_UNVERIFIED')
+    expect(sourceless.sourceValid).toBe(false)
+    expect(sourceless.sourceTextPreview).toBeNull()
+    expect(body.hasMore).toBe(false)
+    expect(body.nextCursor).toBeNull()
+  })
+
+  test('pagination reaches every review item past the first page', async () => {
+    resetReviewFixture()
+    reviewItems = reviewItems.filter((item) => item.id === 'review-valid-yadeef')
+    for (let i = 1; i <= 21; i++) {
+      reviewItems.push({
+        id: `review-p${String(i).padStart(2, '0')}`, programId: REVIEW_PROGRAM_ID, bookId: REVIEW_BOOK_ID, chunkId: REVIEW_CHUNK_ID,
+        pageStart: 10, pageEnd: 12, category: 'CONCEPT',
+        title: `مقتطف داعم رقم ${i} عن إدارة المشاريع`,
+        summary: 'يوضح هذا المفهوم إجراءات القرار في إدارة المشاريع.',
+        excerpt: 'تفاصيل صحيحة من محتوى الكتاب.',
+        updatedAt: REVIEW_UPDATED_AT,
+      })
+    }
+    const first = await getReviewPage()
+    expect(first.response.status).toBe(200)
+    expect(first.body.items).toHaveLength(20)
+    expect(first.body.hasMore).toBe(true)
+    expect(first.body.nextCursor).toBe('review-p20')
+    const second = await getReviewPage(first.body.nextCursor)
+    expect(second.response.status).toBe(200)
+    expect(second.body.items).toHaveLength(1)
+    expect(second.body.items[0].id).toBe('review-p21')
+    expect(second.body.hasMore).toBe(false)
+    expect(second.body.nextCursor).toBeNull()
+  })
+})
+
+describe('manual review save: grounded correction only, same item, optimistic concurrency', () => {
+  test('a valid manual correction saves on the same item without changing its references', async () => {
+    resetReviewFixture()
+    const { response, body } = await patchReview({
+      programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      title: 'تخطيط الموارد وتحليل المخاطر في إدارة المشاريع',
+      summary: 'تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية.',
+      excerpt: 'يساعد هذا النهج في توزيع المسؤوليات وتحديد مؤشرات الأداء ومراقبة الانحرافات أثناء مراحل التنفيذ، مع توثيق النتائج وتصحيح خطة المشروع كلما ظهرت معطيات جديدة.',
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(response.status).toBe(200)
+    expect(body.ok).toBe(true)
+    expect(body.id).toBe('review-broken-text')
+    const row = reviewItems.find((item) => item.id === 'review-broken-text')!
+    expect(row.title).toBe('تخطيط الموارد وتحليل المخاطر في إدارة المشاريع')
+    expect(row.bookId).toBe(REVIEW_BOOK_ID)
+    expect(row.chunkId).toBe(REVIEW_CHUNK_ID)
+    expect(row.pageStart).toBe(10)
+    const stale = await patchReview({
+      programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      title: 'تخطيط الموارد وتحليل المخاطر في إدارة المشاريع',
+      summary: 'تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية.',
+      excerpt: 'يساعد هذا النهج في توزيع المسؤوليات وتحديد مؤشرات الأداء ومراقبة الانحرافات أثناء مراحل التنفيذ، مع توثيق النتائج وتصحيح خطة المشروع كلما ظهرت معطيات جديدة.',
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(stale.response.status).toBe(409)
+  })
+
+  test('a correction containing valid يضيف passes the keep-gate instead of a false 422', async () => {
+    resetReviewFixture()
+    const { response, body } = await patchReview({
+      programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      title: 'إدارة المشروعات تضيف قراءة جديدة',
+      summary: 'يوضح هذا المفهوم كيف تضيف إدارة المشروعات تحليل المخاطر وسياق القرار إلى خطة العمل.',
+      excerpt: 'الكتاب يضيف قراءة جديدة في الفصل المهني.',
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(response.status).toBe(200)
+    expect(body.ok).toBe(true)
+  })
+
+  test('a non-verbatim excerpt is refused without changing the item', async () => {
+    resetReviewFixture()
+    const before = { ...reviewItems.find((item) => item.id === 'review-broken-text')! }
+    const { response, body } = await patchReview({
+      programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      title: 'تخطيط الموارد وتحليل المخاطر في إدارة المشاريع',
+      summary: 'تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية.',
+      excerpt: 'نص مخترع لا يوجد في المقطع الأصلي إطلاقاً ولا يطابق أي جملة فيه.',
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(response.status).toBe(422)
+    expect(body.error).toContain('حرفيًا')
+    const row = reviewItems.find((item) => item.id === 'review-broken-text')!
+    expect(row.title).toBe(before.title)
+    expect(row.excerpt).toBe(before.excerpt)
+  })
+
+  test('a stale expectedUpdatedAt is refused with 409', async () => {
+    resetReviewFixture()
+    const { response } = await patchReview({
+      programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      title: 'تخطيط الموارد وتحليل المخاطر في إدارة المشاريع',
+      summary: 'تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية.',
+      excerpt: 'يساعد هذا النهج في توزيع المسؤوليات وتحديد مؤشرات الأداء ومراقبة الانحرافات أثناء مراحل التنفيذ، مع توثيق النتائج وتصحيح خطة المشروع كلما ظهرت معطيات جديدة.',
+      expectedUpdatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    expect(response.status).toBe(409)
+  })
+
+  test('a still-broken correction is refused at the keep-gate', async () => {
+    resetReviewFixture()
+    const { response, body } = await patchReview({
+      programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      title: 'تخطيط الموارد وتحليل المخاطر في إدارة المشاريع',
+      summary: 'تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية.',
+      excerpt: 'مقتطف داعم عن إدارة المشاريع وطرق التقييم.',
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(response.status).toBe(422)
+    expect(body.error).toContain('بقي تشوه')
+  })
+})
+
+describe('manual review UI: the admin panel reaches the review queue and the manual save', () => {
+  test('AdminBooks wires the review list and the manual save to the knowledge-bank endpoints', () => {
+    const adminBooks = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
+    expect(adminBooks).toContain('المراجعة اليدوية للعناصر المشوّهة')
+    expect(adminBooks).toContain('عرض عناصر المراجعة')
+    expect(adminBooks).toContain('المصدر غير موثّق')
+    expect(adminBooks).toContain('sourceTextPreview')
+    expect(adminBooks).toContain('تصحيح يدويًا')
+    expect(adminBooks).toContain('&review=1')
+    expect(adminBooks).toContain('encodeURIComponent(cursor)')
+    expect(adminBooks).toContain("method: 'PATCH'")
+    expect(adminBooks).toContain('expectedUpdatedAt: item.updatedAt')
+    expect(adminBooks).toContain('اعتماد التصحيح')
+  })
+})

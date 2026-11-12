@@ -118,6 +118,9 @@ export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort
   // لكن لا نقبل فقرة معرفة/دليل/سؤال طويلة بلغة أجنبية دون صياغة عربية.
   if (!opts.allowShort && arabicLetters < 10 && latinLetters > 35) return true
 
+  // No substring fragment ending in «يف»: cleaning already repairs a standalone
+  // «يف»/«ويف» before this check runs, so such a fragment can only match a
+  // valid verb such as «يضيف». Same unification as the central guard.
   const forbidden = [
     'محور معرفي مهم', 'حاله تطبيقيه من النص', 'حالة تطبيقية من النص', 'منهجيه مستخرجه من النص', 'منهجية مستخرجة من النص',
     'نظريه او اطار من النص', 'نظرية أو إطار من النص', 'تعريف من النص', 'بذره سؤال من النص', 'بذرة سؤال من النص',
@@ -130,11 +133,10 @@ export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort
     'مخطط معرفي شامل وبنك افكار امتحاني', 'textcontent', '\\n\\n',
     'google books', 'books google', 'goodreads', 'worldcat', 'tbm bks',
     'libro de la guerra', 'tratado de la perfeccion', 'tratado de la perfección', 'lehrsätze', 'lehrs atze',
-    'vellena', 'bonapert', 'بونابرت رجاء الكتاب', 'كتاب الثاين', 'الكتاب ويف', 'كتاب احرب',
-    'يفترض اجتزال', 'هو يفتترض', 'حوالي عام 8121', 'عام 8115', 'عام 8518',
+    'vellena', 'bonapert', 'بونابرت رجاء الكتاب', 'كتاب الثاين', 'كتاب احرب',
+    'هو يفتترض', 'حوالي عام 8121', 'عام 8115', 'عام 8518',
     'مسو وتفوق', 'صوت الى استراتيجية', 'صوت الي استراتيجية', 'صوت الى استراتيجيه', 'صوت الي استراتيجيه',
-    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر', 'مبدى الموضوعيه', 'مبدأ الموضوعية يف',
-    'يف قراءة', 'يف تحليل', 'يف بداية', 'يف صناعة', 'يف سياق', 'يف اطار', 'يف إطار',
+    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر', 'مبدى الموضوعيه',
   ]
   if (forbidden.some((x) => n.includes(norm(x)))) return true
 
@@ -147,20 +149,21 @@ export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort
   if (arabicLetters >= 20 && latinLetters / Math.max(1, latinLetters + arabicLetters) > 0.38 && latinWords >= 4) return true
 
   const brokenFragments = [
-    'كتاب اطلب', 'كتاب احرب', 'يف اسبانيا', 'في اسبانيا مع كتاب', 'هو يفتترض', 'يفترض اجتزال ان الاول',
+    'كتاب اطلب', 'كتاب احرب', 'في اسبانيا مع كتاب', 'هو يفتترض', 'يفترض اجتزال ان الاول',
     'وان الثانيه ال', 'هذا المنهج منذ زمن بعيد حيث ظهر', 'استخدم هذا المنهج منذ زمن بعيد حيث ظهر',
-    'بدات الاعلان عن نفسه', 'السيما عند موسسي الفكر', 'الاستراتيجي ال عسكري', 'بشكل واضح يف اسبانيا',
-    'مع كتاب اطلب', 'مع كتاب احرب', 'كتاب حرب هو', 'ويف', 'الثاين', 'وضع الكتاب يف عام',
+    'بدات الاعلان عن نفسه', 'السيما عند موسسي الفكر', 'الاستراتيجي ال عسكري',
+    'مع كتاب اطلب', 'مع كتاب احرب', 'كتاب حرب هو', 'ويف', 'الثاين',
     'مسو وتفوق', 'صوت الى استراتيجية', 'صوت الي استراتيجية', 'صوت الى استراتيجيه', 'صوت الي استراتيجيه',
-    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر', 'مبدى الموضوعيه', 'مبدأ الموضوعية يف',
-    'يف قراءة', 'يف تحليل', 'يف اختاذ', 'يف اتخاذ', 'يف بداية', 'يف صناعة', 'يف سياق', 'يف إطار', 'يف اطار',
+    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر', 'مبدى الموضوعيه',
   ]
   if (brokenFragments.some((x) => n.includes(norm(x)))) return true
 
   const normalizedTokens = n.split(' ')
   const weirdTokenCount = normalizedTokens.filter((t) => ['يف', 'الثاين', 'ويف', 'اختاذ', 'اختاد', 'القررا', 'مبعن', 'املوضوعيه', 'املوضوعية', 'القرا', 'املبادي', 'االستراتيجيه'].includes(t)).length
   if (weirdTokenCount >= 1 && arabicWords >= 8) return true
-  if ((n.includes('يف ') || n.includes(' ويف ')) && /(القرار|الاداره|المهني|الاستراتيجي|المشروع|الكتاب|المحتوي|المحتوى)/u.test(n)) return true
+  // OCR fragments must be standalone tokens. Searching for 'يف ' also matches
+  // the ending of valid verbs such as «يضيف» (same fix as the central guard).
+  if (normalizedTokens.some((token) => ['يف', 'ويف'].includes(token)) && /(القرار|الاداره|المهني|الاستراتيجي|المشروع|الكتاب|المحتوي|المحتوى)/u.test(n)) return true
 
   const shortTokens = tokens.filter((w) => w.length <= 2).length
   if (tokens.length >= 18 && shortTokens / tokens.length > 0.45) return true
@@ -257,13 +260,15 @@ function looksLikeBrokenKnowledgeSource(value: unknown) {
   const arabicWords = tokens.filter((t) => /[\u0600-\u06FF]/.test(t)).length
   const weirdTokens = new Set(['يف', 'ويف', 'الثاين', 'اختاذ', 'اختاد', 'القررا', 'القرا', 'مبعن', 'املوضوعيه', 'املوضوعية', 'املبادي', 'االستراتيجيه'])
   const weirdCount = tokens.filter((t) => weirdTokens.has(t)).length
+  // No substring fragment ending in «يف» or starting with «فيه»: cleaning
+  // already repairs a standalone «يف»/«ويف», so such a fragment can only
+  // match a valid verb such as «يضيف» or a valid phrase such as «فيه قراءة».
+  // Surviving standalone tokens are still caught by the token check below.
   const bad = [
     'مسو وتفوق', 'صوت الى استراتيجية', 'صوت الي استراتيجية', 'صوت الى استراتيجيه', 'صوت الي استراتيجيه',
-    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر', 'مبدى الموضوعيه', 'مبدأ الموضوعية يف',
-    'كتاب اطلب', 'كتاب احرب', 'كتاب الثاين', 'الكتاب ويف', 'يف اسبانيا', 'كتاب حرب هو',
+    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر', 'مبدى الموضوعيه',
+    'كتاب اطلب', 'كتاب احرب', 'كتاب الثاين', 'كتاب حرب هو',
     'انظر كتاب', 'صادر بالفرنسية', 'صادر بالانجليزية', 'صادر بالإنجليزية',
-    'فيه قراءة', 'فيه تحليل', 'فيه بداية', 'فيه صناعة', 'فيه سياق', 'فيه اختيار', 'فيه اختاد', 'فيه اختاذ',
-    'يف قراءة', 'يف تحليل', 'يف بداية', 'يف صناعة', 'يف سياق', 'يف اطار', 'يف إطار',
     'libro de la guerra', 'tratado de la perfeccion', 'tratado de la perfección', 'lehrsätze', 'vellena',
   ]
   if (bad.some((x) => n.includes(norm(x)))) return true

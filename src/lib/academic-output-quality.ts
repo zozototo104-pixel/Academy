@@ -182,7 +182,7 @@ export function looksLikeBrokenGeneratedArabic(value: unknown): boolean {
     'وفق المقطع الاتي', 'يعرض الكتاب المقطع الاتي', 'بالاعتماد علي الدليل النصي', 'يمكن تحويل المقطع', 'يجوز تعميم المقطع', 'قراءه المقطع',
     'اي استنتاج مهني هو الادق', 'يعالج الكتاب الفكره الاتيه', 'عند تحويله الي حاله مهنيه', 'امام مدير يعمل', 'موقف مستمد من الكتاب',
     'libro de la guerra', 'tratado de la perfeccion', 'tratado de la perfección', 'lehrsätze', 'lehrs atze',
-    'vellena', 'bonapert', 'بونابرت رجاء الكتاب', 'كتاب الثاين', 'الكتاب ويف', 'عام 8121', 'عام 8115', 'عام 8518',
+    'vellena', 'bonapert', 'بونابرت رجاء الكتاب', 'كتاب الثاين', 'عام 8121', 'عام 8115', 'عام 8518',
     'انظر كتاب', 'صادر بالفرنسية', 'صادر بالانجليزية', 'صادر بالإنجليزية',
   ]
   if (forbidden.some((x) => n.includes(normalizeAcademic(x)))) return true
@@ -197,15 +197,18 @@ export function looksLikeBrokenGeneratedArabic(value: unknown): boolean {
   if (latinWords >= 4 && arabicWords >= 4 && raw.length < 800 && /(?:\bde\b|\bdel\b|\bund\b|\boder\b|\breine\b|\bmit\b|\bthe\b)/i.test(raw)) return true
 
   // مؤشرات ترجمات مكسورة متكررة ظهرت من OCR.
+  // Substring fragments ending in «يف» or starting with «فيه» are gone on purpose:
+  // cleaning already repairs a standalone «يف»/«ويف» to «في»/«وفي» before this
+  // check runs, so such a fragment can only match a valid verb such as «يضيف»
+  // or a valid phrase such as «فيه قراءة». A surviving standalone token is
+  // still caught by the token check below.
   const brokenFragments = [
-    'كتاب اطلب', 'كتاب احرب', 'يف اسبانيا', 'في اسبانيا مع كتاب', 'اهنا', 'إهنا', 'مستحيله وان الثانيه ال',
+    'كتاب اطلب', 'كتاب احرب', 'في اسبانيا مع كتاب', 'اهنا', 'إهنا', 'مستحيله وان الثانيه ال',
     'هو يفتترض', 'يفترض اجتزال ان الاول', 'وان الثانيه ال', 'هذا المنهج منذ زمن بعيد حيث ظهر',
     'استخدم هذا المنهج منذ زمن بعيد حيث ظهر', 'بدات الاعلان عن نفسه', 'السيما عند موسسي الفكر',
-    'الاستراتيجي ال عسكري', 'بشكل واضح يف اسبانيا', 'مع كتاب اطلب', 'مع كتاب احرب', 'كتاب حرب هو', 'ويف', 'الثاين',
+    'الاستراتيجي ال عسكري', 'مع كتاب اطلب', 'مع كتاب احرب', 'كتاب حرب هو', 'ويف', 'الثاين',
     'مسو وتفوق', 'صوت الى استراتيجية', 'صوت الي استراتيجية', 'صوت الى استراتيجيه', 'صوت الي استراتيجيه',
-    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر', 'مبدى الموضوعيه يف', 'مبدأ الموضوعية يف',
-    'فيه قراءة', 'فيه تحليل', 'فيه بداية', 'فيه صناعة', 'فيه سياق', 'فيه اختيار', 'فيه اختاد', 'فيه اختاذ',
-    'يف قراءة', 'يف تحليل', 'يف اختاذ', 'يف اتخاذ', 'يف بداية', 'يف صناعة', 'يف سياق', 'يف إطار', 'يف اطار',
+    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر',
   ]
   if (brokenFragments.some((x) => n.includes(normalizeAcademic(x)))) return true
 
