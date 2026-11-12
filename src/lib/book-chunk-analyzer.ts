@@ -443,7 +443,10 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number, claimedA
         const remaining = await tx.bookChunk.count({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] } } })
         if (remaining) return
         const failed = await tx.bookChunk.count({ where: { bookId, status: 'FAILED' } })
-        if (failed) {
+        // Do not block the rest of the book because a few chunks exhausted
+        // their retries. If nothing was analyzed at all, still fail honestly.
+        const analyzed = failed ? await tx.bookChunk.count({ where: { bookId, status: 'ANALYZED' } }) : 0
+        if (failed && analyzed === 0) {
           const previous = await tx.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
           await tx.bookReadJob.updateMany({ where: { id, status: 'RUNNING', startedAt: claimedAt }, data: {
             phase: 'ANALYZE', status: 'FAILED',
