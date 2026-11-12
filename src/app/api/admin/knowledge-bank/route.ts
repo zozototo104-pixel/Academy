@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
         if (!rows.length) { hasMoreRows = false; break }
         cursor = rows[rows.length - 1].id
         collected.push(...rows.filter((row) =>
-          planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput).action === 'REVIEW' ||
+          ['REVIEW', 'DELETE_EMPTY'].includes(planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput).action) ||
           !row.bookId || !row.chunkId || row.pageStart == null || row.pageEnd == null
         ))
         hasMoreRows = rows.length === 100
