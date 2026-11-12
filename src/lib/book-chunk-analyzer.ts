@@ -203,6 +203,13 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
     } catch (error: any) {
       const message = String(error?.message || error)
       if (message.includes('BOOK_READ_TIME_BUDGET_EXHAUSTED') || (Date.now() >= deadlineMs - 10_000 && /timeout|deadline|abort|timed out/i.test(message))) return { completed: false, added: 0 }
+      // Provider/model exhaustion never poisons the entire book: mark this
+      // chunk retryable and advance to another chunk on the next step.
+      // Lease/content/configuration faults still propagate and are never hidden.
+      if (store.defer && /BOOK_AI_PROVIDER_EXHAUSTED|INVALID_JSON_RESPONSE|BOOK_AI_RESPONSE_TRUNCATED|AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER_FAILED|\b(?:401|403|429|500|502|503|504)\b/i.test(message)) {
+        await store.defer(chunk.id, message)
+        return { completed: false, added: 0, deferred: true }
+      }
       throw error
     }
   }
