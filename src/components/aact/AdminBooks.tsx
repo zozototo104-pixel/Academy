@@ -816,6 +816,8 @@ export function AdminBooksTab() {
   const [manualReviewEditingId, setManualReviewEditingId] = useState<string | null>(null)
   const [manualReviewForm, setManualReviewForm] = useState({ title: '', summary: '', excerpt: '' })
   const [manualReviewSaving, setManualReviewSaving] = useState(false)
+  const [sourceRecoveryEvidence, setSourceRecoveryEvidence] = useState<Record<string, SourceRecoveryEvidence>>({})
+  const [sourceRecoveryBusyId, setSourceRecoveryBusyId] = useState<string | null>(null)
   const knowledgeRepairProgramRef = useRef(programId)
   useEffect(() => { knowledgeRepairProgramRef.current = programId }, [programId])
   // Review results are program-scoped. Never show another program's items
