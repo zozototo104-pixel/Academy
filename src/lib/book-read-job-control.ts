@@ -195,6 +195,10 @@ export type BookReadFailureKind = 'TRANSIENT' | 'BILLING' | 'CONFIG' | 'FATAL'
 export function classifyBookReadFailure(message: unknown): BookReadFailureKind {
   const text = String(message || '').toLowerCase()
   if (!text.trim()) return 'FATAL'
+  // All remaining enrichment chunks have a persisted provider backoff.
+  // Do not declare the book complete or permanently failed: cron resumes
+  // the same job when models recover.
+  if (text.includes('book_enrich_deferred')) return 'TRANSIENT'
   if (
     text.includes('text_ai_router_not_configured')
     || text.includes('not_configured')

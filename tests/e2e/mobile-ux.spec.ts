@@ -173,6 +173,24 @@ test.describe('AACT mobile UX guardrails suite', () => {
     await assertNoPageHorizontalOverflow(page, 'student-payments')
     checks.push({ name: 'تبويب الدفعات لا يسبب تمدداً أفقياً على الهاتف', ok: true })
 
+    // Admin tabs at phone width (Haris 2026-11-12): the books workspace and
+    // the system settings tab scrolled horizontally because Radix select
+    // triggers carried their full selected label as intrinsic min-content
+    // width inside grids without min-w-0. The books check covers the
+    // program picker (the wide element); the outline/buttons rows are
+    // pinned by tests/admin/mobile-overflow-guard.test.ts.
+    await setBrowserToken(page, adminLogin.token)
+    await page.goto('/admin', { waitUntil: 'domcontentloaded', timeout: 45_000 })
+    await page.waitForLoadState('networkidle', { timeout: 12_000 }).catch(() => {})
+    await page.getByRole('tab', { name: /الكتب والاختبارات/ }).click()
+    await expect(page.getByText('اختر الدرجة ثم التخصص لإدارة الكتب والاختبارات')).toBeVisible({ timeout: 30_000 })
+    await assertNoPageHorizontalOverflow(page, 'admin-books')
+    checks.push({ name: 'تبويب الكتب لا يسبب تمدداً أفقياً على الهاتف', ok: true })
+    await page.getByRole('tab', { name: /البريد والدفع والفيديو/ }).click()
+    await expect(page.getByText('مستويات المزودين')).toBeVisible({ timeout: 30_000 })
+    await assertNoPageHorizontalOverflow(page, 'admin-system')
+    checks.push({ name: 'تبويب النظام لا يسبب تمدداً أفقياً على الهاتف', ok: true })
+
     const report = { generatedAt: new Date().toISOString(), checks }
     await mkdir('test-results/mobile-ux', { recursive: true }).catch(() => {})
     const jsonPath = 'test-results/mobile-ux/report.json'

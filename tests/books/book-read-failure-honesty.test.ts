@@ -52,7 +52,9 @@ describe('lease-fenced writes across book pipeline', () => {
   })
 
   it('fences enrichment knowledge, passes, analysis counters, failures and completion', () => {
-    expect((bookAnalyzer.match(/await assertBookReadLease\(tx, /g) || []).length).toBe(5)
+    // Enrichment deferral also writes its checkpoint under the owned lease.
+    expect((bookAnalyzer.match(/await assertBookReadLease\(tx, /g) || []).length).toBe(6)
+    expect(bookAnalyzer).toContain('defer: async (chunkId, reason) => {')
     expect(bookAnalyzer).not.toContain('db.bookKnowledgeItem.createMany(')
     expect(bookAnalyzer).not.toContain('db.bookReadJob.update({')
     expect(bookAnalyzer).toContain("message.includes('BOOK_READ_LEASE_LOST')")
@@ -81,6 +83,16 @@ describe('lease-fenced writes across book pipeline', () => {
     expect(readJobRoute).toContain("WHERE \"id\" = ${candidate.id} FOR UPDATE")
     expect(readJobRoute).toContain('lockedUntil: { lte: new Date() }')
     expect(adminBooks).toContain('new Date(activeJob.lockedUntil).getTime() <= Date.now()')
+  })
+})
+
+describe('partial book reading and analysis integrity', () => {
+  it('exhausted analysis chunks do not block successful chapters or hide gaps', () => {
+    expect(bookAnalyzer).toContain("if (message.includes('BOOK_READ_LEASE_LOST')) throw error")
+    expect(bookAnalyzer).toContain("const analyzed = failed ? await tx.bookChunk.count({ where: { bookId, status: 'ANALYZED' } }) : 0")
+    expect(bookAnalyzer).toContain("if (failed && analyzed === 0)")
+    expect(bookAnalyzer).toContain('BOOK_ANALYSIS_PARTIAL:')
+    expect(adminBooks).toContain('مكتمل مع نواقص موثقة')
   })
 })
 

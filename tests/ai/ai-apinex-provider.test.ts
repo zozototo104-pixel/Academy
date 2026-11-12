@@ -98,6 +98,25 @@ afterAll(() => {
   }
 })
 
+describe('APINEX book JSON compatibility (isolated to book enrichment)', () => {
+  test('visible answer can be a string or text parts; never treat reasoning as an answer', () => {
+    expect(textAi.__testChatCompletionVisibleTextForTests({ content: '{"items":[]}' })).toBe('{"items":[]}')
+    expect(textAi.__testChatCompletionVisibleTextForTests({ content: [{ type: 'text', text: '{"items":' }, { type: 'text', text: '[]}' }] })).toBe('{"items":\n[]}')
+    expect(textAi.__testChatCompletionVisibleTextForTests({ reasoning_content: '{"items":[]}', content: null })).toBe('')
+  })
+
+  test('APINEX prompt-only JSON retry does not weaken other provider requests', () => {
+    const opts = { system: 'json', history: [], json: true, taskType: 'BOOK_ENRICH', maxOutputTokens: 8192, apinexPromptOnlyJson: true }
+    const apinex = textAi.__testOpenAiChatCompletionsBodyForTests('APINEX', APINEX_BASE_URL, 'free/gemini-3.8-flash', opts)
+    expect(apinex.response_format).toBeUndefined()
+    expect(apinex.max_tokens).toBe(8192)
+    const normal = textAi.__testOpenAiChatCompletionsBodyForTests('APINEX', APINEX_BASE_URL, 'free/gemini-3.8-flash', { ...opts, apinexPromptOnlyJson: false })
+    expect(normal.response_format).toEqual({ type: 'json_object' })
+    const unrelated = textAi.__testOpenAiChatCompletionsBodyForTests('GROQ', 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile', opts)
+    expect(unrelated.response_format).toEqual({ type: 'json_object' })
+  })
+})
+
 describe('APINEX text provider', () => {
   test('chat routes to the selected model with the APInex key', async () => {
     configureApinex()

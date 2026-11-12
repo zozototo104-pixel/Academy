@@ -2880,7 +2880,7 @@ export function AdminBooksTab() {
         <CardContent className="p-5">
           <Label className="mb-3 block text-xs font-black text-[#0f2b46]">اختر الدرجة ثم التخصص لإدارة الكتب والاختبارات</Label>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label className="text-[10px] font-black text-slate-500">نوع البرنامج / الدرجة</Label>
               <Select
                 value={selectedCategory}
@@ -2904,7 +2904,7 @@ export function AdminBooksTab() {
                   setSuggestions([])
                 }}
               >
-                <SelectTrigger className="h-11 text-sm font-bold">
+                <SelectTrigger className="h-11 min-w-0 w-full max-w-full text-sm font-bold">
                   <SelectValue placeholder="اختر: ماجستير / دكتوراه / دبلوم" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2914,7 +2914,7 @@ export function AdminBooksTab() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label className="text-[10px] font-black text-slate-500">
                 {selectedCategory === 'MASTERS' || selectedCategory === 'DOCTORATE' ? 'التخصص' : 'البرنامج / الدبلوم'}
               </Label>
@@ -2923,7 +2923,7 @@ export function AdminBooksTab() {
                 disabled={!selectedCategory}
                 onValueChange={(v) => { invalidateAssignmentGeneration(); setSuggestingAssignments(false); setAssignmentSuggestions([]); setAssignmentSuggestionProgress(''); setProgramId(v); setSuggestions([]); loadProgramData(v) }}
               >
-                <SelectTrigger className="h-11 text-sm font-bold">
+                <SelectTrigger className="h-11 min-w-0 w-full max-w-full text-sm font-bold">
                   <SelectValue placeholder={selectedCategory ? 'اختر التخصص...' : 'اختر الدرجة أولاً'} />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
@@ -3104,7 +3104,7 @@ export function AdminBooksTab() {
               <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1.2fr]">
                 <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
                   <p className="mb-2 text-xs font-black text-[#0f2b46]">تحليل الكتب فردياً</p>
-                  {programOutlineDraft.length > 0 && <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-2" dir="rtl"><p className="font-black text-[#0f2b46]">مسودة خطة وحدات البرنامج (عرض فقط — لا تنشئ وحدات)</p>{programOutlineDraft.map((section) => <p key={section.id} dir="rtl" className="mt-1 text-[11px]">الفصل {section.semester ?? 'غير محدد — يحتاج مراجعة'} · <bdi dir="rtl">{section.bookTitle}</bdi> · <bdi dir="rtl">{section.title}</bdi> · صفحات <bdi dir="ltr">{section.pageStart ?? '؟'}–{section.pageEnd ?? '؟'}</bdi> · {section.itemsCount} عنصر{section.semesterNeedsReview ? ' · الفصل مقترح للمراجعة' : ''}</p>)}</div>}
+                  {programOutlineDraft.length > 0 && <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-2" dir="rtl"><p className="font-black text-[#0f2b46]">مسودة خطة وحدات البرنامج (عرض فقط — لا تنشئ وحدات)</p>{programOutlineDraft.map((section) => <p key={section.id} dir="rtl" className="mt-1 break-words text-[11px]">الفصل {section.semester ?? 'غير محدد — يحتاج مراجعة'} · <bdi dir="rtl">{section.bookTitle}</bdi> · <bdi dir="rtl">{section.title}</bdi> · صفحات <bdi dir="ltr">{section.pageStart ?? '؟'}–{section.pageEnd ?? '؟'}</bdi> · {section.itemsCount} عنصر{section.semesterNeedsReview ? ' · الفصل مقترح للمراجعة' : ''}</p>)}</div>}
                   <div className="max-h-72 space-y-2 overflow-auto pr-1">
                     {books.length === 0 ? <p className="text-[11px] font-bold text-slate-500">لا توجد كتب بعد.</p> : books.map((b) => {
                       const countForBook = v2CountsByBook[b.id] ?? 0
@@ -3166,7 +3166,7 @@ export function AdminBooksTab() {
                                   if (warning.startsWith('OUTLINE_')) return []
                                   return [warning]
                                 }).map((warning, index) => <p key={index} role="alert" className="mt-1 break-words text-amber-700">⚠ {warning}</p>) } catch { return null } })()}
-                              {outline.sections.map((section, sectionIndex) => <div key={section.id} dir="rtl" className="mt-1">{outlineEditingId === section.id ? <div className="flex flex-wrap gap-2"><input aria-label="عنوان القسم" dir="rtl" className="min-w-0 flex-1 rounded border p-2" value={outlineEditingTitle} maxLength={180} onChange={(event) => setOutlineEditingTitle(event.target.value)} /><Button size="sm" onClick={() => void renameOutlineSection(b.id, section.id)}>حفظ</Button><Button size="sm" variant="outline" onClick={() => setOutlineEditingId(null)}>إلغاء</Button></div> : <div dir="rtl"><bdi dir="rtl">{section.order}. {section.title}</bdi> {inferredTitles.has(section.order) && section.title.endsWith(inferredTitles.get(section.order)!) && <span className="mx-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">عنوان مقترح من المحتوى — يحتاج مراجعة</span>} · {section.pageEnd === null ? <>بداية الصفحة <bdi dir="ltr">{section.pageStart ?? '؟'}</bdi></> : <>صفحات <bdi dir="ltr">{section.pageStart ?? '؟'}–{section.pageEnd}</bdi></>} · {section.itemsCount} عنصر {section.startCharOffset != null ? <>· موضع البداية <bdi dir="ltr">{section.startCharOffset}</bdi></> : ''} {outline.status === 'DRAFT' && <Button size="sm" variant="outline" onClick={() => { setOutlineEditingId(section.id); setOutlineEditingTitle(section.title) }}>تعديل العنوان</Button>} {outline.status === 'DRAFT' && <>
+                              {outline.sections.map((section, sectionIndex) => <div key={section.id} dir="rtl" className="mt-1 break-words">{outlineEditingId === section.id ? <div className="flex flex-wrap gap-2"><input aria-label="عنوان القسم" dir="rtl" className="min-w-0 flex-1 rounded border p-2" value={outlineEditingTitle} maxLength={180} onChange={(event) => setOutlineEditingTitle(event.target.value)} /><Button size="sm" onClick={() => void renameOutlineSection(b.id, section.id)}>حفظ</Button><Button size="sm" variant="outline" onClick={() => setOutlineEditingId(null)}>إلغاء</Button></div> : <div dir="rtl"><bdi dir="rtl">{section.order}. {section.title}</bdi> {inferredTitles.has(section.order) && section.title.endsWith(inferredTitles.get(section.order)!) && <span className="mx-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">عنوان مقترح من المحتوى — يحتاج مراجعة</span>} · {section.pageEnd === null ? <>بداية الصفحة <bdi dir="ltr">{section.pageStart ?? '؟'}</bdi></> : <>صفحات <bdi dir="ltr">{section.pageStart ?? '؟'}–{section.pageEnd}</bdi></>} · {section.itemsCount} عنصر {section.startCharOffset != null ? <>· موضع البداية <bdi dir="ltr">{section.startCharOffset}</bdi></> : ''} {outline.status === 'DRAFT' && <Button size="sm" variant="outline" onClick={() => { setOutlineEditingId(section.id); setOutlineEditingTitle(section.title) }}>تعديل العنوان</Button>} {outline.status === 'DRAFT' && <>
                                 {sectionIndex > 0 && <Button size="sm" variant="outline" className="text-amber-700" onClick={() => void rejectOutlineSection(b.id, section.id, 'previous')}>ضم للسابق</Button>}
                                 {sectionIndex < outline.sections.length - 1 && <Button size="sm" variant="outline" className="text-amber-700" onClick={() => void rejectOutlineSection(b.id, section.id, 'next')}>ضم للتالي</Button>}
                               </>}</div>}{outline.warnings && (() => { try { return (JSON.parse(outline.warnings || '[]') as string[]).filter((w) => w.startsWith('OUTLINE_SUBHEADING:')).map((w) => { try { return JSON.parse(w.slice('OUTLINE_SUBHEADING:'.length)) as { sectionOrder: number; title: string; page: number; charOffset: number | null } } catch { return null } }).filter((m) => m?.sectionOrder === section.order).map((m, i) => <p key={i} dir="rtl" className="ms-4 text-[10px] text-slate-500">↳ <bdi dir="rtl">{m!.title}</bdi> · صفحة <bdi dir="ltr">{m!.page}</bdi>{m!.charOffset === null ? ' · الموضع يحتاج مراجعة' : ''}</p>) } catch { return null } })()}</div>)}
@@ -3183,7 +3183,7 @@ export function AdminBooksTab() {
                               </div>
                               <textarea aria-label="تشخيص الفهرس قابل للنسخ" readOnly dir="rtl" value={formatted} className="h-28 w-full rounded border border-amber-200 bg-white p-2 text-[10px] font-bold leading-5 text-slate-700" />
                               <ul className="mt-2 max-h-40 space-y-1 overflow-auto">
-                                {lines.length === 0 ? <li className="rounded bg-white p-2 text-[10px] text-slate-500">لا توجد أسطر تحتوي فصل/باب بعد التطبيع.</li> : lines.map(({ chunk, match }, index) => <li key={`${chunk.index}-${match.charOffset}-${index}`} className="rounded bg-white p-2 text-[10px] leading-5 text-slate-700"><span className="font-black text-[#0f2b46]">مقطع {chunk.index} · صفحة {chunk.pageStart}–{chunk.pageEnd} · charOffset {match.charOffset}</span><br />{match.rawLine}<br /><span className="text-slate-400">{match.contextBefore}⟦{match.rawLine}⟧{match.contextAfter}</span></li>)}
+                                {lines.length === 0 ? <li className="rounded bg-white p-2 text-[10px] text-slate-500">لا توجد أسطر تحتوي فصل/باب بعد التطبيع.</li> : lines.map(({ chunk, match }, index) => <li key={`${chunk.index}-${match.charOffset}-${index}`} className="break-words rounded bg-white p-2 text-[10px] leading-5 text-slate-700"><span className="font-black text-[#0f2b46]">مقطع {chunk.index} · صفحة {chunk.pageStart}–{chunk.pageEnd} · charOffset {match.charOffset}</span><br />{match.rawLine}<br /><span className="break-words text-slate-400">{match.contextBefore}⟦{match.rawLine}⟧{match.contextAfter}</span></li>)}
                               </ul>
                             </div>
                           })()}
@@ -3194,7 +3194,7 @@ export function AdminBooksTab() {
                           {bookReadJobs[b.id] && (() => {
                             const job = bookReadJobs[b.id]
                             const manuallyStopped = job.status === 'PAUSED' && !!job.retryAt && new Date(job.retryAt).getUTCFullYear() === 9999
-                            const phase = manuallyStopped ? 'موقوف بأمر الإدارة' : job.status === 'FAILED' ? 'فشل' : job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.phase === 'ENRICH' ? 'استخراج المزيد' : 'بانتظار المعالجة'
+                            const phase = manuallyStopped ? 'موقوف بأمر الإدارة' : job.status === 'FAILED' ? 'فشل' : job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? (job.chunksFailed > 0 ? 'مكتمل مع نواقص موثقة' : 'مكتمل') : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.phase === 'ENRICH' ? 'استخراج المزيد' : 'بانتظار المعالجة'
                             const saved = bookEnrichment[b.id]
                             const pagesTotal = saved?.sourcePages || job.totalPages
                             const pagesDone = saved?.pagesSaved ?? job.pagesDone

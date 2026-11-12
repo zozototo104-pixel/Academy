@@ -118,7 +118,22 @@ export type StageRoutingOverrides =
 // صارم: سياسة مجهولة أو مزوّد مجهول في أي موضع = بروفايل غير صالح.
 export function buildStageRoutingOverrides(resolution: EffectiveStageProfile): StageRoutingOverrides {
   if (resolution.kind === 'global') return { kind: 'global', reason: resolution.reason }
-  const { snapshot } = resolution
+  // Historical snapshots can contain lowercase provider IDs (for example
+  // "apinex" in REVIEW). Canonicalize for routing only: keep the saved
+  // version immutable and continue rejecting unknown provider names.
+  const original = resolution.snapshot
+  const normalizeRef = (ref: StageProfileModelRef): StageProfileModelRef => ({
+    ...ref, provider: ref.provider.trim().toUpperCase(),
+  })
+  const snapshot: StageProfileSnapshot = {
+    ...original,
+    provider: original.provider?.trim().toUpperCase() ?? null,
+    models: original.models.map(normalizeRef),
+    verifier: original.verifier ? {
+      ...original.verifier,
+      preferred: original.verifier.preferred.map(normalizeRef),
+    } : null,
+  }
   if (snapshot.policy != null && !(KNOWN_ROUTER_POLICIES as readonly string[]).includes(snapshot.policy)) {
     return { kind: 'invalid', reason: `unknown policy: ${snapshot.policy}` }
   }

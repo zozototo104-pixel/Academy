@@ -65,14 +65,14 @@ async function testDistantChunkDoesNotBlockSimilarConcept() {
   const chunk = { id: 'chunk-4', bookId: 'book', programId: 'program', index: 4, text: evidence, pageStart: 5, pageEnd: 5, textProvenance: 'NATIVE_TEXT', attempts: 0 }
   const existing = [{ index: 0, ...first }]
   let saved: BookKnowledgeCandidate[] = []
-  let analyzed = false
+  let analyzed = false, completed = false
   const store: AnalyzeStepStore = {
-    getJob: async () => ({ id: 'job', bookId: 'book', programId: 'program', phase: 'ANALYZE', status: 'RUNNING' }),
+    getJob: async () => ({ id: 'job', bookId: 'book', programId: 'program', phase: completed ? 'DONE' : 'ANALYZE', status: completed ? 'COMPLETED' : 'RUNNING' }),
     nextChunk: async () => analyzed ? null : chunk,
     priorItems: async (_bookId, index) => existing.filter((item) => item.index >= index - 2 && item.index <= index),
     saveAnalyzed: async (_chunk, items) => { saved = items; analyzed = true },
     saveFailure: async () => { throw new Error('unexpected failure') },
-    complete: async () => {},
+    complete: async () => { completed = true },
   }
   const result = await analyzeStepWithStore('job', Date.now() + 30000, store, async () => [first])
   assert.equal(result.completed, true)

@@ -55,7 +55,16 @@ export async function GET(req: NextRequest) {
           semester: exam.unit.semester,
           unitId: exam.unitId,
         })
-        if (!verdict.ok) return NextResponse.json({ error: verdict.message, code: verdict.code }, { status: 403 })
+        if (!verdict.ok) {
+          // نافذة الوحدة المنتهية وحدها قابلة للالتماس: أرفق سياق الوحدة
+          // ليُركَّب زر الالتماس على شاشة الامتحان المغلق نفسها.
+          return NextResponse.json(
+            verdict.code === 'UNIT_WINDOW_ENDED'
+              ? { error: verdict.message, code: verdict.code, data: { programId: exam.unit.programId, semester: exam.unit.semester, unitId: exam.unitId } }
+              : { error: verdict.message, code: verdict.code },
+            { status: 403 },
+          )
+        }
       }
     }
 

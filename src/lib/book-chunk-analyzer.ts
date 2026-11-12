@@ -78,7 +78,15 @@ async function callAnalysisAi(baseOpts: AnalysisCallOpts, routing: AnalysisRouti
     if (!routing.allowGlobalFallback) throw error
     usage.fallbackUsed = true
     usage.fallbackReason = 'all-stage-models-failed'
-    return geminiCompleteJson(withUsageCapture(baseOpts, usage))
+    try {
+      return await geminiCompleteJson(withUsageCapture(baseOpts, usage))
+    } catch (fallbackError) {
+      if (baseOpts.taskType !== 'BOOK_ENRICH') throw fallbackError
+      const summary = (value: unknown) => String((value as Error)?.message || value || 'unknown')
+        .replace(/(?:sk-|AIza)[A-Za-z0-9_\-]{8,}/g, '[REDACTED]')
+        .slice(0, 2200)
+      throw new Error(`BOOK_AI_PROVIDER_EXHAUSTED: STAGE=[${summary(error)}] GLOBAL=[${summary(fallbackError)}]`)
+    }
   }
 }
 
@@ -133,7 +141,8 @@ async function enrichBookChunkInner(input: { bookId: string; chunkText: string; 
   const result = await callAnalysisAi({
     system: 'أنت محلل كتب أكاديمية. استخرج معرفة جديدة من النص الحرفي فقط. أرجع JSON فقط.',
     history: [{ role: 'user', text: `استخرج حتى 8 عناصر جديدة غير مذكورة في القائمة، مفاهيم وتعريفات وأمثلة ومبادئ وحقائق. لا تخترع معلومات ولا تنشئ أسئلة. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر category,title,summary,excerpt (اقتباس حرفي 60-600 حرف),importance (0-100). أرجع {"items":[...]}. العناصر الموجودة:\n${input.existing.map((item) => `${item.title}: ${item.summary}`).join('\n')}\nالنص:\n${input.chunkText}` }],
-    taskLevel: 'ACADEMIC_DRAFT', stickyScope: `BOOK_READ:${input.bookId}`, deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)), temperature: 0.2,
+    taskLevel: 'ACADEMIC_DRAFT', taskType: 'BOOK_ENRICH', maxOutputTokens: 8192,
+    stickyScope: `BOOK_READ:${input.bookId}`, deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)), temperature: 0.2,
     validate: (raw) => { if (!Array.isArray(JSON.parse(raw)?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE') },
   }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false })
   const accepted: BookKnowledgeCandidate[] = []
@@ -155,6 +164,8 @@ async function enrichBookChunkInner(input: { bookId: string; chunkText: string; 
 export type EnrichStepStore = {
   getJob: (id: string) => Promise<{ id: string; bookId: string; phase: string } | null>
   nextChunk: (bookId: string) => Promise<{ id: string; bookId: string; programId: string; index: number; text: string; pageStart: number; pageEnd: number; textProvenance: string; analysisPasses: number } | null>
+  // Failed providers are deferred per chunk, not treated as successful analysis.
+  defer?: (chunkId: string, reason: string) => Promise<void>
   existing: (bookId: string, chunkId: string, index: number) => Promise<{ local: Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; own: Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }>
   save: (chunk: { id: string; bookId: string; programId: string; pageStart: number; pageEnd: number; textProvenance: string }, items: BookKnowledgeCandidate[], capacity?: number) => Promise<void>
   finish: (jobId: string) => Promise<void>
@@ -200,6 +211,13 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
     } catch (error: any) {
       const message = String(error?.message || error)
       if (message.includes('BOOK_READ_TIME_BUDGET_EXHAUSTED') || (Date.now() >= deadlineMs - 10_000 && /timeout|deadline|abort|timed out/i.test(message))) return { completed: false, added: 0 }
+      // Provider/model exhaustion never poisons the entire book: mark this
+      // chunk retryable and advance to another chunk on the next step.
+      // Lease/content/configuration faults still propagate and are never hidden.
+      if (store.defer && /BOOK_AI_PROVIDER_EXHAUSTED|INVALID_JSON_RESPONSE|BOOK_AI_RESPONSE_TRUNCATED|AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER_FAILED|\b(?:401|403|429|500|502|503|504)\b/i.test(message)) {
+        await store.defer(chunk.id, message)
+        return { completed: false, added: 0, deferred: true }
+      }
       throw error
     }
   }
@@ -214,11 +232,47 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
   return { completed: false, added: accepted.length }
 }
 
+// A provider outage is not a completed enrichment pass. Deferred chunks
+// stay eligible for a future attempt but do not block other chunks today.
+export function __testEnrichDeferralForTests(lastError: string | null | undefined, now = Date.now()): { attempts: number; ready: boolean } {
+  const match = /^BOOK_ENRICH_WAIT:(\d+):(\d+)(?::|$)/.exec(String(lastError || ''))
+  return match ? { attempts: Number(match[1]), ready: Number(match[2]) <= now } : { attempts: 0, ready: true }
+}
+
 /** Requires the shared read-step job lock. Processes exactly one chunk per call. */
 export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt: Date) {
   const store: EnrichStepStore = {
     getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, phase: true } }),
-    nextChunk: (bookId) => db.bookChunk.findFirst({ where: { bookId, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } }, orderBy: [{ analysisPasses: 'asc' }, { index: 'asc' }], select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, analysisPasses: true } }),
+    nextChunk: async (bookId) => {
+      // Fetch only metadata first: no expensive 4KB texts until a due chunk
+      // is found. Never turn an all-deferred book into false completion.
+      const pending = await db.bookChunk.findMany({
+        where: { bookId, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } },
+        orderBy: [{ analysisPasses: 'asc' }, { index: 'asc' }],
+        select: { id: true, lastError: true },
+      })
+      const due = pending.find((item) => __testEnrichDeferralForTests(item.lastError).ready)
+      if (!due) {
+        if (pending.length) throw new Error('BOOK_ENRICH_DEFERRED')
+        return null
+      }
+      return db.bookChunk.findUnique({
+        where: { id: due.id },
+        select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, analysisPasses: true },
+      })
+    },
+    defer: async (chunkId, reason) => {
+      await db.$transaction(async (tx) => {
+        await assertBookReadLease(tx, jobId, claimedAt)
+        const chunk = await tx.bookChunk.findUnique({ where: { id: chunkId }, select: { status: true, lastError: true } })
+        if (chunk?.status !== 'ANALYZED') return
+        const attempts = Math.min(12, __testEnrichDeferralForTests(chunk.lastError).attempts + 1)
+        const retryAt = Date.now() + Math.min(60 * 60_000, Math.pow(2, Math.min(attempts - 1, 6)) * 60_000)
+        // Store diagnostic codes, not source text, credentials or provider payloads.
+        const codes = [...new Set((reason.match(/INVALID_JSON_RESPONSE|BOOK_AI_RESPONSE_TRUNCATED|BOOK_AI_PROVIDER_EXHAUSTED|AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER_FAILED|\b(?:401|403|429|500|502|503|504)\b/gi) || []).slice(0, 6))].join(',') || 'PROVIDER_ERROR'
+        await tx.bookChunk.update({ where: { id: chunkId }, data: { lastError: `BOOK_ENRICH_WAIT:${attempts}:${retryAt}:${codes}` } })
+      })
+    },
     existing: async (bookId, chunkId, index) => {
       const chunks = await db.bookChunk.findMany({ where: { bookId, index: { gte: Math.max(0, index - 2), lte: index } }, select: { id: true } })
       const rows = await db.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 2, chunkId: { in: chunks.map((chunk) => chunk.id) } }, select: { chunkId: true, title: true, summary: true } })
@@ -254,9 +308,12 @@ export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt
         })
         await tx.bookChunk.update({
           where: { id: chunk.id },
-          data: capacity === 0 || available === 0
-            ? { saturatedAt: new Date() }
-            : { analysisPasses: { increment: 1 } },
+          data: {
+            ...(capacity === 0 || available === 0
+              ? { saturatedAt: new Date() }
+              : { analysisPasses: { increment: 1 } }),
+            lastError: null,
+          },
         })
       })
     },
@@ -307,7 +364,10 @@ export async function analyzeStepWithStore(
     if (!chunk) {
       if (attempted.size > analyzed + failed) return { analyzed, failed, completed: false, paused: false }
       await store.complete(job.bookId, jobId)
-      return { analyzed, failed, completed: true, paused: false }
+      // Completion can legitimately resolve to FAILED (zero analyzed chunks),
+      // or remain RUNNING if pending work appeared. Reflect the persisted job.
+      const finalJob = await store.getJob(jobId)
+      return { analyzed, failed, completed: finalJob?.status === 'COMPLETED', paused: false }
     }
     attempted.add(chunk.id)
     try {
@@ -322,7 +382,9 @@ export async function analyzeStepWithStore(
       analyzed++
     } catch (error: any) {
       const message = String(error?.message || error)
-      if (message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE') || message.includes('BOOK_READ_LEASE_LOST')) throw error
+      // Losing the lease is a job-level fault. Provider/model exhaustion is
+      // a chunk-level failure: record its attempt and continue other chunks.
+      if (message.includes('BOOK_READ_LEASE_LOST')) throw error
       if (message.includes('BOOK_READ_TIME_BUDGET_EXHAUSTED') || (Date.now() >= deadlineMs - 10_000 && /timeout|deadline|abort|timed out/i.test(message))) return { analyzed, failed, completed: false, paused: false }
       const exhausted = chunk.attempts + 1 >= 3
       await store.saveFailure(chunk.id, jobId, message.slice(0, 2000), exhausted)
@@ -384,7 +446,10 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number, claimedA
         const remaining = await tx.bookChunk.count({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] } } })
         if (remaining) return
         const failed = await tx.bookChunk.count({ where: { bookId, status: 'FAILED' } })
-        if (failed) {
+        // Do not block the rest of the book because a few chunks exhausted
+        // their retries. If nothing was analyzed at all, still fail honestly.
+        const analyzed = failed ? await tx.bookChunk.count({ where: { bookId, status: 'ANALYZED' } }) : 0
+        if (failed && analyzed === 0) {
           const previous = await tx.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
           await tx.bookReadJob.updateMany({ where: { id, status: 'RUNNING', startedAt: claimedAt }, data: {
             phase: 'ANALYZE', status: 'FAILED',
@@ -402,9 +467,13 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number, claimedA
             AND ("kbVersion" = 1 OR "kbVersion" IS NULL)
             AND "category" <> 'LEGACY'
         `
+        const priorJob = failed ? await tx.bookReadJob.findUnique({ where: { id }, select: { lastError: true } }) : null
         await tx.bookReadJob.updateMany({
           where: { id, status: 'RUNNING', startedAt: claimedAt },
-          data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null },
+          data: {
+            phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null,
+            ...(failed ? { lastError: preserveBookPageReadIssues(priorJob?.lastError, `BOOK_ANALYSIS_PARTIAL: ${failed} مقطع تعذر تحليله بعد استنفاد المحاولات. يمكن متابعة الفهرسة من المقاطع الناجحة؛ النواقص محفوظة للمراجعة.`) } : {}),
+          },
         })
       })
     },

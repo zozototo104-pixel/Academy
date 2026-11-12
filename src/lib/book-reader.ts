@@ -84,7 +84,7 @@ export async function extractNumberedPdfPages(buffer: Buffer, pageNumbers: reado
   }
 }
 
-async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null } | null): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string }> {
+async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null } | null, imageMode = false): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string }> {
   if (!pageNumbers.length || pageNumbers.length > 8) throw new Error('OCR_PAGE_RANGE_INVALID')
   if (deadlineMs - Date.now() < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const original = await PDFDocument.load(buffer)
@@ -92,6 +92,23 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
   const copied = await subset.copyPages(original, pageNumbers.map((page) => page - 1))
   for (const page of copied) subset.addPage(page)
   const data = Buffer.from(await subset.save())
+  // APINEX documents image_url input, but not PDF file parts. When PDF OCR
+  // fails, render ONLY this short page subset to PNG before trying APINEX.
+  // Original source pages and their mapping remain unchanged.
+  let attachments: { mimeType: string; base64: string }[] = [{ mimeType: 'application/pdf', base64: data.toString('base64') }]
+  if (imageMode) {
+    const worker = await import('pdf-parse/worker')
+    const { PDFParse } = await import('pdf-parse')
+    const parser = new PDFParse({ data: new Uint8Array(data), CanvasFactory: (worker as any).CanvasFactory } as any)
+    try {
+      const screenshots = await parser.getScreenshot({ partial: pageNumbers.map((_, index) => index + 1), desiredWidth: 1400, imageBuffer: true, imageDataUrl: false })
+      if (screenshots.pages?.length !== pageNumbers.length) throw new Error('BOOK_OCR_IMAGE_RENDER_INCOMPLETE')
+      attachments = screenshots.pages.map((page: any) => ({ mimeType: 'image/png', base64: Buffer.from(page.data).toString('base64') }))
+      if (attachments.some((item) => !item.base64)) throw new Error('BOOK_OCR_IMAGE_RENDER_EMPTY')
+    } finally {
+      await parser.destroy().catch(() => {})
+    }
+  }
   const meta = await textAiCompleteJsonWithMetadata({
     system: 'أنت محرك OCR حرفي. انسخ النص المرئي كما هو، دون شرح أو وصف أو استنتاج. لا تستخدم VISION_DESCRIPTION.',
     history: [{ role: 'user', text: `الملف يحتوي ${pageNumbers.length} صفحات بالترتيب. أرجع JSON فقط بالشكل {"pages":[{"page":1,"text":"النص الحرفي"}]}، حيث page هو رقم الصفحة داخل الملف الفرعي من 1 إلى ${pageNumbers.length}. لا تخترع نصاً ولا تلخص.` }],
@@ -101,7 +118,7 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
     ...(overrides?.preferredProviders.length ? { preferredProviders: overrides.preferredProviders as TextAiProvider[] } : {}),
     maxOutputTokens: 16000,
     deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + 90_000),
-    attachments: [{ mimeType: 'application/pdf', base64: data.toString('base64') }],
+    attachments,
   })
   const parsed = JSON.parse(meta.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
   if (!Array.isArray(parsed?.pages)) throw new Error('OCR_INVALID_PAGE_RESPONSE')
@@ -121,6 +138,19 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
   try {
     return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, overrides)), fellBack: false }
   } catch (error) {
+    // APINEX guarantees image_url vision on Gemini but does not document
+    // accepting PDF file parts on this endpoint. Retry the same source pages
+    // as PNGs before abandoning the configured stage models.
+    const apinexVision = overrides.preferredModels.filter((item) =>
+      item.provider.toUpperCase() === 'APINEX' && /gemini/i.test(item.model))
+    if (apinexVision.length && deadlineMs - Date.now() >= 25_000) {
+      try {
+        const imageRouting = { ...overrides, preferredModels: apinexVision, preferredProviders: ['APINEX'] }
+        return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, imageRouting, true)), fellBack: false }
+      } catch (imageError) {
+        if (!overrides.allowGlobalFallback) throw imageError
+      }
+    }
     if (!overrides.allowGlobalFallback) throw error
     // D2.1c: الوسم يُضبط لحظة اتخاذ قرار الرجوع — قبل المحاولة نفسها —
     // حتى يظهر في سجل الفشل إن فشلت محاولة الرجوع أيضًا.

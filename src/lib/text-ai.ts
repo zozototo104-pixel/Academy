@@ -48,6 +48,8 @@ export interface TextAiCallOpts {
   temperature?: number
   maxOutputTokens?: number
   json?: boolean
+  // Scoped to book enrichment when APINEX's structured-output compatibility fails.
+  apinexPromptOnlyJson?: boolean
   routerPolicy?: TextAiRouterPolicy
   taskLevel?: TextAiTaskLevel
   purpose?: TextAiPurpose
@@ -2724,7 +2726,7 @@ function openAiChatCompletionsBody(provider: string, baseUrl: string, model: str
     messages: toOpenAiChatMessages(opts),
     max_tokens: chatCompletionsMaxTokens(provider, baseUrl, opts),
     temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
-    ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
+    ...(opts.json && !(provider === 'APINEX' && opts.apinexPromptOnlyJson) ? { response_format: { type: 'json_object' } } : {}),
     ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
     ...nvidiaChatBodyExtras(provider, baseUrl, model),
   }
@@ -3149,6 +3151,15 @@ async function callZaiVision(model: string, opts: TextAiCallOpts): Promise<strin
   return text
 }
 
+// OpenAI-compatible gateways may return text as an array of content parts.
+// Reasoning content is deliberately excluded: it is not an academic answer.
+export function __testChatCompletionVisibleTextForTests(message: any): string {
+  const content = message?.content
+  if (typeof content === 'string') return content.trim()
+  if (!Array.isArray(content)) return ''
+  return content.map((part: any) => typeof part === 'string' ? part : (part?.type === 'text' && typeof part?.text === 'string' ? part.text : '')).filter(Boolean).join('\n').trim()
+}
+
 async function callChatCompletions(provider: string, baseUrl: string, key: string, model: string, opts: TextAiCallOpts): Promise<string> {
   const providerOpts = withNvidiaNoThinkDirective(provider, baseUrl, model, opts)
   const response = await fetchWithTimeout(provider, `${baseUrl}/chat/completions`, {
@@ -3162,8 +3173,15 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
   }, providerRequestTimeoutMs(provider, providerOpts), providerOpts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp(provider, response.status, data, response)
-  const message = data?.choices?.[0]?.message || {}
-  const text = String(message?.content || '').trim()
+  const choice = data?.choices?.[0] || {}
+  const message = choice.message || {}
+  const text = __testChatCompletionVisibleTextForTests(message)
+  if (provider === 'APINEX' && opts.taskType === 'BOOK_ENRICH' && ['length', 'max_tokens', 'max_output_tokens'].includes(String(choice.finish_reason || '').toLowerCase())) {
+    const err: any = new Error('BOOK_AI_RESPONSE_TRUNCATED')
+    err.code = 'BOOK_AI_RESPONSE_TRUNCATED'
+    err.finishReason = String(choice.finish_reason)
+    throw err
+  }
   if (!text) {
     const err: any = new Error(`${provider}_EMPTY_RESPONSE`)
     if (isNvidiaChatCompletionsRequest(provider, baseUrl) && message?.reasoning_content) err.code = 'EMPTY_RESPONSE'
@@ -3263,6 +3281,7 @@ async function callProviderWithJsonRepair(provider: ConcreteProvider, s: Setting
 
   const retry = await callProvider(provider, s, key, model, {
     ...opts,
+    ...(provider === 'APINEX' && opts.taskType === 'BOOK_ENRICH' ? { apinexPromptOnlyJson: true } : {}),
     system: `${opts.system}\n\nإعادة إلزامية: الرد السابق لم يكن JSON صالحاً. أعد JSON فقط بدون أي نص تمهيدي أو Markdown أو شرح.`,
     history: [
       ...opts.history,
