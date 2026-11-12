@@ -5262,6 +5262,7 @@ export function AdminKnowledgeAiRepairTab() {
           AI_KNOWLEDGE_REPAIR_PROVIDER: repairProvider,
           AI_KNOWLEDGE_REPAIR_MODEL: repairProvider === 'AUTO' ? '' : repairModel.trim(),
           AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS: repairInterval || '0',
+          AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN: repairCallsPerRun || '1',
         }),
       })
       const result = await api<{ job: RepairStatus }>('/api/admin/knowledge-bank', {
