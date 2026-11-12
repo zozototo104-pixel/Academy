@@ -48,7 +48,8 @@ describe('assignment per-enrollment deadlines and teaching unit gates', () => {
   test('AI suggestions do not fabricate a deadline; unit-linked items use the unit window', () => {
     expect(suggestRoute).toContain('dueDays: null')
     expect(suggestRoute).not.toContain('asInt(item?.dueDays')
-    expect(adminBooks).toContain('dueDays: s.unitId ? null : 14')
+    expect(adminBooks).toContain("dueDays: s.semester === 3 || !s.unitId ? '14' : ''")
+    expect(adminBooks).toContain('dueDays: s.semester === 3 || !s.unitId ? 14 : null')
     expect(adminAssignmentsRoute).toContain('dueAt:')
   })
   test('GET/POST share deadlines but POST must never reject before unit start', () => {
