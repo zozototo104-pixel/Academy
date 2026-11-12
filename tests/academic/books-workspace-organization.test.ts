@@ -167,6 +167,21 @@ function apiSurface(): { count: number; digest: string } {
   assert.equal(manualReviewCalls.length, 2, 'expected one review-queue GET and one manual-review PATCH')
   assert.ok(manualReviewCalls.some((call) => call.includes('encodeURIComponent(cursor)')), 'review queue must page by cursor')
   assert.ok(manualReviewCalls.some((call) => call.includes('manualReviewForm.title') && call.includes('manualReviewForm.summary') && call.includes('manualReviewForm.excerpt')), 'manual save must send all three corrected fields')
+  // Source recovery adds one read-only, same-book search and one explicitly
+  // confirmed PATCH. Both are reviewed individually; all historical calls
+  // remain protected by the original frozen digest.
+  const sourceCandidateCalls = calls.filter((call) =>
+    call.includes('&sourceCandidates=1') && call.includes('&itemId=') &&
+    call.includes('encodeURIComponent(item.id)'))
+  assert.equal(sourceCandidateCalls.length, 1, 'expected one read-only, item-scoped source candidate lookup')
+  const sourceRestoreCalls = calls.filter((call) =>
+    call.includes("'/api/admin/knowledge-bank'") && call.includes("method: 'PATCH'") &&
+    call.includes("action: 'restore-source'"))
+  assert.equal(sourceRestoreCalls.length, 1, 'expected one explicit source-restoration PATCH')
+  assert.ok(sourceRestoreCalls[0].includes('confirmSource: true') &&
+    sourceRestoreCalls[0].includes('expectedUpdatedAt: item.updatedAt') &&
+    sourceRestoreCalls[0].includes('chunkId: match.chunkId'),
+    'source restoration requires explicit confirmation, original chunk and optimistic concurrency')
   // The standalone tab independently lists programs; keep exactly the original
   // API call plus one identical reviewed duplicate for its own selector.
   const aiSettingsCalls = calls.filter((call) => call.includes("'/api/admin/system'"))
