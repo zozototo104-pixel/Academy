@@ -772,6 +772,8 @@ export function AdminBooksTab() {
   const [rebuildingKnowledge, setRebuildingKnowledge] = useState(false)
   const [sanitizingKnowledge, setSanitizingKnowledge] = useState(false)
   const [knowledgeRepairProgress, setKnowledgeRepairProgress] = useState<string | null>(null)
+  const knowledgeRepairProgramRef = useRef(programId)
+  useEffect(() => { knowledgeRepairProgramRef.current = programId }, [programId])
   const [rebuildingBookId, setRebuildingBookId] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [bookUploadProgress, setBookUploadProgress] = useState<number | null>(null)
