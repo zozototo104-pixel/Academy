@@ -153,7 +153,7 @@ async function buildSemesterGuide(programId: string, semester: number) {
       ? ['اختر محوراً من كل وحدة وحوله إلى سؤال بحثي قابل للمناقشة.', 'اربط كل سؤال بحثي بمصدر معرفة وصفحات محددة.', 'ميّز المنهجية المناسبة لكل محور قبل كتابة خطة البحث.']
       : ['راجع كل وحدة من مراجع صفحاتها قبل الانتقال إلى الوحدة التالية.', 'اكتب بطاقة مراجعة لكل مصطلح أساسي مع رقم الصفحة.', 'أجب عن أسئلة المراجعة الذاتية دون تحويلها إلى أسئلة امتحانية.'],
     discussionQuestions: researchQuestions,
-    sourceKnowledgeIds,
+    sourceKnowledgeIds: unique([...sourceKnowledgeIds, ...sections.flatMap((section) => section.sourceKnowledgeIds)]),
   }
 }
 
