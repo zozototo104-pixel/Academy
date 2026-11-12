@@ -3285,6 +3285,31 @@ export function AdminBooksTab() {
                             <Button size="sm" variant="outline" className="mt-2 h-7 text-[11px]" onClick={() => { setManualReviewEditingId(item.id); setManualReviewForm({ title: item.title, summary: item.summary, excerpt: item.excerpt }) }}>تصحيح يدويًا</Button>
                           </div>
                         )}
+                        {!item.sourceValid && (
+                          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/40 p-2">
+                            <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={sourceRecoveryBusyId !== null} onClick={() => inspectSourceCandidates(item)}>
+                              {sourceRecoveryBusyId === item.id && <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" />}
+                              البحث في الكتاب الأصلي عن المقتطف
+                            </Button>
+                            {sourceRecoveryEvidence[item.id] && (
+                              <div className="mt-2 space-y-2 text-[11px] text-slate-700">
+                                <p>تم فحص {sourceRecoveryEvidence[item.id].examinedChunks} مقطعًا محللًا من الكتاب نفسه.
+                                  {sourceRecoveryEvidence[item.id].truncated ? ' البحث محدود بأول 500 مقطع؛ النتيجة غير شاملة.' : ''}</p>
+                                {!sourceRecoveryEvidence[item.id].candidates.length && <p className="font-bold text-amber-800">لم تثبت مطابقة حرفية للمقتطف؛ العنصر محفوظ دون تغيير.</p>}
+                                {sourceRecoveryEvidence[item.id].candidates.map((candidate) => (
+                                  <details key={candidate.chunkId} className="rounded-lg border border-amber-200 bg-white p-2">
+                                    <summary className="cursor-pointer font-bold">
+                                      {candidate.matchLevel === 'FULL_EXCERPT' ? 'تطابق المقتطف كاملًا' : 'تطابق بداية المقتطف فقط — غير مؤكد'}
+                                      {' '}· مقطع {candidate.chunkIndex} · صفحات {candidate.pageStart}–{candidate.pageEnd}
+                                    </summary>
+                                    <p className="mt-2 whitespace-pre-wrap break-words leading-6">{candidate.sourceTextPreview}</p>
+                                    <p className="mt-2 font-bold text-red-700">مرشح للمراجعة فقط؛ لم نعدّل ربط العنصر ولا نعتبره مصدرًا معتمدًا تلقائيًا.</p>
+                                  </details>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                     {manualReviewHasMore && <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={manualReviewLoading} onClick={() => loadManualReview(manualReviewCursor)}>عرض المزيد</Button>}
