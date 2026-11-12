@@ -8,7 +8,7 @@ import { withTimedResponse, withTiming } from '@/lib/timing'
 export const runtime = 'nodejs'
 export const maxDuration = 180
 
-type GuideSection = { title: string; summary: string; outcomes?: string[]; sourceTitles?: string[]; sourceKnowledgeIds?: string[]; pageRefs?: string[] }
+type GuideSection = { title: string; summary: string; outcomes?: string[]; sourceTitles?: string[]; sourceKnowledgeIds?: string[]; pageRefs?: string[]; sourceReviewRequired?: boolean }
 
 function clean(value: unknown, max = 3000) {
   return String(value || '').replace(/\u0000/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, max)
