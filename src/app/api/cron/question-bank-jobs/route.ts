@@ -28,5 +28,9 @@ export async function GET(request: NextRequest) {
   }
   console.log('[question-bank-cron] done', { processed: outcomes.length, reason })
 
-  return NextResponse.json({ ok: true, processed: outcomes.length, reason, outcomes }, { headers: { 'Cache-Control': 'no-store' } })
+  // Separate, strictly budgeted background task, after the established
+  // question-bank loop. A repair outage must never fail question generation.
+  const knowledgeRepair = await runNextKnowledgeAiRepairStep()
+    .catch((error) => ({ status: 'REPAIR_UNAVAILABLE', reason: String((error as Error)?.message || error).slice(0, 100) }))
+  return NextResponse.json({ ok: true, processed: outcomes.length, reason, outcomes, knowledgeRepair }, { headers: { 'Cache-Control': 'no-store' } })
 }
