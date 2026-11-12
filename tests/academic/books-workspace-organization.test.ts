@@ -147,15 +147,30 @@ function apiSurface(): { count: number; digest: string } {
   assert.equal(knowledgeRepairCalls.length, 1, 'expected exactly one admin knowledge repair request')
   assert.ok(knowledgeRepairCalls[0].includes('needsReview?: number'),
     'repair response must report records left untouched for manual review')
+  // 2026-11-12: only two extra calls are intentionally added for source-grounded
+  // AI correction: one paginated POST and one refresh GET. Preserve the frozen
+  // digest for every original endpoint, method, payload and header.
+  const aiRepairCalls = calls.filter((call) =>
+    call.includes("'/api/admin/knowledge-bank'") && call.includes("action: 'repair-ai'"))
+  assert.equal(aiRepairCalls.length, 1, 'expected one new source-grounded AI repair POST')
+  assert.ok(aiRepairCalls[0].includes("method: 'POST'") && aiRepairCalls[0].includes('cursor') &&
+    aiRepairCalls[0].includes('programId: targetProgramId'), 'AI repair must be program-scoped and paginated')
+  const aiRefreshCalls = calls.filter((call) =>
+    call.includes('/api/admin/knowledge-bank?programId=') && call.includes('encodeURIComponent(targetProgramId)'))
+  assert.equal(aiRefreshCalls.length, 1, 'expected one GET refresh after AI repair')
   const protectedCalls = calls
-    .filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) && !bookRebuildCalls.includes(call))
+    .filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) &&
+      !bookRebuildCalls.includes(call) && !aiRepairCalls.includes(call) && !aiRefreshCalls.includes(call))
     .map((call) => {
       if (suggestedAssignmentSaveCalls.includes(call)) return call.replace('dueDays: s.semester === 3 || !s.unitId ? 14 : null', 'dueDays: null')
-      if (knowledgeRepairCalls.includes(call)) return call.replace('; needsReview?: number', '')
+      if (knowledgeRepairCalls.includes(call)) return call.replace('; needsReview?: number', '').replace('programId: targetProgramId', 'programId')
       return call
     })
     .sort()
-  return { count: calls.length - bookControlCalls.length - bookRebuildCalls.length, digest: digest(protectedCalls.join('\n')) }
+  return {
+    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length,
+    digest: digest(protectedCalls.join('\n')),
+  }
 }
 
 function currentBooksSlice(): string {
