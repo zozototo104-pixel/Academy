@@ -54,6 +54,12 @@ const dbMock = {
       Object.assign(u, data)
       return u
     },
+    updateMany: async ({ where, data }: any) => {
+      const u = findBy(where)
+      if (!u) return { count: 0 }
+      Object.assign(u, data)
+      return { count: 1 }
+    },
   },
   auditLog: { create: async ({ data }: any) => { audits.push(data); return data } },
 }
