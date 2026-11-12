@@ -2,9 +2,10 @@ import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-// Guards for the 2026-10-25-a package: assignment deadline is a fixed
-// calendar date chosen by the admin (never days, never AI-suggested), and
-// lecture videos gain title/description editing plus admin-only deletion.
+// Academic deadline guards: assignments follow the enrolled student's
+// calendar; linked assignments open with their teaching unit. Historical
+// fixed deadlines remain stored for backward compatibility. Video checks
+// below remain unrelated and unchanged.
 
 const root = join(import.meta.dir, '../..')
 const schema = readFileSync(join(root, 'prisma/schema.prisma'), 'utf8')
