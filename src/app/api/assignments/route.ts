@@ -23,8 +23,15 @@ const ALLOWED_MIME = new Set([
 ])
 const ALLOWED_EXT = /\.(pdf|doc|docx|xls|xlsx|txt|png|jpe?g)$/i
 
-function mapAssignment(a: any, enrollmentCreatedAt: Date) {
-  const dueAt = dueDateFrom(enrollmentCreatedAt, a.dueDays, a.dueAt)
+type AssignmentEnrollment = { createdAt: Date; extensionDays: number }
+type AssignmentUnit = { id: string; semester: number; order: number }
+
+function mapAssignment(a: any, enrollment: AssignmentEnrollment, units: AssignmentUnit[]) {
+  const window = assignmentWindow({
+    enrolledAt: enrollment.createdAt, extensionDays: enrollment.extensionDays,
+    semester: a.semester, unitId: a.unitId, dueDays: a.dueDays,
+    dueAtFixed: a.dueAt, program: a.program, units,
+  })
   const submission = a.submissions?.[0] || null
   const title = cleanAcademicOutput(a.title, 220)
   const description = cleanAcademicOutput(a.description, 6000)
