@@ -34,13 +34,14 @@ export function assignmentWindow(args: {
   }
   // An admin may select a unit as a source reference for a semester-3
   // project; a unit from a different semester must not set its deadline.
-  if (args.dueAtFixed && (args.dueDays == null || args.dueDays <= 0)) {
+  if (args.dueAtFixed) {
+    // Historical unlinked assignments may carry BOTH fields; the fixed
+    // deadline won before this feature and must keep winning until edited.
     return { opensAt: enrolledAt, dueAt: new Date(args.dueAtFixed), mode: 'LEGACY_FIXED' }
   }
   if (args.dueDays != null && args.dueDays > 0) {
     return { opensAt: enrolledAt, dueAt: addDays(enrolledAt, args.dueDays), mode: 'ENROLLMENT_DAYS' }
   }
-  if (args.dueAtFixed) return { opensAt: enrolledAt, dueAt: new Date(args.dueAtFixed), mode: 'LEGACY_FIXED' }
   return { opensAt: enrolledAt, dueAt: null, mode: 'NONE' }
 }
 
