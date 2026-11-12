@@ -1379,7 +1379,7 @@ export function AdminSystemTab() {
                   </Select>
                 </div>
                 {repairProviderForModels === 'AUTO' ? (
-                  <p className="self-center text-xs font-bold text-blue-900">النموذج تلقائي حسب إعدادات الراوتر العامة؛ لا يوجد استبعاد لمزوّد معين.</p>
+                  <p className="self-center text-xs font-bold text-blue-900">النموذج تلقائي حسب إعدادات الراوتر العامة مع استبعاد APINEX حتى لا يؤثر التصحيح الخلفي على حصة الطلاب.</p>
                 ) : (
                   <div className="space-y-1">
                     <Label className="text-xs font-black text-blue-900">النموذج المستخدم حصراً للتصحيح</Label>
