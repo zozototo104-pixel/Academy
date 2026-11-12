@@ -1421,7 +1421,7 @@ export function AdminBooksTab() {
         cursor = batch.nextCursor
       }
       const refreshed = await api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats }>(`/api/admin/knowledge-bank?programId=${encodeURIComponent(targetProgramId)}`)
-      if (programId === targetProgramId) {
+      if (knowledgeRepairProgramRef.current === targetProgramId) {
         setKnowledgeItems(refreshed.items || [])
         setKnowledgeStats(refreshed.stats || {})
       }
