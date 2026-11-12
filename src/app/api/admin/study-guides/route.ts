@@ -164,7 +164,23 @@ export async function GET(req: NextRequest) {
     const programId = clean(req.nextUrl.searchParams.get('programId'), 80)
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     const guides = await withTiming('db_study_guides_list', () => db.programStudyGuide.findMany({ where: { programId }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }] }))
-    return NextResponse.json({ guides: guides.map(mapGuide) })
+    // Read-only health hints for historical guides: never delete or silently hide them.
+    const refsByGuide = guides.map((guide) => unique([
+      ...parseArray(guide.sourceKnowledgeIds).map((id) => clean(id, 100)),
+      ...parseArray(guide.sections).flatMap((section) =>
+        parseArray(section?.sourceKnowledgeIds).map((id) => clean(id, 100))),
+    ]))
+    const allIds = unique(refsByGuide.flat())
+    const existingItems = allIds.length ? await db.bookKnowledgeItem.findMany({
+      where: { id: { in: allIds }, programId },
+      select: { id: true },
+    }) : []
+    const existingIds = new Set(existingItems.map((item) => item.id))
+    return NextResponse.json({ guides: guides.map((guide, index) => ({
+      ...mapGuide(guide),
+      referenceCount: refsByGuide[index].length,
+      missingReferenceCount: refsByGuide[index].filter((id) => !existingIds.has(id)).length,
+    })) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     return NextResponse.json({ error: 'تعذر تحميل أدلة الدراسة' }, { status: 500 })
