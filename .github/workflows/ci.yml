@@ -46,6 +46,10 @@ jobs:
       - run: bunx prisma generate
       # This database exists only as a disposable GitHub Actions service.
       - run: bunx prisma db push
+      - name: Verify partial book analysis completion on real isolated PostgreSQL
+        env:
+          BOOK_READ_PG_CONTRACT: "1"
+        run: bunx tsx scripts/test-book-reading.ts
       - name: Verify book-read lease ownership on real isolated PostgreSQL
         run: |
           psql "$DIRECT_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
