@@ -173,9 +173,9 @@ export async function POST(req: NextRequest) {
       dueDays: assignment.dueDays, dueAtFixed: assignment.dueAt,
       program: assignment.program, units,
     })
-    if (Date.now() < window.opensAt.getTime()) {
-      return NextResponse.json({ error: 'هذا الواجب يفتح عند بدء الوحدة الدراسية، ولم يحن موعده بعد', code: 'ASSIGNMENT_NOT_OPEN' }, { status: 403 })
-    }
+    // The unit start anchors this student's assignment deadline; it is not
+    // a submission gate. Unit content and exams likewise allow early work.
+    // Existing end-of-unit, semester and progression guards still apply.
     if (window.dueAt && Date.now() > window.dueAt.getTime()) {
       // منحة إعادة فتح معتمدة ترفع جدار الموعد عن صاحبها وحده
       // (التماس إعادة الفتح، المرحلة 4) — فترة الفصل تبقى هي الحد
