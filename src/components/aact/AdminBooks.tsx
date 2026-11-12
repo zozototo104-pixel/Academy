@@ -1383,6 +1383,10 @@ export function AdminBooksTab() {
         method: 'POST',
         body: JSON.stringify({ programId: targetProgramId, action: 'sanitize' }),
       })
+      if (knowledgeRepairProgramRef.current !== targetProgramId) {
+        toast({ title: 'توقف التصحيح', description: 'تم تغيير البرنامج؛ لم نبدأ تصحيحاً ذكياً لبرنامج لم يعد محدداً.' })
+        return
+      }
       setKnowledgeItems(rules.items || [])
       setKnowledgeStats(rules.stats || {})
       let cursor = ''
