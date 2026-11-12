@@ -801,6 +801,16 @@ export function AdminBooksTab() {
   const [manualReviewSaving, setManualReviewSaving] = useState(false)
   const knowledgeRepairProgramRef = useRef(programId)
   useEffect(() => { knowledgeRepairProgramRef.current = programId }, [programId])
+  // Review results are program-scoped. Never show another program's items
+  // or reuse its pagination cursor after the administrator switches programs.
+  useEffect(() => {
+    setManualReviewOpen(false)
+    setManualReviewItems([])
+    setManualReviewCursor(null)
+    setManualReviewHasMore(false)
+    setManualReviewEditingId(null)
+    setManualReviewError(null)
+  }, [programId])
   const [rebuildingBookId, setRebuildingBookId] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [bookUploadProgress, setBookUploadProgress] = useState<number | null>(null)
