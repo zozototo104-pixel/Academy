@@ -524,6 +524,51 @@ describe('semester guide: automatic missing unit guide backed by knowledge sourc
     expect(guides).toHaveLength(0)
     expect(autoUnits[0].content).toBe(originalContent)
   })
+
+  test('short, evidenced sections are preserved instead of silently dropped', async () => {
+    resetAutoGuideFixture()
+    const sections = JSON.parse(autoUnits[0].content)
+    sections.push({ heading: 'مصطلح قصير', body: 'تعريف موثق.', sourceKnowledgeIds: [AUTO_KNOWLEDGE_ID], sourceChunkIndexes: [1] })
+    autoUnits[0].content = JSON.stringify(sections)
+    const { response } = await clickSemesterGuide()
+    expect(response.status).toBe(200)
+    const unitGuide = guides.find((guide) => guide.unitId === AUTO_UNIT_ID)!
+    expect(JSON.parse(unitGuide.sections)).toHaveLength(2)
+    expect(JSON.parse(unitGuide.sections)[1].summary).toBe('تعريف موثق.')
+  })
+
+  test('an empty section cannot be omitted from a supposedly complete guide', async () => {
+    resetAutoGuideFixture()
+    const sections = JSON.parse(autoUnits[0].content)
+    sections.push({ heading: 'محور ناقص', body: '', sourceKnowledgeIds: [AUTO_KNOWLEDGE_ID] })
+    autoUnits[0].content = JSON.stringify(sections)
+    const { response, body } = await clickSemesterGuide()
+    expect(response.status).toBe(422)
+    expect(body.error).toContain('STUDY_GUIDE_UNIT_CONTENT_INCOMPLETE')
+    expect(guides).toHaveLength(0)
+  })
+
+  test('chunk proximity never substitutes for a missing evidence ID', async () => {
+    resetAutoGuideFixture()
+    const sections = JSON.parse(autoUnits[0].content)
+    sections[0].sourceKnowledgeIds = []
+    autoUnits[0].content = JSON.stringify(sections)
+    const { response, body } = await clickSemesterGuide()
+    expect(response.status).toBe(422)
+    expect(body.error).toContain('STUDY_GUIDE_UNIT_REFERENCES_MISSING')
+    expect(guides).toHaveLength(0)
+  })
+
+  test('an item cited from a different chunk index is refused', async () => {
+    resetAutoGuideFixture()
+    const sections = JSON.parse(autoUnits[0].content)
+    sections[0].sourceChunkIndexes = [999]
+    autoUnits[0].content = JSON.stringify(sections)
+    const { response, body } = await clickSemesterGuide()
+    expect(response.status).toBe(422)
+    expect(body.error).toContain('STUDY_GUIDE_UNIT_REFERENCES_MISSING')
+    expect(guides).toHaveLength(0)
+  })
 })
 
 
