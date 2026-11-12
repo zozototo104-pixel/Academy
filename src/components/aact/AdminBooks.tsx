@@ -1372,19 +1372,58 @@ export function AdminBooksTab() {
   }
 
   const sanitizeKnowledge = async () => {
-    if (!programId) return
+    if (!programId || sanitizingKnowledge) return
+    const targetProgramId = programId
     setSanitizingKnowledge(true)
+    setKnowledgeRepairProgress('المرحلة 1/2: تصحيح أخطاء النصوص بالقواعد، دون حذف سوى الفارغ فعلياً…')
     try {
-      const d = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; deleted?: number; updated?: number; needsReview?: number }>('/api/admin/knowledge-bank', {
+      const rules = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; deleted?: number; updated?: number }>('/api/admin/knowledge-bank', {
         method: 'POST',
-        body: JSON.stringify({ programId, action: 'sanitize' }),
+        body: JSON.stringify({ programId: targetProgramId, action: 'sanitize' }),
       })
-      setKnowledgeItems(d.items || [])
-      setKnowledgeStats(d.stats || {})
-      toast({ title: 'انتهى تصحيح بنك المعرفة', description: `صُحّح ${d.updated || 0} عنصر بالكامل، وحُذف ${d.deleted || 0} عنصر فارغ فقط. بقي ${d.needsReview || 0} عنصر بحاجة لمراجعة دون حذف أو تعديل جزئي.` })
+      setKnowledgeItems(rules.items || [])
+      setKnowledgeStats(rules.stats || {})
+      let cursor = ''
+      let scanned = 0
+      let repaired = 0
+      let needsReview = 0
+      let missingSource = 0
+      let paused = false
+      // The server processes only three AI candidates per call and returns a
+      // cursor. Keep looping without rebuilding books or generating new IDs.
+      while (true) {
+        setKnowledgeRepairProgress(`المرحلة 2/2: فحص ${scanned} عنصر، تصحيح ذكي ${repaired}، للمراجعة ${needsReview}…`)
+        const batch = await api<{
+          nextCursor: string | null; hasMore: boolean; paused: boolean
+          scanned: number; repaired: number; needsReview: number; missingSource: number
+          message?: string | null
+        }>('/api/admin/knowledge-bank', {
+          method: 'POST',
+          body: JSON.stringify({ programId: targetProgramId, action: 'repair-ai', cursor }),
+        })
+        scanned += batch.scanned
+        repaired += batch.repaired
+        needsReview += batch.needsReview
+        missingSource += batch.missingSource
+        if (batch.paused) { paused = true; break }
+        if (!batch.hasMore) break
+        if (!batch.nextCursor || batch.nextCursor === cursor) throw new Error('تعذر استكمال مؤشر التصحيح بأمان؛ أعد المحاولة.')
+        cursor = batch.nextCursor
+      }
+      const refreshed = await api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats }>(`/api/admin/knowledge-bank?programId=${encodeURIComponent(targetProgramId)}`)
+      if (programId === targetProgramId) {
+        setKnowledgeItems(refreshed.items || [])
+        setKnowledgeStats(refreshed.stats || {})
+      }
+      toast({
+        title: paused ? 'توقف التصحيح الذكي مؤقتاً' : 'انتهى تصحيح بنك المعرفة',
+        description: `القواعد: ${rules.updated || 0} تصحيح، ${rules.deleted || 0} حذف لفارغ فقط. الذكاء: ${repaired} تصحيح مؤكد، ${needsReview} للمراجعة (${missingSource} بلا مصدر كافٍ).${paused ? ' المزوّد لم يكمل المعالجة؛ لم تُعدّل العناصر المتبقية.' : ''}`,
+        ...(paused ? { variant: 'destructive' as const } : {}),
+      })
     } catch (e: any) {
-      toast({ title: 'تعذر تنظيف بنك المعرفة', description: e.message, variant: 'destructive' })
+      toast({ title: 'تعذر إكمال تصحيح بنك المعرفة', description: e.message || 'حاول مجدداً؛ العناصر غير المصححة محفوظة.', variant: 'destructive' })
     } finally {
+      setKnowledgeRepairProgress(null)
       setSanitizingKnowledge(false)
     }
   }
