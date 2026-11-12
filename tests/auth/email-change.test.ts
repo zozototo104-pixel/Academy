@@ -129,6 +129,39 @@ describe('requestEmailChange', () => {
     expect(confirmMails[0][3]).toBe('LOGIN')
   })
 
+  test('failed confirmation delivery restores an older pending request and returns 503', async () => {
+    users.length = 0; confirmMails.length = 0
+    const originalSentAt = new Date(Date.now() - 11 * 60_000)
+    const originalExpiresAt = new Date(Date.now() + 3600_000)
+    const u = seed({
+      pendingEmail: 'previous@student.com',
+      pendingEmailPurpose: 'NOTIFICATION',
+      emailVerificationTokenHash: 'older-token',
+      emailVerificationSentAt: originalSentAt,
+      emailVerificationExpiresAt: originalExpiresAt,
+    })
+    sessionUser = u
+    failDelivery = true
+    try {
+      const res = await studentPost(new NextRequest('https://example.test/api/auth/email-change', {
+        method: 'POST',
+        body: JSON.stringify({ newEmail: 'new@student.com', purpose: 'LOGIN', password: 'pw123456' }),
+      }))
+      expect(res.status).toBe(503)
+      expect((await res.json()).code).toBe('EMAIL_DELIVERY_FAILED')
+      expect(u.email).toBe('old@student.com')
+      expect(u.pendingEmail).toBe('previous@student.com')
+      expect(u.pendingEmailPurpose).toBe('NOTIFICATION')
+      expect(u.emailVerificationTokenHash).toBe('older-token')
+      expect(u.emailVerificationSentAt).toEqual(originalSentAt)
+      expect(u.emailVerificationExpiresAt).toEqual(originalExpiresAt)
+      expect(confirmMails).toHaveLength(1)
+    } finally {
+      failDelivery = false
+      sessionUser = null
+    }
+  })
+
   test('LOGIN with a wrong password is refused and stores nothing', async () => {
     users.length = 0
     const u = seed({})
