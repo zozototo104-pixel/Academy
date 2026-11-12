@@ -1394,7 +1394,7 @@ export function AdminSystemTab() {
                     <p className="text-[10px] font-bold text-blue-700">يُستخدم الاسم المحفوظ حرفياً دون تغيير المزود العام؛ التأكد من توفره يتم عند التنفيذ.</p>
                   </div>
                 )}
-                {F('AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS', 'الفاصل الاختياري بين طلبات التصحيح (ثوانٍ)', '0', 'number', '0 يعني بلا تأخير إضافي من نظام التصحيح؛ حدود المزوّد الفعلية تبقى نافذة. يمكن رفع الفاصل حسب حصتك.')}
+                {F('AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS', 'الفاصل الاختياري بين طلبات التصحيح (ثوانٍ)', '0', 'number', 'الحد الأدنى الآمن دائماً 90 ثانية عالمياً. القيمة 0 تعني الاكتفاء بهذا الحد؛ ويمكن اختيار فاصل أطول لتخفيف الاستهلاك.')}
               </div>
               <p className="text-[11px] font-bold text-blue-900">
                 {repairProviderForModels === 'AUTO' ? 'الاختيار الحالي: الراوتر العام' : selectedRepairModel
