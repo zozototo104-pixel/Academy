@@ -384,7 +384,6 @@ export function AdminSystemTab() {
   const [data, setData] = useState<SystemData | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [savingKnowledgeRepair, setSavingKnowledgeRepair] = useState(false)
   const [testing, setTesting] = useState(false)
   const [paymentQrUploading, setPaymentQrUploading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
