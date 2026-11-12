@@ -33,6 +33,9 @@ export async function GET(req: NextRequest) {
     const semRaw = req.nextUrl.searchParams.get('semester')
     const semester = semRaw ? Number(semRaw) || null : null
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
+    if (req.nextUrl.searchParams.get('repairStatus') === '1') {
+      return NextResponse.json({ job: await getKnowledgeAiRepairJob(programId) }, { headers: { 'Cache-Control': 'no-store' } })
+    }
 
     const program = await withTiming('db_knowledge_bank_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
