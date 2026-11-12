@@ -28,9 +28,12 @@ export async function GET(request: NextRequest) {
   }
   console.log('[question-bank-cron] done', { processed: outcomes.length, reason })
 
-  // Separate, strictly budgeted background task, after the established
-  // question-bank loop. A repair outage must never fail question generation.
-  const knowledgeRepair = await runNextKnowledgeAiRepairStep()
-    .catch((error) => ({ status: 'REPAIR_UNAVAILABLE', reason: String((error as Error)?.message || error).slice(0, 100) }))
+  // Student/question generation gets absolute priority. Repair only when
+  // there was NO question-bank job this tick; no additional provider work or
+  // invocation overlap is introduced while the academic queue is active.
+  const knowledgeRepair = outcomes.length === 0
+    ? await runNextKnowledgeAiRepairStep()
+      .catch((error) => ({ status: 'REPAIR_UNAVAILABLE', reason: String((error as Error)?.message || error).slice(0, 100) }))
+    : { status: 'DEFERRED_FOR_QUESTION_JOBS' }
   return NextResponse.json({ ok: true, processed: outcomes.length, reason, outcomes, knowledgeRepair }, { headers: { 'Cache-Control': 'no-store' } })
 }
