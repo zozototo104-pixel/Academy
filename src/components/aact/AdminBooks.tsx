@@ -1494,6 +1494,41 @@ export function AdminBooksTab() {
     }
   }
 
+  const restoreOriginalSource = async (item: ManualReviewItem, match: SourceRecoveryEvidence['candidates'][number]) => {
+    const evidence = sourceRecoveryEvidence[item.id]
+    if (!programId || sourceRecoveryBusyId || match.matchLevel !== 'FULL_EXCERPT' ||
+        evidence?.candidates.filter((candidate) => candidate.matchLevel === 'FULL_EXCERPT').length !== 1) return
+    const ok = await askAdminConfirm({
+      title: 'تأكيد استعادة المصدر الأصلي',
+      description: `المقتطف محفوظ حرفيًا في مقطع وحيد من الكتاب المرتبط بالعنصر. سيتم ربط العنصر نفسه بالمقطع ونطاق صفحاته ${match.pageStart}–${match.pageEnd}، دون تغيير النص أو المعرّف أو أي دليل دراسة. هل تعتمد هذا المصدر؟`,
+      confirmLabel: 'اعتماد المصدر الموثق',
+    })
+    if (!ok) return
+    const selectedProgramId = programId
+    setSourceRecoveryBusyId(item.id)
+    try {
+      const result = await api<{ id: string; chunkId: string; pageStart: number; pageEnd: number; updatedAt: string | null }>('/api/admin/knowledge-bank', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          action: 'restore-source', programId: selectedProgramId, id: item.id, chunkId: match.chunkId,
+          confirmSource: true, expectedUpdatedAt: item.updatedAt,
+        }),
+      })
+      if (knowledgeRepairProgramRef.current !== selectedProgramId) return
+      setManualReviewItems((previous) => previous.map((row) => row.id === item.id
+        ? { ...row, sourceValid: true, sourceTextPreview: match.sourceTextPreview, pageStart: result.pageStart,
+          pageEnd: result.pageEnd, updatedAt: result.updatedAt || row.updatedAt, reason: 'TEXT_UNRESOLVED' as const }
+        : row))
+      toast({ title: 'تم استعادة ربط المصدر', description: 'حُفظ المقطع ونطاق صفحاته على العنصر الأصلي؛ المحتوى والأدلة لم تتغير.' })
+    } catch (error: any) {
+      if (knowledgeRepairProgramRef.current === selectedProgramId) {
+        toast({ title: 'تعذر اعتماد المصدر', description: error.message || 'لم يتغير عنصر المعرفة.', variant: 'destructive' })
+      }
+    } finally {
+      setSourceRecoveryBusyId(null)
+    }
+  }
+
   const saveManualReview = async (item: ManualReviewItem) => {
     if (!programId || manualReviewSaving) return
     const targetProgramId = programId
