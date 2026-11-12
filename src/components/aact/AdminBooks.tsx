@@ -2509,7 +2509,7 @@ export function AdminBooksTab() {
       type: s.type || 'CASE_STUDY',
       points: String(s.points || 15),
       weight: String(s.weight || 0),
-      dueDays: '',
+      dueDays: s.semester === 3 || !s.unitId ? '14' : '',
       dueAt: '',
       rubric: s.rubric || '',
       status: 'PUBLISHED',
