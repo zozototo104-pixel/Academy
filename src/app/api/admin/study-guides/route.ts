@@ -90,7 +90,7 @@ async function unitGuidesForProgram(programId: string, semester: number) {
   const units = await withTiming('db_study_guides_units', () => db.unit.findMany({
     where: { programId, ...(semester === 3 ? {} : { semester }) },
     orderBy: [{ semester: 'asc' }, { order: 'asc' }],
-    select: { id: true, title: true, semester: true, objectives: true, summary: true, sourceBookId: true, outlineSectionId: true },
+    select: { id: true, title: true, semester: true, objectives: true, summary: true, content: true, sourceBookId: true, outlineSectionId: true, chunkStartIndex: true, chunkEndIndex: true },
   }))
   const guides = units.length ? await withTiming('db_study_guides_unit_guides', () => db.programStudyGuide.findMany({ where: { unitId: { in: units.map((unit) => unit.id) }, status: { in: ['DRAFT', 'PUBLISHED'] } } })) : []
   const guideByUnit = new Map(guides.filter((guide) => guide.unitId).map((guide) => [guide.unitId!, guide] as const))
