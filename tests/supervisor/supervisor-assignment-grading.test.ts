@@ -109,7 +109,7 @@ const db: any = {
       id: 'app-1', userId: 'student-1', fullName: 'محمود',
     }].slice(args.skip, args.skip + args.take),
   },
-  program: { findUnique: async () => ({ id: 'prog-1', titleAr: 'إدارة الموارد البشرية' }) },
+  program: { findUnique: async () => ({ id: 'prog-1', titleAr: 'إدارة الموارد البشرية', category: 'DIPLOMA' }) },
   programAssignment: {
     findMany: async (args: any) => args.where.semester === 1 && args.where.status === 'PUBLISHED'
       ? [{ id: 'assign-1', title: 'تكليف منشور', points: 100, dueAt: new Date('2020-01-01'), type: 'REPORT' },
