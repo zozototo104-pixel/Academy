@@ -243,6 +243,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ guide: mapGuide(guide) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (String(e?.message || '').startsWith('STUDY_GUIDE_')) {
+      return NextResponse.json({ error: e.message }, { status: 422 })
+    }
     return NextResponse.json({ error: 'تعذر تحديث دليل الدراسة' }, { status: 500 })
   }
   })
