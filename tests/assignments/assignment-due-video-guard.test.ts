@@ -36,12 +36,14 @@ describe('assignment per-enrollment deadlines and teaching unit gates', () => {
     expect(adminBooks).toContain('اترك عدد الأيام فارغاً لاستخدام مدة الوحدة كاملة')
     expect(adminAssignmentsRoute).toContain('const teachingUnit = effectiveUnitId')
   })
-  test('student sees the real opening and closing time for their unit', () => {
+  test('student sees the deadline clock, and can submit before the nominal unit start', () => {
     expect(dashboard).not.toContain('آخر موعد مقترح')
     expect(dashboard).toContain('آخر موعد لك:')
-    expect(dashboard).toContain('const opensLater =')
-    expect(dashboard).toContain("!graded && !opensLater")
-    expect(dashboard).toContain('الواجب غير متاح بعد')
+    expect(dashboard).toContain('const beforeUnitStart =')
+    expect(dashboard).toContain("!graded && (")
+    expect(dashboard).toContain('يمكنك التسليم مبكرًا')
+    expect(dashboard).not.toContain('!graded && !beforeUnitStart')
+    expect(dashboard).not.toContain('الواجب غير متاح بعد')
   })
   test('AI suggestions do not fabricate a deadline; unit-linked items use the unit window', () => {
     expect(suggestRoute).toContain('dueDays: null')
