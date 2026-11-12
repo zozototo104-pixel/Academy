@@ -583,28 +583,6 @@ export function AdminSystemTab() {
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [data, catalogProviderForModels, textModelCatalog])
 
-  // The dedicated repair selector loads the same dynamic /models catalog as
-  // the global model-testing controls, without modifying the global provider.
-  useEffect(() => {
-    if (!data || repairProviderForModels === 'AUTO' || textModelCatalog[repairProviderForModels]) return
-    let cancelled = false
-    const timer = window.setTimeout(() => {
-      api<{ ok: boolean; provider: string; models: string[]; message: string; discoveredCount: number; staticCount: number }>('/api/admin/system', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'text-ai-models', provider: repairProviderForModels }),
-      })
-        .then((result) => {
-          if (cancelled || !result?.provider) return
-          setTextModelCatalog((prev) => ({ ...prev, [result.provider]: {
-            models: result.models || [], message: result.message || '',
-            discoveredCount: result.discoveredCount || 0, staticCount: result.staticCount || 0,
-          } }))
-        })
-        .catch(() => null)
-    }, 300)
-    return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [data, repairProviderForModels, textModelCatalog])
-
   const set = (k: string, v: string) => setForm((prev) => ({ ...prev, [k]: v }))
 
   const save = async () => {
