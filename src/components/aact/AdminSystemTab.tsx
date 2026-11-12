@@ -1372,7 +1372,7 @@ export function AdminSystemTab() {
                   }))}>
                     <SelectTrigger className="w-full min-w-0 bg-white" dir="ltr"><SelectValue placeholder="اختر المزوّد" /></SelectTrigger>
                     <SelectContent>
-                      {[...TEXT_PROVIDER_CHOICES.filter((p) => p.value === 'AUTO'), ...TEXT_PROVIDER_CHOICES.filter((p) => p.value !== 'AUTO')].map((p) => (
+                      {[...TEXT_PROVIDER_CHOICES.filter((p) => p.value === 'AUTO'), ...TEXT_PROVIDER_CHOICES.filter((p) => p.value !== 'AUTO' && p.value !== 'APINEX')].map((p) => (
                         <SelectItem key={p.value} value={p.value} dir="ltr">{p.label}</SelectItem>
                       ))}
                     </SelectContent>
