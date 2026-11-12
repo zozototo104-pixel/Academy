@@ -96,12 +96,14 @@ export async function GET(req: NextRequest) {
       where: { programId: { in: programIds }, status: 'PUBLISHED' },
       orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
       include: {
-        program: { select: { titleAr: true } },
+        program: { select: { titleAr: true, category: true, maxStudyDays: true, semestersCount: true } },
         submissions: { where: { userId: user.id }, take: 1 },
       },
     })
 
-    return NextResponse.json({ assignments: assignments.map((a) => mapAssignment(a, enrollmentMap.get(a.programId) || new Date())).filter(Boolean) })
+    return NextResponse.json({ assignments: assignments.map((a) =>
+      mapAssignment(a, enrollmentMap.get(a.programId)!, unitsByProgram.get(a.programId) || []),
+    ).filter(Boolean) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
     console.error('student assignments GET error:', e)
