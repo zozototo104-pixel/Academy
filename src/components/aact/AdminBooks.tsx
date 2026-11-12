@@ -5210,7 +5210,7 @@ export function AdminKnowledgeAiRepairTab() {
   }, [])
 
   useEffect(() => {
-    if (repairProvider === 'AUTO') { setRepairModels([]); return }
+    if (repairProvider === 'AUTO') return
     let active = true
     api<{ models: string[] }>('/api/admin/system', {
       method: 'POST', body: JSON.stringify({ action: 'text-ai-models', provider: repairProvider }),
