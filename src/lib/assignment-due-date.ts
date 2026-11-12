@@ -25,11 +25,16 @@ export function assignmentWindow(args: {
   const w = unit ? getSemesterUnitWindows(enrolledAt, args.program, args.units, args.extensionDays || 0)
     .find((window) => window.unitId === unit.id) : null
   if (w) {
-    const shorterDue = args.dueDays != null && args.dueDays > 0 ? addDays(w.startAt, args.dueDays) : w.endAt
+    // An old fixed-date assignment may contain stale dueDays that were
+    // historically ignored. Do not activate those days silently: use the
+    // full unit window until the administrator edits the duration (which
+    // clears the legacy date).
+    const effectiveDays = args.dueAtFixed ? null : args.dueDays
+    const shorterDue = effectiveDays != null && effectiveDays > 0 ? addDays(w.startAt, effectiveDays) : w.endAt
     return {
       opensAt: w.startAt,
       dueAt: new Date(Math.min(shorterDue.getTime(), w.endAt.getTime())),
-      mode: args.dueDays != null && args.dueDays > 0 ? 'UNIT_DAYS' : 'UNIT',
+      mode: effectiveDays != null && effectiveDays > 0 ? 'UNIT_DAYS' : 'UNIT',
     }
   }
   // An admin may select a unit as a source reference for a semester-3
