@@ -2637,6 +2637,11 @@ export function AdminView() {
           <AdminBooksTab />
         </TabsContent>
 
+        {/* إدارة مستقلة لتصحيح المعرفة بالذكاء دون المساس بقراءة الكتب */}
+        <TabsContent value="knowledge-ai-repair" className="w-full min-w-0 max-w-full overflow-x-hidden">
+          <AdminKnowledgeAiRepairTab />
+        </TabsContent>
+
         {/* جدول الدراسة */}
         <TabsContent value="study-schedule">
           <AdminStudyScheduleTab />
