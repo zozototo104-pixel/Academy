@@ -98,6 +98,80 @@ async function unitGuidesForProgram(programId: string, semester: number) {
   return { units, guides, guideByUnit, missing }
 }
 
+type ProgramUnit = Awaited<ReturnType<typeof unitGuidesForProgram>>['units'][number]
+
+// A missing unit guide can be assembled from existing, sourced unit content.
+// No model call, guessed source or new academic claim is needed.
+async function buildMissingUnitGuide(programId: string, programTitle: string, unit: ProgramUnit, bookTitle: string) {
+  const content = (parseArray(unit.content) as UnitContentSection[])
+    .filter((section) => clean(section?.body, 10000).length >= 30)
+  if (!content.length) throw new Error(`STUDY_GUIDE_UNIT_CONTENT_MISSING: «${unit.title}» ليس لها محتوى دراسي مولّد، ولا يمكن توليد دليل موثق لها.`)
+  if (!unit.sourceBookId) throw new Error(`STUDY_GUIDE_UNIT_SOURCE_MISSING: مصدر الوحدة «${unit.title}» غير محدد.`)
+  const allIndexes = unique(content.flatMap((section) =>
+    parseArray(section.sourceChunkIndexes).map(Number).filter(Number.isInteger)))
+  if ((unit.chunkStartIndex == null || unit.chunkEndIndex == null) && !allIndexes.length) {
+    throw new Error(`STUDY_GUIDE_UNIT_SOURCE_MISSING: نطاق مقاطع وحدة «${unit.title}» غير محدد.`)
+  }
+
+  const chunks = await db.bookChunk.findMany({
+    where: {
+      programId, bookId: unit.sourceBookId, status: 'ANALYZED',
+      index: unit.chunkStartIndex != null && unit.chunkEndIndex != null
+        ? { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex }
+        : { in: allIndexes },
+    },
+    select: { id: true, index: true, pageStart: true, pageEnd: true },
+  })
+  if (!chunks.length) throw new Error(`STUDY_GUIDE_UNIT_SOURCE_MISSING: لا توجد مقاطع محللة للوحدة «${unit.title}».`)
+  const indexByChunk = new Map(chunks.map((chunk) => [chunk.id, chunk.index]))
+  const knowledge = await db.bookKnowledgeItem.findMany({
+    where: { programId, bookId: unit.sourceBookId, chunkId: { in: chunks.map((chunk) => chunk.id) } },
+    select: { id: true, category: true, title: true, summary: true, excerpt: true, pageStart: true, pageEnd: true, chunkId: true },
+    orderBy: [{ importance: 'desc' }, { createdAt: 'asc' }],
+  })
+  const knowledgeById = new Map(knowledge.map((item) => [item.id, item]))
+  const pageRef = (start: number | null, end: number | null) =>
+    start == null || end == null ? '' : start === end ? `صفحة ${start}` : `صفحات ${start}–${end}`
+  const sections: GuideSection[] = content.map((section, index) => {
+    const ids = unique(parseArray(section.sourceKnowledgeIds).map((id) => clean(id, 100)))
+    const indexes = unique(parseArray(section.sourceChunkIndexes).map(Number).filter(Number.isInteger))
+    const matched = ids.length
+      ? ids.map((id) => knowledgeById.get(id)).filter((item): item is NonNullable<typeof item> => !!item)
+      : knowledge.filter((item) => item.chunkId && indexes.includes(indexByChunk.get(item.chunkId) ?? -1)).slice(0, 5)
+    if (!matched.length || (ids.length && matched.length !== ids.length)) {
+      throw new Error(`STUDY_GUIDE_UNIT_REFERENCES_MISSING: المحور ${index + 1} في «${unit.title}» يفتقد عناصر معرفة مرتبطة بمقطعه الصحيح.`)
+    }
+    const refs = unique(matched.map((item) => pageRef(item.pageStart, item.pageEnd)).filter(Boolean))
+    if (!refs.length) throw new Error(`STUDY_GUIDE_UNIT_REFERENCES_MISSING: لا توجد صفحات مثبتة للمحور ${index + 1} في «${unit.title}».`)
+    return {
+      title: clean(section.heading || `محور ${index + 1}`, 120),
+      summary: clean(section.body, 1600),
+      outcomes: [],
+      sourceTitles: [bookTitle],
+      sourceKnowledgeIds: matched.map((item) => item.id),
+      pageRefs: refs,
+    }
+  })
+  const selectedIds = unique(sections.flatMap((section) => section.sourceKnowledgeIds || []))
+  const selectedKnowledge = selectedIds.map((id) => knowledgeById.get(id)!).filter(Boolean)
+  const draft = buildUnitStudyGuideDraft({
+    programTitle, unitTitle: unit.title, unitSummary: unit.summary,
+    semester: unit.semester, knowledge: selectedKnowledge, unitContent: content,
+  })
+  const guide = {
+    title: draft.title,
+    overview: draft.overview,
+    objectives: parseArray(unit.objectives).map((objective) => clean(objective, 220)).filter(Boolean).slice(0, 12),
+    keyTerms: draft.keyTerms,
+    sections,
+    activities: draft.activities,
+    discussionQuestions: draft.discussionQuestions,
+    sourceKnowledgeIds: selectedIds,
+  }
+  await assertStudyGuideReferences(programId, guide)
+  return { unitId: unit.id, semester: unit.semester, guide }
+}
+
 async function buildSemesterGuide(programId: string, semester: number) {
   const program = await withTiming('db_study_guides_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, titleEn: true } }))
   if (!program) throw new Error('PROGRAM_NOT_FOUND')
