@@ -86,6 +86,16 @@ describe('lease-fenced writes across book pipeline', () => {
   })
 })
 
+describe('partial book reading and analysis integrity', () => {
+  it('exhausted analysis chunks do not block successful chapters or hide gaps', () => {
+    expect(bookAnalyzer).toContain("if (message.includes('BOOK_READ_LEASE_LOST')) throw error")
+    expect(bookAnalyzer).toContain("const analyzed = failed ? await tx.bookChunk.count({ where: { bookId, status: 'ANALYZED' } }) : 0")
+    expect(bookAnalyzer).toContain("if (failed && analyzed === 0)")
+    expect(bookAnalyzer).toContain('BOOK_ANALYSIS_PARTIAL:')
+    expect(adminBooks).toContain('مكتمل مع نواقص موثقة')
+  })
+})
+
 describe('read-step honest job states', () => {
   it('never answers the bare BOOK_READ_JOB_NOT_FOUND code', () => {
     expect(readStep.includes('BOOK_READ_JOB_NOT_FOUND')).toBe(false)
