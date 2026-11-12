@@ -1381,66 +1381,58 @@ export function AdminBooksTab() {
     if (!programId || sanitizingKnowledge) return
     const targetProgramId = programId
     setSanitizingKnowledge(true)
-    setKnowledgeRepairProgress('المرحلة 1/2: تصحيح أخطاء النصوص بالقواعد، دون حذف سوى الفارغ فعلياً…')
+    setKnowledgeRepairProgress('جارٍ تصحيح أخطاء OCR بالقواعد فقط؛ لا يُحذف إلا الفارغ فعلياً…')
     try {
       const rules = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; deleted?: number; updated?: number; needsReview?: number }>('/api/admin/knowledge-bank', {
         method: 'POST',
         body: JSON.stringify({ programId: targetProgramId, action: 'sanitize' }),
       })
-      if (knowledgeRepairProgramRef.current !== targetProgramId) {
-        toast({ title: 'توقف التصحيح', description: 'تم تغيير البرنامج؛ لم نبدأ تصحيحاً ذكياً لبرنامج لم يعد محدداً.' })
-        return
-      }
-      setKnowledgeItems(rules.items || [])
-      setKnowledgeStats(rules.stats || {})
-      let cursor = ''
-      let scanned = 0
-      let repaired = 0
-      let needsReview = 0
-      let missingSource = 0
-      let paused = false
-      // The server processes only three AI candidates per call and returns a
-      // cursor. Keep looping without rebuilding books or generating new IDs.
-      while (true) {
-        if (knowledgeRepairProgramRef.current !== targetProgramId) {
-          toast({ title: 'توقف التصحيح', description: 'اختير برنامج آخر. تم الحفاظ على كل التصحيحات المؤكدة السابقة.' })
-          return
-        }
-        setKnowledgeRepairProgress(`المرحلة 2/2: فحص ${scanned} عنصر، تصحيح ذكي ${repaired}، للمراجعة ${needsReview}…`)
-        const batch = await api<{
-          nextCursor: string | null; hasMore: boolean; paused: boolean
-          scanned: number; repaired: number; needsReview: number; missingSource: number
-          message?: string | null
-        }>('/api/admin/knowledge-bank', {
-          method: 'POST',
-          body: JSON.stringify({ programId: targetProgramId, action: 'repair-ai', cursor }),
-        })
-        scanned += batch.scanned
-        repaired += batch.repaired
-        needsReview += batch.needsReview
-        missingSource += batch.missingSource
-        if (batch.paused) { paused = true; break }
-        if (!batch.hasMore) break
-        if (!batch.nextCursor || batch.nextCursor === cursor) throw new Error('تعذر استكمال مؤشر التصحيح بأمان؛ أعد المحاولة.')
-        cursor = batch.nextCursor
-      }
-      const refreshed = await api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats }>(`/api/admin/knowledge-bank?programId=${encodeURIComponent(targetProgramId)}`)
       if (knowledgeRepairProgramRef.current === targetProgramId) {
-        setKnowledgeItems(refreshed.items || [])
-        setKnowledgeStats(refreshed.stats || {})
+        setKnowledgeItems(rules.items || [])
+        setKnowledgeStats(rules.stats || {})
       }
-      toast({
-        title: paused ? 'توقف التصحيح الذكي مؤقتاً' : 'انتهى تصحيح بنك المعرفة',
-        description: `القواعد: ${rules.updated || 0} تصحيح، ${rules.deleted || 0} حذف لفارغ فقط. الذكاء: ${repaired} تصحيح مؤكد، ${needsReview} للمراجعة (${missingSource} بلا مصدر كافٍ).${paused ? ' المزوّد لم يكمل المعالجة؛ لم تُعدّل العناصر المتبقية.' : ''}`,
-        ...(paused ? { variant: 'destructive' as const } : {}),
-      })
+      toast({ title: 'انتهى التصحيح بالقواعد', description: `صُحّح ${rules.updated || 0} عنصر، وحُذف ${rules.deleted || 0} فارغ بالكامل فقط. بقي ${rules.needsReview || 0} عنصر للمراجعة دون تعديل جزئي.` })
     } catch (e: any) {
-      toast({ title: 'تعذر إكمال تصحيح بنك المعرفة', description: e.message || 'حاول مجدداً؛ العناصر غير المصححة محفوظة.', variant: 'destructive' })
+      toast({ title: 'تعذر التصحيح بالقواعد', description: e.message || 'حاول مجدداً؛ لم تُحذف العناصر المشوّهة.', variant: 'destructive' })
     } finally {
       setKnowledgeRepairProgress(null)
       setSanitizingKnowledge(false)
     }
   }
+
+  const startKnowledgeAiRepair = async () => {
+    if (!programId || startingKnowledgeAiRepair) return
+    const target = programId
+    setStartingKnowledgeAiRepair(true)
+    try {
+      const result = await api<{ job: NonNullable<typeof knowledgeAiRepairJob> }>('/api/admin/knowledge-bank', {
+        method: 'POST',
+        body: JSON.stringify({ programId: target, action: 'repair-ai' }),
+      })
+      if (knowledgeRepairProgramRef.current === target) setKnowledgeAiRepairJob(result.job)
+      toast({ title: 'تمت جدولة التصحيح بالذكاء', description: 'المهمة تستمر من الخادم بمعدل محدود دون استهلاك APINEX؛ يمكنك مغادرة الصفحة.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر جدولة التصحيح بالذكاء', description: e.message || 'حاول مجدداً؛ زر التصحيح بالقواعد ما زال متاحاً.', variant: 'destructive' })
+    } finally {
+      setStartingKnowledgeAiRepair(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!programId) { setKnowledgeAiRepairJob(null); return }
+    let active = true
+    const loadRepairStatus = async () => {
+      try {
+        const result = await api<{ job: typeof knowledgeAiRepairJob }>(`/api/admin/knowledge-bank?programId=${encodeURIComponent(programId)}&repairStatus=1`)
+        if (active) setKnowledgeAiRepairJob(result.job)
+      } catch {
+        // A temporary status-read outage does not cancel the server-side job.
+      }
+    }
+    void loadRepairStatus()
+    const timer = setInterval(() => { void loadRepairStatus() }, 15_000)
+    return () => { active = false; clearInterval(timer) }
+  }, [programId])
 
   const refreshCurriculumUnits = useCallback(async (pid = programId) => {
     if (!pid) return
