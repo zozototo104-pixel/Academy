@@ -3630,7 +3630,7 @@ export function AdminBooksTab() {
                   <Label className="text-[10px] font-black text-slate-500">مدة تسليم الواجب بالأيام (اختياري للواجب المرتبط بوحدة)</Label>
                   <Input type="number" min={1} max={365} step={1} value={assignmentForm.dueDays} onChange={(e) => setAssignmentForm({ ...assignmentForm, dueDays: e.target.value, dueAt: '' })} placeholder="مثال: 14" className="mt-1 text-xs" />
                   {assignmentForm.unitId && curriculumUnits.some((u) => u.id === assignmentForm.unitId && Number(u.semester) === Number(assignmentForm.semester)) ? (
-                    <p className="mt-1 text-[11px] font-bold text-emerald-800">مرتبط بوحدة دراسية: يفتح الواجب عند بدء الوحدة لكل طالب، ويغلق افتراضياً عند نهايتها. {assignmentForm.dueDays ? 'المدة المحددة تبدأ من فتح الوحدة ولا تتجاوز نهاية الوحدة.' : 'اترك عدد الأيام فارغاً لاستخدام مدة الوحدة كاملة.'}</p>
+                    <p className="mt-1 text-[11px] font-bold text-emerald-800">مرتبط بوحدة دراسية: يفتح الواجب عند بدء الوحدة لكل طالب، ويغلق افتراضياً عند نهايتها. {assignmentForm.dueAt ? 'هذا واجب قديم: تُستخدم مدة الوحدة كاملة إلى أن تعدّل حقل الأيام.' : assignmentForm.dueDays ? 'المدة المحددة تبدأ من فتح الوحدة ولا تتجاوز نهاية الوحدة.' : 'اترك عدد الأيام فارغاً لاستخدام مدة الوحدة كاملة.'}</p>
                   ) : (
                     <p className="mt-1 text-[11px] font-bold text-slate-600">غير مرتبط بوحدة في هذا الفصل: أدخل مدة بالأيام تُحسب من تاريخ تسجيل كل طالب في البرنامج.</p>
                   )}
