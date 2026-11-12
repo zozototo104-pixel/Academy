@@ -3072,7 +3072,7 @@ export function AdminBooksTab() {
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={sanitizeKnowledge} disabled={sanitizingKnowledge || knowledgeItems.length === 0} variant="outline" className="border-amber-300 text-xs font-black text-amber-700">
                     {sanitizingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <AlertTriangle className="ml-2 h-4 w-4" />}
-                    تنظيف العناصر المشوهة
+                    تصحيح العناصر المشوّهة (حذف الفارغ فقط)
                   </Button>
                   <Button onClick={rebuildKnowledge} disabled={rebuildingKnowledge || books.length === 0} className="bg-[#0f2b46] text-xs font-black text-[#e0b83a] hover:bg-[#12365c]">
                     {rebuildingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-2 h-4 w-4" />}
