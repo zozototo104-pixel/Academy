@@ -224,6 +224,32 @@ export function looksLikeBrokenGeneratedArabic(value: unknown): boolean {
   return false
 }
 
+export type KnowledgeItemCleanupPlan =
+  | { action: 'KEEP' }
+  | { action: 'REVIEW'; reason: 'EMPTY' | 'UNRESOLVED' }
+  | { action: 'UPDATE'; data: { title: string; summary: string; excerpt: string | null } }
+
+// Never delete a book-derived knowledge item merely because a heuristic rejects
+// it. Repair every text field first, and only persist if ALL fields pass.
+// Unresolved rows keep their original text, source IDs and guide references.
+export function planKnowledgeItemCleanup(
+  row: { title: string; summary: string; excerpt?: string | null },
+  isBroken: (text: string) => boolean = looksLikeBrokenGeneratedArabic,
+): KnowledgeItemCleanupPlan {
+  const fullClean = (value: string) => cleanAcademicOutput(value, Math.max(1800, value.length + 128))
+  const title = fullClean(row.title || '')
+  const summary = fullClean(row.summary || '')
+  const excerpt = row.excerpt == null ? null : fullClean(row.excerpt)
+  if (!title && !summary && !excerpt) return { action: 'REVIEW', reason: 'EMPTY' }
+  if (!title || !summary || isBroken(`${title}. ${summary}`) || (excerpt && isBroken(excerpt))) {
+    return { action: 'REVIEW', reason: 'UNRESOLVED' }
+  }
+  if (title !== row.title || summary !== row.summary || excerpt !== (row.excerpt ?? null)) {
+    return { action: 'UPDATE', data: { title, summary, excerpt } }
+  }
+  return { action: 'KEEP' }
+}
+
 export function acceptableAcademicText(value: unknown, opts?: { min?: number; maxLatinRatio?: number }): boolean {
   const raw = cleanAcademicOutput(value, 5000)
   const min = opts?.min ?? 20
