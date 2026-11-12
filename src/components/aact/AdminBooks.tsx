@@ -1377,7 +1377,7 @@ export function AdminBooksTab() {
     setSanitizingKnowledge(true)
     setKnowledgeRepairProgress('المرحلة 1/2: تصحيح أخطاء النصوص بالقواعد، دون حذف سوى الفارغ فعلياً…')
     try {
-      const rules = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; deleted?: number; updated?: number }>('/api/admin/knowledge-bank', {
+      const rules = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; deleted?: number; updated?: number; needsReview?: number }>('/api/admin/knowledge-bank', {
         method: 'POST',
         body: JSON.stringify({ programId: targetProgramId, action: 'sanitize' }),
       })
