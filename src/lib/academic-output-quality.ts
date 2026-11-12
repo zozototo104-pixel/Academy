@@ -273,18 +273,14 @@ export function validateGroundedKnowledgeRepair(
   if (cleanAcademicOutput(title, 1800) !== title || cleanAcademicOutput(summary, 2000) !== summary || cleanAcademicOutput(excerpt, 1200) !== excerpt) return null
   if (planKnowledgeItemCleanup({ title, summary, excerpt }).action !== 'KEEP') return null
 
-  // The evidence must be an exact, contiguous quote, tolerating only
-  // whitespace normalization. A plausible-looking invented quote is rejected.
+  // No lexical-similarity heuristic can prove a model's summary is truthful:
+  // it can add an invented causal claim using the same vocabulary.
+  // For automatic acceptance, each field MUST be an exact contiguous span
+  // from a readable source. Paraphrases belong in human review, not auto-save.
   const whitespace = (s: string) => s.replace(/\s+/g, ' ').trim()
-  if (!whitespace(sourceText).includes(whitespace(excerpt))) return null
-
-  // A quote alone is insufficient: the title and explanation must retain
-  // concrete vocabulary from the actual source (not only generic prose).
-  const terms = (s: string) => [...new Set(normalizeAcademic(s).split(' ').filter((w) => w.length >= 4))]
-  const sourceTerms = new Set(terms(sourceText))
-  const titleTerms = terms(title)
-  const summaryTerms = terms(summary)
-  if (titleTerms.filter((w) => sourceTerms.has(w)).length < 2 || summaryTerms.filter((w) => sourceTerms.has(w)).length < 5) return null
+  const source = whitespace(sourceText)
+  if (looksLikeBrokenGeneratedArabic(source)) return null
+  if (![title, summary, excerpt].every((field) => source.includes(whitespace(field)))) return null
   return { title, summary, excerpt }
 }
 
