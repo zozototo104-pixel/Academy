@@ -140,11 +140,20 @@ function apiSurface(): { count: number; digest: string } {
   assert.equal(bookControlCalls.length, 1, 'expected exactly one per-book stop/resume API call')
   const bookRebuildCalls = calls.filter((call) => call.includes('/api/admin/books/${book.id}/read-job') && call.includes('REBUILD_FROM_ZERO') && call.includes('confirmBookTitle: book.title'))
   assert.equal(bookRebuildCalls.length, 1, 'expected exactly one explicit confirmed book rebuild call')
+  // The sanitizer's response type gained one reviewed diagnostic field; its
+  // endpoint, method, action payload, and all other requests stay frozen.
+  const knowledgeRepairCalls = calls.filter((call) =>
+    call.includes("'/api/admin/knowledge-bank'") && call.includes("action: 'sanitize'"))
+  assert.equal(knowledgeRepairCalls.length, 1, 'expected exactly one admin knowledge repair request')
+  assert.ok(knowledgeRepairCalls[0].includes('needsReview?: number'),
+    'repair response must report records left untouched for manual review')
   const protectedCalls = calls
     .filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) && !bookRebuildCalls.includes(call))
-    .map((call) => suggestedAssignmentSaveCalls.includes(call)
-      ? call.replace('dueDays: s.semester === 3 || !s.unitId ? 14 : null', 'dueDays: null')
-      : call)
+    .map((call) => {
+      if (suggestedAssignmentSaveCalls.includes(call)) return call.replace('dueDays: s.semester === 3 || !s.unitId ? 14 : null', 'dueDays: null')
+      if (knowledgeRepairCalls.includes(call)) return call.replace('; needsReview?: number', '')
+      return call
+    })
     .sort()
   return { count: calls.length - bookControlCalls.length - bookRebuildCalls.length, digest: digest(protectedCalls.join('\n')) }
 }
