@@ -260,7 +260,8 @@ export async function runNextKnowledgeAiRepairStep() {
         } else next.needsReview++
       } else next.needsReview++
       next.cursor = item.id; next.scanned++; processed++
-      break // Absolute maximum: one provider completion in this cron tick.
+      // Continue only while the administrator's per-run quota, optional
+      // interval, and server deadline permit additional repair calls.
     }
     if (next.status !== 'PAUSED') {
       next.status = items.length < 40 && processed === items.length ? 'COMPLETED' : 'QUEUED'
