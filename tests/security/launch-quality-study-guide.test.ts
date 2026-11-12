@@ -215,19 +215,25 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     }).action).toBe('REVIEW')
   })
 
-  test('AI repair accepts a complete correction only when the excerpt is verbatim book evidence', async () => {
+  test('AI repair requires all THREE fields to be exact spans from a readable source', async () => {
     const { validateGroundedKnowledgeRepair } = await import('../../src/lib/academic-output-quality')
-    const source = 'تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية. يساعد هذا النهج في توزيع المسؤوليات وتحديد مؤشرات الأداء ومراقبة الانحرافات أثناء مراحل التنفيذ، مع توثيق النتائج وتصحيح خطة المشروع كلما ظهرت معطيات جديدة.'
+    const source = 'تخطيط الموارد وتحليل المخاطر في إدارة المشاريع. تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية. يساعد هذا النهج في توزيع المسؤوليات وتحديد مؤشرات الأداء ومراقبة الانحرافات أثناء مراحل التنفيذ، مع توثيق النتائج وتصحيح خطة المشروع كلما ظهرت معطيات جديدة.'
     const proposed = {
       title: 'تخطيط الموارد وتحليل المخاطر في إدارة المشاريع',
-      summary: 'تربط إدارة المشاريع بين تخطيط الموارد ومراجعة المخاطر وتحليل التكلفة والجودة وتوزيع المسؤوليات، وتستخدم مؤشرات الأداء لمراقبة الانحرافات وتصحيح خطة المشروع أثناء التنفيذ.',
-      excerpt: 'تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية.',
+      summary: 'تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية.',
+      excerpt: 'يساعد هذا النهج في توزيع المسؤوليات وتحديد مؤشرات الأداء ومراقبة الانحرافات أثناء مراحل التنفيذ، مع توثيق النتائج وتصحيح خطة المشروع كلما ظهرت معطيات جديدة.',
     }
     expect(validateGroundedKnowledgeRepair(proposed, source)).toEqual(proposed)
-    expect(validateGroundedKnowledgeRepair({ ...proposed, excerpt: 'تعتمد إدارة المشاريع على تخطيط الموارد ومنع المخاطر وتحليل المدة والتكلفة والجودة قبل اتخاذ القرارات التنفيذية.' }, source)).toBeNull()
+    expect(validateGroundedKnowledgeRepair({ ...proposed, excerpt: 'يساعد هذا النهج في توزيع المسؤوليات ويلغي تحليل المخاطر نهائياً أثناء التنفيذ.' }, source)).toBeNull()
+    // Fluent, plausible hallucination that shares all the topic vocabulary
+    // MUST fail: lexical overlap is not proof of entailment.
+    expect(validateGroundedKnowledgeRepair({
+      ...proposed, summary: 'تعتمد إدارة المشاريع على تخطيط الموارد ومراجعة المخاطر لكن استخدام مؤشرات الأداء يلغي الحاجة إلى متابعة التكلفة والجودة أثناء التنفيذ.',
+    }, source)).toBeNull()
+    expect(validateGroundedKnowledgeRepair({ ...proposed, title: 'تخطيط الموارد ومنع المخاطر في إدارة المشاريع' }, source)).toBeNull()
     expect(validateGroundedKnowledgeRepair({ ...proposed, summary: 'مقتطف داعم عن مجال العمل.' }, source)).toBeNull()
-    expect(validateGroundedKnowledgeRepair({ ...proposed, summary: 'يركّز على اختراع محتوى لا يرتبط بالمادة الأصلية ولا يصف أي مصطلحات موجودة في مصدر الكتاب المرفق.' }, source)).toBeNull()
     expect(validateGroundedKnowledgeRepair({ title: proposed.title }, source)).toBeNull()
+    expect(validateGroundedKnowledgeRepair(proposed, source + ' كتاب احرب في سياق الإدارة العملية.')).toBeNull()
     expect(validateGroundedKnowledgeRepair(proposed, '')).toBeNull()
   })
 
