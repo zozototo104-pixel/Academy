@@ -284,6 +284,8 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(system).toContain("'AI_KNOWLEDGE_REPAIR_PROVIDER', 'AI_KNOWLEDGE_REPAIR_MODEL', 'AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS'")
     expect(system).toContain('const repairProvider =')
     expect(system).toContain('const repairModel =')
+    expect(system).toContain("'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION'")
+    expect(system).toContain('if (!repairProviderNames.has(repairProvider))')
     expect(modelPanel).not.toContain('gemini-section-repair')
     expect(modelPanel).toContain("const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests' | null>('core')")
     expect(repairPage).toContain('TEXT_PROVIDER_CHOICES')
