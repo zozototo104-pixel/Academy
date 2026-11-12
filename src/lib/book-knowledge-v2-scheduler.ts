@@ -207,6 +207,9 @@ export async function runNextKnowledgeAiRepairStep() {
           taskLevel: chosenModel.length ? 'GENERAL' : 'ACADEMIC_CRITICAL',
           taskType: 'BOOK_KNOWLEDGE_REPAIR',
           temperature: 0, maxOutputTokens: 1200, timeoutMs: 20_000,
+          // APINEX may reject response_format=json_object; prompt-only JSON is
+          // scoped to that provider by the shared router, never the others.
+          apinexPromptOnlyJson: true,
           ...(chosenModel.length ? { preferredModels: chosenModel, restrictToModels: chosenModel } : {}),
         })
       } catch {
