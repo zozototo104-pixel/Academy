@@ -3165,8 +3165,15 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
   }, providerRequestTimeoutMs(provider, providerOpts), providerOpts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp(provider, response.status, data, response)
-  const message = data?.choices?.[0]?.message || {}
-  const text = String(message?.content || '').trim()
+  const choice = data?.choices?.[0] || {}
+  const message = choice.message || {}
+  const text = __testChatCompletionVisibleTextForTests(message)
+  if (provider === 'APINEX' && opts.taskType === 'BOOK_ENRICH' && ['length', 'max_tokens', 'max_output_tokens'].includes(String(choice.finish_reason || '').toLowerCase())) {
+    const err: any = new Error('BOOK_AI_RESPONSE_TRUNCATED')
+    err.code = 'BOOK_AI_RESPONSE_TRUNCATED'
+    err.finishReason = String(choice.finish_reason)
+    throw err
+  }
   if (!text) {
     const err: any = new Error(`${provider}_EMPTY_RESPONSE`)
     if (isNvidiaChatCompletionsRequest(provider, baseUrl) && message?.reasoning_content) err.code = 'EMPTY_RESPONSE'
