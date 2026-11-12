@@ -1396,40 +1396,6 @@ export function AdminBooksTab() {
     }
   }
 
-  const startKnowledgeAiRepair = async () => {
-    if (!programId || startingKnowledgeAiRepair) return
-    const target = programId
-    setStartingKnowledgeAiRepair(true)
-    try {
-      const result = await api<{ job: NonNullable<typeof knowledgeAiRepairJob> }>('/api/admin/knowledge-bank', {
-        method: 'POST',
-        body: JSON.stringify({ programId: target, action: 'repair-ai' }),
-      })
-      if (knowledgeRepairProgramRef.current === target) setKnowledgeAiRepairJob(result.job)
-      toast({ title: 'تمت جدولة التصحيح بالذكاء', description: 'المهمة تستمر من الخادم بمعدل محدود دون استهلاك APINEX؛ يمكنك مغادرة الصفحة.' })
-    } catch (e: any) {
-      toast({ title: 'تعذر جدولة التصحيح بالذكاء', description: e.message || 'حاول مجدداً؛ زر التصحيح بالقواعد ما زال متاحاً.', variant: 'destructive' })
-    } finally {
-      setStartingKnowledgeAiRepair(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!programId) { setKnowledgeAiRepairJob(null); return }
-    let active = true
-    const loadRepairStatus = async () => {
-      try {
-        const result = await api<{ job: typeof knowledgeAiRepairJob }>(`/api/admin/knowledge-bank?programId=${encodeURIComponent(programId)}&repairStatus=1`)
-        if (active) setKnowledgeAiRepairJob(result.job)
-      } catch {
-        // A temporary status-read outage does not cancel the server-side job.
-      }
-    }
-    void loadRepairStatus()
-    const timer = setInterval(() => { void loadRepairStatus() }, 15_000)
-    return () => { active = false; clearInterval(timer) }
-  }, [programId])
-
   const refreshCurriculumUnits = useCallback(async (pid = programId) => {
     if (!pid) return
     const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`)
