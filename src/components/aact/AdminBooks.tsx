@@ -3194,7 +3194,7 @@ export function AdminBooksTab() {
                           {bookReadJobs[b.id] && (() => {
                             const job = bookReadJobs[b.id]
                             const manuallyStopped = job.status === 'PAUSED' && !!job.retryAt && new Date(job.retryAt).getUTCFullYear() === 9999
-                            const phase = manuallyStopped ? 'موقوف بأمر الإدارة' : job.status === 'FAILED' ? 'فشل' : job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.phase === 'ENRICH' ? 'استخراج المزيد' : 'بانتظار المعالجة'
+                            const phase = manuallyStopped ? 'موقوف بأمر الإدارة' : job.status === 'FAILED' ? 'فشل' : job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? (job.chunksFailed > 0 ? 'مكتمل مع نواقص موثقة' : 'مكتمل') : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.phase === 'ENRICH' ? 'استخراج المزيد' : 'بانتظار المعالجة'
                             const saved = bookEnrichment[b.id]
                             const pagesTotal = saved?.sourcePages || job.totalPages
                             const pagesDone = saved?.pagesSaved ?? job.pagesDone
