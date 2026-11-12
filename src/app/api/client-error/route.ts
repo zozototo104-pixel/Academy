@@ -59,10 +59,10 @@ export async function POST(req: NextRequest) {
     'AACT client error report:',
     JSON.stringify({
       message,
-      stack: capped(body?.stack),
-      digest: capped(body?.digest),
-      url: capped(body?.url),
-      userAgent: capped(body?.userAgent),
+      stack: safeDiagnostic(body?.stack),
+      digest: safeDiagnostic(body?.digest),
+      url: safePageUrl(body?.url),
+      userAgent: safeDiagnostic(body?.userAgent),
       at: new Date().toISOString(),
     }),
   )
