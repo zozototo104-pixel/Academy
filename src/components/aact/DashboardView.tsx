@@ -288,7 +288,7 @@ interface StudentStudyGuide {
   overview: string
   objectives: string[]
   keyTerms: string[]
-  sections: { title: string; summary: string; outcomes?: string[]; sourceTitles?: string[] }[]
+  sections: { title: string; summary: string; outcomes?: string[]; sourceTitles?: string[]; sourceKnowledgeIds?: string[]; pageRefs?: string[] }[]
   activities: string[]
   discussionQuestions: string[]
   updatedAt: string
