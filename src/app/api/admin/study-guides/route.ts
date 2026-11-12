@@ -206,6 +206,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ guide: mapGuide(guide) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (String(e?.message || '').startsWith('STUDY_GUIDE_')) {
+      return NextResponse.json({ error: e.message }, { status: 422 })
+    }
     console.error('study guide POST error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر توليد دليل الدراسة' }, { status: 500 })
   }
