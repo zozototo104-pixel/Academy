@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
       }
     }
     const existingScope = id ? await db.programAssignment.findUnique({
-      where: { id }, select: { id: true, programId: true, unitId: true, sourceKnowledgeIds: true },
+      where: { id }, select: { id: true, programId: true, unitId: true, sourceKnowledgeIds: true, dueAt: true },
     }) : null
     if (id && (!existingScope || existingScope.programId !== programId)) {
       return NextResponse.json({ error: 'الواجب غير موجود لهذا البرنامج' }, { status: 404 })
