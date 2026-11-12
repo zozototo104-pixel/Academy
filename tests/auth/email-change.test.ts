@@ -68,7 +68,7 @@ mock.module('@/lib/db', () => ({ db: dbMock }))
 // ---------- mailer capture ----------
 const confirmMails: any[] = []
 mock.module('@/lib/mailer', () => ({
-  emailEmailChangeConfirm: async (...args: any[]) => { confirmMails.push(args); return true },
+  emailEmailChangeConfirm: async (...args: any[]) => { confirmMails.push(args); return !failDelivery },
   emailEmailChangeNotice: async () => true,
   emailWelcome: async () => true,
 }))
