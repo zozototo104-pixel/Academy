@@ -5169,3 +5169,115 @@ export function AdminBooksTab() {
     </div>
   )
 }
+
+// A dedicated main-administration workspace. The existing books tab retains
+// only deterministic rules; no AI repair executes in this React component.
+export function AdminKnowledgeAiRepairTab() {
+  const { toast } = useToast()
+  const [programs, setPrograms] = useState<ProgramOption[]>([])
+  const [programId, setProgramId] = useState('')
+  const [loadingPrograms, setLoadingPrograms] = useState(true)
+  const [loadingStatus, setLoadingStatus] = useState(false)
+  const [statusError, setStatusError] = useState('')
+  const [busy, setBusy] = useState(false)
+  type RepairStatus = {
+    status: 'QUEUED' | 'RUNNING' | 'PAUSED' | 'COMPLETED'
+    scanned: number; repaired: number; needsReview: number; missingSource: number
+    attempts: number; lastError: string | null
+  }
+  const [job, setJob] = useState<RepairStatus | null>(null)
+
+  useEffect(() => {
+    let active = true
+    api<{ programs: ProgramOption[] }>('/api/programs?summary=1&public=1')
+      .then((data) => { if (active) setPrograms(Array.isArray(data.programs) ? data.programs : []) })
+      .catch((error: any) => { if (active) setStatusError(error.message || 'تعذر تحميل البرامج') })
+      .finally(() => { if (active) setLoadingPrograms(false) })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!programId) { setJob(null); return }
+    let active = true
+    const refreshStatus = async () => {
+      try {
+        const result = await api<{ job: RepairStatus | null }>(`/api/admin/knowledge-bank?programId=${encodeURIComponent(programId)}&repairStatus=1`)
+        if (active) { setJob(result.job); setStatusError('') }
+      } catch (error: any) {
+        if (active) setStatusError(error.message || 'تعذر تحديث حالة مهمة التصحيح')
+      } finally {
+        if (active) setLoadingStatus(false)
+      }
+    }
+    setJob(null)
+    setLoadingStatus(true)
+    void refreshStatus()
+    const timer = setInterval(() => { void refreshStatus() }, 15_000)
+    return () => { active = false; clearInterval(timer) }
+  }, [programId])
+
+  const start = async () => {
+    if (!programId || busy || ['QUEUED', 'RUNNING'].includes(job?.status || '')) return
+    const selectedProgramId = programId
+    setBusy(true)
+    try {
+      const result = await api<{ job: RepairStatus }>('/api/admin/knowledge-bank', {
+        method: 'POST',
+        body: JSON.stringify({ programId: selectedProgramId, action: 'repair-ai' }),
+      })
+      if (selectedProgramId === programId) setJob(result.job)
+      toast({ title: 'تمت جدولة التصحيح الذكي', description: 'يستمر من الخادم دون إبقاء الصفحة مفتوحة، ولا يستخدم مزود APINEX.' })
+    } catch (error: any) {
+      toast({ title: 'تعذر جدولة التصحيح الذكي', description: error.message || 'لم تتغير بيانات المعرفة.', variant: 'destructive' })
+    } finally { setBusy(false) }
+  }
+
+  const statusLabel = !job ? 'لا توجد مهمة مسجلة' : job.status === 'RUNNING' ? 'قيد التنفيذ' :
+    job.status === 'QUEUED' ? 'في قائمة الانتظار' : job.status === 'PAUSED' ? 'متوقفة، ويمكن استكمالها' : 'مكتملة'
+  const running = job?.status === 'QUEUED' || job?.status === 'RUNNING'
+
+  return (
+    <div dir="rtl" className="mx-auto mt-4 w-full max-w-5xl space-y-4">
+      <Card className="border-blue-200">
+        <CardContent className="space-y-4 p-4 sm:p-6">
+          <div>
+            <h2 className="text-lg font-black text-[#0f2b46]">تصحيح عناصر المعرفة بالذكاء الاصطناعي</h2>
+            <p className="mt-2 text-sm leading-7 text-slate-600">خيار مستقل لمعالجة العناصر المشوهة فقط بمصدر الكتاب المقروء. لا يعيد إنشاء العناصر أو حذفها، ويحافظ على معرّفاتها وروابط أدلة الدراسة.</p>
+            <p className="mt-1 text-xs leading-6 text-slate-500">التصحيح بالقواعد ما زال متاحاً ضمن «الكتب والاختبارات»، ويعمل دون مزوّد ذكاء اصطناعي.</p>
+          </div>
+          <div className="max-w-xl space-y-2">
+            <Label>اختر البرنامج المراد تصحيح معرفته</Label>
+            <Select value={programId} onValueChange={setProgramId}>
+              <SelectTrigger className="w-full text-right"><SelectValue placeholder={loadingPrograms ? 'جارٍ تحميل البرامج…' : 'اختر البرنامج'} /></SelectTrigger>
+              <SelectContent>
+                {programs.map((program) => (
+                  <SelectItem key={program.id} value={program.id}>{program.titleAr}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p role="status" aria-live="polite" className="text-sm font-black text-[#0f2b46]">حالة المهمة: {loadingStatus ? 'جارٍ التحقق…' : statusLabel}</p>
+            {job && (
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <p>المفحوصة: <b>{job.scanned}</b></p>
+                <p>المصححة: <b>{job.repaired}</b></p>
+                <p>للمراجعة: <b>{job.needsReview}</b></p>
+                <p>دون مصدر كافٍ: <b>{job.missingSource}</b></p>
+              </div>
+            )}
+            {job?.lastError && <p className="mt-3 text-xs font-bold text-amber-800">{job.lastError}</p>}
+            {statusError && <p role="alert" className="mt-3 text-xs font-bold text-red-700">{statusError}</p>}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={start} disabled={!programId || busy || loadingStatus || running} className="bg-[#0f2b46] text-white">
+              {busy && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+              {job?.status === 'PAUSED' ? 'استكمال مهمة التصحيح' : job?.status === 'COMPLETED' ? 'بدء فحص جديد' : 'بدء التصحيح الذكي'}
+            </Button>
+            <p className="text-xs leading-6 text-slate-500">المهمة خلفية ومحدودة بمكالمة تصحيح واحدة كل 90 ثانية عالميّاً، مع استبعاد APINEX وتقديم مهام الطلاب.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
