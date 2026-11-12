@@ -418,8 +418,12 @@ Object.assign(fakeDb, {
   bookOutlineSection: { findMany: async ({ where }: any) =>
     where.id.in.includes('source-outline') ? [{ id: 'source-outline', outline: { bookId: AUTO_BOOK_ID } }] : [] },
   bookChunk: { findMany: async ({ where }: any) => autoChunks.filter((chunk) =>
-    chunk.programId === where.programId && chunk.bookId === where.bookId &&
-    chunk.status === where.status && chunk.index >= where.index.gte && chunk.index <= where.index.lte) },
+    (!where.id || where.id.in.includes(chunk.id)) &&
+    (!where.programId || chunk.programId === where.programId) &&
+    (!where.bookId || chunk.bookId === where.bookId) &&
+    (!where.status || chunk.status === where.status) &&
+    (!where.index || (where.index.in ? where.index.in.includes(chunk.index) :
+      chunk.index >= where.index.gte && chunk.index <= where.index.lte))) },
   bookKnowledgeItem: { findMany: async ({ where }: any) => autoKnowledge.filter((item) =>
     (where.id ? where.id.in.includes(item.id) : true) &&
     (where.bookId ? where.bookId === item.bookId : true) &&
