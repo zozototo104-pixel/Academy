@@ -46,6 +46,7 @@ function mapGuide(g: any) {
     overview,
     objectives: sanitizeAcademicList(jsonArray(g.objectives), ['فهم محاور البرنامج وربطها بالتطبيق المهني'], 10, 220),
     keyTerms: sanitizeAcademicList(jsonArray(g.keyTerms), [], 18, 90),
+    sourceKnowledgeIds: jsonArray(g.sourceKnowledgeIds),
     sections,
     activities: sanitizeAcademicList(jsonArray(g.activities), ['قراءة المحاور وكتابة ملخص تطبيقي قصير.'], 8, 300),
     discussionQuestions: sanitizeAcademicList(jsonArray(g.discussionQuestions), ['كيف يمكن توظيف هذا المحور في حالة مهنية؟'], 10, 320),
