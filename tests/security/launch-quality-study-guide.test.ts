@@ -437,7 +437,43 @@ mock.module('@/lib/timing', () => ({
   withTimedResponse: async (fn: () => any) => fn(),
 }))
 
-const { POST: postSemesterGuide } = await import('../../src/app/api/admin/study-guides/route')
+const { POST: postSemesterGuide, GET: getAdminStudyGuides } = await import('../../src/app/api/admin/study-guides/route')
+
+test('admin guide review exposes missing IDs and their original section/page claims, without changing guides', async () => {
+  const testDb: any = fakeDb
+  const oldGuideFind = testDb.programStudyGuide.findMany
+  const oldKnowledgeFind = testDb.bookKnowledgeItem.findMany
+  const original = {
+    id: 'old-published-guide', programId: AUTO_PROGRAM_ID, unitId: null, semester: 2,
+    status: 'PUBLISHED', title: 'دليل تاريخي', overview: 'محتوى محفوظ للمراجعة',
+    objectives: '[]', keyTerms: '[]', activities: '[]', discussionQuestions: '[]',
+    sourceKnowledgeIds: JSON.stringify(['old-deleted-id', 'kb-still-exists']),
+    sections: JSON.stringify([{ title: 'محور قديم', summary: 'ملخص قديم',
+      sourceTitles: ['الكتاب القديم'], pageRefs: ['صفحات 12–13'],
+      sourceKnowledgeIds: ['old-deleted-id', 'kb-still-exists'] }]),
+    updatedAt: new Date(),
+  }
+  try {
+    testDb.programStudyGuide.findMany = async () => [original]
+    testDb.bookKnowledgeItem.findMany = async () => [{ id: 'kb-still-exists' }]
+    const url = new URL(`http://localhost/api/admin/study-guides?programId=${AUTO_PROGRAM_ID}`)
+    const response = await getAdminStudyGuides({ nextUrl: url } as any)
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.guides).toHaveLength(1)
+    expect(body.guides[0].missingReferenceCount).toBe(1)
+    expect(body.guides[0].missingReferenceIds).toEqual(['old-deleted-id'])
+    expect(body.guides[0].missingReferenceSections[0]).toEqual({
+      sectionIndex: 0, title: 'محور قديم', sourceTitles: ['الكتاب القديم'],
+      pageRefs: ['صفحات 12–13'], missingReferenceIds: ['old-deleted-id'],
+    })
+    expect(original.status).toBe('PUBLISHED')
+    expect(original.sourceKnowledgeIds).toContain('old-deleted-id')
+  } finally {
+    testDb.programStudyGuide.findMany = oldGuideFind
+    testDb.bookKnowledgeItem.findMany = oldKnowledgeFind
+  }
+})
 
 function resetAutoGuideFixture() {
   reset()
