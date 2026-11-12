@@ -909,10 +909,10 @@ export function AdminSystemTab() {
       ? [{ value: current, label: `${current} — محفوظ سابقاً` }, ...options]
       : options
     return (
-      <div key={k} className="space-y-1">
-        <Label className="text-[11px] font-black text-[#0f2b46]">{label}</Label>
+      <div key={k} className="min-w-0 space-y-1">
+        <Label className="block max-w-full break-words text-[11px] font-black text-[#0f2b46]">{label}</Label>
         <Select value={current} onValueChange={(v) => set(k, v)}>
-          <SelectTrigger className="h-9 bg-white text-sm" dir="ltr">
+          <SelectTrigger className="h-9 min-w-0 w-full max-w-full bg-white text-sm" dir="ltr">
             <SelectValue placeholder="اختر" />
           </SelectTrigger>
           <SelectContent>

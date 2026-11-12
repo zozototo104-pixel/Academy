@@ -2624,7 +2624,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* الكتب المقررة والاختبارات الشاملة */}
-        <TabsContent value="books">
+        <TabsContent value="books" className="w-full min-w-0 max-w-full overflow-x-hidden">
           <AdminBooksTab />
         </TabsContent>
 
@@ -2669,7 +2669,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* النظام: البريد + بوابات الدفع + TURN */}
-        <TabsContent value="system">
+        <TabsContent value="system" className="w-full min-w-0 max-w-full overflow-x-hidden">
           <AdminSystemTab />
         </TabsContent>
 
