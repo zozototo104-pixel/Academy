@@ -807,7 +807,86 @@ describe('source recovery evidence: source-book only, never automatic linking', 
     const source = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
     expect(source).toContain('sourceCandidates=1')
     expect(source).toContain('تطابق بداية المقتطف فقط — غير مؤكد')
-    expect(source).toContain('لم نعدّل ربط العنصر')
+    expect(source).toContain('تطابق غير كافٍ لاعتماد المصدر')
+    expect(source).toContain('اعتماد ربط المصدر بعد مراجعة النص')
+    expect(source).toContain('confirmSource: true')
+  })
+})
+
+describe('manual source restoration: no linking unless full, unique, original-book evidence is confirmed', () => {
+  test('confirmed exact excerpt restores same item ID with original chunk page range', async () => {
+    resetReviewFixture()
+    reviewItems[1].bookId = REVIEW_BOOK_ID
+    reviewItems[1].chunkId = null
+    reviewItems[1].pageStart = null
+    reviewItems[1].pageEnd = null
+    reviewItems[1].excerpt = REVIEW_CHUNK_TEXT.slice(0, 120)
+    const originalTitle = reviewItems[1].title
+    const { response, body } = await patchReview({
+      action: 'restore-source', programId: REVIEW_PROGRAM_ID,
+      id: 'review-broken-text', chunkId: REVIEW_CHUNK_ID,
+      confirmSource: true, expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(response.status).toBe(200)
+    expect(body.id).toBe('review-broken-text')
+    expect(body.chunkId).toBe(REVIEW_CHUNK_ID)
+    expect(body.pageStart).toBe(10)
+    expect(body.pageEnd).toBe(40)
+    expect(reviewItems[1].title).toBe(originalTitle)
+    expect(reviewItems[1].chunkId).toBe(REVIEW_CHUNK_ID)
+    expect(reviewItems[1].pageStart).toBe(10)
+    expect(reviewItems[1].pageEnd).toBe(40)
+    const second = await patchReview({
+      action: 'restore-source', programId: REVIEW_PROGRAM_ID,
+      id: 'review-broken-text', chunkId: REVIEW_CHUNK_ID,
+      confirmSource: true, expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(second.response.status).toBe(409)
+  })
+
+  test('partially matching, wrong chunk, or ambiguous full excerpt never changes source fields', async () => {
+    resetReviewFixture()
+    reviewItems[1].bookId = REVIEW_BOOK_ID
+    reviewItems[1].chunkId = null
+    reviewItems[1].pageStart = null
+    reviewItems[1].pageEnd = null
+    reviewItems[1].excerpt = REVIEW_CHUNK_TEXT.slice(0, 120) + ' نص غير موجود إطلاقا'
+    const args = {
+      action: 'restore-source', programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      chunkId: REVIEW_CHUNK_ID, confirmSource: true, expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    }
+    const partial = await patchReview(args)
+    expect(partial.response.status).toBe(422)
+    expect(reviewItems[1].chunkId).toBeNull()
+    reviewItems[1].excerpt = REVIEW_CHUNK_TEXT.slice(0, 120)
+    const wrong = await patchReview({ ...args, chunkId: 'chunk-foreign' })
+    expect(wrong.response.status).toBe(422)
+    expect(reviewItems[1].chunkId).toBeNull()
+    reviewChunks.push({ ...reviewChunks[0], id: 'chunk-duplicate', index: 2 })
+    const duplicate = await patchReview(args)
+    expect(duplicate.response.status).toBe(422)
+    expect(reviewItems[1].chunkId).toBeNull()
+  })
+
+  test('missing confirmation, missing source book and stale timestamps do not write', async () => {
+    resetReviewFixture()
+    const base = {
+      action: 'restore-source', programId: REVIEW_PROGRAM_ID, id: 'review-no-source',
+      chunkId: REVIEW_CHUNK_ID, expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    }
+    const noConfirmation = await patchReview(base)
+    expect(noConfirmation.response.status).toBe(400)
+    const noBook = await patchReview({ ...base, confirmSource: true })
+    expect(noBook.response.status).toBe(422)
+    reviewItems[1].bookId = REVIEW_BOOK_ID
+    reviewItems[1].chunkId = null
+    reviewItems[1].excerpt = REVIEW_CHUNK_TEXT.slice(0, 120)
+    const stale = await patchReview({
+      ...base, id: 'review-broken-text', confirmSource: true,
+      expectedUpdatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    expect(stale.response.status).toBe(409)
+    expect(reviewItems[1].chunkId).toBeNull()
   })
 })
 
