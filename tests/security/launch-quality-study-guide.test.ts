@@ -863,6 +863,19 @@ describe('manual review UI: the admin panel reaches the review queue and the man
     expect(adminBooks).toContain('اعتماد التصحيح')
   })
 
+  test('a completely blank item still appears in the review queue for possible recovery', async () => {
+    resetReviewFixture()
+    reviewItems.push({
+      id: 'review-fully-empty', programId: REVIEW_PROGRAM_ID,
+      bookId: REVIEW_BOOK_ID, chunkId: REVIEW_CHUNK_ID,
+      title: '', summary: '', excerpt: '', pageStart: 10, pageEnd: 12,
+      category: 'CONCEPT', updatedAt: REVIEW_UPDATED_AT,
+    })
+    const { response, body } = await getReviewPage()
+    expect(response.status).toBe(200)
+    expect(body.items.map((item: any) => item.id)).toContain('review-fully-empty')
+  })
+
   test('review queue and cursor are cleared when the administrator switches programs', () => {
     const adminBooks = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
     const resetBlock = adminBooks.split('Review results are program-scoped.')[1]?.split('const [rebuildingBookId')[0] || ''
