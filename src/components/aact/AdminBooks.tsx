@@ -3721,7 +3721,7 @@ export function AdminBooksTab() {
                         </div>
                         <p className="mt-1 text-[11px] font-bold text-indigo-700">
                           {a.unitId && curriculumUnits.some((u) => u.id === a.unitId && Number(u.semester) === Number(a.semester))
-                            ? `يبدأ عند فتح الوحدة لكل طالب، وينتهي ${a.dueDays ? `بعد ${a.dueDays} يوم من بداية الوحدة (أو نهايتها، أيهما أقرب)` : 'مع نهاية الوحدة تلقائياً'}`
+                            ? `يبدأ عند فتح الوحدة لكل طالب، وينتهي ${a.dueAt ? 'مع نهاية الوحدة تلقائياً (تاريخ ثابت قديم محفوظ)' : a.dueDays ? `بعد ${a.dueDays} يوم من بداية الوحدة (أو نهايتها، أيهما أقرب)` : 'مع نهاية الوحدة تلقائياً'}`
                             : a.dueAt ? `موعد ثابت قديم: ${new Date(a.dueAt).toLocaleDateString('ar-EG')} — عدّله إلى أيام لكل طالب`
                             : a.dueDays ? `المدة: ${a.dueDays} يوم من تسجيل الطالب` : 'لا توجد مهلة محددة'}
                         </p>
