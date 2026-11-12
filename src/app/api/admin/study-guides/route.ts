@@ -45,6 +45,46 @@ function pageRefsFromSections(sections: GuideSection[]) {
   return unique(sections.flatMap((section) => Array.isArray(section.pageRefs) ? section.pageRefs.map((x) => clean(x, 80)) : []))
 }
 
+// Reject fabricated, deleted, cross-program or untraceable citations before
+// creating or publishing a guide. Keep historical guides untouched for review.
+async function assertStudyGuideReferences(programId: string, guide: { sourceKnowledgeIds?: unknown; sections?: unknown }) {
+  const sections = parseArray(guide.sections) as GuideSection[]
+  const sourceIds = unique([
+    ...parseArray(guide.sourceKnowledgeIds).map((id) => clean(id, 100)),
+    ...sections.flatMap((section) => parseArray(section?.sourceKnowledgeIds).map((id) => clean(id, 100))),
+  ])
+  if (!sourceIds.length) throw new Error('STUDY_GUIDE_REQUIRES_SOURCE_KNOWLEDGE_IDS')
+
+  const items = await db.bookKnowledgeItem.findMany({
+    where: { id: { in: sourceIds } },
+    select: { id: true, programId: true, bookId: true, chunkId: true, pageStart: true, pageEnd: true },
+  })
+  const books = await db.book.findMany({
+    where: { id: { in: unique(items.map((item) => item.bookId).filter((id): id is string => !!id)) } },
+    select: { id: true, programId: true },
+  })
+  const chunks = await db.bookChunk.findMany({
+    where: { id: { in: unique(items.map((item) => item.chunkId).filter((id): id is string => !!id)) } },
+    select: { id: true, programId: true, bookId: true, pageStart: true, pageEnd: true, status: true },
+  })
+  const itemById = new Map(items.map((item) => [item.id, item]))
+  const bookById = new Map(books.map((book) => [book.id, book]))
+  const chunkById = new Map(chunks.map((chunk) => [chunk.id, chunk]))
+  const invalid = sourceIds.filter((id) => {
+    const item = itemById.get(id)
+    if (!item || item.programId !== programId || !item.bookId || !item.chunkId) return true
+    const book = bookById.get(item.bookId)
+    const chunk = chunkById.get(item.chunkId)
+    return !book || book.programId !== programId ||
+      !chunk || chunk.programId !== programId || chunk.bookId !== item.bookId ||
+      chunk.status !== 'ANALYZED' ||
+      item.pageStart == null || item.pageEnd == null ||
+      item.pageStart < chunk.pageStart || item.pageEnd > chunk.pageEnd ||
+      item.pageStart > item.pageEnd
+  })
+  if (invalid.length) throw new Error(`STUDY_GUIDE_INVALID_REFERENCES: ${invalid.length}/${sourceIds.length}; ${invalid.slice(0, 5).join(', ')}`)
+}
+
 async function unitGuidesForProgram(programId: string, semester: number) {
   const units = await withTiming('db_study_guides_units', () => db.unit.findMany({
     where: { programId, ...(semester === 3 ? {} : { semester }) },
