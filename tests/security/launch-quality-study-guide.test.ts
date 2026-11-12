@@ -717,6 +717,64 @@ async function patchReview(body: Record<string, any>) {
   return { response, body: await response.json() }
 }
 
+async function getSourceCandidates(itemId: string, programId = REVIEW_PROGRAM_ID) {
+  const requestUrl = `http://localhost/api/admin/knowledge-bank?programId=${programId}&sourceCandidates=1&itemId=${encodeURIComponent(itemId)}`
+  const response = await getKnowledgeBank({ nextUrl: new URL(requestUrl) } as any)
+  return { response, body: await response.json() }
+}
+
+describe('source recovery evidence: source-book only, never automatic linking', () => {
+  test('an exact excerpt yields full evidence with analyzed chunk and book page range', async () => {
+    resetReviewFixture()
+    reviewItems[1].bookId = REVIEW_BOOK_ID
+    reviewItems[1].chunkId = null
+    reviewItems[1].pageStart = null
+    reviewItems[1].pageEnd = null
+    reviewItems[1].excerpt = REVIEW_CHUNK_TEXT.slice(0, 120)
+    const before = { ...reviewItems[1] }
+    const { response, body } = await getSourceCandidates('review-broken-text')
+    expect(response.status).toBe(200)
+    expect(body.bookTitle).toBe('كتاب المراجعة المعتمد')
+    expect(body.candidates).toHaveLength(1)
+    expect(body.candidates[0].chunkId).toBe(REVIEW_CHUNK_ID)
+    expect(body.candidates[0].matchLevel).toBe('FULL_EXCERPT')
+    expect(body.candidates[0].pageStart).toBe(10)
+    expect(body.candidates[0].pageEnd).toBe(40)
+    expect(reviewItems[1]).toEqual(before) // source recovery query must never write
+  })
+
+  test('an only partially matching excerpt is clearly marked as unverified', async () => {
+    resetReviewFixture()
+    reviewItems[1].bookId = REVIEW_BOOK_ID
+    reviewItems[1].excerpt = REVIEW_CHUNK_TEXT.slice(0, 100) + ' وتفاصيل غير موجودة في الكتاب'
+    const { response, body } = await getSourceCandidates('review-broken-text')
+    expect(response.status).toBe(200)
+    expect(body.candidates).toHaveLength(1)
+    expect(body.candidates[0].matchLevel).toBe('PREFIX_ONLY')
+  })
+
+  test('does not search another book, and handles items without books or matches', async () => {
+    resetReviewFixture()
+    const none = await getSourceCandidates('review-no-source')
+    expect(none.body.candidates).toHaveLength(0)
+    expect(none.body.reason).toBe('NO_BOOK')
+    reviewItems[1].bookId = REVIEW_BOOK_ID
+    reviewItems[1].excerpt = 'هذا مقتطف غير موجود نهائياً في النص المحفوظ عن مصادر الكتب المقررة.'
+    const unmatched = await getSourceCandidates('review-broken-text')
+    expect(unmatched.body.candidates).toHaveLength(0)
+    expect(unmatched.body.reason).toBe('NO_TEXT_MATCH')
+    const wrongProgram = await getSourceCandidates('review-broken-text', 'program-other')
+    expect(wrongProgram.response.status).not.toBe(200)
+  })
+
+  test('admin UI labels evidence as suggestions only, never as approved links', () => {
+    const source = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
+    expect(source).toContain('sourceCandidates=1')
+    expect(source).toContain('تطابق بداية المقتطف فقط — غير مؤكد')
+    expect(source).toContain('لم نعدّل ربط العنصر')
+  })
+})
+
 describe('manual review queue: valid يضيف items stay out, broken and sourceless items queue with reasons', () => {
   test('queue lists the broken-text and no-source items only, with source preview for the verified one', async () => {
     resetReviewFixture()
