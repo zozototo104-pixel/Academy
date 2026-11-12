@@ -23,6 +23,7 @@ import {
 import { QuestionReviewDialog, AdminAppealsSection } from '@/components/aact/AdminExamReview'
 import { AdminPager, pageItems, safePage } from '@/components/aact/AdminListTools'
 import { useAdminActionDialog } from './AdminActionDialog'
+import { TEXT_PROVIDER_CHOICES } from './AdminSystemTab'
 
 const FULL_EXAM_TARGET = 80
 const MAX_BOOK_FILE_SIZE = 10 * 1024 * 1024
