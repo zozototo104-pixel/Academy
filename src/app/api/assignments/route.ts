@@ -79,11 +79,18 @@ export async function GET(req: NextRequest) {
     const programId = req.nextUrl.searchParams.get('programId') || undefined
     const enrollments = await db.enrollment.findMany({
       where: { userId: user.id, status: { in: ['ACTIVE', 'COMPLETED'] }, ...(programId ? { programId } : {}) },
-      select: { programId: true, createdAt: true },
+      select: { programId: true, createdAt: true, extensionDays: true },
     })
-    const enrollmentMap = new Map(enrollments.map((e) => [e.programId, e.createdAt]))
+    const enrollmentMap = new Map(enrollments.map((e) => [e.programId, e]))
     const programIds = enrollments.map((e) => e.programId)
     if (programIds.length === 0) return NextResponse.json({ assignments: [] })
+
+    const units = await db.unit.findMany({
+      where: { programId: { in: programIds } },
+      select: { id: true, programId: true, semester: true, order: true },
+    })
+    const unitsByProgram = new Map<string, AssignmentUnit[]>()
+    for (const unit of units) unitsByProgram.set(unit.programId, [...(unitsByProgram.get(unit.programId) || []), unit])
 
     const assignments = await db.programAssignment.findMany({
       where: { programId: { in: programIds }, status: 'PUBLISHED' },
