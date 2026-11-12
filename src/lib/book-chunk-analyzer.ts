@@ -464,9 +464,13 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number, claimedA
             AND ("kbVersion" = 1 OR "kbVersion" IS NULL)
             AND "category" <> 'LEGACY'
         `
+        const priorJob = failed ? await tx.bookReadJob.findUnique({ where: { id }, select: { lastError: true } }) : null
         await tx.bookReadJob.updateMany({
           where: { id, status: 'RUNNING', startedAt: claimedAt },
-          data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null },
+          data: {
+            phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null,
+            ...(failed ? { lastError: preserveBookPageReadIssues(priorJob?.lastError, `BOOK_ANALYSIS_PARTIAL: ${failed} مقطع تعذر تحليله بعد استنفاد المحاولات. يمكن متابعة الفهرسة من المقاطع الناجحة؛ النواقص محفوظة للمراجعة.`) } : {}),
+          },
         })
       })
     },
