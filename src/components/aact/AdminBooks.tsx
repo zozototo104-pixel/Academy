@@ -3083,7 +3083,7 @@ export function AdminBooksTab() {
 
               {hiddenKnowledgeItemsCount > 0 && (
                 <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-800">
-                  تم إخفاء {hiddenKnowledgeItemsCount} عنصر معرفة يبدو مشوهاً أو مختلط اللغة من العرض. اضغط «تنظيف العناصر المشوهة» لحذفه من قاعدة البيانات، ثم أعد بناء بنك المعرفة.
+                  تم إخفاء {hiddenKnowledgeItemsCount} عنصر معرفة يبدو مشوّهًا أو مختلط اللغة من العرض. زر «تصحيح العناصر المشوّهة» يحاول إصلاح العنصر كاملًا؛ يُحذف العنصر الفارغ بالكامل فقط، وما لا يمكن إصلاحه يبقى محفوظًا للمراجعة.
                 </div>
               )}
 
