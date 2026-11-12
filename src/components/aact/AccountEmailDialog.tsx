@@ -82,6 +82,7 @@ export default function AccountEmailDialog({ open, onClose }: { open: boolean; o
     setBusy('CANCEL')
     try {
       await api('/api/auth/email-change', { method: 'DELETE' })
+      setMe((current) => current ? { ...current, pendingEmail: null, pendingEmailPurpose: null } : current)
       toast({ title: 'تم إلغاء الطلب', description: 'ألغي تغيير البريد المنتظر.' })
       await load()
     } catch (e: any) {
