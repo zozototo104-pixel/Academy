@@ -241,9 +241,9 @@ export function planKnowledgeItemCleanup(
   const title = fullClean(row.title || '')
   const summary = fullClean(row.summary || '')
   const excerpt = row.excerpt == null ? null : fullClean(row.excerpt)
-  // Only a fully empty item is eligible for deletion. A blank title or
-  // summary with another populated field is NOT an empty item.
-  if (!title && !summary && !excerpt) return { action: 'DELETE_EMPTY' }
+  // Only truly empty stored fields may be deleted. Markup or damaged text
+  // that becomes blank after cleaning still counts as original user data.
+  if (![row.title, row.summary, row.excerpt].some((value) => String(value || '').trim())) return { action: 'DELETE_EMPTY' }
   // Never commit a partial repair: if ANY field remains empty/corrupted,
   // leave all original fields and reference identifiers untouched.
   if (!title || !summary || (row.excerpt && !excerpt)
