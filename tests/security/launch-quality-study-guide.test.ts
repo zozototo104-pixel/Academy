@@ -262,6 +262,22 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(cron.indexOf('runNextKnowledgeAiRepairStep()')).toBeGreaterThan(cron.indexOf("'[question-bank-cron] done'"))
   })
 
+  test('AI repair has its own main admin navigation, not another books button', () => {
+    const admin = readFileSync(new URL('../../src/components/aact/AdminView.tsx', import.meta.url), 'utf8')
+    const books = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
+    const booksPanel = books.split('export function AdminBooksTab()')[1]?.split('export function AdminKnowledgeAiRepairTab()')[0] || ''
+    const repairPanel = books.split('export function AdminKnowledgeAiRepairTab()')[1] || ''
+    expect(admin).toContain('TabsTrigger value="knowledge-ai-repair"')
+    expect(admin).toContain('TabsContent value="knowledge-ai-repair"')
+    expect(admin).toContain('AdminKnowledgeAiRepairTab />')
+    expect(admin).toContain("'books', 'knowledge-ai-repair'")
+    expect(booksPanel).toContain('تصحيح بالقواعد (حذف الفارغ فقط)')
+    expect(booksPanel).not.toContain('startKnowledgeAiRepair')
+    expect(repairPanel).toContain('بدء التصحيح الذكي')
+    expect(repairPanel).toContain('استكمال مهمة التصحيح')
+    expect(repairPanel).toContain('repairStatus=1')
+  })
+
   test('already valid content stays intact', async () => {
     const { planKnowledgeItemCleanup } = await import('../../src/lib/academic-output-quality')
     const item = {
