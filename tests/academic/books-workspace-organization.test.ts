@@ -122,6 +122,17 @@ function apiSurface(): { count: number; digest: string } {
   assert.equal(rejectionCalls.length, 1, 'expected exactly one reviewed outline rejection call')
   const rosterCalls = calls.filter((call) => call.includes('/api/supervisor/assignments?mode=roster&programId=') && call.includes('&semester=') && call.includes('encodeURIComponent(cursor)'))
   assert.equal(rosterCalls.length, 1, 'expected exactly one reviewed admin roster GET')
+  // The assignment-suggestion POST intentionally gained a semester-3 day
+  // duration because its S1/S2 unit is evidence only, not a teaching schedule.
+  // Explicitly assert that reviewed payload, then normalize ONLY its day
+  // expression against the frozen original API digest below. Any different
+  // method, endpoint, evidence identifiers or other call still fails the pin.
+  const suggestedAssignmentSaveCalls = calls.filter((call) =>
+    call.includes("'/api/admin/assignments'") && call.includes("sourceKnowledgeIds: s.sourceKnowledgeIds || null"))
+  assert.equal(suggestedAssignmentSaveCalls.length, 1, 'expected one reviewed suggested assignment save API call')
+  assert.ok(suggestedAssignmentSaveCalls[0].includes('dueDays: s.semester === 3 || !s.unitId ? 14 : null'),
+    'semester-3 suggestions need enrollment-relative days, teaching units use their unit deadline')
+
   // Two separately reviewed administrative controls use the existing read-job
   // API: ordinary STOP/RESUME and deliberate confirmed REBUILD. Keep every
   // older API expression under the unchanged frozen digest.
