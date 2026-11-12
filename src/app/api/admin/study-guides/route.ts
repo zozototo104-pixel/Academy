@@ -50,6 +50,12 @@ function pageRefsFromSections(sections: GuideSection[]) {
 // creating or publishing a guide. Keep historical guides untouched for review.
 async function assertStudyGuideReferences(programId: string, guide: { sourceKnowledgeIds?: unknown; sections?: unknown }) {
   const sections = parseArray(guide.sections) as GuideSection[]
+  // Historical sections that lost all evidence remain visible in DRAFT for
+  // recovery, but cannot be republished merely because other sections cite
+  // valid knowledge items.
+  if (sections.some((section) => section.sourceReviewRequired === true)) {
+    throw new Error('STUDY_GUIDE_SECTION_SOURCE_REVIEW_REQUIRED')
+  }
   const sourceIds = unique([
     ...parseArray(guide.sourceKnowledgeIds).map((id) => clean(id, 100)),
     ...sections.flatMap((section) => parseArray(section?.sourceKnowledgeIds).map((id) => clean(id, 100))),
