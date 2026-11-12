@@ -176,3 +176,61 @@ describe('study-guide Arabic visibility: reject broken OCR without hiding correc
     expect(looksLikeBrokenGeneratedArabic('مقتطف داعم عن إدارة المشاريع وطرق التقييم في الفصل الدراسي.')).toBe(true)
   })
 })
+
+describe('knowledge cleanup: full correction, no partial writes, delete only empty', () => {
+  test('corrects all populated text fields atomically when every corrected field is valid', async () => {
+    const { planKnowledgeItemCleanup } = await import('../../src/lib/academic-output-quality')
+    const result = planKnowledgeItemCleanup({
+      title: '**إدارة المشاريع**',
+      summary: 'يوضح هذا المفهوم إجراءات القرار في إدارة المشاريع.',
+      excerpt: 'يف تحليل المشروعات تستخدم فرق الإدارة البيانات المتاحة.',
+    }, () => false)
+    expect(result.action).toBe('UPDATE')
+    if (result.action !== 'UPDATE') throw new Error('Expected an update plan')
+    expect(result.data.title).toBe('إدارة المشاريع')
+    expect(result.data.summary).toContain('إجراءات القرار')
+    expect(result.data.excerpt).toContain('في تحليل المشروعات')
+    expect(result.data.excerpt).not.toContain('يف تحليل')
+  })
+
+  test('one unresolved field prevents saving even a valid correction to another field', async () => {
+    const { planKnowledgeItemCleanup } = await import('../../src/lib/academic-output-quality')
+    const result = planKnowledgeItemCleanup({
+      title: '**عنوان علمي سليم**',
+      summary: 'مقطع مشوّه يحتاج مراجعة مصدره الأصلي.',
+      excerpt: 'تفاصيل صحيحة من محتوى الكتاب.',
+    }, (text) => text.includes('مشوّه'))
+    expect(result).toEqual({ action: 'REVIEW', reason: 'UNRESOLVED' })
+    expect('data' in result).toBe(false)
+  })
+
+  test('only an entirely empty knowledge item can be deleted', async () => {
+    const { planKnowledgeItemCleanup } = await import('../../src/lib/academic-output-quality')
+    expect(planKnowledgeItemCleanup({ title: ' ', summary: '  ', excerpt: null })).toEqual({ action: 'DELETE_EMPTY' })
+    expect(planKnowledgeItemCleanup({
+      title: '', summary: 'تحليل معرفي مستند إلى مصدر فعلي من الكتاب.', excerpt: null,
+    }).action).toBe('REVIEW')
+    expect(planKnowledgeItemCleanup({
+      title: 'مفهوم', summary: '', excerpt: 'شاهد نصي متاح مرتبط بالكتاب',
+    }).action).toBe('REVIEW')
+  })
+
+  test('already valid content stays intact', async () => {
+    const { planKnowledgeItemCleanup } = await import('../../src/lib/academic-output-quality')
+    const item = {
+      title: 'إدارة المشاريع',
+      summary: 'تساعد إدارة المشاريع على التخطيط والتنفيذ ومتابعة النتائج بوضوح.',
+      excerpt: 'يركّز المقطع على متابعة الوقت والتكلفة والجودة في مراحل المشروع.',
+    }
+    expect(planKnowledgeItemCleanup(item, () => false)).toEqual({ action: 'KEEP' })
+  })
+
+  test('admin sanitizer routes deletion only through the fully-empty classification', () => {
+    const source = readFileSync(new URL('../../src/app/api/admin/knowledge-bank/route.ts', import.meta.url), 'utf8')
+    expect(source).toContain("const plan = planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput)")
+    expect(source).toContain("if (plan.action === 'DELETE_EMPTY')")
+    expect(source).toContain("} else if (plan.action === 'REVIEW') {")
+    expect(source).toContain("needsReview++")
+    expect(source).not.toContain("if (!title || !summary || looksLikeBrokenAcademicOutput")
+  })
+})
