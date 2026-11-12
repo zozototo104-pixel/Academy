@@ -256,6 +256,11 @@ export async function PATCH(req: NextRequest) {
     if (!Number.isInteger(interval) || interval < 0 || interval > 3600) {
       return NextResponse.json({ error: 'الفاصل بين طلبات التصحيح يجب أن يكون بين 0 و3600 ثانية' }, { status: 400 })
     }
+    const callsRaw = String(body.AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN ?? '1').trim() || '1'
+    const callsPerRun = Number(callsRaw)
+    if (!Number.isInteger(callsPerRun) || callsPerRun < 1 || callsPerRun > 10) {
+      return NextResponse.json({ error: 'عدد محاولات التصحيح في تشغيل واحد يجب أن يكون من 1 إلى 10' }, { status: 400 })
+    }
     const updates: string[] = []
     for (const key of SYSTEM_KEYS) {
       if (!(key in body)) continue
