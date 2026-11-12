@@ -293,6 +293,8 @@ export async function GET(req: NextRequest) {
         ...mapGuide(guide),
         referenceCount: refsByGuide[index].length,
         missingReferenceCount: missingReferenceIds.length,
+        sourceReviewRequiredCount: (parseArray(guide.sections) as GuideSection[])
+          .filter((section) => section.sourceReviewRequired === true).length,
         // Historical missing IDs are diagnostics, not replacement suggestions.
         // Expose their original section/book/page claims to the administrator,
         // never silently substitute an unrelated knowledge item.
