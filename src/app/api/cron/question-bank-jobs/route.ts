@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runNextQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
+import { runNextKnowledgeAiRepairStep } from '@/lib/book-knowledge-v2-scheduler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
