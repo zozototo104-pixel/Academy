@@ -876,6 +876,72 @@ describe('manual review UI: the admin panel reaches the review queue and the man
     expect(body.items.map((item: any) => item.id)).toContain('review-fully-empty')
   })
 
+  test('rules-only cleanup retains a referenced empty ID and deletes only an unreferenced empty row', async () => {
+    resetReviewFixture()
+    const stamp = REVIEW_UPDATED_AT
+    reviewItems = [
+      { id: 'empty-linked', programId: REVIEW_PROGRAM_ID, title: '', summary: '',
+        excerpt: '', bookId: REVIEW_BOOK_ID, chunkId: REVIEW_CHUNK_ID, updatedAt: stamp },
+      { id: 'empty-unlinked', programId: REVIEW_PROGRAM_ID, title: '', summary: '',
+        excerpt: '', bookId: REVIEW_BOOK_ID, chunkId: REVIEW_CHUNK_ID, updatedAt: stamp },
+    ]
+    const original = {
+      guideFind: fakeDb.programStudyGuide.findMany,
+      unitFind: fakeDb.unit.findMany,
+      itemFind: fakeDb.bookKnowledgeItem.findMany,
+      itemDelete: fakeDb.bookKnowledgeItem.deleteMany,
+      assignment: fakeDb.programAssignment,
+      question: fakeDb.question,
+      questionBank: fakeDb.questionBankItem,
+      programQuestion: fakeDb.programQuestion,
+    }
+    const removed: string[] = []
+    try {
+      fakeDb.programStudyGuide.findMany = async () => [
+        { sourceKnowledgeIds: JSON.stringify(['empty-linked']), sections: '[]' },
+      ]
+      fakeDb.unit.findMany = async () => []
+      fakeDb.programAssignment = { findMany: async () => [] }
+      fakeDb.question = { findMany: async () => [] }
+      fakeDb.questionBankItem = { findMany: async () => [] }
+      fakeDb.programQuestion = { findMany: async () => [] }
+      fakeDb.bookKnowledgeItem.findMany = async ({ where, take }: any) => {
+        if (where.kbVersion) return []
+        const rows = reviewItems.filter((item) => item.programId === where.programId
+          && (!where.id?.gt || item.id > where.id.gt))
+        return take ? rows.slice(0, take) : rows
+      }
+      fakeDb.bookKnowledgeItem.deleteMany = async ({ where }: any) => {
+        const item = reviewItems.find((row) => row.id === where.id && row.programId === where.programId
+          && row.updatedAt.getTime() === where.updatedAt.getTime())
+        if (!item) return { count: 0 }
+        removed.push(item.id)
+        reviewItems = reviewItems.filter((row) => row.id !== item.id)
+        return { count: 1 }
+      }
+      const { POST: cleanKnowledge } = await import('../../src/app/api/admin/knowledge-bank/route')
+      const response = await cleanKnowledge({ json: async () => ({
+        action: 'sanitize', programId: REVIEW_PROGRAM_ID,
+      }) } as any)
+      expect(response.status).toBe(200)
+      const result = await response.json()
+      expect(result.deleted).toBe(1)
+      expect(result.needsReview).toBe(1)
+      expect(removed).toEqual(['empty-unlinked'])
+      expect(reviewItems.some((item) => item.id === 'empty-linked')).toBe(true)
+    } finally {
+      fakeDb.programStudyGuide.findMany = original.guideFind
+      fakeDb.unit.findMany = original.unitFind
+      fakeDb.bookKnowledgeItem.findMany = original.itemFind
+      if (original.itemDelete) fakeDb.bookKnowledgeItem.deleteMany = original.itemDelete
+      else delete fakeDb.bookKnowledgeItem.deleteMany
+      fakeDb.programAssignment = original.assignment
+      fakeDb.question = original.question
+      fakeDb.questionBankItem = original.questionBank
+      fakeDb.programQuestion = original.programQuestion
+    }
+  })
+
   test('review queue and cursor are cleared when the administrator switches programs', () => {
     const adminBooks = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
     const resetBlock = adminBooks.split('Review results are program-scoped.')[1]?.split('const [rebuildingBookId')[0] || ''
