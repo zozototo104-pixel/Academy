@@ -193,6 +193,23 @@ export async function runNextKnowledgeAiRepairStep() {
         next.cursor = item.id; next.scanned++; next.needsReview++; next.missingSource++; processed++; continue
       }
 
+      // AI is opt-in: we reach this loop only for a job explicitly enqueued
+      // from the separate admin AI button, never by the rules-only sanitizer.
+      if (next.attempts - state.attempts >= maxCallsPerRun || Date.now() + 25_000 >= stopStartingAt) break
+      // Optional admin pacing is enforced PER MODEL CALL (not once per batch).
+      // A zero interval never imposes a hidden throttle or provider ban.
+      if (intervalMs > 0) {
+        await db.setting.upsert({ where: { key: REPAIR_RATE_GATE }, create: { key: REPAIR_RATE_GATE, value: '0' }, update: {} })
+        const rate = await db.setting.findUniqueOrThrow({ where: { key: REPAIR_RATE_GATE }, select: { value: true } })
+        const moment = Date.now()
+        if (Number(rate.value) > moment) break
+        const rateClaim = await db.setting.updateMany({
+          where: { key: REPAIR_RATE_GATE, value: rate.value },
+          data: { value: String(moment + intervalMs) },
+        })
+        if (!rateClaim.count) break
+      }
+
       next.attempts++
       let result: string
       try {
