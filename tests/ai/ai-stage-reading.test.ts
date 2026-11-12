@@ -64,6 +64,22 @@ describe('D2.1 reading wiring: routing overrides with strict validation', () => 
     expect(buildStageRoutingOverrides(stageResolution({ models: [], verifier: { preferred: [{ provider: 'BAR', model: 'm' }], strict: false } }, 'REVIEW')).kind).toBe('invalid')
   })
 
+  test('a legacy lowercase APINEX REVIEW profile routes correctly without rewriting history', () => {
+    const resolution = stageResolution({
+      models: [{ provider: 'apinex', model: 'free/kimi-k3' }],
+      verifier: { preferred: [{ provider: 'apinex', model: 'free/deepseek-v4-pro-0813' }], strict: false },
+    }, 'REVIEW')
+    const out = buildStageRoutingOverrides(resolution)
+    expect(out.kind).toBe('stage')
+    if (out.kind === 'stage') {
+      expect(out.preferredModels).toEqual([{ provider: 'APINEX', model: 'free/kimi-k3' }])
+      expect(out.snapshot.verifier?.preferred).toEqual([{ provider: 'APINEX', model: 'free/deepseek-v4-pro-0813' }])
+    }
+    // Historical versioned snapshots remain immutable, only the runtime view is canonical.
+    expect(resolution.snapshot.models[0].provider).toBe('apinex')
+    expect(resolution.snapshot.verifier?.preferred[0].provider).toBe('apinex')
+  })
+
   test('global resolutions pass through with their reason untouched', () => {
     for (const reason of ['missing', 'disabled', 'empty-models'] as const) {
       expect(buildStageRoutingOverrides({ kind: 'global', reason })).toEqual({ kind: 'global', reason })
