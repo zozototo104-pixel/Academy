@@ -3728,6 +3728,11 @@ export function AdminBooksTab() {
                                 بلا مراجع معرفة موثقة
                               </Badge>
                             )}
+                            {(guide.sourceReviewRequiredCount || 0) > 0 && (
+                              <Badge variant="outline" className="border-red-300 text-[10px] font-black text-red-700">
+                                محاور تنتظر توثيق المصدر ({guide.sourceReviewRequiredCount})
+                              </Badge>
+                            )}
                           </div>
                           <h3 className="text-sm font-black leading-6 text-[#0f2b46]">{guide.title}</h3>
                           <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{guide.overview}</p>
