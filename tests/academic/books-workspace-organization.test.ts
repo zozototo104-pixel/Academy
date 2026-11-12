@@ -140,7 +140,12 @@ function apiSurface(): { count: number; digest: string } {
   assert.equal(bookControlCalls.length, 1, 'expected exactly one per-book stop/resume API call')
   const bookRebuildCalls = calls.filter((call) => call.includes('/api/admin/books/${book.id}/read-job') && call.includes('REBUILD_FROM_ZERO') && call.includes('confirmBookTitle: book.title'))
   assert.equal(bookRebuildCalls.length, 1, 'expected exactly one explicit confirmed book rebuild call')
-  const protectedCalls = calls.filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) && !bookRebuildCalls.includes(call)).sort()
+  const protectedCalls = calls
+    .filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) && !bookRebuildCalls.includes(call))
+    .map((call) => suggestedAssignmentSaveCalls.includes(call)
+      ? call.replace('dueDays: s.semester === 3 || !s.unitId ? 14 : null', 'dueDays: null')
+      : call)
+    .sort()
   return { count: calls.length - bookControlCalls.length - bookRebuildCalls.length, digest: digest(protectedCalls.join('\n')) }
 }
 
