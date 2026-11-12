@@ -2532,7 +2532,7 @@ export function AdminBooksTab() {
           type: s.type,
           points: s.points,
           weight: s.weight,
-          dueDays: null,
+          dueDays: s.unitId ? null : 14,
           dueAt: null,
           rubric: s.rubric,
           status: 'PUBLISHED',
