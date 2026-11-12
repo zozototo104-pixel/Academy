@@ -3138,7 +3138,7 @@ export function AdminBooksTab() {
 
               {hiddenKnowledgeItemsCount > 0 && (
                 <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-800">
-                  تم إخفاء {hiddenKnowledgeItemsCount} عنصر معرفة يبدو مشوّهًا أو مختلط اللغة من العرض. زر «تصحيح العناصر المشوّهة» يحاول إصلاح العنصر كاملًا؛ يُحذف العنصر الفارغ بالكامل فقط، وما لا يمكن إصلاحه يبقى محفوظًا للمراجعة.
+                  تم إخفاء {hiddenKnowledgeItemsCount} عنصر يبدو مشوّهًا أو مختلط اللغة من العرض فقط، دون حذفه من القاعدة. «تصحيح بالقواعد» يصلح الأخطاء البسيطة ويحذف الفارغ بالكامل فقط؛ و«تصحيح بالذكاء» مهمة خلفية اختيارية تعتمد على نص الكتاب وتترك ما لا يمكن إثباته للمراجعة.
                 </div>
               )}
 
