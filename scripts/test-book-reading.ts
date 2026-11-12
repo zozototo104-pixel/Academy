@@ -116,7 +116,7 @@ async function analyzeResumeRegression() {
   const savedCalls: number[] = []
   let completedJob = false
   const store = {
-    getJob: async () => ({ id: 'job', bookId: 'book', programId: 'program', phase: 'ANALYZE', status: 'RUNNING' }),
+    getJob: async () => ({ id: 'job', bookId: 'book', programId: 'program', phase: 'ANALYZE', status: completedJob ? 'COMPLETED' : 'RUNNING' }),
     nextChunk: async (_bookId: string, excludeIds: string[]) => pending.find((chunk) => !excludeIds.includes(chunk.id)) ?? null,
     priorItems: async () => [],
     saveAnalyzed: async (chunk: { index: number }) => { savedCalls.push(chunk.index) },
