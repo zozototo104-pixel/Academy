@@ -106,10 +106,11 @@ async function buildSemesterGuide(programId: string, semester: number) {
   const bookIds = unique(units.map((unit) => unit.sourceBookId).filter((id): id is string => !!id))
   const sectionIds = unique(units.map((unit) => unit.outlineSectionId).filter((id): id is string => !!id))
   const [sourceBooks, outlineSections] = await Promise.all([
-    db.book.findMany({ where: { id: { in: bookIds }, programId }, select: { id: true } }),
+    db.book.findMany({ where: { id: { in: bookIds }, programId }, select: { id: true, title: true } }),
     db.bookOutlineSection.findMany({ where: { id: { in: sectionIds } }, select: { id: true, outline: { select: { bookId: true } } } }),
   ])
   const existingBooks = new Set(sourceBooks.map((book) => book.id))
+  const bookTitleById = new Map(sourceBooks.map((book) => [book.id, book.title]))
   const outlineBookById = new Map(outlineSections.map((section) => [section.id, section.outline.bookId]))
   const brokenUnits = units.filter((unit) =>
     (unit.sourceBookId && !existingBooks.has(unit.sourceBookId)) ||
