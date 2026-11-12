@@ -1788,6 +1788,28 @@ export function DashboardView() {
                               {guide.discussionQuestions.slice(0, 3).map((x, i) => <p key={i}>• {x}</p>)}
                             </div>
                           </div>
+                          {guide.sections.length > 0 && (
+                            <details className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                              <summary className="cursor-pointer text-xs font-black text-[#0f2b46]">عرض جميع محاور الدليل ({guide.sections.length}) ومراجعها</summary>
+                              <div className="mt-3 space-y-3">
+                                {guide.sections.map((section, i) => (
+                                  <div key={i} className="rounded-lg border border-slate-100 p-3">
+                                    <p className="text-xs font-black text-[#0f2b46]">{i + 1}. {section.title}</p>
+                                    <p className="mt-1 whitespace-pre-wrap break-words text-[11px] font-bold leading-6 text-slate-600">{section.summary}</p>
+                                    {(section.sourceTitles || []).length > 0 && (
+                                      <p className="mt-2 text-[11px] text-slate-600">العناوين المرجعية: {section.sourceTitles?.join('، ')}</p>
+                                    )}
+                                    {(section.pageRefs || []).length > 0 && (
+                                      <p className="mt-1 text-[11px] font-bold text-slate-700">مراجع الصفحات: {section.pageRefs?.join('، ')}</p>
+                                    )}
+                                    {(section.sourceKnowledgeIds || []).length > 0 && (
+                                      <p className="mt-1 text-[10px] text-slate-500">عناصر المعرفة المرتبطة: {section.sourceKnowledgeIds?.length}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
                           {guide.keyTerms.length > 0 && (
                             <div className="mt-3 flex flex-wrap gap-1">
                               {guide.keyTerms.slice(0, 12).map((x, i) => <span key={i} className="rounded-full bg-[#f7edd0] px-2 py-1 text-[10px] font-black text-[#a8841a]">{x}</span>)}
