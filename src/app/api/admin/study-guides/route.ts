@@ -271,11 +271,29 @@ export async function GET(req: NextRequest) {
       select: { id: true },
     }) : []
     const existingIds = new Set(existingItems.map((item) => item.id))
-    return NextResponse.json({ guides: guides.map((guide, index) => ({
-      ...mapGuide(guide),
-      referenceCount: refsByGuide[index].length,
-      missingReferenceCount: refsByGuide[index].filter((id) => !existingIds.has(id)).length,
-    })) })
+    return NextResponse.json({ guides: guides.map((guide, index) => {
+      const missingReferenceIds = refsByGuide[index].filter((id) => !existingIds.has(id))
+      const missingReferenceSections = (parseArray(guide.sections) as GuideSection[])
+        .map((section, sectionIndex) => ({
+          sectionIndex,
+          title: clean(section?.title, 160) || `محور ${sectionIndex + 1}`,
+          sourceTitles: parseArray(section?.sourceTitles).map((title) => clean(title, 160)),
+          pageRefs: parseArray(section?.pageRefs).map((ref) => clean(ref, 80)),
+          missingReferenceIds: unique(parseArray(section?.sourceKnowledgeIds)
+            .map((id) => clean(id, 100)).filter((id) => !existingIds.has(id))),
+        }))
+        .filter((section) => section.missingReferenceIds.length > 0)
+      return {
+        ...mapGuide(guide),
+        referenceCount: refsByGuide[index].length,
+        missingReferenceCount: missingReferenceIds.length,
+        // Historical missing IDs are diagnostics, not replacement suggestions.
+        // Expose their original section/book/page claims to the administrator,
+        // never silently substitute an unrelated knowledge item.
+        missingReferenceIds,
+        missingReferenceSections,
+      }
+    }) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     return NextResponse.json({ error: 'تعذر تحميل أدلة الدراسة' }, { status: 500 })
