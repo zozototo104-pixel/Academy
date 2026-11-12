@@ -3338,7 +3338,16 @@ export function AdminBooksTab() {
                                       {' '}· مقطع {candidate.chunkIndex} · صفحات {candidate.pageStart}–{candidate.pageEnd}
                                     </summary>
                                     <p className="mt-2 whitespace-pre-wrap break-words leading-6">{candidate.sourceTextPreview}</p>
-                                    <p className="mt-2 font-bold text-red-700">مرشح للمراجعة فقط؛ لم نعدّل ربط العنصر ولا نعتبره مصدرًا معتمدًا تلقائيًا.</p>
+                                    {candidate.matchLevel === 'FULL_EXCERPT' &&
+                                      !sourceRecoveryEvidence[item.id].truncated &&
+                                      sourceRecoveryEvidence[item.id].candidates.filter((match) => match.matchLevel === 'FULL_EXCERPT').length === 1 ? (
+                                      <Button size="sm" variant="outline" className="mt-2 border-emerald-300 text-[11px] text-emerald-800"
+                                        disabled={sourceRecoveryBusyId !== null} onClick={() => restoreOriginalSource(item, candidate)}>
+                                        اعتماد ربط المصدر بعد مراجعة النص
+                                      </Button>
+                                    ) : (
+                                      <p className="mt-2 font-bold text-red-700">تطابق غير كافٍ لاعتماد المصدر؛ لم نعدّل العنصر ولا نخمّن صفحاته.</p>
+                                    )}
                                   </details>
                                 ))}
                               </div>
