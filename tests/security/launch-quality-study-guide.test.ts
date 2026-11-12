@@ -145,3 +145,19 @@ describe('دليل دراسة فحص الجاهزية: بحث-أو-إنشاء آ
     expect(block).not.toContain('@@unique([programId, semester])')
   })
 })
+
+describe('study-guide Arabic visibility: reject broken OCR without hiding correct text', () => {
+  test('a stored semester guide with the valid word يضيف is not hidden in admin or student views', async () => {
+    const { looksLikeBrokenGeneratedArabic } = await import('../../src/lib/academic-output-quality')
+    const title = 'دليل الفصل الدراسي العام الأول'
+    const overview = 'يجمع هذا الدليل العام وحدات الماجستير المهني في إدارة المشاريع المعتمدة في هذا النطاق. بُني الدليل من أدلة الوحدات نفسها، لذلك لا يضيف قوالب عامة ولا مصطلحات خارج الكتب؛ وتظهر مراجع الصفحات ومصادر المعرفة داخل كل قسم.'
+    expect(looksLikeBrokenGeneratedArabic(`${title}. ${overview}`)).toBe(false)
+    expect(looksLikeBrokenGeneratedArabic(overview)).toBe(false)
+  })
+
+  test('real corrupted OCR and internal placeholders stay blocked', async () => {
+    const { looksLikeBrokenGeneratedArabic } = await import('../../src/lib/academic-output-quality')
+    expect(looksLikeBrokenGeneratedArabic('تُعرض هذه الفقرة من كتاب احرب في إدارة المشروع وتحليل معطياته التنظيمية.')).toBe(true)
+    expect(looksLikeBrokenGeneratedArabic('مقتطف داعم عن إدارة المشاريع وطرق التقييم في الفصل الدراسي.')).toBe(true)
+  })
+})
