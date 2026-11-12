@@ -279,6 +279,21 @@ interface ManualReviewItem {
   sourceTextPreview: string | null
 }
 
+type SourceRecoveryEvidence = {
+  bookTitle?: string
+  reason: string | null
+  examinedChunks: number
+  truncated: boolean
+  candidates: Array<{
+    chunkId: string
+    chunkIndex: number
+    pageStart: number
+    pageEnd: number
+    matchLevel: 'FULL_EXCERPT' | 'PREFIX_ONLY'
+    sourceTextPreview: string
+  }>
+}
+
 type BookReadJobRow = {
   id: string
   bookId: string
