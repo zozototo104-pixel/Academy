@@ -1248,7 +1248,6 @@ export function AdminSystemTab() {
               ['core', 'Gemini الأساسي والصوت الحي', `${form.GEMINI_SUPERVISOR_LIVE_MODEL || 'Live المشرف'} · ${form.GEMINI_DISCUSSION_LIVE_MODEL || 'Live المناقشة'}`],
               ['routing', 'سياسات توجيه الذكاء', `${currentTextProvider} · ${form.AI_ROUTER_POLICY || 'balanced'}`],
               ['providers', 'مزوّدو النصوص والمفاتيح', 'حقول المزوّد المختار و AUTO'],
-              ['repair', 'تصحيح المعرفة بالذكاء — إعداد مستقل', `${form.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO'} / ${form.AI_KNOWLEDGE_REPAIR_MODEL || 'الراوتر العام'}`],
               ['health', 'صحة النماذج وتشخيصها', textModelHealth ? `${textModelHealth.available?.length || 0} نموذج متاح في آخر فحص` : 'لم يتم تحميل فحص الصحة بعد'],
               ['cooldowns', 'حالات الراوتر والتبريد', routerStateLoading ? 'تحميل حالات الراوتر' : `${routerState.length} حالة محمّلة`],
               ['tests', 'اختبارات الاتصال', 'أزرار اختبار Text و Live فقط'],
