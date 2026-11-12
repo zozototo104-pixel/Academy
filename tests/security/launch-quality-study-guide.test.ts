@@ -242,15 +242,24 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(planKnowledgeItemCleanup({ title: '***', summary: '', excerpt: null }).action).toBe('REVIEW')
   })
 
-  test('AI repair API only updates existing IDs after checking original chunk and current version', () => {
-    const source = readFileSync(new URL('../../src/app/api/admin/knowledge-bank/route.ts', import.meta.url), 'utf8')
-    const ai = source.split("if (action === 'repair-ai')")[1]?.split("if (action === 'sanitize'")[0] || ''
-    expect(ai).toContain("db.bookChunk.findFirst")
-    expect(ai).toContain('validateGroundedKnowledgeRepair(output, evidence)')
-    expect(ai).toContain('db.bookKnowledgeItem.updateMany')
-    expect(ai).toContain('updatedAt: row.updatedAt')
-    expect(ai).not.toContain('db.bookKnowledgeItem.create')
-    expect(ai).not.toContain('db.bookKnowledgeItem.delete')
+  test('AI repair request only enqueues; cron owns bounded, source-first updates', () => {
+    const api = readFileSync(new URL('../../src/app/api/admin/knowledge-bank/route.ts', import.meta.url), 'utf8')
+    const ai = api.split("if (action === 'repair-ai')")[1]?.split("if (action === 'sanitize'")[0] || ''
+    const worker = readFileSync(new URL('../../src/lib/book-knowledge-v2-scheduler.ts', import.meta.url), 'utf8')
+    const cron = readFileSync(new URL('../../src/app/api/cron/question-bank-jobs/route.ts', import.meta.url), 'utf8')
+    expect(ai).toContain('enqueueKnowledgeAiRepairJob(programId)')
+    expect(ai).not.toContain('textAiCompleteJson(')
+    expect(ai).not.toContain('db.bookKnowledgeItem.update')
+    expect(worker).toContain('REPAIR_INTERVAL_MS = 90_000')
+    expect(worker).toContain("excludeProviders: ['APINEX']")
+    expect(worker).toContain("const owned = await db.setting.updateMany")
+    expect(worker).toContain('validateGroundedKnowledgeRepair(parsed, evidence)')
+    expect(worker).toContain('db.bookKnowledgeItem.updateMany')
+    expect(worker).toContain('updatedAt: item.updatedAt')
+    expect(worker).not.toContain('db.bookKnowledgeItem.create(')
+    expect(worker).not.toContain('db.bookKnowledgeItem.delete(')
+    expect(cron).toContain('runNextKnowledgeAiRepairStep()')
+    expect(cron.indexOf('runNextKnowledgeAiRepairStep()')).toBeGreaterThan(cron.indexOf("'[question-bank-cron] done'"))
   })
 
   test('already valid content stays intact', async () => {
