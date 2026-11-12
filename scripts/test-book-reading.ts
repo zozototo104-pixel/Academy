@@ -269,6 +269,7 @@ async function failedOcrSoloCheckpointMustSurfaceError() {
 pdfExtractionRegression()
   .then(() => unreadablePdfPageDoesNotStopFollowingPages())
   .then(() => analyzeResumeRegression())
+  .then(() => exhaustedAnalysisChunkDoesNotBlockTheRest())
   .then(() => ocrSoloStateSurvivesPipelineWrites())
   .then(() => deadlineKilledGroupOcrResumesSolo())
   .then(() => failedOcrSoloCheckpointMustSurfaceError())
