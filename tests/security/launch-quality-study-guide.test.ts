@@ -606,6 +606,23 @@ describe('semester guide: automatic missing unit guide backed by knowledge sourc
     expect(guides).toHaveLength(0)
   })
 
+  test('a unit draft needing historical source review cannot be reaggregated into a new semester guide', async () => {
+    resetAutoGuideFixture()
+    guides.push({
+      id: 'draft-needs-source', programId: AUTO_PROGRAM_ID, semester: 1,
+      unitId: AUTO_UNIT_ID, status: 'DRAFT',
+      sourceKnowledgeIds: JSON.stringify([AUTO_KNOWLEDGE_ID]),
+      sections: JSON.stringify([
+        { title: 'محور موثق', sourceKnowledgeIds: [AUTO_KNOWLEDGE_ID], pageRefs: ['صفحات 10–12'] },
+        { title: 'محور بلا مصدر', sourceKnowledgeIds: [], sourceReviewRequired: true },
+      ]),
+    })
+    const { response, body } = await clickSemesterGuide()
+    expect(response.status).toBe(422)
+    expect(body.error).toContain('STUDY_GUIDE_SECTION_SOURCE_REVIEW_REQUIRED')
+    expect(guides).toHaveLength(1)
+  })
+
   test('draft sections marked for historical source review cannot be published', async () => {
     resetAutoGuideFixture()
     const testDb: any = fakeDb
