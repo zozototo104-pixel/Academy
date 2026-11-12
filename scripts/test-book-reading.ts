@@ -335,13 +335,16 @@ async function failedOcrSoloCheckpointMustSurfaceError() {
   assert.equal(progressWrites, 0, 'لا تُحفظ قراءة وهمية عند تعذر كتابة حالة الاستئناف')
 }
 
-pdfExtractionRegression()
-  .then(() => unreadablePdfPageDoesNotStopFollowingPages())
-  .then(() => analyzeResumeRegression())
-  .then(() => exhaustedAnalysisChunkDoesNotBlockTheRest())
-  .then(() => ocrSoloStateSurvivesPipelineWrites())
-  .then(() => deadlineKilledGroupOcrResumesSolo())
-  .then(() => failedOcrSoloCheckpointMustSurfaceError())
-  .then(() => postgresAnalysisCompletionRegression())
-  .then(() => console.log('book-reading regression checks passed'))
+const readChecks = process.env.BOOK_READ_PG_CONTRACT === '1'
+  // Never run the general OCR tests in the isolated restore database: their
+  // pipeline diagnostics would leave unrelated rows behind before restore.
+  ? postgresAnalysisCompletionRegression()
+  : pdfExtractionRegression()
+      .then(() => unreadablePdfPageDoesNotStopFollowingPages())
+      .then(() => analyzeResumeRegression())
+      .then(() => exhaustedAnalysisChunkDoesNotBlockTheRest())
+      .then(() => ocrSoloStateSurvivesPipelineWrites())
+      .then(() => deadlineKilledGroupOcrResumesSolo())
+      .then(() => failedOcrSoloCheckpointMustSurfaceError())
+readChecks.then(() => console.log('book-reading regression checks passed'))
   .catch((error) => { console.error(error); process.exitCode = 1 })
