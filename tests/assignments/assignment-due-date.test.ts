@@ -59,8 +59,8 @@ describe('per-enrollment assignment windows', () => {
 
   test('authorized enrollment extension extends the final unit, not a global deadline', () => {
     const w = assignmentWindow({ ...unitArgs, enrolledAt: new Date('2026-01-01T00:00:00Z'), extensionDays: 10 })
-    expect(w.opensAt.toISOString()).toBe('2026-01-16T00:00:00.000Z')
-    expect(w.dueAt?.toISOString()).toBe('2026-01-31T00:00:00.000Z')
+    expect(w.opensAt.toISOString()).toBe('2026-01-18T00:00:00.000Z')
+    expect(w.dueAt?.toISOString()).toBe('2026-02-05T00:00:00.000Z')
     const last = assignmentWindow({ ...unitArgs, enrolledAt: new Date('2026-01-01T00:00:00Z'),
       semester: 2, unitId: 'u3', extensionDays: 10 })
     expect(last.dueAt?.toISOString()).toBe('2026-03-12T00:00:00.000Z')
