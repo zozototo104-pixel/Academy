@@ -40,6 +40,51 @@ export async function GET(req: NextRequest) {
     const program = await withTiming('db_knowledge_bank_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
+    if (req.nextUrl.searchParams.get('review') === '1') {
+      // Cursor-based review over the actual table: the normal 140/2000-item
+      // preview deliberately hides suspect content and cannot be used as a queue.
+      let cursor = String(req.nextUrl.searchParams.get('cursor') || '').slice(0, 100)
+      const rowsForReview: Awaited<ReturnType<typeof db.bookKnowledgeItem.findMany>> = []
+      let hasMore = false
+      for (let scan = 0; scan < 4; scan++) {
+        const rows = await db.bookKnowledgeItem.findMany({
+          where: { programId, ...(cursor ? { id: { gt: cursor } } : {}) },
+          orderBy: { id: 'asc' }, take: 100,
+        })
+        if (!rows.length) { hasMore = false; break }
+        cursor = rows[rows.length - 1].id
+        rowsForReview.push(...rows.filter((row) =>
+          planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput).action === 'REVIEW' ||
+          !row.bookId || !row.chunkId || row.pageStart == null || row.pageEnd == null
+        ))
+        hasMore = rows.length === 100
+        if (rowsForReview.length >= 20 || !hasMore) break
+      }
+      const bookIds = [...new Set(rowsForReview.map((row) => row.bookId).filter((id): id is string => !!id))]
+      const chunkIds = [...new Set(rowsForReview.map((row) => row.chunkId).filter((id): id is string => !!id))]
+      const [books, chunks] = await Promise.all([
+        db.book.findMany({ where: { id: { in: bookIds }, programId }, select: { id: true, title: true } }),
+        db.bookChunk.findMany({ where: { id: { in: chunkIds }, programId }, select: { id: true, bookId: true, status: true, pageStart: true, pageEnd: true, text: true } }),
+      ])
+      const bookTitles = new Map(books.map((book) => [book.id, book.title]))
+      const chunkById = new Map(chunks.map((chunk) => [chunk.id, chunk]))
+      const items = rowsForReview.map((row) => {
+        const chunk = row.chunkId ? chunkById.get(row.chunkId) : null
+        const sourceValid = !!(row.bookId && bookTitles.has(row.bookId) &&
+          chunk && chunk.bookId === row.bookId && chunk.status === 'ANALYZED' &&
+          row.pageStart != null && row.pageEnd != null &&
+          row.pageStart >= chunk.pageStart && row.pageEnd <= chunk.pageEnd && row.pageStart <= row.pageEnd)
+        return {
+          id: row.id, programId: row.programId, title: row.title, summary: row.summary, excerpt: row.excerpt,
+          bookTitle: row.bookId ? bookTitles.get(row.bookId) || null : null,
+          pageStart: row.pageStart, pageEnd: row.pageEnd, updatedAt: row.updatedAt,
+          reason: !sourceValid ? 'SOURCE_UNVERIFIED' : 'TEXT_UNRESOLVED',
+          sourceValid, sourceTextPreview: sourceValid ? chunk!.text.slice(0, 6000) : null,
+        }
+      })
+      return NextResponse.json({ items, nextCursor: hasMore ? cursor : null, hasMore }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+
     const showAll = req.nextUrl.searchParams.get('all') === '1'
     const allItems = await withTiming('db_knowledge_bank_items', () => getProgramKnowledgeItems(programId, semester, showAll ? 2000 : 140))
     const items = showAll ? allItems : allItems.slice(0, 140)
