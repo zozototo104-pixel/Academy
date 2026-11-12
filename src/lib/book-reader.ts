@@ -118,7 +118,7 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
     ...(overrides?.preferredProviders.length ? { preferredProviders: overrides.preferredProviders as TextAiProvider[] } : {}),
     maxOutputTokens: 16000,
     deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + 90_000),
-    attachments: [{ mimeType: 'application/pdf', base64: data.toString('base64') }],
+    attachments,
   })
   const parsed = JSON.parse(meta.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
   if (!Array.isArray(parsed?.pages)) throw new Error('OCR_INVALID_PAGE_RESPONSE')
