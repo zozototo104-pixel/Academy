@@ -195,7 +195,12 @@ export async function POST(req: NextRequest) {
     if (hasDuration && (!Number.isInteger(duration) || duration! < 1 || duration! > 365)) {
       return NextResponse.json({ error: 'مدة تسليم الواجب يجب أن تكون عدد أيام صحيحًا من 1 إلى 365' }, { status: 400 })
     }
-    const legacyFixed = !!id && body.dueAt !== '' && body.dueAt !== null && body.dueAt !== undefined
+    const suppliedLegacyDate = body.dueAt !== '' && body.dueAt !== null && body.dueAt !== undefined
+    const legacyFixed = !!id && suppliedLegacyDate && !!existingScope?.dueAt
+      && String(body.dueAt).slice(0, 10) === existingScope.dueAt.toISOString().slice(0, 10)
+    if (suppliedLegacyDate && !legacyFixed) {
+      return NextResponse.json({ error: 'لا يمكن إنشاء موعد ثابت جديد؛ حدد مدة بالأيام بدل التاريخ' }, { status: 400 })
+    }
     // Linked to a teaching unit? Its default deadline is the unit's end.
     // Semester-3 source references to older units do NOT impose that window.
     const semester = asInt(body.semester, 1, 1, 3)
