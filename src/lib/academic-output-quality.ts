@@ -226,7 +226,8 @@ export function looksLikeBrokenGeneratedArabic(value: unknown): boolean {
 
 export type KnowledgeItemCleanupPlan =
   | { action: 'KEEP' }
-  | { action: 'REVIEW'; reason: 'EMPTY' | 'UNRESOLVED' }
+  | { action: 'DELETE_EMPTY' }
+  | { action: 'REVIEW'; reason: 'UNRESOLVED' }
   | { action: 'UPDATE'; data: { title: string; summary: string; excerpt: string | null } }
 
 // Never delete a book-derived knowledge item merely because a heuristic rejects
