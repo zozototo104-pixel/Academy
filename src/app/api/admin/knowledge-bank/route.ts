@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
       if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
       let deleted = 0
       let updated = 0
+      let needsReview = 0
+      let unchanged = 0
       let cursor: string | undefined
       while (true) {
         const rows = await withTiming('db_knowledge_bank_sanitize_page', () => db.bookKnowledgeItem.findMany({ where: { programId, ...(cursor ? { id: { gt: cursor } } : {}) }, orderBy: { id: 'asc' }, take: 500 }))
@@ -95,25 +97,27 @@ export async function POST(req: NextRequest) {
         const deleteIds: string[] = []
         const updates: Promise<any>[] = []
         for (const row of rows) {
-          const title = cleanAcademicGeneratedText(row.title, 220)
-          const summary = cleanAcademicGeneratedText(row.summary, 1600)
-          const excerpt = row.excerpt ? cleanAcademicGeneratedText(row.excerpt, 1800) : null
-          if (!title || !summary || looksLikeBrokenAcademicOutput(`${title}. ${summary}`) || (excerpt && looksLikeBrokenAcademicOutput(excerpt))) {
+          const plan = planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput)
+          if (plan.action === 'DELETE_EMPTY') {
             deleteIds.push(row.id)
-            continue
-          }
-          if (title !== row.title || summary !== row.summary || excerpt !== row.excerpt) {
-            updates.push(withTiming('db_knowledge_bank_sanitize_update', () => db.bookKnowledgeItem.update({ where: { id: row.id }, data: { title, summary, excerpt } })))
+          } else if (plan.action === 'UPDATE') {
+            updates.push(withTiming('db_knowledge_bank_sanitize_update', () => db.bookKnowledgeItem.update({ where: { id: row.id }, data: plan.data })))
+          } else if (plan.action === 'REVIEW') {
+            // Keep the entire source-linked record unchanged: never commit an
+            // incomplete correction or drop an academic guide's source ID.
+            needsReview++
+          } else {
+            unchanged++
           }
         }
-        if (deleteIds.length) { await withTiming('db_knowledge_bank_sanitize_delete_many', () => db.bookKnowledgeItem.deleteMany({ where: { id: { in: deleteIds } } })); deleted += deleteIds.length }
+        if (deleteIds.length) { const result = await withTiming('db_knowledge_bank_sanitize_delete_many', () => db.bookKnowledgeItem.deleteMany({ where: { id: { in: deleteIds } } })); deleted += result.count }
         if (updates.length) { await Promise.all(updates); updated += updates.length }
         if (rows.length < 500) break
       }
-      await withTiming('db_audit_knowledge_bank_sanitize', () => audit(admin, 'SANITIZE_KNOWLEDGE_BANK', 'Program', programId, `تنظيف بنك المعرفة: حذف ${deleted} عنصر مشوه وتحديث ${updated} عنصر`))
+      await withTiming('db_audit_knowledge_bank_sanitize', () => audit(admin, 'SANITIZE_KNOWLEDGE_BANK', 'Program', programId, `تصحيح بنك المعرفة: تحديث ${updated} عنصر كامل، حذف ${deleted} عنصر فارغ بالكامل، إبقاء ${needsReview} عنصر يحتاج مراجعة دون تعديل جزئي`))
       const items = await withTiming('db_knowledge_bank_items_after_sanitize', () => getProgramKnowledgeItems(programId, semester, 140))
-      const message = items.length < KNOWLEDGE_BANK_LIMITS.minContextItems ? 'شغّل القراءة الكاملة أو استخراج المزيد' : null
-      return NextResponse.json({ ok: true, deleted, updated, rebuilt: null, message, count: items.length, stats: categoryStats(items), items })
+      const message = needsReview > 0 ? `بقي ${needsReview} عنصر يحتاج مراجعة؛ لم يُحذف أو يُعدّل جزئياً` : null
+      return NextResponse.json({ ok: true, deleted, updated, needsReview, unchanged, rebuilt: null, message, count: items.length, stats: categoryStats(items), items })
     }
 
     if (action === 'rebuild-book' || action === 'read-book-full') {
