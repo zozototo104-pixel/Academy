@@ -5353,7 +5353,7 @@ export function AdminKnowledgeAiRepairTab() {
               {busy && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
               {job?.status === 'PAUSED' ? 'استكمال مهمة التصحيح' : job?.status === 'COMPLETED' ? 'بدء فحص جديد' : 'بدء التصحيح الذكي'}
             </Button>
-            <p className="text-xs leading-6 text-slate-500">المهمة خلفية ومحدودة بمكالمة تصحيح واحدة كل 90 ثانية عالميّاً، مع استبعاد APINEX وتقديم مهام الطلاب.</p>
+            <p className="text-xs leading-6 text-slate-500">المهمة تعمل في الخلفية؛ لا يوجد منع برمجي لـAPINEX أو غيره، ويمكنك ضبط الفاصل حسب حصتك. تنفّذها جدولة المنصة دون الحاجة لإبقاء الصفحة مفتوحة.</p>
           </div>
         </CardContent>
       </Card>
