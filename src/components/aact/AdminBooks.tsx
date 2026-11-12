@@ -5183,6 +5183,11 @@ export function AdminKnowledgeAiRepairTab() {
   const [loadingStatus, setLoadingStatus] = useState(false)
   const [statusError, setStatusError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [repairConfigLoaded, setRepairConfigLoaded] = useState(false)
+  const [repairProvider, setRepairProvider] = useState('AUTO')
+  const [repairModel, setRepairModel] = useState('')
+  const [repairInterval, setRepairInterval] = useState('0')
+  const [repairModels, setRepairModels] = useState<string[]>([])
   type RepairStatus = {
     status: 'QUEUED' | 'RUNNING' | 'PAUSED' | 'COMPLETED'
     scanned: number; repaired: number; needsReview: number; missingSource: number
