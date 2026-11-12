@@ -72,7 +72,7 @@ async function testDistantChunkDoesNotBlockSimilarConcept() {
     priorItems: async (_bookId, index) => existing.filter((item) => item.index >= index - 2 && item.index <= index),
     saveAnalyzed: async (_chunk, items) => { saved = items; analyzed = true },
     saveFailure: async () => { throw new Error('unexpected failure') },
-    complete: async () => {},
+    complete: async () => { completed = true },
   }
   const result = await analyzeStepWithStore('job', Date.now() + 30000, store, async () => [first])
   assert.equal(result.completed, true)
