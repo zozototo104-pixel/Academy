@@ -102,6 +102,23 @@ async function buildSemesterGuide(programId: string, semester: number) {
   if (!program) throw new Error('PROGRAM_NOT_FOUND')
   const { units, guideByUnit, missing } = await unitGuidesForProgram(programId, semester)
   if (!units.length) throw new Error('لا توجد وحدات لهذا النطاق. ولّد الوحدات ومحتواها أولاً.')
+
+  const bookIds = unique(units.map((unit) => unit.sourceBookId).filter((id): id is string => !!id))
+  const sectionIds = unique(units.map((unit) => unit.outlineSectionId).filter((id): id is string => !!id))
+  const [sourceBooks, outlineSections] = await Promise.all([
+    db.book.findMany({ where: { id: { in: bookIds }, programId }, select: { id: true } }),
+    db.bookOutlineSection.findMany({ where: { id: { in: sectionIds } }, select: { id: true, outline: { select: { bookId: true } } } }),
+  ])
+  const existingBooks = new Set(sourceBooks.map((book) => book.id))
+  const outlineBookById = new Map(outlineSections.map((section) => [section.id, section.outline.bookId]))
+  const brokenUnits = units.filter((unit) =>
+    (unit.sourceBookId && !existingBooks.has(unit.sourceBookId)) ||
+    (unit.outlineSectionId && (!outlineBookById.has(unit.outlineSectionId) ||
+      outlineBookById.get(unit.outlineSectionId) !== unit.sourceBookId))
+  )
+  if (brokenUnits.length) {
+    throw new Error(`STUDY_GUIDE_UNIT_SOURCE_MISSING: ${brokenUnits.length} وحدة مرتبطة بكتاب أو فهرس مفقود. راجع مصادر الوحدات قبل التوليد.`)
+  }
   if (missing.length) throw new Error(`ولّد محتوى الوحدة ${missing[0].title} أولاً`)
 
   const unitGuides = units.map((unit) => ({ unit, guide: guideByUnit.get(unit.id)! })).filter((entry) => entry.guide)
