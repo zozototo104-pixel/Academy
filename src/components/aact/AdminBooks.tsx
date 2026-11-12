@@ -5227,7 +5227,7 @@ export function AdminKnowledgeAiRepairTab() {
         method: 'POST',
         body: JSON.stringify({ programId: selectedProgramId, action: 'repair-ai' }),
       })
-      if (selectedProgramId === programId) setJob(result.job)
+      if (selectedAiRepairProgramRef.current === selectedProgramId) setJob(result.job)
       toast({ title: 'تمت جدولة التصحيح الذكي', description: 'يستمر من الخادم دون إبقاء الصفحة مفتوحة، ولا يستخدم مزود APINEX.' })
     } catch (error: any) {
       toast({ title: 'تعذر جدولة التصحيح الذكي', description: error.message || 'لم تتغير بيانات المعرفة.', variant: 'destructive' })
