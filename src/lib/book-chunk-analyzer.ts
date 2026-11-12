@@ -300,9 +300,12 @@ export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt
         })
         await tx.bookChunk.update({
           where: { id: chunk.id },
-          data: capacity === 0 || available === 0
-            ? { saturatedAt: new Date() }
-            : { analysisPasses: { increment: 1 } },
+          data: {
+            ...(capacity === 0 || available === 0
+              ? { saturatedAt: new Date() }
+              : { analysisPasses: { increment: 1 } }),
+            lastError: null,
+          },
         })
       })
     },
