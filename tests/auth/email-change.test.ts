@@ -278,6 +278,49 @@ describe('routes', () => {
     expect(res.status).toBe(400)
   })
 
+  test('admin email-change journey: send confirmation, verify new mailbox, revoke login sessions', async () => {
+    users.length = 0; confirmMails.length = 0; deletedSessionUserIds.length = 0
+    const target = seed({ id: 'student-admin-email', email: 'old@student.com' })
+    sessionUser = seed({ id: 'admin-change-email', email: 'admin@aact.com', role: 'ADMIN' })
+    try {
+      const req = new NextRequest('https://example.test/api/admin/students/email-change', {
+        method: 'POST',
+        body: JSON.stringify({ userId: target.id, newEmail: 'new@student.com', purpose: 'LOGIN' }),
+      })
+      const start = await adminPost(req)
+      expect(start.status).toBe(200)
+      expect((await start.json()).pendingEmail).toBe('new@student.com')
+      expect(target.email).toBe('old@student.com')
+      expect(target.pendingEmail).toBe('new@student.com')
+      expect(confirmMails).toHaveLength(1)
+      expect(confirmMails[0][0]).toBe('new@student.com')
+      const confirmUrl = String(confirmMails[0][2])
+      expect(new URL(confirmUrl).searchParams.has('token')).toBe(true)
+      const confirmed = await verifyGet(new NextRequest(confirmUrl))
+      expect(confirmed.status).toBe(307)
+      expect(target.email).toBe('new@student.com')
+      expect(target.pendingEmail).toBeNull()
+      expect(deletedSessionUserIds).toContain(target.id)
+    } finally { sessionUser = null }
+  })
+
+  test('admin email-change journey: failed mail returns 503, restores previous pending state and does not swap email', async () => {
+    users.length = 0; confirmMails.length = 0
+    const target = seed({ id: 'student-failed-email', email: 'old@student.com' })
+    sessionUser = seed({ id: 'admin-failed-mail', email: 'admin@aact.com', role: 'ADMIN' })
+    failDelivery = true
+    try {
+      const res = await adminPost(new NextRequest('https://example.test/api/admin/students/email-change', {
+        method: 'POST',
+        body: JSON.stringify({ userId: target.id, newEmail: 'undelivered@student.com', purpose: 'LOGIN' }),
+      }))
+      expect(res.status).toBe(503)
+      expect((await res.json()).code).toBe('EMAIL_DELIVERY_FAILED')
+      expect(target.email).toBe('old@student.com')
+      expect(target.pendingEmail).toBeNull()
+    } finally { failDelivery = false; sessionUser = null }
+  })
+
   test('verify-email route: a token carrying a LOGIN pending change redirects as verified with the NEW email', async () => {
     users.length = 0
     deletedSessionUserIds.length = 0
