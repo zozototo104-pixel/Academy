@@ -175,6 +175,70 @@ export async function PATCH(req: NextRequest) {
       const programId = String(body.programId || '').trim()
       const id = String(body.id || '').trim()
       if (!programId || !id) return NextResponse.json({ error: 'البرنامج والعنصر مطلوبان' }, { status: 400 })
+
+      if (body.action === 'restore-source') {
+        // An explicit admin decision only. Restore the ORIGINAL item's source;
+        // never create a replacement ID, borrow a different book, or infer a
+        // precise PDF page from a multi-page source chunk.
+        if (body.confirmSource !== true || typeof body.chunkId !== 'string') {
+          return NextResponse.json({ error: 'تأكيد المصدر والمقطع الأصلي مطلوب' }, { status: 400 })
+        }
+        const item = await db.bookKnowledgeItem.findFirst({ where: { id, programId } })
+        if (!item) return NextResponse.json({ error: 'عنصر المعرفة غير موجود في البرنامج' }, { status: 404 })
+        if (!item.bookId) return NextResponse.json({ error: 'الكتاب الأصلي مفقود؛ لا يمكن إعادة الربط' }, { status: 422 })
+        if (item.chunkId && item.pageStart != null && item.pageEnd != null) {
+          return NextResponse.json({ error: 'العنصر مرتبط بالفعل بمصدر؛ لن نغيّره تلقائيًا' }, { status: 409 })
+        }
+        if (item.chunkId && item.chunkId !== body.chunkId) {
+          return NextResponse.json({ error: 'مقطع العنصر الأصلي مختلف؛ يلزم تدقيق يدوي' }, { status: 409 })
+        }
+        const expectedAt = new Date(String(body.expectedUpdatedAt || ''))
+        if (Number.isNaN(expectedAt.getTime()) || expectedAt.getTime() !== item.updatedAt.getTime()) {
+          return NextResponse.json({ error: 'العنصر تغيّر؛ حدّث بياناته قبل اعتماد المصدر' }, { status: 409 })
+        }
+        const normalize = (value: string) => value.replace(/\s+/g, '').toLowerCase()
+        const excerpt = normalize(String(item.excerpt || '').trim())
+        if (excerpt.length < 60) {
+          return NextResponse.json({ error: 'المقتطف أقصر من أن يثبت المصدر بصورة مستقلة' }, { status: 422 })
+        }
+        const [book, chunks] = await Promise.all([
+          db.book.findFirst({ where: { id: item.bookId, programId }, select: { id: true } }),
+          db.bookChunk.findMany({
+            where: { programId, bookId: item.bookId, status: 'ANALYZED' },
+            orderBy: { index: 'asc' }, take: 501,
+            select: { id: true, index: true, pageStart: true, pageEnd: true, text: true },
+          }),
+        ])
+        if (!book || chunks.length > 500) {
+          return NextResponse.json({ error: 'تعذّر فحص الكتاب كاملًا؛ لم يتم تعديل المصدر' }, { status: 422 })
+        }
+        const fullMatches = chunks.filter((chunk) => chunk.text && normalize(chunk.text).includes(excerpt))
+        if (fullMatches.length !== 1 || fullMatches[0].id !== body.chunkId) {
+          return NextResponse.json({ error: 'المقتطف لا يطابق مقطعًا أصليًا وحيدًا بالكامل؛ لا يمكن اعتماد مصدر تخميني' }, { status: 422 })
+        }
+        const chunk = fullMatches[0]
+        if (chunk.pageStart < 1 || chunk.pageEnd < chunk.pageStart) {
+          return NextResponse.json({ error: 'نطاق صفحات المقطع غير صالح' }, { status: 422 })
+        }
+        const updated = await db.bookKnowledgeItem.updateMany({
+          where: { id, programId, updatedAt: item.updatedAt },
+          data: { chunkId: chunk.id, pageStart: chunk.pageStart, pageEnd: chunk.pageEnd },
+        })
+        if (updated.count !== 1) {
+          return NextResponse.json({ error: 'تغيّر العنصر بالتزامن؛ لم يتم ربطه' }, { status: 409 })
+        }
+        const refreshed = await db.bookKnowledgeItem.findFirst({
+          where: { id, programId }, select: { id: true, updatedAt: true },
+        })
+        await audit(admin, 'RESTORE_KNOWLEDGE_ITEM_SOURCE', 'BookKnowledgeItem', id,
+          `استعادة ربط المصدر الأصلي بعد مطابقة المقتطف كاملاً في مقطع محلّل وحيد: ${chunk.id}، صفحات ${chunk.pageStart}–${chunk.pageEnd}`)
+          .catch((error) => console.error('Knowledge source restore audit failed after commit:', error))
+        return NextResponse.json({
+          ok: true, id, chunkId: chunk.id, pageStart: chunk.pageStart, pageEnd: chunk.pageEnd,
+          updatedAt: refreshed?.updatedAt || null,
+        })
+      }
+
       if (typeof body.title !== 'string' || typeof body.summary !== 'string' || typeof body.excerpt !== 'string') {
         return NextResponse.json({ error: 'اكتب عنوان العنصر وشرحه ومقتطف المصدر كاملاً قبل الاعتماد' }, { status: 422 })
       }
