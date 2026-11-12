@@ -1398,6 +1398,10 @@ export function AdminBooksTab() {
       // The server processes only three AI candidates per call and returns a
       // cursor. Keep looping without rebuilding books or generating new IDs.
       while (true) {
+        if (knowledgeRepairProgramRef.current !== targetProgramId) {
+          toast({ title: 'توقف التصحيح', description: 'اختير برنامج آخر. تم الحفاظ على كل التصحيحات المؤكدة السابقة.' })
+          return
+        }
         setKnowledgeRepairProgress(`المرحلة 2/2: فحص ${scanned} عنصر، تصحيح ذكي ${repaired}، للمراجعة ${needsReview}…`)
         const batch = await api<{
           nextCursor: string | null; hasMore: boolean; paused: boolean
