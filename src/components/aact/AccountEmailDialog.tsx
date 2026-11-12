@@ -106,7 +106,7 @@ export default function AccountEmailDialog({ open, onClose }: { open: boolean; o
         {!me ? (
           loadError ? (
             <div className="py-6 text-center">
-              <p className="text-sm font-bold text-rose-700">تعذر تحميل حالة البريد مؤقتاً. لم يتم تغيير البريد بسبب فشل القراءة.</p>
+              <p className="text-sm font-bold text-rose-700">تعذر تحميل حالة البريد مؤقتاً. لا يمكن تأكيد حالة التغيير من هذه القراءة؛ حاول مجدداً.</p>
               <button type="button" onClick={load} className={`${btnCls} mt-3`}>إعادة تحميل الحالة</button>
             </div>
           ) : (
