@@ -475,7 +475,7 @@ export function AdminView() {
     const tab = new URLSearchParams(window.location.search).get('tab')
     const allowed = new Set([
       'admissions', 'service-requests', 'rules', 'students', 'supervisors', 'agents',
-      'representatives', 'books', 'study-schedule', 'quality', 'attempts',
+      'representatives', 'books', 'knowledge-ai-repair', 'study-schedule', 'quality', 'attempts',
       'grading-review', 'thesis', 'ai', 'finance', 'certs', 'legacy-graduates',
       'system', 'announcements', 'lectures', 'meetings', 'ai-stage-profiles',
       'settings', 'admins', 'audit', 'messages', 'admin-messages',
