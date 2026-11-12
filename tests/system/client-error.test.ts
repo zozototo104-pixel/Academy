@@ -63,4 +63,47 @@ describe('client error reporting', () => {
       console.error = original
     }
   })
+
+  test('verification tokens, URL query strings and bearer tokens never reach logs', async () => {
+    const logged: any[][] = []
+    const original = console.error
+    console.error = (...args: any[]) => { logged.push(args) }
+    try {
+      const res = await post(JSON.stringify({
+        message: 'failed https://academy.test/verify-email?token=SECRET_VALUE_123#secret',
+        stack: 'Bearer SECRET_BEARER_123456 at https://academy.test/verify-email?code=SECRET_CODE_123',
+        url: 'https://academy.test/verify-email?token=SECRET_VALUE_123#secret',
+        digest: 'diagnostic-123',
+      }), '198.51.100.50')
+      expect(res.status).toBe(200)
+      const report = logged.find((args) => args[0] === 'AACT client error report:')
+      const payload = JSON.parse(String(report![1]))
+      expect(payload.url).toBe('https://academy.test/verify-email')
+      expect(payload.message).not.toContain('SECRET')
+      expect(payload.stack).not.toContain('SECRET')
+      expect(payload.digest).toBe('diagnostic-123')
+    } finally {
+      console.error = original
+    }
+  })
+
+  test('refuses oversized payloads with HTTP 413', async () => {
+    const res = await post(JSON.stringify({ message: 'oversize', stack: 'x'.repeat(22_000) }), '198.51.100.51')
+    expect(res.status).toBe(413)
+  })
+
+  test('throttles repeated unauthenticated crash reports instead of flooding logs', async () => {
+    const original = console.error
+    console.error = () => {}
+    try {
+      let response: Response | undefined
+      for (let i = 0; i < 21; i++) {
+        response = await post(JSON.stringify({ message: 'repeated client error' }), '198.51.100.52')
+      }
+      expect(response?.status).toBe(429)
+      expect(Number(response?.headers.get('Retry-After'))).toBeGreaterThan(0)
+    } finally {
+      console.error = original
+    }
+  })
 })
