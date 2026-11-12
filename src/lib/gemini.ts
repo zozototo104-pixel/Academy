@@ -18,6 +18,8 @@ interface GeminiCallOpts {
   thinkingLevel?: GeminiThinkingLevel
   maxOutputTokens?: number
   taskLevel?: TextAiTaskLevel
+  // Scoped request identity passes through to the text router for book enrichment.
+  taskType?: string
   // D2.2: stage-profile pass-through — forwarded untouched to the
   // text-ai router; restrictToModels also filters the native chain.
   preferredModels?: TextAiPreferredModel[]
