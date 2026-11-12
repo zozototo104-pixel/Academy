@@ -1380,7 +1380,7 @@ export function AdminBooksTab() {
       })
       setKnowledgeItems(d.items || [])
       setKnowledgeStats(d.stats || {})
-      toast({ title: 'تم تنظيف بنك المعرفة', description: `حُذف ${d.deleted || 0} عنصر مشوه، وتحدّث ${d.updated || 0} عنصر. العناصر النظيفة الآن: ${d.count || 0}` })
+      toast({ title: 'انتهى تصحيح بنك المعرفة', description: `صُحّح ${d.updated || 0} عنصر بالكامل، وحُذف ${d.deleted || 0} عنصر فارغ فقط. بقي ${d.needsReview || 0} عنصر بحاجة لمراجعة دون حذف أو تعديل جزئي.` })
     } catch (e: any) {
       toast({ title: 'تعذر تنظيف بنك المعرفة', description: e.message, variant: 'destructive' })
     } finally {
