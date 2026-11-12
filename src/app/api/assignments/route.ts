@@ -162,8 +162,21 @@ export async function POST(req: NextRequest) {
 
     const enrollment = await db.enrollment.findFirst({ where: { userId: user.id, programId: assignment.programId, status: { in: ['ACTIVE', 'COMPLETED'] } } })
     if (!enrollment) return NextResponse.json({ error: 'هذا الواجب خاص ببرنامج غير مسجل في حسابك' }, { status: 403 })
-    const dueAt = dueDateFrom(enrollment.createdAt, assignment.dueDays, (assignment as any).dueAt)
-    if (dueAt && Date.now() > dueAt.getTime()) {
+    const units = assignment.unitId ? await db.unit.findMany({
+      where: { programId: assignment.programId },
+      select: { id: true, semester: true, order: true },
+    }) : []
+    const unitIsTeaching = units.some((u) => u.id === assignment.unitId && u.semester === assignment.semester)
+    const window = assignmentWindow({
+      enrolledAt: enrollment.createdAt, extensionDays: enrollment.extensionDays,
+      semester: assignment.semester, unitId: assignment.unitId,
+      dueDays: assignment.dueDays, dueAtFixed: assignment.dueAt,
+      program: assignment.program, units,
+    })
+    if (Date.now() < window.opensAt.getTime()) {
+      return NextResponse.json({ error: 'هذا الواجب يفتح عند بدء الوحدة الدراسية، ولم يحن موعده بعد', code: 'ASSIGNMENT_NOT_OPEN' }, { status: 403 })
+    }
+    if (window.dueAt && Date.now() > window.dueAt.getTime()) {
       // منحة إعادة فتح معتمدة ترفع جدار الموعد عن صاحبها وحده
       // (التماس إعادة الفتح، المرحلة 4) — فترة الفصل تبقى هي الحد
       // الخارجي ويفحصها حارس النوافذ أدناه.
