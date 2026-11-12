@@ -227,11 +227,7 @@ export async function POST(req: NextRequest) {
       dueDays: duration,
       // Legacy edits retain their original fixed deadline until the admin
       // explicitly chooses a new duration. New assignments never get one.
-      dueAt: !legacyFixed ? null : (() => {
-        const raw = String(body.dueAt).trim()
-        const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T23:59:59.999Z`) : new Date(raw)
-        return Number.isNaN(d.getTime()) ? null : d
-      })(),
+      dueAt: legacyFixed ? existingScope!.dueAt : null,
       rubric: asString(body.rubric, 4000) || null,
       status: asStatus(body.status),
     }
