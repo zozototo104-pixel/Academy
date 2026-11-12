@@ -241,8 +241,13 @@ export function planKnowledgeItemCleanup(
   const title = fullClean(row.title || '')
   const summary = fullClean(row.summary || '')
   const excerpt = row.excerpt == null ? null : fullClean(row.excerpt)
-  if (!title && !summary && !excerpt) return { action: 'REVIEW', reason: 'EMPTY' }
-  if (!title || !summary || isBroken(`${title}. ${summary}`) || (excerpt && isBroken(excerpt))) {
+  // Only a fully empty item is eligible for deletion. A blank title or
+  // summary with another populated field is NOT an empty item.
+  if (!title && !summary && !excerpt) return { action: 'DELETE_EMPTY' }
+  // Never commit a partial repair: if ANY field remains empty/corrupted,
+  // leave all original fields and reference identifiers untouched.
+  if (!title || !summary || (row.excerpt && !excerpt)
+    || isBroken(`${title}. ${summary}`) || (excerpt && isBroken(excerpt))) {
     return { action: 'REVIEW', reason: 'UNRESOLVED' }
   }
   if (title !== row.title || summary !== row.summary || excerpt !== (row.excerpt ?? null)) {
