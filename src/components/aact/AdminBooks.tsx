@@ -5187,6 +5187,7 @@ export function AdminKnowledgeAiRepairTab() {
   const [repairProvider, setRepairProvider] = useState('AUTO')
   const [repairModel, setRepairModel] = useState('')
   const [repairInterval, setRepairInterval] = useState('0')
+  const [repairCallsPerRun, setRepairCallsPerRun] = useState('1')
   const [repairModels, setRepairModels] = useState<string[]>([])
   type RepairStatus = {
     status: 'QUEUED' | 'RUNNING' | 'PAUSED' | 'COMPLETED'
