@@ -445,7 +445,6 @@ export function AdminSystemTab() {
     return () => window.clearTimeout(timer)
   }, [])
 
-  const repairProviderForModels = form.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO'
   const activeTextProviderForModels = form.AI_TEXT_PROVIDER || data?.textAi?.selectedProvider || 'GEMINI'
   const catalogProviderForModels = activeTextProviderForModels === 'AUTO'
     ? (data?.textAi?.activeProvider || 'GEMINI')
