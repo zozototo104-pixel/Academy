@@ -209,11 +209,10 @@ export async function POST(req: NextRequest) {
       type: asType(body.type),
       points: asInt(body.points, 10, 1, 100),
       weight: asInt(body.weight, 0, 0, 100),
-      dueDays: body.dueDays === '' || body.dueDays == null ? null : asInt(body.dueDays, 14, 1, 365),
-      // تاريخ ثابت يحدده الأدمن؛ إذا وُضع، يُقدَّم على المدة بالأيام عند الطالب.
-      // تاريخ بدون وقت يُفسَّر على أنه نهاية ذلك اليوم (23:59:59 بتوقيت UTC)
-      // حتى لا يُحظر الطالب في بداية اليوم الذي اختاره الأدمن.
-      dueAt: body.dueAt === '' || body.dueAt == null ? null : (() => {
+      dueDays: duration,
+      // Legacy edits retain their original fixed deadline until the admin
+      // explicitly chooses a new duration. New assignments never get one.
+      dueAt: !legacyFixed ? null : (() => {
         const raw = String(body.dueAt).trim()
         const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T23:59:59.999Z`) : new Date(raw)
         return Number.isNaN(d.getTime()) ? null : d
