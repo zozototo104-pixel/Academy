@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { randomUUID } from 'node:crypto'
 import { planKnowledgeItemCleanup, validateGroundedKnowledgeRepair, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
-import { textAiCompleteJson } from '@/lib/text-ai'
+import { textAiCompleteJson, type TextAiProvider, type TextAiPreferredModel } from '@/lib/text-ai'
 
 /** Preserve the existing program/semester scope. Never invokes the legacy v1 builder. */
 export async function scheduleProgramKnowledgeV2(programId: string, semester?: number | null) {
