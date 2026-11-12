@@ -258,6 +258,8 @@ interface StudentAssignment {
   weight: number
   dueDays?: number | null
   dueAt?: string | null
+  opensAt?: string | null
+  dueMode?: 'UNIT' | 'UNIT_DAYS' | 'ENROLLMENT_DAYS' | 'LEGACY_FIXED' | 'NONE'
   unitId?: string | null
   rubric?: string | null
   status: string
