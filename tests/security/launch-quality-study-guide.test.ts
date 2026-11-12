@@ -262,6 +262,8 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(worker).toContain('REPAIR_RATE_GATE')
     expect(worker).toContain("const owned = await db.setting.updateMany")
     expect(worker).toContain('validateGroundedKnowledgeRepair(parsed, evidence)')
+    expect(worker).toContain('planKnowledgeItemCleanup(item, looksLikeBrokenAcademicOutput)')
+    expect(worker).toContain('!looksLikeBrokenAcademicOutput(candidate.excerpt)')
     expect(worker).toContain('db.bookKnowledgeItem.updateMany')
     expect(worker).toContain('updatedAt: item.updatedAt')
     expect(worker).not.toContain('db.bookKnowledgeItem.create(')
