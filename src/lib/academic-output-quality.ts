@@ -213,8 +213,9 @@ export function looksLikeBrokenGeneratedArabic(value: unknown): boolean {
   const weirdTokenCount = normalizedTokens.filter((t) => ['يف', 'الثاين', 'ويف', 'اختاذ', 'اختاد', 'القررا', 'مبعن', 'املوضوعيه', 'املوضوعية', 'القرا', 'املبادي', 'االستراتيجيه', 'املكتسب'].includes(t)).length
   if (weirdTokenCount >= 1 && arabicWords >= 8) return true
   // OCR fragments must be standalone tokens. Searching for 'يف ' also matches
-  // the ending of valid verbs such as «يضيف», hiding otherwise healthy guides.
-  if (normalizedTokens.some((token) => ['يف', 'ويف', 'فيه'].includes(token)) && /(القرار|الاداره|المهني|الاستراتيجي|المشروع|الكتاب|المحتوي|المحتوى|القراءه|القراءة)/u.test(n)) return true
+  // the ending of valid verbs such as «يضيف». «فيه» is a normal Arabic word
+  // and must never trigger this broad OCR heuristic by itself.
+  if (normalizedTokens.some((token) => ['يف', 'ويف'].includes(token)) && /(القرار|الاداره|المهني|الاستراتيجي|المشروع|الكتاب|المحتوي|المحتوى|القراءه|القراءة)/u.test(n)) return true
 
   // تكرار عالٍ أو كلمات قصيرة جداً يدل على تشوه OCR.
   const veryShort = ws.filter((w) => w.length <= 2).length
