@@ -195,7 +195,7 @@ async function buildSemesterGuide(programId: string, semester: number) {
   if (brokenUnits.length) {
     throw new Error(`STUDY_GUIDE_UNIT_SOURCE_MISSING: ${brokenUnits.length} وحدة مرتبطة بكتاب أو فهرس مفقود. راجع مصادر الوحدات قبل التوليد.`)
   }
-  const pendingUnitGuides = []
+  const pendingUnitGuides: Awaited<ReturnType<typeof buildMissingUnitGuide>>[] = []
   for (const unit of missing) {
     const bookTitle = unit.sourceBookId ? bookTitleById.get(unit.sourceBookId) : null
     if (!bookTitle) throw new Error(`STUDY_GUIDE_UNIT_SOURCE_MISSING: لم يُعثر على كتاب الوحدة «${unit.title}».`)
