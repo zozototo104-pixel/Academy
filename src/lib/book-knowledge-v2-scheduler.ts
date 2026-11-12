@@ -136,6 +136,7 @@ export async function runNextKnowledgeAiRepairStep() {
       'AI_KNOWLEDGE_REPAIR_PROVIDER',
       'AI_KNOWLEDGE_REPAIR_MODEL',
       'AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS',
+      'AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN',
     ] } },
     select: { key: true, value: true },
   })
