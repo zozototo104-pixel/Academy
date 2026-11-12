@@ -78,7 +78,15 @@ async function callAnalysisAi(baseOpts: AnalysisCallOpts, routing: AnalysisRouti
     if (!routing.allowGlobalFallback) throw error
     usage.fallbackUsed = true
     usage.fallbackReason = 'all-stage-models-failed'
-    return geminiCompleteJson(withUsageCapture(baseOpts, usage))
+    try {
+      return await geminiCompleteJson(withUsageCapture(baseOpts, usage))
+    } catch (fallbackError) {
+      if (baseOpts.taskType !== 'BOOK_ENRICH') throw fallbackError
+      const summary = (value: unknown) => String((value as Error)?.message || value || 'unknown')
+        .replace(/(?:sk-|AIza)[A-Za-z0-9_\-]{8,}/g, '[REDACTED]')
+        .slice(0, 2200)
+      throw new Error(`BOOK_AI_PROVIDER_EXHAUSTED: STAGE=[${summary(error)}] GLOBAL=[${summary(fallbackError)}]`)
+    }
   }
 }
 
