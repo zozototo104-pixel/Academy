@@ -138,6 +138,19 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
   try {
     return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, overrides)), fellBack: false }
   } catch (error) {
+    // APINEX guarantees image_url vision on Gemini but does not document
+    // accepting PDF file parts on this endpoint. Retry the same source pages
+    // as PNGs before abandoning the configured stage models.
+    const apinexVision = overrides.preferredModels.filter((item) =>
+      item.provider.toUpperCase() === 'APINEX' && /gemini/i.test(item.model))
+    if (apinexVision.length && deadlineMs - Date.now() >= 25_000) {
+      try {
+        const imageRouting = { ...overrides, preferredModels: apinexVision, preferredProviders: ['APINEX'] }
+        return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, imageRouting, true)), fellBack: false }
+      } catch (imageError) {
+        if (!overrides.allowGlobalFallback) throw imageError
+      }
+    }
     if (!overrides.allowGlobalFallback) throw error
     // D2.1c: الوسم يُضبط لحظة اتخاذ قرار الرجوع — قبل المحاولة نفسها —
     // حتى يظهر في سجل الفشل إن فشلت محاولة الرجوع أيضًا.
