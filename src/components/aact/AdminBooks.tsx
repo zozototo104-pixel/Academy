@@ -3719,6 +3719,12 @@ export function AdminBooksTab() {
                           {a.weight > 0 && <Badge className="bg-emerald-50 text-[10px] text-emerald-700 hover:bg-emerald-50">وزن {a.weight}%</Badge>}
                           <Badge variant="outline" className={`text-[10px] ${a.status === 'PUBLISHED' ? 'border-emerald-200 text-emerald-700' : a.status === 'DRAFT' ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-500'}`}>{a.status === 'PUBLISHED' ? 'منشور' : a.status === 'DRAFT' ? 'مسودة' : 'مؤرشف'}</Badge>
                         </div>
+                        <p className="mt-1 text-[11px] font-bold text-indigo-700">
+                          {a.unitId && curriculumUnits.some((u) => u.id === a.unitId && Number(u.semester) === Number(a.semester))
+                            ? `يبدأ عند فتح الوحدة لكل طالب، وينتهي ${a.dueDays ? `بعد ${a.dueDays} يوم من بداية الوحدة (أو نهايتها، أيهما أقرب)` : 'مع نهاية الوحدة تلقائياً'}`
+                            : a.dueAt ? `موعد ثابت قديم: ${new Date(a.dueAt).toLocaleDateString('ar-EG')} — عدّله إلى أيام لكل طالب`
+                            : a.dueDays ? `المدة: ${a.dueDays} يوم من تسجيل الطالب` : 'لا توجد مهلة محددة'}
+                        </p>
                         <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{a.description}</p>
                         {a.rubric && <p className="mt-1 rounded-lg bg-slate-50 p-2 text-[11px] font-bold leading-5 text-slate-500">معايير التصحيح: {a.rubric}</p>}
                       </div>
