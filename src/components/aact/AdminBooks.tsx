@@ -950,11 +950,15 @@ export function AdminBooksTab() {
       summary: cleanAcademicOutput(section.summary || 'محور منظم من الكتب المقررة.', 1600),
       outcomes: sanitizeAcademicList(section.outcomes || [], ['شرح المحور وربطه بالتطبيق المهني'], 5, 180),
       sourceTitles: sanitizeAcademicList(section.sourceTitles || [], ['بنك المعرفة'], 5, 160),
-    })).filter((section) => section.title && section.summary && !looksLikeBrokenGeneratedArabic(`${section.title}. ${section.summary}`)).slice(0, 8),
-  })).filter((guide) => guide.title && guide.overview && !looksLikeBrokenGeneratedArabic(`${guide.title}. ${guide.overview}`)), [rootStudyGuides])
+    })).filter((section) => section.title && section.summary),
+  })), [rootStudyGuides])
 
   const hiddenKnowledgeItemsCount = Math.max(0, knowledgeItems.length - displayKnowledgeItems.length)
-  const hiddenStudyGuidesCount = Math.max(0, rootStudyGuides.length - displayStudyGuides.length)
+  // Admins must see every stored guide, including drafts needing review.
+  // Quality warnings must not silently hide a persisted, published guide.
+  const flaggedStudyGuidesCount = rootStudyGuides.filter((guide) =>
+    looksLikeBrokenGeneratedArabic(`${cleanAcademicOutput(guide.title, 220)}. ${cleanAcademicOutput(guide.overview, 5000)}`)
+  ).length
 
   const academicPlanPreview = useMemo(() => {
     if (!selectedProgram) return null
