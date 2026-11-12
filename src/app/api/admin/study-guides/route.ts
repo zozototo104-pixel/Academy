@@ -240,6 +240,7 @@ async function buildSemesterGuide(programId: string, semester: number) {
       : ['راجع كل وحدة من مراجع صفحاتها قبل الانتقال إلى الوحدة التالية.', 'اكتب بطاقة مراجعة لكل مصطلح أساسي مع رقم الصفحة.', 'أجب عن أسئلة المراجعة الذاتية دون تحويلها إلى أسئلة امتحانية.'],
     discussionQuestions: researchQuestions,
     sourceKnowledgeIds: unique([...sourceKnowledgeIds, ...sections.flatMap((section) => section.sourceKnowledgeIds)]),
+    pendingUnitGuides,
   }
 }
 
