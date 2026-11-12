@@ -568,6 +568,8 @@ interface StudyGuideRow {
   activities: string[]
   discussionQuestions: string[]
   sourceKnowledgeIds?: string[]
+  referenceCount?: number
+  missingReferenceCount?: number
   status: string
   updatedAt: string
 }
