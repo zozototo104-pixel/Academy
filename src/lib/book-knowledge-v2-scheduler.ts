@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { randomUUID } from 'node:crypto'
 import { planKnowledgeItemCleanup, validateGroundedKnowledgeRepair, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
-import { looksLikeBrokenAcademicOutput } from '@/lib/knowledge-bank'
+import { looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt } from '@/lib/knowledge-bank'
 import { textAiCompleteJson, type TextAiProvider, type TextAiPreferredModel } from '@/lib/text-ai'
 
 /** Preserve the existing program/semester scope. Never invokes the legacy v1 builder. */
@@ -172,7 +172,7 @@ export async function runNextKnowledgeAiRepairStep() {
     for (const item of items) {
       // Use exactly the same corruption gate as the rule-based admin cleanup,
       // so its unresolved items are not accidentally skipped by AI repair.
-      const plan = planKnowledgeItemCleanup(item, looksLikeBrokenAcademicOutput)
+      const plan = planKnowledgeItemCleanup(item, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt)
       if (plan.action !== 'REVIEW') {
         next.cursor = item.id; next.scanned++; processed++; continue
       }

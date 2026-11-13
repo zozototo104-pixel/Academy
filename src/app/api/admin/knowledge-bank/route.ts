@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
-import { getProgramKnowledgeItems, rebuildKnowledgeForBook, rebuildProgramKnowledge, looksLikeBrokenAcademicOutput, KNOWLEDGE_BANK_LIMITS } from '@/lib/knowledge-bank'
+import { getProgramKnowledgeItems, rebuildKnowledgeForBook, rebuildProgramKnowledge, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt, KNOWLEDGE_BANK_LIMITS } from '@/lib/knowledge-bank'
 import { scheduleProgramKnowledgeV2, enqueueKnowledgeAiRepairJob, getKnowledgeAiRepairJob } from '@/lib/book-knowledge-v2-scheduler'
 import { planKnowledgeItemCleanup, repairKnownOcrWords, type OcrWordRepair } from '@/lib/academic-output-quality'
 import { withTimedResponse, withTiming } from '@/lib/timing'
@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
         if (!rows.length) { hasMoreRows = false; break }
         cursor = rows[rows.length - 1].id
         collected.push(...rows.filter((row) =>
-          ['REVIEW', 'DELETE_EMPTY'].includes(planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput).action) ||
+          ['REVIEW', 'DELETE_EMPTY'].includes(planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt).action) ||
           !row.bookId || !row.chunkId || row.pageStart == null || row.pageEnd == null
         ))
         hasMoreRows = rows.length === 100
@@ -335,7 +335,12 @@ export async function PATCH(req: NextRequest) {
       if (title.length < 6 || title.length > 220 || summary.length < 20 || summary.length > 1800 || excerpt.length < 20 || excerpt.length > 1500) {
         return NextResponse.json({ error: 'عنوان أو شرح أو مقتطف المصدر غير مكتمل أو يتجاوز الحد المسموح' }, { status: 422 })
       }
-      if (planKnowledgeItemCleanup({ title, summary, excerpt }, looksLikeBrokenAcademicOutput).action !== 'KEEP') {
+      // KEEP or UPDATE both mean "all three texts are clean": UPDATE only says
+      // the cleaner would normalize a detail (e.g. «2. .1» → «2.1») in a
+      // verbatim quote, which must stay exactly as written in the book.
+      // Only REVIEW (still broken/empty) refuses the save.
+      const plan = planKnowledgeItemCleanup({ title, summary, excerpt }, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt)
+      if (plan.action === 'REVIEW' || plan.action === 'DELETE_EMPTY') {
         return NextResponse.json({ error: 'بقي تشوه أو جزء ناقص؛ راجع النصوص الثلاثة كاملة' }, { status: 422 })
       }
       const item = await db.bookKnowledgeItem.findFirst({ where: { id, programId } })
@@ -413,7 +418,7 @@ export async function POST(req: NextRequest) {
         const deleteIds: string[] = []
         const updates: Promise<any>[] = []
         for (const row of rows) {
-          const plan = planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput)
+          const plan = planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt)
           if (plan.action === 'DELETE_EMPTY') {
             deleteIds.push(row.id)
           } else if (plan.action === 'UPDATE') {

@@ -281,6 +281,7 @@ export type KnowledgeItemCleanupPlan =
 export function planKnowledgeItemCleanup(
   row: { title: string; summary: string; excerpt?: string | null },
   isBroken: (text: string) => boolean = looksLikeBrokenGeneratedArabic,
+  isBrokenExcerpt: (text: string) => boolean = isBroken,
 ): KnowledgeItemCleanupPlan {
   const fullClean = (value: string) => cleanAcademicOutput(value, Math.max(1800, value.length + 128))
   const title = fullClean(row.title || '')
@@ -291,8 +292,10 @@ export function planKnowledgeItemCleanup(
   if (![row.title, row.summary, row.excerpt].some((value) => String(value || '').trim())) return { action: 'DELETE_EMPTY' }
   // Never commit a partial repair: if ANY field remains empty/corrupted,
   // leave all original fields and reference identifiers untouched.
+  // The excerpt is a quote from the book: its own gate checks garble only,
+  // while the title+summary keep the full Arabic requirement.
   if (!title || !summary || (row.excerpt && !excerpt)
-    || isBroken(`${title}. ${summary}`) || (excerpt && isBroken(excerpt))) {
+    || isBroken(`${title}. ${summary}`) || (excerpt && isBrokenExcerpt(excerpt))) {
     return { action: 'REVIEW', reason: 'UNRESOLVED' }
   }
   if (title !== row.title || summary !== row.summary || excerpt !== (row.excerpt ?? null)) {

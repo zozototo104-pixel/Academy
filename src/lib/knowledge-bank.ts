@@ -95,7 +95,7 @@ function countMatches(value: string, re: RegExp) {
   return (String(value || '').match(re) || []).length
 }
 
-export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort?: boolean } = {}) {
+export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort?: boolean; allowForeign?: boolean } = {}) {
   const raw = cleanAcademicGeneratedText(value, 5000)
   if (!raw) return true
   // استخدم الحارس المركزي أولاً حتى يكون الحكم موحداً بين التوليد والعرض والتنظيف.
@@ -116,7 +116,9 @@ export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort
   if (digits >= 6 && letters < 55) return true
   // مخرجات المنصة للطالب يجب أن تكون عربية. نسمح بالعناوين الأجنبية القصيرة،
   // لكن لا نقبل فقرة معرفة/دليل/سؤال طويلة بلغة أجنبية دون صياغة عربية.
-  if (!opts.allowShort && arabicLetters < 10 && latinLetters > 35) return true
+  // الاستثناء: المقتطف اقتباس من الكتاب نفسه (allowForeign)، فيُفحص للتشوه
+  // فقط لا للغة — قوائم الكتاب الإنجليزية اقتباس صحيح لا توليد معطوب.
+  if (!opts.allowForeign && !opts.allowShort && arabicLetters < 10 && latinLetters > 35) return true
 
   // No substring fragment ending in «يف»: cleaning already repairs a standalone
   // «يف»/«ويف» before this check runs, so such a fragment can only match a
@@ -146,7 +148,7 @@ export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort
 
   const noisyLatin = /(libro\s+de\s+la|tratado\s+de|perfecci[oó]n|vellena|lehrs[aä]tze|krieg(?:es)?|guerra|alfonso\s+hernandez)/i
   if (noisyLatin.test(raw) && arabicWords >= 3) return true
-  if (arabicLetters >= 20 && latinLetters / Math.max(1, latinLetters + arabicLetters) > 0.38 && latinWords >= 4) return true
+  if (!opts.allowForeign && arabicLetters >= 20 && latinLetters / Math.max(1, latinLetters + arabicLetters) > 0.38 && latinWords >= 4) return true
 
   const brokenFragments = [
     'كتاب اطلب', 'كتاب احرب', 'في اسبانيا مع كتاب', 'هو يفتترض', 'يفترض اجتزال ان الاول',
@@ -170,6 +172,10 @@ export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort
 
   return false
 }
+
+// المقتطف اقتباس حرفي من الكتاب: يُفحص للتشوه والفراغ فقط، لا لشرط العربية.
+// العنوان والشرح يبقيان على الفاحص الكامل — هما صياغة المنصة بالعربية.
+export const looksLikeBrokenExcerpt = (text: string) => looksLikeBrokenAcademicOutput(text, { allowForeign: true })
 
 function safeGeneratedOrFallback(value: unknown, fallback: string, max = 1600, allowShort = false) {
   const cleaned = cleanAcademicGeneratedText(value, max)

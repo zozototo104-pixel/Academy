@@ -265,7 +265,7 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(worker).toContain('REPAIR_RATE_GATE')
     expect(worker).toContain("const owned = await db.setting.updateMany")
     expect(worker).toContain('validateGroundedKnowledgeRepair(parsed, evidence)')
-    expect(worker).toContain('planKnowledgeItemCleanup(item, looksLikeBrokenAcademicOutput)')
+    expect(worker).toContain('planKnowledgeItemCleanup(item, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt)')
     expect(worker).toContain('!looksLikeBrokenAcademicOutput(candidate.excerpt)')
     expect(worker).toContain('db.bookKnowledgeItem.updateMany')
     expect(worker).toContain('updatedAt: item.updatedAt')
@@ -343,7 +343,7 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
 
   test('admin sanitizer routes deletion only through the fully-empty classification', () => {
     const source = readFileSync(new URL('../../src/app/api/admin/knowledge-bank/route.ts', import.meta.url), 'utf8')
-    expect(source).toContain("const plan = planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput)")
+    expect(source).toContain("const plan = planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt)")
     expect(source).toContain("if (plan.action === 'DELETE_EMPTY')")
     expect(source).toContain("} else if (plan.action === 'REVIEW') {")
     expect(source).toContain("needsReview++")
@@ -1382,5 +1382,51 @@ describe('chunk word repair: rules preview + confirm and manual edit on the link
     expect(adminBooks).toContain('حفظ التعديل اليدوي للمقطع')
     expect(adminBooks).toContain('تعديل نص المقطع يدويًا')
     expect(adminBooks).toContain('expectedUpdatedAt: preview.chunkUpdatedAt')
+  })
+})
+
+// Excerpt loosening (Haris 2026-11-13): an excerpt is a quote from the book,
+// so the Latin-proportion rules must not flag a faithful English list from
+// the PMI book. Title+summary keep the full Arabic requirement.
+const HARIS_ENGLISH_EXCERPT = 'Project management plan 2. .1 Schedule forecasts 3. Cost forecasts 4. Validated changes 5. Work performance information 6. Enterprise environmental factors 7. Organizational process assets'
+const HARIS_TITLE = 'مدخلات عملية المراقبة والتحكم'
+const HARIS_SUMMARY = 'تشمل الخطة الإدارية للمشروع، وتوقعات الجدول الزمني، وتوقعات التكلفة، والتغييرات المعتمدة، ومعلومات أداء العمل، والعوامل البيئية للمؤسسة، والأصول العملية للمنظمة.'
+
+describe('excerpt loosening: an English list quoted from the book is not broken', () => {
+  test('allowForeign skips only the Latin rules; a forbidden fragment still fails', async () => {
+    const { looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt } = await import('../../src/lib/knowledge-bank')
+    expect(looksLikeBrokenAcademicOutput(HARIS_ENGLISH_EXCERPT)).toBe(true)
+    expect(looksLikeBrokenAcademicOutput(HARIS_ENGLISH_EXCERPT, { allowForeign: true })).toBe(false)
+    expect(looksLikeBrokenExcerpt(HARIS_ENGLISH_EXCERPT)).toBe(false)
+    expect(looksLikeBrokenExcerpt(`${HARIS_ENGLISH_EXCERPT} google books`)).toBe(true)
+  })
+
+  test('the planner stops flagging Haris’s exact item as broken once the excerpt gate is the quote gate', async () => {
+    const { planKnowledgeItemCleanup } = await import('../../src/lib/academic-output-quality')
+    const { looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt } = await import('../../src/lib/knowledge-bank')
+    expect(planKnowledgeItemCleanup(
+      { title: HARIS_TITLE, summary: HARIS_SUMMARY, excerpt: HARIS_ENGLISH_EXCERPT },
+      looksLikeBrokenAcademicOutput,
+    ).action).toBe('REVIEW')
+    // UPDATE, not KEEP: the fields are clean, but the cleaner would normalize
+    // «2. .1» → «2.1» in the verbatim quote. The manual-review save accepts
+    // both KEEP and UPDATE; only REVIEW refuses it.
+    expect(planKnowledgeItemCleanup(
+      { title: HARIS_TITLE, summary: HARIS_SUMMARY, excerpt: HARIS_ENGLISH_EXCERPT },
+      looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt,
+    ).action).toBe('UPDATE')
+  })
+
+  test('the manual-review save passes for Haris’s exact item with a verbatim English excerpt', async () => {
+    resetReviewFixture()
+    reviewChunks[0].text = `${REVIEW_CHUNK_TEXT} ${HARIS_ENGLISH_EXCERPT}`
+    const { response, body } = await patchReview({
+      programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      title: HARIS_TITLE, summary: HARIS_SUMMARY, excerpt: HARIS_ENGLISH_EXCERPT,
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(response.status).toBe(200)
+    expect(body.ok).toBe(true)
+    expect(reviewItems.find((item) => item.id === 'review-broken-text')!.excerpt).toBe(HARIS_ENGLISH_EXCERPT)
   })
 })
