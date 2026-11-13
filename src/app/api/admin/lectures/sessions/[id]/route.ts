@@ -113,16 +113,34 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       },
     })
     if (!session) return NextResponse.json({ error: 'اللقاء غير موجود' }, { status: 404 })
-    // Both the conditional delete and its mandatory audit record must commit
-    // together. The shared auditLecture helper swallows logging errors, so it
-    // cannot provide the required rollback guarantee for a destructive action.
+    // Admin explicitly confirmed that linked attendance records will be
+    // removed. Archive their academic details and the deletion reason in the
+    // SAME transaction so a failed audit always rolls back the entire delete.
+    // Serializable isolation prevents unrecorded concurrent attendance inserts.
     const deleted = await db.$transaction(async (tx) => {
-      // Protect against attendance being recorded between the initial lookup
-      // and this transaction's delete; the attendance ledger is never erased.
+      const attendanceSnapshot = await tx.lectureAttendance.findMany({
+        where: { sessionId: id },
+        select: {
+          userId: true,
+          status: true,
+          joinedAt: true,
+          confirmedAt: true,
+          confirmedById: true,
+        },
+        orderBy: { joinedAt: 'asc' },
+      })
+      const removedAttendances = await tx.lectureAttendance.deleteMany({
+        where: { sessionId: id },
+      })
+      if (removedAttendances.count !== attendanceSnapshot.length) {
+        throw new Error('LECTURE_DELETE_CONFLICT')
+      }
+      // Keep the conditional guard against an attendance row arriving during
+      // deletion. A failed delete aborts the transaction, restoring attendance.
       const result = await tx.lectureSession.deleteMany({
         where: { id, attendances: { none: {} } },
       })
-      if (result.count === 0) return false
+      if (result.count !== 1) throw new Error('LECTURE_DELETE_CONFLICT')
       await tx.auditLog.create({
         data: {
           actorId: actor.id,
@@ -135,15 +153,14 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
             programId: session.series.programId,
             status: session.status,
             reason: parsed.data.reason,
+            deletedAttendanceCount: attendanceSnapshot.length,
+            deletedAttendance: attendanceSnapshot,
             detachedVideos: session._count.videos,
           }),
         },
       })
-      return true
-    })
-    if (!deleted) {
-      return NextResponse.json({ error: 'تعذر الحذف لأن حضورًا سُجل لهذا اللقاء أو لأنه حُذف مسبقًا' }, { status: 409 })
-    }
+      return { attendanceCount: attendanceSnapshot.length }
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
     let notificationWarning = false
     if (new Date(session.startsAt).getTime() > Date.now() && session.status !== 'CANCELLED') {
       // Students were notified of the original schedule: clarify its removal.
