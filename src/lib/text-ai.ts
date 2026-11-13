@@ -1242,7 +1242,7 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
     case 'APINEX': return s.apinexKeys || []
     case 'OXION': return s.oxionKeys || []
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? (s.openaiCompatKeys || []) : []
-    default: return []
+    default: return s.customProviders?.some((entry) => entry.id === provider && entry.enabled) ? (s.customProviderKeys?.[provider] || []) : []
   }
 }
 
