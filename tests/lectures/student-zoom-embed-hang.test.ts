@@ -301,6 +301,61 @@ describe('zoom embed runner — prevent overlapping SDK clients', () => {
   })
 })
 
+describe('zoom embed runner — leave and rejoin the same page', () => {
+  test('destroys the first SDK client before a second join, without refreshing the page', async () => {
+    let active = false
+    const order: string[] = []
+    const sdk = {
+      createClient: () => {
+        if (active) throw new Error('Zoom still has a stale Component View client')
+        active = true
+        const { client } = makeClient()
+        const originalLeave = client.leaveMeeting
+        client.leaveMeeting = () => {
+          order.push('leave')
+          return originalLeave()
+        }
+        return client
+      },
+      destroyClient: () => {
+        order.push('destroy')
+        active = false
+      },
+    }
+    const create = () => createZoomEmbedRunner(baseDeps({ getZoomSdk: () => sdk }))
+    const first = create()
+    expect(await first.start()).toBe('joined')
+    expect(await first.cancel()).toBe(true)
+    expect(order).toEqual(['leave', 'destroy'])
+    const next = create()
+    expect(await next.start()).toBe('joined')
+    expect(await next.cancel()).toBe(true)
+    expect(order).toEqual(['leave', 'destroy', 'leave', 'destroy'])
+    expect(errors).toEqual([])
+  })
+
+  test('still destroys the SDK when Zoom says the participant already left', async () => {
+    let destroyed = 0
+    const { client } = makeClient()
+    client.leaveMeeting = () => Promise.reject(new Error('already left'))
+    const sdk = { createClient: () => client, destroyClient: () => { destroyed += 1 } }
+    const runner = createZoomEmbedRunner(baseDeps({ getZoomSdk: () => sdk }))
+    expect(await runner.start()).toBe('joined')
+    expect(await runner.cancel()).toBe(true)
+    expect(destroyed).toBe(1)
+  })
+
+  test('failed or missing destroyClient does not authorize a second SDK client', async () => {
+    const { client } = makeClient()
+    const runner = createZoomEmbedRunner(baseDeps({ getZoomSdk: () => ({
+      createClient: () => client,
+      destroyClient: () => { throw new Error('SDK teardown rejected') },
+    }) }))
+    expect(await runner.start()).toBe('joined')
+    expect(await runner.cancel()).toBe(false)
+  })
+})
+
 describe('component wiring (source pins)', () => {
   const src = readFileSync(join(import.meta.dir, '../../src/components/aact/StudentLectures.tsx'), 'utf8')
 
