@@ -135,6 +135,16 @@ function sanitizeProviderOrder(value: string): string {
   return items.join(',')
 }
 
+async function adminCustomTextAiProviders() {
+  const row = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+  const providers = parseCustomTextAiProviders(row?.value || '')
+  const secrets = providers.length
+    ? await db.setting.findMany({ where: { key: { in: providers.map((item) => customTextAiKeySetting(item.id)) } }, select: { key: true } })
+    : []
+  const secretKeys = new Set(secrets.map((item) => item.key))
+  return providers.map((item) => ({ ...item, hasKey: secretKeys.has(customTextAiKeySetting(item.id)) }))
+}
+
 // GET /api/admin/system — إعدادات النظام: البريد + الدفع + TURN (الأسرار مقنعة) + سجل البريد
 export async function GET() {
   try {
