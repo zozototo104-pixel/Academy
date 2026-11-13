@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { auditLecture, canManageSession, isAdmin, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
 import { isLecturesEnabled } from '@/lib/lectures/config'
 
+const deleteSessionSchema = z.object({ reason: z.string().trim().min(10).max(500) })
+
 const patchSessionSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).nullable().optional(),
