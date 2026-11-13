@@ -416,7 +416,7 @@ export function StudentLectures() {
         )
         if (res.zoomSdk) {
           setZoomError(null)
-          setZoomStatus(null)
+          setZoomStatus('preparing')
           setEmbeddedZoom({ title: s.title, meetingUrl: res.meetingUrl, ...res.zoomSdk })
         } else {
           window.open(res.meetingUrl, '_blank', 'noopener')
