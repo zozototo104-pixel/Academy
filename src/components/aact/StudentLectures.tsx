@@ -126,10 +126,11 @@ export const ZOOM_EMBED_TIMEOUT_MS = 15_000
 const ZOOM_EMBED_SCRIPT_VERSION = '6.2.0'
 const ZOOM_EMBED_VENDOR_SCRIPTS = ['react', 'react-dom', 'redux', 'redux-thunk', 'react-redux', 'lodash']
 
-export type ZoomEmbedStage = 'script-load' | 'init' | 'join' | 'joined' | 'timeout'
+export type ZoomEmbedStage = 'preparing' | 'script-load' | 'init' | 'join' | 'joined' | 'timeout'
 export type ZoomEmbedOutcome = 'joined' | 'failed' | 'timeout' | 'cancelled'
 
 export const ZOOM_EMBED_STAGE_LABELS: Record<ZoomEmbedStage, string> = {
+  preparing: 'جارٍ تجهيز القاعة…',
   'script-load': 'جارٍ تحميل مكتبة Zoom…',
   init: 'جارٍ تهيئة القاعة…',
   join: 'جارٍ الانضمام إلى الاجتماع…',
