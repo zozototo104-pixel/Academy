@@ -382,6 +382,21 @@ describe('component wiring (source pins)', () => {
     expect(src).toContain('if (!safeToStart)')
   })
 
+  test('closing the room destroys the Zoom client before removing its Portal root', () => {
+    expect(src).toContain('const closeZoomRoom = useCallback(async () => {')
+    expect(src).toContain('zoomRunnerRef.current.cancel()')
+    expect(src).toContain('await zoomCleanupRef.current')
+    expect(src).toContain('setEmbeddedZoom(null)')
+    expect(src).toContain('zoomClosingRef.current')
+    expect(src).toContain('if (!open) void closeZoomRoom()')
+    expect(src).toContain('جارٍ الخروج من القاعة وإغلاق الاتصال')
+    expect(src).toContain('await embeddedSdk.destroyClient()')
+    const closeAt = src.indexOf('const closeZoomRoom = useCallback(')
+    const cleanupAt = src.indexOf('await zoomCleanupRef.current', closeAt)
+    const unmountAt = src.indexOf('setEmbeddedZoom(null)', closeAt)
+    expect(cleanupAt).toBeLessThan(unmountAt)
+  })
+
   test('production timeout stays exactly 15 seconds', () => {
     expect(src).toContain('ZOOM_EMBED_TIMEOUT_MS = 15_000')
     expect(ZOOM_EMBED_TIMEOUT_MS).toBe(15_000)
