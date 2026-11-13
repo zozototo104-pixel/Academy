@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
     let notifyIds: string[] | undefined
     if (!isAdmin(actor)) {
       const [assigned, active] = await Promise.all([
-        supervisorStudentIds(actor),
+        supervisorStudentIds(actor, input.programId),
         getProgramStudentIds(input.programId),
       ])
       const assignedSet = new Set(assigned)
