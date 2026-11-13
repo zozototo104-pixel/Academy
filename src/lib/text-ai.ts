@@ -1608,6 +1608,10 @@ function isFreeModel(row: any, id: string): boolean {
   return (prompt !== undefined || completion !== undefined) && zeroish(prompt) && zeroish(completion)
 }
 
+export function __testCustomProviderFreeMetadataForTests(row: any, id: string): boolean {
+  return strictlyFreeCustomModel(row, id)
+}
+
 function nvidiaModelHaystack(row: any, id: string): string {
   return `${id} ${row?.name || ''} ${row?.type || ''} ${row?.modality || ''} ${row?.task || ''} ${row?.description || ''} ${row?.owned_by || ''} ${row?.provider || ''}`.toLowerCase()
 }
