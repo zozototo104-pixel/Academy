@@ -386,8 +386,31 @@ export function StudentLectures() {
         setZoomStatus(null)
       },
     })
-    void runner.start()
-    return () => runner.cancel()
+    let disposed = false
+    let started = false
+    // Wait for the previous SDK client's async leave before starting a new one.
+    // If Zoom never settles the old init/join, do not risk two active clients.
+    void zoomCleanupRef.current.then(async (safeToStart) => {
+      if (disposed) return
+      if (!safeToStart) {
+        setZoomRetryBlocked(true)
+        setZoomStatus(null)
+        setZoomError('لم ينتهِ اتصال Zoom السابق بأمان. أغلق القاعة وحدّث الصفحة قبل إعادة الدخول.')
+        return
+      }
+      started = true
+      await runner.start()
+    }).catch(() => {
+      if (!disposed) {
+        setZoomRetryBlocked(true)
+        setZoomStatus(null)
+        setZoomError('تعذّر التأكد من إغلاق اتصال Zoom السابق. أغلق القاعة وحدّث الصفحة.')
+      }
+    })
+    return () => {
+      disposed = true
+      if (started) zoomCleanupRef.current = runner.cancel()
+    }
   }, [embeddedZoom, zoomAttempt])
   const [now, setNow] = useState(() => Date.now())
   const [activeWatch, setActiveWatch] = useState<{ video: VideoItem; watch: WatchDescriptor } | null>(null)
