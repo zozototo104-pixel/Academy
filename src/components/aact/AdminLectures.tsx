@@ -810,7 +810,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                 تراجع
               </Button>
               <Button variant="destructive"
-                disabled={busy || confirm.attendanceCount > 0 || deleteReason.trim().length < 10}
+                disabled={busy || deleteReason.trim().length < 10}
                 onClick={() => {
                   const run = confirm.run
                   const reason = deleteReason.trim()
