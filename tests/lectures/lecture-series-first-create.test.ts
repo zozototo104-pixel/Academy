@@ -269,6 +269,32 @@ describe('creation notification scope — supervisor notifies only HIS students'
     expect(notified.map((n) => n.userId).sort()).toEqual(['stu-1', 'stu-2', 'stu-3'])
     expect(emailed.sort()).toEqual(['stu-1@example.com', 'stu-2@example.com', 'stu-3@example.com'])
   })
+
+  test('a student enrolled in two programs is notified only when the supervisor is HIS supervisor in THAT program', async () => {
+    // stu-2 is ACTIVE in prog-owned and has an application there supervised
+    // by sup-2 — but sup-1 is his supervisor in prog-assigned only. When
+    // sup-1 creates a series in prog-owned, stu-2 must NOT be notified:
+    // the assignment cross-check is per-program, not per-student.
+    // (The mock's enrollment list stands in for ACTIVE enrollments in the
+    // target program, as in the fixture above.)
+    enrollments = [{ userId: 'stu-1' }, { userId: 'stu-2' }]
+    apps = [
+      { id: 'app-1', supervisorId: 'sup-1', programId: 'prog-owned', userId: 'stu-1' },
+      { id: 'app-2', supervisorId: 'sup-1', programId: 'prog-assigned', userId: 'stu-2' },
+      { id: 'app-3', supervisorId: 'sup-2', programId: 'prog-owned', userId: 'stu-2' },
+    ]
+    users = [
+      { id: 'sup-1', role: 'SUPERVISOR' },
+      { id: 'sup-2', role: 'SUPERVISOR' },
+      { id: 'admin-1', role: 'ADMIN' },
+      { id: 'stu-1', role: 'STUDENT', email: 'stu-1@example.com' },
+      { id: 'stu-2', role: 'STUDENT', email: 'stu-2@example.com' },
+    ]
+    const res = await seriesRoute.POST(seriesPayload('prog-owned'))
+    expect(res.status).toBe(201)
+    expect(notified.map((n) => n.userId)).toEqual(['stu-1'])
+    expect(emailed).toEqual(['stu-1@example.com'])
+  })
 })
 
 describe('source pins — the widening lives in the series route only', () => {
@@ -281,6 +307,10 @@ describe('source pins — the widening lives in the series route only', () => {
     expect(routeSrc).toContain('canManageProgram(actor, input.programId)')
     expect(routeSrc).toContain('canAccessProgram(actor, input.programId)')
     expect(routeSrc).toContain("from '@/lib/supervisor-scope'")
+    // Notification recipients are scoped per-program, not per-student:
+    // a student supervised by this supervisor in ANOTHER program must
+    // never be notified about this program's series.
+    expect(routeSrc).toContain('supervisorStudentIds(actor, input.programId)')
   })
 
   test('canManageProgram itself is NOT widened', () => {

@@ -19,7 +19,9 @@ export function isSupervisorAdmin(actor: SupervisorActor): boolean {
 }
 
 // طلاب المشرف: كل من له طلب التحاق معيّن عليه هذا المشرف وله حساب.
-// programId اختياري؛ عند تحديده لا تشمل النتائج تعيينات برامج أخرى.
+// عند تمرير programId يُقصر على طلبات ذلك البرنامج فقط — التعيين بلا
+// برنامج يعبر البرامج (طالب مسجل ببرنامجين قد يكون له مشرف مختلف بكل
+// برنامج)، فتقاطع الإشعار يجب أن يحترم برنامج اللقاء نفسه.
 export async function supervisorStudentIds(actor: SupervisorActor, programId?: string): Promise<string[]> {
   if (isSupervisorAdmin(actor)) {
     const rows = await db.admissionApplication.findMany({ where: { userId: { not: null }, ...(programId ? { programId } : {}) }, select: { userId: true }, distinct: ['userId'] })
