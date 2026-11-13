@@ -301,12 +301,12 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
         if (cancelled) { void leave(); return 'cancelled' }
         stage = 'join'
         onStatus?.('join')
-        await client.join({
+        await runSdkOperation(() => client.join({
           signature: meeting.signature, sdkKey: meeting.sdkKey,
           meetingNumber: meeting.meetingNumber, userName: meeting.userName,
           password: meeting.password,
-        })
-        if (cancelled) { leave(); return 'cancelled' }
+        }))
+        if (cancelled) { void leave(); return 'cancelled' }
         finished = true
         clearWatchdog()
         onStatus?.('joined')
