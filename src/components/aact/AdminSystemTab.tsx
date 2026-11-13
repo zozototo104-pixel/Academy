@@ -173,7 +173,7 @@ interface SystemData {
   }
   textAi?: {
     selectedProvider: string
-    activeProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | null
+    activeProvider: string | null
     policy?: 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
     externalConfigured: boolean
     keyCounts?: Record<string, number>
