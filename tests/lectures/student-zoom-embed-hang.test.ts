@@ -95,7 +95,7 @@ describe('zoom embed runner — happy path and stages', () => {
     const runner = createZoomEmbedRunner(baseDeps({ getZoomSdk: () => ({ createClient: () => client }) }))
     const result = await runner.start()
     expect(result).toBe('joined')
-    expect(statuses).toEqual(['script-load', 'init', 'join', 'joined'])
+    expect(statuses).toEqual(['preparing', 'script-load', 'init', 'join', 'joined'])
     expect(loadedScripts.length).toBe(7)
     expect(loadedScripts[6]).toContain('zoom-meeting-embedded-6.2.0.min.js')
     expect(calls.init.length).toBe(1)
