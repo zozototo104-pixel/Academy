@@ -2588,7 +2588,7 @@ export async function refreshCustomTextAiFreeModels(providerId: string): Promise
   const key = await discoveryKey(providerId, s)
   const cacheKey = cacheKeyForFreeModels(providerId, config.baseUrl, key)
   freeModelsCache.delete(cacheKey)
-  await settingStore().delete(persistentModelsCacheKey(cacheKey))
+  await settingStore().delete?.(persistentModelsCacheKey(cacheKey))
   return textAiFreeModelsForProvider(providerId)
 }
 
