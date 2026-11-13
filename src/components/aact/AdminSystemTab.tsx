@@ -970,7 +970,7 @@ export function AdminSystemTab() {
   // «ترتيب المزودات الاحتياطية» (2026-10-30): القائمة المعروضة = ترتيب الأدمن
   // المحفوظ أولاً ثم بقية المزودين بالترتيب الافتراضي المكتوب، حتى يرى كل
   // المزودين دائماً ويحرّك من يشاء. الحفظ يتم عبر حقل AI_PROVIDER_FALLBACK_ORDER.
-  const FALLBACK_ORDER_DEFAULT = ['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION']
+  const FALLBACK_ORDER_DEFAULT = ['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION', ...(data.customProviders || []).map((entry) => entry.id)]
   const savedFallbackOrder = String(form.AI_PROVIDER_FALLBACK_ORDER || '').split(',').map((x) => x.trim().toUpperCase()).filter((x) => FALLBACK_ORDER_DEFAULT.includes(x))
   const displayFallbackOrder = [...savedFallbackOrder, ...FALLBACK_ORDER_DEFAULT.filter((p) => !savedFallbackOrder.includes(p))]
   const moveInFallbackOrder = (idx: number, dir: -1 | 1) => {
