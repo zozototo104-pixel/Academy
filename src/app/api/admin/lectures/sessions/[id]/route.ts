@@ -113,11 +113,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       },
     })
     if (!session) return NextResponse.json({ error: 'اللقاء غير موجود' }, { status: 404 })
-    if (session._count.attendances > 0) {
-      return NextResponse.json({
-        error: 'لا يمكن حذف لقاء لديه سجل حضور؛ استخدم الإلغاء للحفاظ على سجل الطلاب',
-      }, { status: 409 })
-    }
     // Both the conditional delete and its mandatory audit record must commit
     // together. The shared auditLecture helper swallows logging errors, so it
     // cannot provide the required rollback guarantee for a destructive action.
