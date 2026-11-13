@@ -149,7 +149,7 @@ describe('zoom embed runner — timeout and retry', () => {
     expect(result).toBe('timeout')
     expect(errors.length).toBe(1)
     expect(errors[0].stage).toBe('timeout')
-    expect(statuses).toEqual(['script-load'])
+    expect(statuses).toEqual(['preparing', 'script-load'])
     expect(reports.length).toBe(1)
     expect(reports[0].stage).toBe('timeout')
   })
