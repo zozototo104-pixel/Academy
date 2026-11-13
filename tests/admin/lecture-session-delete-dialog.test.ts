@@ -23,7 +23,7 @@ describe('administrator lecture deletion confirmation and reason', () => {
   test('requires a reason with a visible irreversible-action confirmation', () => {
     const ui = view()
     expect(ui).toContain("title: 'حذف اللقاء'")
-    expect(ui).toContain('سيُزال موعده ويُفصل عنه أي فيديو مرتبط')
+    expect(ui).toContain('سيُزال موعده وسجلات حضوره المرتبطة')
     expect(ui).toContain('سبب حذف اللقاء (إجباري')
     expect(ui).toContain('deleteReason.trim().length < 10')
     expect(ui).toContain('disabled={busy || deleteReason.trim().length < 10}')
