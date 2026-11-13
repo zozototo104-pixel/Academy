@@ -106,18 +106,22 @@ async function countQuestionBankDocumentationBlockedNoEvidence(programId: string
   return items.filter((item) => needsAiDocumentation(item as any) && isMissing(item.sourceEvidence)).length
 }
 
-function buildQuestionBankDocumentationUpdates(needs: BankDocumentationTarget[], raw: string) {
+type BankDocumentationUpdate =
+  | { item: BankDocumentationTarget; data: Record<string, any>; error: null }
+  | { item: BankDocumentationTarget; data: null; error: string }
+
+function buildQuestionBankDocumentationUpdates(needs: BankDocumentationTarget[], raw: string): BankDocumentationUpdate[] {
   const rows = new Map(parseAiRows(raw).map((row) => [row.id, row]))
   return needs.map((item) => {
     const row = rows.get(item.id)
-    if (!row) throw new Error('QUESTION_BANK_DOC_AI_ROWS_MISSING')
+    if (!row) return { item, data: null, error: 'QUESTION_BANK_DOC_AI_ROWS_MISSING' }
     const data = documentationPatch(item as QuestionBankItem, row)
-    if (!Object.keys(data).length && needsAiDocumentation(item)) throw new Error('QUESTION_BANK_DOC_AI_ROW_INCOMPLETE')
-    return { item, data }
+    if (!Object.keys(data).length && needsAiDocumentation(item)) return { item, data: null, error: 'QUESTION_BANK_DOC_AI_ROW_INCOMPLETE' }
+    return { item, data, error: null }
   })
 }
 
-async function runQuestionBankDocumentationAiBatch(needs: BankDocumentationTarget[], deadlineMs: number) {
+async function runQuestionBankDocumentationAiBatch(programId: string, needs: BankDocumentationTarget[], deadlineMs: number) {
   const raw = await textAiCompleteJson({
     taskLevel: 'ACADEMIC_CRITICAL',
     system: 'أنت مدقق أكاديمي. أعد JSON فقط. لا تغير نص السؤال أو الخيارات أو الإجابة الصحيحة أو حالة السؤال أو أعلام الجودة. املأ فقط difficulty من EASY/MEDIUM/ADVANCED و cognitiveSkill من UNDERSTAND/APPLY/ANALYZE/EVALUATE و correctRationale من الدليل. للأسئلة الموضوعية أعط distractorRationales مختصرة لكل خيار خاطئ، وفي صح/خطأ سبباً واحداً لعكس الإجابة.',
@@ -127,7 +131,11 @@ async function runQuestionBankDocumentationAiBatch(needs: BankDocumentationTarge
   })
   const updates = buildQuestionBankDocumentationUpdates(needs, raw)
   let filled = 0
-  for (const { item, data } of updates) {
+  for (const { item, data, error } of updates) {
+    if (error) {
+      console.warn('[question-bank-doc] item backfill failed', { programId, id: item.id, error })
+      continue
+    }
     if (!Object.keys(data).length) continue
     filled += Object.keys(data).length
     await db.questionBankItem.update({ where: { id: item.id }, data })
@@ -195,14 +203,14 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
       const needs = selectBankItemsNeedingDocumentation(candidates, skippedAiIds).slice(0, 5)
       if (!needs.length) break
       try {
-        filled += await runQuestionBankDocumentationAiBatch(needs, deadlineMs)
+        filled += await runQuestionBankDocumentationAiBatch(programId, needs, deadlineMs)
         for (const item of needs) skippedAiIds.add(item.id)
       } catch (error) {
         console.warn('[question-bank-doc] batch backfill failed', { programId, ids: needs.map((item) => item.id), error: error instanceof Error ? error.message : String(error) })
         for (let i = 0; i < needs.length && deadlineMs - Date.now() >= 20_000; i += 2) {
           const retry = needs.slice(i, i + 2)
           try {
-            filled += await runQuestionBankDocumentationAiBatch(retry, deadlineMs)
+            filled += await runQuestionBankDocumentationAiBatch(programId, retry, deadlineMs)
           } catch (retryError) {
             for (const item of retry) console.warn('[question-bank-doc] item backfill failed', { programId, id: item.id, error: retryError instanceof Error ? retryError.message : String(retryError) })
           } finally {
