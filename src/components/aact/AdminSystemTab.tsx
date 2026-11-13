@@ -145,7 +145,17 @@ interface PrivateFilesReport {
 
 const PRIVATE_FILE_TYPE_ORDER: PrivateFilesSource[] = ['AdmissionDocument', 'PaymentProof', 'AssignmentSubmission', 'ThesisSubmission', 'ServiceDeliverable']
 
+type CustomProviderSummary = {
+  id: string
+  name: string
+  baseUrl: string
+  enabled: boolean
+  selectedModel: string
+  hasKey: boolean
+}
+
 interface SystemData {
+  customProviders?: CustomProviderSummary[]
   values: Record<string, string>
   secretsSet: Record<string, boolean>
   secretsEncryption?: { configured: boolean; unencryptedKeys: string[] }
