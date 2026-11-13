@@ -98,6 +98,8 @@ function fmtWhen(iso: string, timeZone?: string): string {
 const selectClass = 'h-9 rounded-md border border-slate-300 bg-white px-2 text-sm'
 const labelClass = 'mb-1 block text-xs font-bold text-slate-600'
 
+type ConfirmState = { title: string; message: string; run: () => Promise<void> }
+
 export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface } = {}) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -121,6 +123,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   const [postponeSession, setPostponeSession] = useState<SessionRow | null>(null)
   const [attendanceSession, setAttendanceSession] = useState<SessionRow | null>(null)
   const [attendance, setAttendance] = useState<AttendanceData | null>(null)
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -138,8 +141,8 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
         api<{ videos: VideoRow[]; storageConfigured?: boolean; uploadMaxBytes?: number }>(`/api/admin/lectures/videos/list?${videoParams.toString()}`),
         api<{ programs: ProgramOption[] }>('/api/programs').catch(() => ({ programs: [] as ProgramOption[] })),
         surface === 'supervisor'
-          ? api<{ series: SeriesScopeRow[] }>('/api/admin/lectures/series').catch(() => ({ series: [] as SeriesScopeRow[] }))
-          : Promise.resolve({ series: [] as SeriesScopeRow[] }),
+          ? api<{ series: SeriesScopeRow[]; assignedProgramIds?: string[] }>('/api/admin/lectures/series').catch(() => ({ series: [] as SeriesScopeRow[], assignedProgramIds: [] as string[] }))
+          : Promise.resolve({ series: [] as SeriesScopeRow[], assignedProgramIds: [] as string[] }),
       ])
       const nextSessions = ses.sessions || []
       const nextVideos = vid.videos || []
@@ -148,6 +151,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
       if (surface === 'supervisor') {
         const allowedProgramIds = new Set<string>()
         for (const series of scopedSeries.series || []) allowedProgramIds.add(series.programId)
+        for (const id of scopedSeries.assignedProgramIds || []) allowedProgramIds.add(id)
         for (const session of nextSessions) allowedProgramIds.add(session.series.programId)
         for (const video of nextVideos) allowedProgramIds.add(video.programId)
         visiblePrograms = allPrograms.filter((program) => allowedProgramIds.has(program.id))
@@ -203,6 +207,21 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
     },
     [load, toast],
   )
+
+  const askDeleteSession = (s: SessionRow) => {
+    setConfirm({
+      title: 'حذف اللقاء',
+      message: `حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده ويُفصل عنه أي فيديو مرتبط، ولن تتأثر الفيديوهات نفسها. لا يمكن استعادة اللقاء بعد الحذف.`,
+      run: async () => {
+        await act(async () => {
+          const result = await api<{ deleted: boolean; notificationWarning?: boolean }>(`/api/admin/lectures/sessions/${s.id}`, { method: 'DELETE' })
+          if (result.notificationWarning) {
+            toast({ title: 'حُذف اللقاء، لكن تعذر إرسال إشعار لبعض الطلاب', variant: 'destructive' })
+          }
+        }, 'حُذف اللقاء')
+      },
+    })
+  }
 
   const openAttendance = useCallback(
     async (s: SessionRow) => {
@@ -282,7 +301,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
           </h2>
           {surface === 'supervisor' && (
             <p className="mt-1 max-w-2xl text-xs font-bold leading-6 text-slate-500">
-              هذه الشاشة تعرض وتدير فقط محاضرات البرامج التي عيّنتك الإدارة عليها كمشرف. إنشاء أول سلسلة في أي برنامج يبقى من صلاحيات الإدارة.
+              هذه الشاشة تعرض وتدير فقط محاضرات البرامج التي عيّنتك الإدارة عليها كمشرف. يمكنك إنشاء سلسلة جديدة في أي من هذه البرامج.
             </p>
           )}
         </div>
@@ -402,16 +421,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                       <Button variant="ghost" size="sm" className="text-red-700"
                         disabled={busy || s._count.attendances > 0}
                         title={s._count.attendances > 0 ? 'لا يمكن حذف لقاء فيه سجل حضور؛ استخدم الإلغاء للاحتفاظ بالسجل الأكاديمي' : 'حذف اللقاء من قاعدة البيانات'}
-                        onClick={() => {
-                          if (window.confirm(`حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده ويُفصل عنه أي فيديو مرتبط، ولن تتأثر الفيديوهات نفسها. لا يمكن استعادة اللقاء بعد الحذف.`)) {
-                            void act(async () => {
-                              const result = await api<{ deleted: boolean; notificationWarning?: boolean }>(`/api/admin/lectures/sessions/${s.id}`, { method: 'DELETE' })
-                              if (result.notificationWarning) {
-                                toast({ title: 'حُذف اللقاء، لكن تعذر إرسال إشعار لبعض الطلاب', variant: 'destructive' })
-                              }
-                            }, 'حُذف اللقاء')
-                          }
-                        }}>
+                        onClick={() => askDeleteSession(s)}>
                         <Trash2 className="ml-1 h-4 w-4" /> حذف
                       </Button>
                     )}
@@ -762,6 +772,32 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
           )}
         </DialogContent>
       </Dialog>
+      {confirm && (
+        <Dialog open onOpenChange={(o) => !o && setConfirm(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{confirm.title}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm leading-6 text-slate-600">{confirm.message}</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirm(null)}>
+                تراجع
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={() => {
+                  const run = confirm.run
+                  setConfirm(null)
+                  void run()
+                }}
+              >
+                تأكيد
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

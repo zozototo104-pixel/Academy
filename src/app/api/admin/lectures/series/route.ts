@@ -5,11 +5,13 @@ import { isLecturesEnabled } from '@/lib/lectures/config'
 import {
   auditLecture,
   canManageProgram,
+  getProgramStudentIds,
   isAdmin,
   notifyProgramStudents,
   programLecturesEnabled,
   requireLectureManager,
 } from '@/lib/lectures/manage'
+import { canAccessProgram, supervisorProgramIds, supervisorStudentIds } from '@/lib/supervisor-scope'
 import {
   generateWeeklyOccurrences,
   isValidDateYmd,
@@ -65,13 +67,18 @@ export async function POST(req: NextRequest) {
     if (!isAdmin(actor) && supervisorId !== actor.id) {
       return NextResponse.json({ error: 'المشرف يستطيع إنشاء سلاسل لنفسه فقط' }, { status: 403 })
     }
-    // R-01: المشرف لا يمنح نفسه نطاقًا جديدًا — إنشاء سلسلة في برنامج
-    // يشترط صلاحية قائمة عليه أصلًا (أول سلسلة في أي برنامج ينشئها
-    // الأدمن ويعيّن المشرف عليها)، وإلا صار إنشاء سلسلة بوابة لتصعيد
-    // الصلاحيات لأن نطاق الإدارة يُشتق من ملكية السلاسل.
-    if (!isAdmin(actor) && !(await canManageProgram(actor, input.programId))) {
+    // R-01 (2026-11-13): المشرف لا يمنح نفسه نطاقًا جديدًا — إنشاء سلسلة
+    // في برنامج يشترط صلاحية قائمة عليه أصلًا: إما أنه معيّن مشرفًا على
+    // البرنامج (طلب التحاق عيّنته الإدارة عليه) أو يملك سلسلة فيه.
+    // التعيين وحده لا يمنح إدارة الفيديوهات — تلك تبقى بملكية السلسلة
+    // (canManageProgram) ولا تتوسع هنا.
+    if (
+      !isAdmin(actor) &&
+      !(await canManageProgram(actor, input.programId)) &&
+      !(await canAccessProgram(actor, input.programId))
+    ) {
       return NextResponse.json(
-        { error: 'لا تملك صلاحية إدارة محاضرات هذا البرنامج — إنشاء أول سلسلة في برنامج من صلاحيات الإدارة' },
+        { error: 'لا تملك صلاحية إنشاء سلسلة في هذا البرنامج — البرنامج ليس ضمن برامجك المعيّنة ولا تملك فيه سلسلة' },
         { status: 403 },
       )
     }
@@ -154,12 +161,28 @@ export async function POST(req: NextRequest) {
     })
 
     const first = startsList[0]
-    await notifyProgramStudents(input.programId, {
-      type: input.recurring ? 'LECTURE_SERIES_CREATED' : 'LECTURE_CREATED',
-      title: input.recurring ? 'سلسلة محاضرات جديدة' : 'محاضرة جديدة',
-      body: `أُضيفت «${input.title}» إلى برنامج «${program.titleAr}». أول لقاء: ${first.toISOString()}${input.recurring ? `، وعدد اللقاءات ${startsList.length}` : ''}.`,
-      emailSubject: input.recurring ? 'سلسلة محاضرات جديدة في برنامجك' : 'محاضرة جديدة في برنامجك',
-    })
+    // نطاق الإشعار: الأدمن يشعر كل طلاب البرنامج؛ أما المشرف فيشعر طلابه
+    // المعيّنين عليه والمسجّلين فعليًا في البرنامج فقط — تقاطع مشتق
+    // سيرفريًا من التعيينات والتسجيلات النشطة، لا من أي قائمة يرسلها العميل.
+    let notifyIds: string[] | undefined
+    if (!isAdmin(actor)) {
+      const [assigned, active] = await Promise.all([
+        supervisorStudentIds(actor, input.programId),
+        getProgramStudentIds(input.programId),
+      ])
+      const assignedSet = new Set(assigned)
+      notifyIds = active.filter((id) => assignedSet.has(id))
+    }
+    await notifyProgramStudents(
+      input.programId,
+      {
+        type: input.recurring ? 'LECTURE_SERIES_CREATED' : 'LECTURE_CREATED',
+        title: input.recurring ? 'سلسلة محاضرات جديدة' : 'محاضرة جديدة',
+        body: `أُضيفت «${input.title}» إلى برنامج «${program.titleAr}». أول لقاء: ${first.toISOString()}${input.recurring ? `، وعدد اللقاءات ${startsList.length}` : ''}.`,
+        emailSubject: input.recurring ? 'سلسلة محاضرات جديدة في برنامجك' : 'محاضرة جديدة في برنامجك',
+      },
+      notifyIds,
+    )
     await auditLecture(actor, 'LECTURE_SERIES_CREATED', 'LectureSeries', series.id, {
       programId: input.programId,
       recurring: input.recurring,
@@ -195,7 +218,10 @@ export async function GET(req: NextRequest) {
         _count: { select: { sessions: true } },
       },
     })
-    return NextResponse.json({ series })
+    // للسطح الإشرافي: برامج المشرف المعيّن عليها — ليظهر برنامج بلا
+    // سلاسل بعد في قائمة إنشاء السلسلة (الإنشاء نفسه يتحقق منه POST).
+    const assignedProgramIds = isAdmin(actor) ? undefined : await supervisorProgramIds(actor)
+    return NextResponse.json({ series, ...(assignedProgramIds ? { assignedProgramIds } : {}) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })

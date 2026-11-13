@@ -28,6 +28,11 @@ describe('lecture reminders cron route source guards', () => {
 })
 
 describe('lectures admin UI source guards', () => {
+  test('all series-scope load branches supply typed assigned program ids', () => {
+    expect(adminUi).toContain(".catch(() => ({ series: [] as SeriesScopeRow[], assignedProgramIds: [] as string[] }))")
+    expect(adminUi).toContain("Promise.resolve({ series: [] as SeriesScopeRow[], assignedProgramIds: [] as string[] })")
+  })
+
   test('talks only to the admin lectures endpoints', () => {
     for (const path of ['/api/admin/lectures/sessions/list', '/api/admin/lectures/videos/list', '/api/admin/lectures/series', '/api/admin/lectures/videos']) {
       expect(adminUi).toContain(path)
@@ -57,6 +62,10 @@ describe('lectures admin UI source guards', () => {
     expect(adminUi).toContain("surface === 'supervisor'")
     expect(adminUi).toContain('/api/admin/lectures/series')
     expect(adminUi).toContain('showSupervisorSelect={surface === \'admin\'}')
-    expect(adminUi).toContain('إنشاء أول سلسلة في أي برنامج يبقى من صلاحيات الإدارة')
+    // 2026-11-13 (Haris, option B): first-series creation in an assigned
+    // program is no longer admin-only — the old sentence below was replaced
+    // by the new rule; the UI must say the supervisor CAN create there.
+    expect(adminUi).toContain('يمكنك إنشاء سلسلة جديدة في أي من هذه البرامج')
+    expect(adminUi).not.toContain('إنشاء أول سلسلة في أي برنامج يبقى من صلاحيات الإدارة')
   })
 })

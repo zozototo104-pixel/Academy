@@ -43,7 +43,7 @@ describe('admissions list table (presentation-only reorganization)', () => {
 
   test('the application card was moved, not rewritten: core actions and endpoints intact', () => {
     expect(adminView).toContain('const renderAdmissionCard = (a: AdmissionApp) => {')
-    expect(count('setAdmissionStatus')).toBe(10)
+    expect(count('setAdmissionStatus')).toBe(11) // +1: زر «إعادة للمراجعة» على البطاقات المرفوضة
     expect(count('editAdmissionEnglishName')).toBe(2)
     expect(count('setReplacementFormOpen')).toBe(4)
     expect(adminView).toContain('تعديل اسم الشهادة الإنجليزي')
