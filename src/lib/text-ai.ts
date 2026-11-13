@@ -2705,6 +2705,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
   const s = await settings()
   const order = providerOrder(s)
   const counts: Record<string, number> = {
+    ...Object.fromEntries((s.customProviders || []).map((entry) => [entry.id, s.customProviderKeys?.[entry.id]?.length || 0])),
     GEMINI: s.geminiKeys.length,
     OPENAI: s.openaiKeys.length,
     ANTHROPIC: s.anthropicKeys.length,
