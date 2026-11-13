@@ -141,7 +141,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
         api<{ videos: VideoRow[]; storageConfigured?: boolean; uploadMaxBytes?: number }>(`/api/admin/lectures/videos/list?${videoParams.toString()}`),
         api<{ programs: ProgramOption[] }>('/api/programs').catch(() => ({ programs: [] as ProgramOption[] })),
         surface === 'supervisor'
-          ? api<{ series: SeriesScopeRow[] }>('/api/admin/lectures/series').catch(() => ({ series: [] as SeriesScopeRow[] }))
+          ? api<{ series: SeriesScopeRow[]; assignedProgramIds?: string[] }>('/api/admin/lectures/series').catch(() => ({ series: [] as SeriesScopeRow[] }))
           : Promise.resolve({ series: [] as SeriesScopeRow[] }),
       ])
       const nextSessions = ses.sessions || []
@@ -151,6 +151,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
       if (surface === 'supervisor') {
         const allowedProgramIds = new Set<string>()
         for (const series of scopedSeries.series || []) allowedProgramIds.add(series.programId)
+        for (const id of scopedSeries.assignedProgramIds || []) allowedProgramIds.add(id)
         for (const session of nextSessions) allowedProgramIds.add(session.series.programId)
         for (const video of nextVideos) allowedProgramIds.add(video.programId)
         visiblePrograms = allPrograms.filter((program) => allowedProgramIds.has(program.id))
@@ -300,7 +301,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
           </h2>
           {surface === 'supervisor' && (
             <p className="mt-1 max-w-2xl text-xs font-bold leading-6 text-slate-500">
-              هذه الشاشة تعرض وتدير فقط محاضرات البرامج التي عيّنتك الإدارة عليها كمشرف. إنشاء أول سلسلة في أي برنامج يبقى من صلاحيات الإدارة.
+              هذه الشاشة تعرض وتدير فقط محاضرات البرامج التي عيّنتك الإدارة عليها كمشرف. يمكنك إنشاء سلسلة جديدة في أي من هذه البرامج.
             </p>
           )}
         </div>

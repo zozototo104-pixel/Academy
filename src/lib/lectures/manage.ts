@@ -73,8 +73,12 @@ export async function getProgramStudentIds(programId: string): Promise<string[]>
 export async function notifyProgramStudents(
   programId: string,
   input: { type: string; title: string; body: string; link?: string; emailSubject?: string },
+  // قائمة صريحة اختيارية للمستلمين — عند تمريرها تُستخدم كما هي بدل كل
+  // طلاب البرنامج (يستخدمها إنشاء السلسلة لقصر إشعار المشرف على طلابه).
+  // كل المتصلين الحاليين يمرّرون وسيطين فقط، فسلوكهم بلا تغيير.
+  studentIdsOverride?: string[],
 ): Promise<number> {
-  const studentIds = await getProgramStudentIds(programId)
+  const studentIds = studentIdsOverride ?? (await getProgramStudentIds(programId))
   await Promise.all(studentIds.map((id) => notify(id, input.type, input.title, input.body, input.link)))
   if (input.emailSubject && studentIds.length) {
     const users = await db.user.findMany({

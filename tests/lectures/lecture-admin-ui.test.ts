@@ -57,6 +57,10 @@ describe('lectures admin UI source guards', () => {
     expect(adminUi).toContain("surface === 'supervisor'")
     expect(adminUi).toContain('/api/admin/lectures/series')
     expect(adminUi).toContain('showSupervisorSelect={surface === \'admin\'}')
-    expect(adminUi).toContain('إنشاء أول سلسلة في أي برنامج يبقى من صلاحيات الإدارة')
+    // 2026-11-13 (Haris, option B): first-series creation in an assigned
+    // program is no longer admin-only — the old sentence below was replaced
+    // by the new rule; the UI must say the supervisor CAN create there.
+    expect(adminUi).toContain('يمكنك إنشاء سلسلة جديدة في أي من هذه البرامج')
+    expect(adminUi).not.toContain('إنشاء أول سلسلة في أي برنامج يبقى من صلاحيات الإدارة')
   })
 })
