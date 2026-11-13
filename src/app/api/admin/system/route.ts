@@ -301,7 +301,7 @@ export async function PATCH(req: NextRequest) {
         value = sanitizeFamilyOrder(value)
       }
       if (key === 'AI_PROVIDER_FALLBACK_ORDER') {
-        value = sanitizeProviderOrder(value)
+        value = sanitizeProviderOrder(value, addedIds)
       }
       if (key === 'AI_PROVIDER_TIERS') {
         const cleaned = sanitizeTextAiProviderTiers(value)
