@@ -28,6 +28,11 @@ describe('lecture reminders cron route source guards', () => {
 })
 
 describe('lectures admin UI source guards', () => {
+  test('all series-scope load branches supply typed assigned program ids', () => {
+    expect(adminUi).toContain(".catch(() => ({ series: [] as SeriesScopeRow[], assignedProgramIds: [] as string[] }))")
+    expect(adminUi).toContain("Promise.resolve({ series: [] as SeriesScopeRow[], assignedProgramIds: [] as string[] })")
+  })
+
   test('talks only to the admin lectures endpoints', () => {
     for (const path of ['/api/admin/lectures/sessions/list', '/api/admin/lectures/videos/list', '/api/admin/lectures/series', '/api/admin/lectures/videos']) {
       expect(adminUi).toContain(path)
