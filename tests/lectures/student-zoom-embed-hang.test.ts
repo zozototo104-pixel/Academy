@@ -125,7 +125,10 @@ describe('zoom embed runner — the Portal race', () => {
     const runner = createZoomEmbedRunner(
       baseDeps({ getRoot, loadScript, getZoomSdk: () => ({ createClient: () => client }), sleep: () => Promise.resolve() }),
     )
-    const result = await runner.start()
+    const joining = runner.start()
+    // Status is visible even before the Portal element can be mounted.
+    expect(statuses).toEqual(['preparing'])
+    const result = await joining
     expect(result).toBe('joined')
     // The first script must load only after the element appeared (4th check).
     expect(firstScriptAtChecks).toBeGreaterThan(3)
