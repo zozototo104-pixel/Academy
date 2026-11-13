@@ -209,6 +209,7 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
   let cancelResolve: ((outcome: ZoomEmbedOutcome) => void) | null = null
   let pendingSdkOperation: Promise<void> | null = null
   let cleanupPromise: Promise<boolean> | null = null
+  let leavePromise: Promise<boolean> | null = null
 
   const leave = async (): Promise<boolean> => {
     if (!client) return true
