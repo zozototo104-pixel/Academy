@@ -308,6 +308,9 @@ describe('component wiring (source pins)', () => {
     expect(src).toContain('إعادة المحاولة داخل المنصة')
     expect(src).toContain('setZoomAttempt')
     expect(src).toContain('zoomAttempt')
+    expect(src).toContain('zoomCleanupRef.current')
+    expect(src).toContain('zoomRetryBlocked')
+    expect(src).toContain('if (!safeToStart)')
   })
 
   test('production timeout stays exactly 15 seconds', () => {
