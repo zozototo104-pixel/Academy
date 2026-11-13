@@ -195,7 +195,7 @@ describe('zoom embed runner — stage logging', () => {
       return { ok: true } as any
     }) as any
     try {
-      const { client } = makeClient({ init: async () => { throw new Error('init boom') } })
+      const { client } = makeClient({ init: async () => { throw new Error(`init boom ${MEETING.signature} ${MEETING.password} ${MEETING_URL}`) } })
       // Use the DEFAULT reportStage (no override) so the real fetch path runs.
       const deps: any = baseDeps({ getZoomSdk: () => ({ createClient: () => client }) })
       delete deps.reportStage
