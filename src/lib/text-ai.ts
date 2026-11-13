@@ -23,6 +23,7 @@ export type TextAiProvider =
   | 'CLOUDFLARE'
   | 'APINEX'
   | 'OXION'
+  | `CUSTOM_${string}`
   | 'AUTO'
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
