@@ -160,7 +160,7 @@ function fileBlobToBase64(blob: Blob): Promise<{ data: string; mime: string }> {
 export function SupervisorView() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
-  const [mainSection, setMainSection] = useState<'students' | 'content' | 'review'>('students')
+  const [mainSection, setMainSection] = useState<'students' | 'lectures' | 'content' | 'review'>('students')
   const [reviewFocus, setReviewFocus] = useState<{ type: 'PROGRAM' | 'UNIT'; id: string; nonce: number } | null>(null)
   const openAttemptReview = (type: 'PROGRAM' | 'UNIT', attemptId: string) => {
     setReviewFocus({ type, id: attemptId, nonce: Date.now() })
@@ -478,6 +478,7 @@ export function SupervisorView() {
       <div className="mb-5 flex flex-wrap gap-2" dir="rtl">
         {([
           { key: 'students', label: 'طلابي والمتابعة' },
+          { key: 'lectures', label: 'محاضراتي' },
           { key: 'content', label: 'المحتوى والوحدات' },
           { key: 'review', label: 'مراجعة الدرجات والالتماسات' },
         ] as const).map((s) => (
@@ -928,6 +929,7 @@ export function SupervisorView() {
       )}
       </>)}
 
+      {mainSection === 'lectures' && <AdminLectures surface="supervisor" />}
       {mainSection === 'content' && <SupervisorContentTab />}
       {mainSection === 'review' && <SupervisorGradeReviewTab focus={reviewFocus} />}
 
