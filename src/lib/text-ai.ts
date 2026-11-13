@@ -2599,7 +2599,7 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   const nvidiaCompat = concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
   const alborihiDiscovered = concrete === 'ALBORIHI' && freeModelDiscoveryEntry(concrete, s)?.discoveryOk === true && discoveredRaw.length > 0
-  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered
+  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered || isCustomTextAiProviderId(concrete)
   const discovered = discoveredRaw.filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
   const discoveredSet = new Set(discovered.map((model) => model.toLowerCase()))
   const selected = modelFor(s, concrete)
