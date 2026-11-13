@@ -238,7 +238,7 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
     }
   }
   const runSdkOperation = async (invoke: () => Promise<unknown>): Promise<void> => {
-    const operation = Promise.resolve().then(invoke)
+    const operation = Promise.resolve().then(() => { if (!cancelled) return invoke() })
     // Track eventual settlement even if the 15s watchdog wins the startup race.
     const settled = operation.then(() => {}, () => {})
     pendingSdkOperation = settled
