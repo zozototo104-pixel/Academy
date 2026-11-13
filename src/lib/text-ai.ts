@@ -1459,7 +1459,7 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
     case 'APINEX': return s.apinexBaseUrl
     case 'OXION': return s.oxionBaseUrl
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl
-    default: return ''
+    default: return s.customProviders?.find((entry) => entry.id === provider && entry.enabled)?.baseUrl || ''
   }
 }
 
