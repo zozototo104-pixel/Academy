@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { LectureSessionStatus, type Prisma } from '@prisma/client'
+import { deriveEffectiveStatus } from '@/lib/lectures/student'
 import { isLecturesEnabled } from '@/lib/lectures/config'
 import { isAdmin, requireLectureManager } from '@/lib/lectures/manage'
 
