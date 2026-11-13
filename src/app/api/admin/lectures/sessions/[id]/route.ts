@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { auditLecture, canManageSession, isAdmin, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
 import { isLecturesEnabled } from '@/lib/lectures/config'
