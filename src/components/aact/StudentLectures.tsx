@@ -283,9 +283,9 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
         clearWatchdog()
         onStatus?.('joined')
         return 'joined'
-      } catch (e) {
+      } catch {
         if (cancelled) return 'cancelled'
-        fail(stage, e instanceof Error ? e.message : 'تعذّر تشغيل Zoom داخل المنصة')
+        fail(stage)
         return 'failed'
       }
     })()
