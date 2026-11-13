@@ -271,12 +271,19 @@ describe('zoom embed runner — prevent overlapping SDK clients', () => {
     expect(calls.leave).toBe(1)
   })
 
-  test('a rejected SDK teardown blocks safe retry rather than assuming success', async () => {
+  test('a rejected leave still permits retry only when destroyClient succeeds', async () => {
     const { client } = makeClient()
-    client.leaveMeeting = async () => { throw new Error('leave failed') }
-    const runner = createZoomEmbedRunner(baseDeps({ getZoomSdk: () => ({ createClient: () => client }) }))
+    let destroyed = 0
+    client.leaveMeeting = async () => { throw new Error('already left') }
+    const runner = createZoomEmbedRunner(baseDeps({ getZoomSdk: () => ({
+      createClient: () => client,
+      destroyClient: () => { destroyed += 1 },
+    }) }))
     expect(await runner.start()).toBe('joined')
-    expect(await runner.cancel()).toBe(false)
+    // Zoom may have already disconnected this participant. A completed SDK
+    // destroy is authoritative; a failed leave by itself must not block rejoin.
+    expect(await runner.cancel()).toBe(true)
+    expect(destroyed).toBe(1)
   })
 
   test('cancelling a joined client waits until leaveMeeting finishes', async () => {
