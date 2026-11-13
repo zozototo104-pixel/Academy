@@ -982,7 +982,7 @@ export function AdminSystemTab() {
     next[j] = tmp
     set('AI_PROVIDER_FALLBACK_ORDER', next.join(','))
   }
-  const fallbackProviderLabel = (p: string) => TEXT_PROVIDER_CHOICES.find((c) => c.value === p)?.label.split('—')[0].trim() || p
+  const fallbackProviderLabel = (p: string) => allTextProviderChoices.find((c) => c.value === p)?.label.split('—')[0].trim() || p
   // مفتاح إطفاء الترتيب اليدوي: غير المضبوط = مفعّل (الترتيب المحفوظ يعمل فور
   // حفظه)؛ الإطفاء الصريح يركن الترتيب ويرجع السياسات والعائلات والمدفوع أولاً.
   const fallbackOrderEnabled = form.AI_PROVIDER_FALLBACK_ORDER_ENABLED !== 'false' && form.AI_PROVIDER_FALLBACK_ORDER_ENABLED !== '0'
