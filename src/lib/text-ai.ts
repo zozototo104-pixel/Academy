@@ -1107,6 +1107,8 @@ async function settings() {
   const openaiCompatDefaults = isNvidiaOpenAiCompatibleBaseUrl(openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   return {
     provider,
+    customProviders,
+    customProviderKeys,
     policy,
     policySource: normalizePolicySource(rows.AI_ROUTER_POLICY_SOURCE || env('AI_ROUTER_POLICY_SOURCE') || 'legacy'),
     policyRankBy: normalizePolicyRankBy(rows.AI_POLICY_RANK_BY || env('AI_POLICY_RANK_BY') || 'provider'),
