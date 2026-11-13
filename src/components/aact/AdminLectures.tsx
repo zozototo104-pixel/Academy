@@ -794,18 +794,17 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
               <DialogTitle>{confirm.title}</DialogTitle>
             </DialogHeader>
             <p className="text-sm leading-6 text-slate-600">{confirm.message}</p>
-            {confirm.attendanceCount > 0 ? (
+            {confirm.attendanceCount > 0 && (
               <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
-                لا يمكن حذف هذا اللقاء لأن فيه {confirm.attendanceCount} سجل حضور. حفاظًا على السجل الأكاديمي، يمكن للإدارة إلغاء اللقاء بدل حذفه.
+                تنبيه: سيتم حذف {confirm.attendanceCount} سجل حضور مرتبط بهذا اللقاء من سجلات الحضور. ستبقى نسخة موثقة من تفاصيل الحضور وسبب الحذف في سجل تدقيق الإدارة، لكن اللقاء وسجلات حضوره لن تعود ظاهرة بعد الحذف.
               </p>
-            ) : (
-              <div className="space-y-1">
-                <label htmlFor="lecture-delete-reason" className={labelClass}>سبب حذف اللقاء (إجباري، 10 أحرف على الأقل)</label>
-                <Textarea id="lecture-delete-reason" value={deleteReason} maxLength={500}
-                  onChange={(e) => setDeleteReason(e.target.value)}
-                  placeholder="اكتب سبب الحذف لتوثيقه في سجل التدقيق" />
-              </div>
             )}
+            <div className="space-y-1">
+              <label htmlFor="lecture-delete-reason" className={labelClass}>سبب حذف اللقاء (إجباري، 10 أحرف على الأقل)</label>
+              <Textarea id="lecture-delete-reason" value={deleteReason} maxLength={500}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                placeholder="اكتب سبب الحذف لتوثيقه في سجل التدقيق" />
+            </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setConfirm(null); setDeleteReason('') }}>
                 تراجع
