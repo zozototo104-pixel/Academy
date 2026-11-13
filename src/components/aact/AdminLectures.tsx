@@ -126,6 +126,12 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   const [attendance, setAttendance] = useState<AttendanceData | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [busy, setBusy] = useState(false)
+  const [statusClock, setStatusClock] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setStatusClock(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
