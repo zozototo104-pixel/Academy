@@ -210,13 +210,37 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
   let pendingSdkOperation: Promise<void> | null = null
   let cleanupPromise: Promise<boolean> | null = null
 
-  const leave = () => {
-    if (!client) return
+  const leave = async (): Promise<boolean> => {
+    if (!client) return true
     try {
-      const pending = client.leaveMeeting?.()
-      if (pending && typeof pending.catch === 'function') void pending.catch(() => {})
+      if (typeof client.leaveMeeting !== 'function') return false
+      await client.leaveMeeting()
+      return true
     } catch {
-      // Leaving the UI must not be blocked by a provider teardown error.
+      // Never treat a failed SDK teardown as proof that retry is safe.
+      return false
+    }
+  }
+  const waitForCleanup = async (task: Promise<boolean>): Promise<boolean> => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    try {
+      return await Promise.race([
+        task.catch(() => false),
+        new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), cleanupWaitMs) }),
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+  const runSdkOperation = async (invoke: () => Promise<unknown>): Promise<void> => {
+    const operation = Promise.resolve().then(invoke)
+    // Track eventual settlement even if the 15s watchdog wins the startup race.
+    const settled = operation.then(() => {}, () => {})
+    pendingSdkOperation = settled
+    try {
+      await operation
+    } finally {
+      if (pendingSdkOperation === settled) pendingSdkOperation = null
     }
   }
   const fail = (stage: ZoomEmbedStage) => {
