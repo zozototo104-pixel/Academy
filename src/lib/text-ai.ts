@@ -3261,6 +3261,7 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
   if (isCustomTextAiProviderId(provider)) await assertPublicCustomTextAiUrl(baseUrl)
   const response = await fetchWithTimeout(provider, `${baseUrl}/chat/completions`, {
     method: 'POST',
+    ...(isCustomTextAiProviderId(provider) ? { redirect: 'error' as const } : {}),
     headers: {
       Authorization: `Bearer ${key}`,
       'Content-Type': 'application/json',
