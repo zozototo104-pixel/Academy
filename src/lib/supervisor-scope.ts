@@ -19,13 +19,14 @@ export function isSupervisorAdmin(actor: SupervisorActor): boolean {
 }
 
 // طلاب المشرف: كل من له طلب التحاق معيّن عليه هذا المشرف وله حساب.
-export async function supervisorStudentIds(actor: SupervisorActor): Promise<string[]> {
+// programId اختياري؛ عند تحديده لا تشمل النتائج تعيينات برامج أخرى.
+export async function supervisorStudentIds(actor: SupervisorActor, programId?: string): Promise<string[]> {
   if (isSupervisorAdmin(actor)) {
-    const rows = await db.admissionApplication.findMany({ where: { userId: { not: null } }, select: { userId: true }, distinct: ['userId'] })
+    const rows = await db.admissionApplication.findMany({ where: { userId: { not: null }, ...(programId ? { programId } : {}) }, select: { userId: true }, distinct: ['userId'] })
     return rows.map((r) => r.userId).filter((id): id is string => Boolean(id))
   }
   const rows = await db.admissionApplication.findMany({
-    where: { supervisorId: actor.id, userId: { not: null } },
+    where: { supervisorId: actor.id, userId: { not: null }, ...(programId ? { programId } : {}) },
     select: { userId: true },
     distinct: ['userId'],
   })
