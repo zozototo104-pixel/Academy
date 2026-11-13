@@ -405,6 +405,7 @@ export function StudentLectures() {
         setZoomStatus(null)
       },
     })
+    zoomRunnerRef.current = runner
     let disposed = false
     let started = false
     // Wait for the previous SDK client's async leave before starting a new one.
