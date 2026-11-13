@@ -382,6 +382,9 @@ export function StudentLectures() {
   const [zoomStatus, setZoomStatus] = useState<ZoomEmbedStage | null>(null)
   const [zoomAttempt, setZoomAttempt] = useState(0)
   const [zoomRetryBlocked, setZoomRetryBlocked] = useState(false)
+  const [zoomClosing, setZoomClosing] = useState(false)
+  const zoomClosingRef = useRef(false)
+  const zoomRunnerRef = useRef<ReturnType<typeof createZoomEmbedRunner> | null>(null)
   const zoomCleanupRef = useRef<Promise<boolean>>(Promise.resolve(true))
   const zoomRootRef = useRef<HTMLDivElement>(null)
 
