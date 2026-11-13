@@ -73,7 +73,6 @@ const baseDeps = (overrides: Record<string, any> = {}) => ({
   loadScript: async (src: string) => {
     loadedScripts.push(src)
   },
-  getZoomSdk: () => ({ createClient: () => { throw new Error('no client injected') } }),
   timeoutMs: 5000,
   pollIntervalMs: 5,
   sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
