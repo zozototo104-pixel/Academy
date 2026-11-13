@@ -2609,6 +2609,9 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
     }
   }
   const concrete = provider as ConcreteProvider
+  if (isCustomTextAiProviderId(concrete) && !s.customProviders.some((entry) => entry.id === concrete && entry.enabled)) {
+    return { provider: concrete, models: [], discoveredCount: 0, staticCount: 0, message: 'المزوّد غير مفعل أو غير موجود.' }
+  }
   const staticDefaults = staticTextModelsForProvider(concrete, s)
   const discoveredRaw = await liveFreeModels(concrete, s)
   const nvidiaCompat = concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
