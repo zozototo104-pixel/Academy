@@ -3966,7 +3966,8 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         } catch (e: any) {
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          const msg = redactSecrets(e?.message || e).slice(0, 240)
+          const rawError = String(e?.message || e)
+          const msg = redactSecrets(isCustomTextAiProviderId(provider) && currentKey ? rawError.split(currentKey).join('[redacted]') : rawError).slice(0, 240)
           const status = statusFromError(e)
           const requestId = requestIdFromError(e)
           lastResult = { provider, model, ok: false, error: msg, at }
