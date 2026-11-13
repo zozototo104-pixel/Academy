@@ -139,3 +139,86 @@ describe('manual provider fallback order', () => {
     expect(__testB2ProviderOrderForTests({ policy: 'primary_first', manualOrder: '' })).toEqual(__testPrimaryProviderOrder())
   })
 })
+
+describe('administrator-registered OpenAI-compatible providers', () => {
+  afterEach(() => {
+    textAi.__setTextAiSettingStoreForTests(null)
+    __resetTextAiStateForTests()
+  })
+
+  test('registry is isolated, validated and cannot overwrite built-in providers', () => {
+    const id = 'CUSTOM_EXTRAA'
+    const registry = JSON.stringify([
+      { id, name: 'My Gateway', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true, selectedModel: 'sample-model:free' },
+      { id, name: 'Duplicate', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true },
+      { id: 'GEMINI', name: 'Built-in collision', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true },
+      { id: 'CUSTOM_LOCAL', name: 'Unsafe', baseUrl: 'http://127.0.0.1/v1', enabled: true },
+    ])
+    expect(textAi.parseCustomTextAiProviders(registry)).toEqual([{
+      id, name: 'My Gateway', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true, selectedModel: 'sample-model:free',
+    }])
+    expect(textAi.customTextAiKeySetting(id)).toBe('AI_CUSTOM_KEY_CUSTOM_EXTRAA')
+    expect(textAi.isCustomTextAiProviderId('OPENAI')).toBe(false)
+    expect(textAi.isCustomTextAiProviderId(id)).toBe(true)
+  })
+
+  test('custom URL validator blocks internal targets, HTTP and token-in-URL forms', () => {
+    expect(textAi.normalizeCustomTextAiUrl('https://api.real-gateway.ai/v1/models')).toBe('https://api.real-gateway.ai/v1')
+    for (const bad of [
+      'http://api.real-gateway.ai/v1',
+      'https://localhost/v1',
+      'https://169.254.169.254/latest/meta-data',
+      'https://user:password@api.real-gateway.ai/v1',
+      'https://api.real-gateway.ai/v1?token=secret',
+      'https://api.real-gateway.ai:8080/v1',
+    ]) {
+      expect(() => textAi.normalizeCustomTextAiUrl(bad)).toThrow()
+    }
+  })
+
+  test('free model recognition requires declared zero input AND output pricing', () => {
+    const free = textAi.__testCustomProviderFreeMetadataForTests
+    expect(free({ pricing: { prompt: '0', completion: '0' } }, 'open-free-model')).toBe(true)
+    expect(free({ is_free: true }, 'some-model')).toBe(true)
+    expect(free({}, 'some-model:free')).toBe(true)
+    expect(free({ pricing: { prompt: '0.00001', completion: '0' } }, 'paid-model')).toBe(false)
+    expect(free({ pricing: { prompt: '0' } }, 'unverified-model')).toBe(false)
+    expect(free({}, 'unknown-model')).toBe(false)
+  })
+
+  test('AUTO detects enabled custom provider keys without rewriting the legacy order', async () => {
+    const id = 'CUSTOM_EXTRAA'
+    const rows: Record<string, string> = {
+      AI_TEXT_PROVIDER: 'AUTO',
+      AI_CUSTOM_PROVIDERS: JSON.stringify([{ id, name: 'Gateway', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true, selectedModel: 'sample:free' }]),
+      [textAi.customTextAiKeySetting(id)]: 'test-custom-secret',
+    }
+    textAi.__setTextAiSettingStoreForTests({
+      read: async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, rows[key] || ''])),
+      write: async () => {},
+      delete: async () => {},
+    })
+    const enabled = await textAi.textAiDiagnostics()
+    expect(enabled.keyCounts[id]).toBe(1)
+    expect(enabled.activeProvider).toBe(id)
+    expect(enabled.selectedProvider).toBe('AUTO')
+    rows.AI_CUSTOM_PROVIDERS = JSON.stringify([{ id, name: 'Gateway', baseUrl: 'https://api.real-gateway.ai/v1', enabled: false, selectedModel: 'sample:free' }])
+    const disabled = await textAi.textAiDiagnostics()
+    expect(disabled.activeProvider).toBeNull()
+  })
+
+  test('admin API uses encrypted storage and exposes only metadata; UI includes manual ordering', () => {
+    const apiRoute = readFileSync(new URL('../../src/app/api/admin/system/route.ts', import.meta.url), 'utf8')
+    const ui = readFileSync(new URL('../../src/components/aact/AdminSystemTab.tsx', import.meta.url), 'utf8')
+    expect(apiRoute).toContain("if (action === 'save-custom-ai-provider')")
+    expect(apiRoute).toContain('await assertPublicCustomTextAiUrl(')
+    expect(apiRoute).toContain('const value = encryptSecret(key)')
+    expect(apiRoute).toContain('customProviders: await adminCustomTextAiProviders()')
+    expect(apiRoute).toContain("if (action === 'refresh-custom-ai-models')")
+    expect(apiRoute).toContain("if (action === 'select-custom-ai-model')")
+    expect(ui).toContain('allTextProviderChoices')
+    expect(ui).toContain('...(data.customProviders || []).map((entry) => entry.id)')
+    expect(ui).toContain('إضافة مزوّد ذكاء اصطناعي جديد')
+    expect(ui).toContain('تحديث النماذج المجانية')
+  })
+})
