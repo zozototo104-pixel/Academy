@@ -429,9 +429,28 @@ export function StudentLectures() {
     })
     return () => {
       disposed = true
+      if (zoomRunnerRef.current === runner) zoomRunnerRef.current = null
       if (started) zoomCleanupRef.current = runner.cancel()
     }
   }, [embeddedZoom, zoomAttempt])
+
+  const closeZoomRoom = useCallback(async () => {
+    if (zoomClosingRef.current) return
+    zoomClosingRef.current = true
+    setZoomClosing(true)
+    try {
+      // Keep the Portal root mounted while Zoom leaves and destroys the client.
+      // A normal Dialog unmount removes this node before effect cleanup runs.
+      if (zoomRunnerRef.current) zoomCleanupRef.current = zoomRunnerRef.current.cancel()
+      await zoomCleanupRef.current
+    } finally {
+      setEmbeddedZoom(null)
+      setZoomError(null)
+      setZoomStatus(null)
+      setZoomClosing(false)
+      zoomClosingRef.current = false
+    }
+  }, [])
   const [now, setNow] = useState(() => Date.now())
   const [activeWatch, setActiveWatch] = useState<{ video: VideoItem; watch: WatchDescriptor } | null>(null)
   const [openingVideoId, setOpeningVideoId] = useState<string | null>(null)
