@@ -49,6 +49,27 @@ describe('lectures admin UI source guards', () => {
     expect(adminUi).toContain('zonedTimeToUtc')
   })
 
+  test('admin and supervisor list returns the effective time-derived lecture status and filters it', () => {
+    const list = readFileSync('src/app/api/admin/lectures/sessions/list/route.ts', 'utf8')
+    expect(list).toContain('deriveEffectiveStatus(session, now)')
+    expect(list).toContain('statusWhere')
+    expect(list).toContain("status === 'ENDED'")
+    expect(list).toContain('endsAt: { lt: now }')
+    expect(list).toContain("status === 'LIVE'")
+    expect(list).toContain('endsAt: { gte: now }')
+    expect(list).toContain("status === 'RESCHEDULED'")
+    expect(list).toContain('lecturerId: actor.id')
+    expect(list).toContain('requireLectureManager()')
+  })
+
+  test('management view refreshes the effective status on the clock for admin and supervisor', () => {
+    expect(adminUi).toContain('deriveEffectiveStatus(')
+    expect(adminUi).toContain('setStatusClock(Date.now())')
+    expect(adminUi).toContain('30_000')
+    expect(adminUi).toContain('STATUS_META[actualStatus]')
+    expect(supervisorUi).toContain('<AdminLectures surface="supervisor" />')
+  })
+
   test('times cannot be edited directly; attendance confirm uses the PATCH endpoint', () => {
     expect(adminUi).toContain('تغيير الموعد يتم من زر «تأجيل» حصرًا')
     expect(adminUi).toContain('/attendance')
