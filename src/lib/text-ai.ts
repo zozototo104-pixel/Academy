@@ -1088,6 +1088,11 @@ async function settings() {
     'APINEX_API_KEY', 'APINEX_API_KEYS', 'APINEX_TEXT_MODEL', 'APINEX_BASE_URL',
     'OXION_API_KEY', 'OXION_API_KEYS', 'OXION_TEXT_MODEL', 'OXION_BASE_URL',
   ])
+  const customProviders = parseCustomTextAiProviders(rows[CUSTOM_AI_PROVIDERS_SETTING])
+  const customKeyRows = await readSettings(customProviders.map((entry) => customTextAiKeySetting(entry.id)))
+  const customProviderKeys: Record<string, string[]> = Object.fromEntries(customProviders.map((entry) => [
+    entry.id, parseKeys(customKeyRows[customTextAiKeySetting(entry.id)]),
+  ]))
   const provider = normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
   const policy = normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
   const routerCooldownMinutes = __testResolveRouterCooldownMinutesForTests(rows.AI_ROUTER_COOLDOWN_MINUTES, env('AI_ROUTER_COOLDOWN_MINUTES'))
