@@ -65,10 +65,13 @@ describe('administrator lecture deletion confirmation and reason', () => {
     // The best-effort auditLecture helper catches errors, so it must not
     // be used for a destructive operation requiring an audit guarantee.
     expect(code.slice(transactionAt, endAt)).not.toContain('auditLecture(')
-    expect(code).toContain('if (result.count === 0) return false')
-    expect(code).toContain('if (!deleted)')
+    expect(code).toContain("if (removedAttendances.count !== attendanceSnapshot.length)")
+    expect(code).toContain("throw new Error('LECTURE_DELETE_CONFLICT')")
+    expect(code).toContain('if (result.count !== 1)')
     expect(code).toContain('attendances: { none: {} }')
     expect(code).toContain('details: safeAuditDetails({')
+    expect(code).toContain("error?.code === 'P2034'")
+    expect(code).toContain('status: 409')
   })
 
   test('admin can delete attended meetings with reason, visible warning, and archived attendance', () => {
