@@ -383,7 +383,8 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
             <p className="py-6 text-center text-sm text-slate-500">لا توجد لقاءات مطابقة.</p>
           ) : (
             sessions.map((s) => {
-              const meta = STATUS_META[s.status] ?? STATUS_META.SCHEDULED
+              const actualStatus = deriveEffectiveStatus({ ...s, startsAt: new Date(s.startsAt), endsAt: new Date(s.endsAt) }, new Date(statusClock))
+              const meta = STATUS_META[actualStatus] ?? STATUS_META.SCHEDULED
               return (
                 <div key={s.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-3 last:border-0">
                   <div className="min-w-0 flex-1">
