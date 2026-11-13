@@ -2322,7 +2322,7 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
   const alborihiDiscovered = provider === 'ALBORIHI' && freeModelDiscoveryEntry(provider, s)?.discoveryOk === true && discoveredFree.length > 0
-  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered
+  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered || isCustomTextAiProviderId(provider)
   const discoveredSet = new Set(discoveredFree.map((model) => model.toLowerCase()))
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
   const selectedPart = selected && !selectedIsAuto && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
