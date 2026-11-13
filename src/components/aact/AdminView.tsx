@@ -1809,6 +1809,12 @@ export function AdminView() {
                 <Award className="ml-1 h-3.5 w-3.5" /> شهادة دراسية صادرة — ظاهرة في تبويب الشهادات
               </Badge>
             )}
+            {/* إعادة طلب مرفوض إلى المراجعة: الخادم يسمح REJECTED ← UNDER_REVIEW، لكن كتلة أزرار الحالات مخفية حين الحالة REJECTED فلا مسار في الواجهة للرجوع بدونه — وإرجاع الحالة يُظهر منتقي المشرف تلقائياً بنفس المشرف المحفوظ */}
+            {isStudyAdmission && !ownerIsStaffAccount && a.status === 'REJECTED' && (
+              <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'UNDER_REVIEW')} className="border-blue-200 font-bold text-blue-600">
+                <Search className="ml-1 h-3.5 w-3.5" /> إعادة للمراجعة
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
