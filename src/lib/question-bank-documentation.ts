@@ -106,9 +106,7 @@ async function countQuestionBankDocumentationBlockedNoEvidence(programId: string
   return items.filter((item) => needsAiDocumentation(item as any) && isMissing(item.sourceEvidence)).length
 }
 
-type BankDocumentationUpdate =
-  | { item: BankDocumentationTarget; data: Record<string, any>; error: null }
-  | { item: BankDocumentationTarget; data: null; error: string }
+type BankDocumentationUpdate = { item: BankDocumentationTarget; data: Record<string, any> | null; error: string | null }
 
 function buildQuestionBankDocumentationUpdates(needs: BankDocumentationTarget[], raw: string): BankDocumentationUpdate[] {
   const rows = new Map(parseAiRows(raw).map((row) => [row.id, row]))
@@ -132,10 +130,8 @@ async function runQuestionBankDocumentationAiBatch(programId: string, needs: Ban
   const updates = buildQuestionBankDocumentationUpdates(needs, raw)
   let filled = 0
   for (const { item, data, error } of updates) {
-    if (error || data === null) {
-      console.warn('[question-bank-doc] item backfill failed', { programId, id: item.id, error })
-      continue
-    }
+    if (error) console.warn('[question-bank-doc] item backfill failed', { programId, id: item.id, error })
+    if (error || !data) continue
     if (!Object.keys(data).length) continue
     filled += Object.keys(data).length
     await db.questionBankItem.update({ where: { id: item.id }, data })
