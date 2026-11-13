@@ -176,6 +176,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (error?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
     }
-    return NextResponse.json({ error: 'تعذر حذف اللقاء' }, { status: 500 })
+    if (error?.message === 'LECTURE_DELETE_CONFLICT' || error?.code === 'P2034') {
+      return NextResponse.json({ error: 'تغيرت سجلات اللقاء أثناء الحذف. أعد المحاولة بعد تحديث الصفحة.' }, { status: 409 })
+    }
+    return NextResponse.json({ error: 'تعذر حذف اللقاء أو حفظ سبب الحذف في سجل التدقيق؛ لم يُحذف شيء' }, { status: 500 })
   }
 }
