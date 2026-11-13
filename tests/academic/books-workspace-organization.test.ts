@@ -164,7 +164,8 @@ function apiSurface(): { count: number; digest: string } {
   const manualReviewCalls = calls.filter((call) =>
     (call.includes('/api/admin/knowledge-bank?programId=') && call.includes('&review=1')) ||
     (call.includes("'/api/admin/knowledge-bank'") && call.includes("method: 'PATCH'") &&
-      call.includes('expectedUpdatedAt') && !call.includes("action: 'restore-source'")))
+      call.includes('expectedUpdatedAt') && !call.includes("action: 'restore-source'") &&
+      !call.includes("action: 'repair-chunk'") && !call.includes("action: 'edit-chunk'")))
   assert.equal(manualReviewCalls.length, 2, 'expected one review-queue GET and one manual-review PATCH')
   assert.ok(manualReviewCalls.some((call) => call.includes('encodeURIComponent(cursor)')), 'review queue must page by cursor')
   assert.ok(manualReviewCalls.some((call) => call.includes('manualReviewForm.title') && call.includes('manualReviewForm.summary') && call.includes('manualReviewForm.excerpt')), 'manual save must send all three corrected fields')
@@ -183,6 +184,21 @@ function apiSurface(): { count: number; digest: string } {
     sourceRestoreCalls[0].includes('expectedUpdatedAt: item.updatedAt') &&
     sourceRestoreCalls[0].includes('chunkId: match.chunkId'),
     'source restoration requires explicit confirmation, original chunk and optimistic concurrency')
+  // 2026-11-13: chunk word repair adds one read-only preview GET and two
+  // explicitly confirmed PATCH calls (rules confirm + manual edit). Both
+  // writes resolve the chunk from the item server-side and carry the
+  // previewed chunk version for optimistic concurrency.
+  const chunkRepairCalls = calls.filter((call) =>
+    (call.includes('/api/admin/knowledge-bank?programId=') && call.includes('chunkRepairPreview=1') &&
+      call.includes('encodeURIComponent(item.id)')) ||
+    (call.includes("'/api/admin/knowledge-bank'") && call.includes("method: 'PATCH'") &&
+      call.includes("action: 'repair-chunk'")) ||
+    (call.includes("'/api/admin/knowledge-bank'") && call.includes("method: 'PATCH'") &&
+      call.includes("action: 'edit-chunk'")))
+  assert.equal(chunkRepairCalls.length, 3, 'expected one chunk repair preview GET and two chunk write PATCH calls')
+  assert.ok(chunkRepairCalls.some((call) => call.includes('chunkRepairPreview=1') && call.includes('encodeURIComponent(item.id)')), 'chunk repair preview must be item-scoped')
+  assert.ok(chunkRepairCalls.some((call) => call.includes("action: 'repair-chunk'") && call.includes('expectedUpdatedAt: preview.chunkUpdatedAt')), 'rules repair must confirm against the previewed chunk version')
+  assert.ok(chunkRepairCalls.some((call) => call.includes("action: 'edit-chunk'") && call.includes('expectedUpdatedAt: preview.chunkUpdatedAt')), 'manual chunk edit must confirm against the previewed chunk version')
   // The standalone tab independently lists programs; keep exactly the original
   // API call plus one identical reviewed duplicate for its own selector.
   const aiSettingsCalls = calls.filter((call) => call.includes("'/api/admin/system'"))
@@ -204,7 +220,8 @@ function apiSurface(): { count: number; digest: string } {
       return !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) &&
         !bookRebuildCalls.includes(call) && !aiRepairCalls.includes(call) && !aiRefreshCalls.includes(call) &&
         !aiSettingsCalls.includes(call) && !manualReviewCalls.includes(call) &&
-        !sourceCandidateCalls.includes(call) && !sourceRestoreCalls.includes(call)
+        !sourceCandidateCalls.includes(call) && !sourceRestoreCalls.includes(call) &&
+        !chunkRepairCalls.includes(call)
     })
     .map((call) => {
       if (suggestedAssignmentSaveCalls.includes(call)) return call.replace('dueDays: s.semester === 3 || !s.unitId ? 14 : null', 'dueDays: null')
@@ -213,7 +230,7 @@ function apiSurface(): { count: number; digest: string } {
     })
     .sort()
   return {
-    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - aiSettingsCalls.length - manualReviewCalls.length - sourceCandidateCalls.length - sourceRestoreCalls.length - 1,
+    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - aiSettingsCalls.length - manualReviewCalls.length - sourceCandidateCalls.length - sourceRestoreCalls.length - chunkRepairCalls.length - 1,
     digest: digest(protectedCalls.join('\n')),
   }
 }
