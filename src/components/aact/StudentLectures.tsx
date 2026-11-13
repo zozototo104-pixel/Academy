@@ -691,7 +691,12 @@ export function StudentLectures() {
             <DialogTitle>{embeddedZoom?.title || 'قاعة المحاضرة'}</DialogTitle>
             <DialogDescription>المحاضرة تعمل داخل المنصة. تأكيد الحضور الفعلي من صلاحية المشرف.</DialogDescription>
           </DialogHeader>
-          {zoomStatus && zoomStatus !== 'joined' && (
+          {zoomClosing && (
+            <div className="flex items-center gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
+              <Loader2 className="h-4 w-4 animate-spin" /> جارٍ الخروج من القاعة وإغلاق الاتصال…
+            </div>
+          )}
+          {!zoomClosing && zoomStatus && zoomStatus !== 'joined' && (
             <div className="flex items-center gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
               <Loader2 className="h-4 w-4 animate-spin" /> {ZOOM_EMBED_STAGE_LABELS[zoomStatus]}
             </div>
