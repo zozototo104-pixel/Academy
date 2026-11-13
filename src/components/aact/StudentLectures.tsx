@@ -661,7 +661,7 @@ export function StudentLectures() {
             <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
               {zoomError} — يمكنك فتح المحاضرة في Zoom مباشرة.
               <a className="mr-2 underline" href={embeddedZoom?.meetingUrl} target="_blank" rel="noopener noreferrer">فتح الرابط الخارجي</a>
-              <Button variant="outline" size="sm" className="mr-2" onClick={() => { setZoomError(null); setZoomStatus('preparing'); setZoomAttempt((n) => n + 1) }}>إعادة المحاولة داخل المنصة</Button>
+              {!zoomRetryBlocked && <Button variant="outline" size="sm" className="mr-2" onClick={() => { setZoomError(null); setZoomStatus('preparing'); setZoomAttempt((n) => n + 1) }}>إعادة المحاولة داخل المنصة</Button>}
             </div>
           )}
           <div ref={zoomRootRef} className="min-h-0 flex-1 overflow-auto" dir="ltr" />
