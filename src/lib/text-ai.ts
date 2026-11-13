@@ -3258,6 +3258,7 @@ export function __testChatCompletionVisibleTextForTests(message: any): string {
 
 async function callChatCompletions(provider: string, baseUrl: string, key: string, model: string, opts: TextAiCallOpts): Promise<string> {
   const providerOpts = withNvidiaNoThinkDirective(provider, baseUrl, model, opts)
+  if (isCustomTextAiProviderId(provider)) await assertPublicCustomTextAiUrl(baseUrl)
   const response = await fetchWithTimeout(provider, `${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
