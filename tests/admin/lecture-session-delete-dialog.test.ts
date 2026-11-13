@@ -2,82 +2,96 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-// Lecture-session delete dialog (Haris 2026-11-13): the session-delete
-// button used the browser's native window.confirm — a system screen —
-// while the rest of the platform uses its own styled Dialog (see
-// AdminMeetings.tsx: ConfirmState + askDeleteMeeting + the max-w-sm
-// Dialog with تراجع/تأكيد). This change mirrors that pattern exactly:
-// same title/message text, same DELETE call, same attendances guard.
-// The session-CANCEL confirm and the video-delete confirm are different
-// actions and are deliberately NOT touched.
+// Admin-only hard deletion requires an explicit reason, a confirmation dialog,
+// and preserves the academic attendance guard on both client and server.
 const root = join(import.meta.dir, '..', '..')
 const read = (p: string) => readFileSync(join(root, p), 'utf8')
 const view = () => read('src/components/aact/AdminLectures.tsx')
-const meetings = () => read('src/components/aact/AdminMeetings.tsx')
+const route = () => read('src/app/api/admin/lectures/sessions/[id]/route.ts')
 const count = (hay: string, needle: string) => hay.split(needle).length - 1
 
-const DELETE_MESSAGE =
-  'حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده ويُفصل عنه أي فيديو مرتبط، ولن تتأثر الفيديوهات نفسها. لا يمكن استعادة اللقاء بعد الحذف.'
-
-describe('lecture session delete dialog', () => {
-  test('the session-delete path no longer uses window.confirm', () => {
-    const v = view()
-    // The delete button now opens the custom confirm state instead.
-    expect(v).toContain('onClick={() => askDeleteSession(s)}')
-    expect(v).not.toContain(`window.confirm(\`${DELETE_MESSAGE}\`)`)
-    // Exactly two native confirms remain: session CANCEL and video DELETE.
-    // Both are different actions, out of scope for this change.
-    expect(count(v, 'window.confirm(')).toBe(2)
-    expect(v).toContain('إلغاء محاضرة «${s.title}»؟ سيُشعر الطلاب فورًا.')
-    expect(v).toContain('حذف فيديو «${v.title}» نهائيًا؟')
+describe('administrator lecture deletion confirmation and reason', () => {
+  test('only admin surface renders the delete action and server rejects non-admins', () => {
+    const ui = view()
+    expect(ui).toContain("surface === 'admin' && (")
+    expect(ui).toContain("if (surface !== 'admin') return")
+    expect(route()).toContain('if (!isAdmin(actor))')
+    expect(route()).toContain("status: 403")
+    expect(ui).toContain('onClick={() => askDeleteSession(s)}')
   })
 
-  test('the delete button sets the custom confirm state with the same title and message', () => {
-    const v = view()
-    expect(v).toContain('const askDeleteSession = (s: SessionRow) => {')
-    expect(v).toContain('setConfirm({')
-    expect(v).toContain("title: 'حذف اللقاء'")
-    expect(v).toContain(`message: \`${DELETE_MESSAGE}\``)
-    // The confirm state type mirrors AdminMeetings (local, not exported).
-    expect(v).toContain('type ConfirmState = { title: string; message: string; run: () => Promise<void> }')
-    expect(v).toContain('const [confirm, setConfirm] = useState<ConfirmState | null>(null)')
-    expect(meetings()).toContain('type ConfirmState = { title: string; message: string; run: () => Promise<void> }')
+  test('requires a reason with a visible irreversible-action confirmation', () => {
+    const ui = view()
+    expect(ui).toContain("title: 'حذف اللقاء'")
+    expect(ui).toContain('سيُزال موعده ويُفصل عنه أي فيديو مرتبط')
+    expect(ui).toContain('سبب حذف اللقاء (إجباري')
+    expect(ui).toContain('deleteReason.trim().length < 10')
+    expect(ui).toContain('maxLength={500}')
+    expect(ui).toContain('تأكيد الحذف')
+    expect(ui).toContain('const reason = deleteReason.trim()')
+    expect(ui).toContain('void run(reason)')
+    expect(ui).toContain("body: JSON.stringify({ reason })")
+    expect(ui).toContain('تراجع')
+    expect(ui).not.toContain("window.confirm(`حذف لقاء")
+    expect(count(ui, 'window.confirm(')).toBe(2)
   })
 
-  test('the confirm dialog renders تراجع/تأكيد, destructive تأكيد disabled while busy', () => {
-    const v = view()
-    expect(v).toContain('{confirm && (')
-    expect(v).toContain('<Dialog open onOpenChange={(o) => !o && setConfirm(null)}>')
-    expect(v).toContain('<DialogContent className="max-w-sm">')
-    expect(v).toContain('<DialogTitle>{confirm.title}</DialogTitle>')
-    expect(v).toContain('<p className="text-sm leading-6 text-slate-600">{confirm.message}</p>')
-    expect(v).toContain('<Button variant="outline" onClick={() => setConfirm(null)}>')
-    expect(v).toContain('تراجع')
-    expect(v).toContain('variant="destructive"')
-    expect(v).toContain('disabled={busy}')
-    expect(v).toContain('تأكيد')
-    // Close first, then run — the AdminMeetings order, so the dialog is
-    // gone before the delete starts.
-    const dialogAt = v.indexOf('{confirm && (')
-    const runAt = v.indexOf('const run = confirm.run', dialogAt)
-    const closeAt = v.indexOf('setConfirm(null)', runAt)
-    const voidAt = v.indexOf('void run()', closeAt)
-    expect(runAt).toBeGreaterThan(dialogAt)
-    expect(closeAt).toBeGreaterThan(runAt)
-    expect(voidAt).toBeGreaterThan(closeAt)
+  test('server validates the admin reason and records it with the audit actor', () => {
+    const code = route()
+    expect(code).toContain('deleteSessionSchema.safeParse(await req.json().catch(() => null))')
+    expect(code).toContain("z.string().trim().min(10).max(500)")
+    expect(code).toContain('reason: parsed.data.reason')
+    expect(code).toContain("LECTURE_SESSION_DELETED")
+    expect(code).toContain('tx.auditLog.create({')
+    expect(code).toContain('actorId: actor.id')
+    expect(code).toContain('actorName: actor.name')
+    expect(code).toContain('details: safeAuditDetails({')
+    expect(code).toContain("status: 400")
   })
 
-  test('the attendances guard still disables the delete button', () => {
-    const v = view()
-    expect(v).toContain('disabled={busy || s._count.attendances > 0}')
-    expect(v).toContain("title={s._count.attendances > 0 ? 'لا يمكن حذف لقاء فيه سجل حضور؛ استخدم الإلغاء للاحتفاظ بالسجل الأكاديمي' : 'حذف اللقاء من قاعدة البيانات'}")
+  test('delete and audit commit in one transaction; audit failure rolls back the deletion', () => {
+    const code = route()
+    const transactionAt = code.indexOf('const deleted = await db.$transaction(async (tx) => {')
+    const deleteAt = code.indexOf('await tx.lectureSession.deleteMany(', transactionAt)
+    const auditAt = code.indexOf('await tx.auditLog.create(', transactionAt)
+    const commitAt = code.indexOf('return true', auditAt)
+    const endAt = code.indexOf('})', commitAt)
+    expect(transactionAt).toBeGreaterThan(-1)
+    expect(deleteAt).toBeGreaterThan(transactionAt)
+    expect(auditAt).toBeGreaterThan(deleteAt)
+    expect(commitAt).toBeGreaterThan(auditAt)
+    expect(endAt).toBeGreaterThan(commitAt)
+    // The best-effort auditLecture helper catches errors, so it must not
+    // be used for a destructive operation requiring an audit guarantee.
+    expect(code.slice(transactionAt, endAt)).not.toContain('auditLecture(')
+    expect(code).toContain('if (result.count === 0) return false')
+    expect(code).toContain('if (!deleted)')
+    expect(code).toContain('attendances: { none: {} }')
+    expect(code).toContain('details: safeAuditDetails({')
   })
 
-  test('the delete flow itself is unchanged', () => {
-    const v = view()
-    // Exactly one DELETE call for sessions, inside askDeleteSession.
-    expect(count(v, "api<{ deleted: boolean; notificationWarning?: boolean }>(`/api/admin/lectures/sessions/${s.id}`, { method: 'DELETE' })")).toBe(1)
-    expect(v).toContain("toast({ title: 'حُذف اللقاء، لكن تعذر إرسال إشعار لبعض الطلاب', variant: 'destructive' })")
-    expect(v).toContain("}, 'حُذف اللقاء')")
+  test('administrator can inspect a blocked deletion but cannot erase an attendance ledger', () => {
+    const ui = view()
+    const code = route()
+    expect(ui).toContain('attendanceCount: s._count.attendances')
+    expect(ui).toContain('confirm.attendanceCount > 0')
+    expect(ui).toContain('سجل حضور')
+    expect(ui).toContain('disabled={busy || confirm.attendanceCount > 0 || deleteReason.trim().length < 10}')
+    expect(ui).not.toContain('disabled={busy || s._count.attendances > 0}')
+    expect(code).toContain('session._count.attendances > 0')
+    expect(code).toContain('attendances: { none: {} }')
+    expect(code).not.toContain('lectureAttendance.delete')
+  })
+
+  test('deletion retains the existing video detach, notification and confirmation flow', () => {
+    const ui = view()
+    const code = route()
+    expect(ui).toContain('setConfirm({')
+    expect(ui).toContain('setConfirm(null)')
+    expect(ui).toContain('const run = confirm.run')
+    expect(ui).toContain('حُذف اللقاء، لكن تعذر إرسال إشعار لبعض الطلاب')
+    expect(code).toContain('lectureSession.deleteMany')
+    expect(code).toContain('notificationWarning')
+    expect(code).toContain('detachedVideos')
   })
 })

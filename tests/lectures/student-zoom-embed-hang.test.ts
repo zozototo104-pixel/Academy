@@ -73,7 +73,6 @@ const baseDeps = (overrides: Record<string, any> = {}) => ({
   loadScript: async (src: string) => {
     loadedScripts.push(src)
   },
-  getZoomSdk: () => ({ createClient: () => { throw new Error('no client injected') } }),
   timeoutMs: 5000,
   pollIntervalMs: 5,
   sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
@@ -87,6 +86,12 @@ const baseDeps = (overrides: Record<string, any> = {}) => ({
     reports.push({ stage: s, message: m })
   },
   ...overrides,
+  // The real Component View SDK exposes destroyClient. Keep mocks faithful
+  // so production teardown is exercised even in pre-existing runner tests.
+  getZoomSdk: () => {
+    const sdk = overrides.getZoomSdk?.() ?? { createClient: () => { throw new Error('no client injected') } }
+    return { ...sdk, destroyClient: sdk?.destroyClient ?? (() => {}) }
+  },
 })
 
 describe('zoom embed runner — happy path and stages', () => {
@@ -266,12 +271,19 @@ describe('zoom embed runner — prevent overlapping SDK clients', () => {
     expect(calls.leave).toBe(1)
   })
 
-  test('a rejected SDK teardown blocks safe retry rather than assuming success', async () => {
+  test('a rejected leave still permits retry only when destroyClient succeeds', async () => {
     const { client } = makeClient()
-    client.leaveMeeting = async () => { throw new Error('leave failed') }
-    const runner = createZoomEmbedRunner(baseDeps({ getZoomSdk: () => ({ createClient: () => client }) }))
+    let destroyed = 0
+    client.leaveMeeting = async () => { throw new Error('already left') }
+    const runner = createZoomEmbedRunner(baseDeps({ getZoomSdk: () => ({
+      createClient: () => client,
+      destroyClient: () => { destroyed += 1 },
+    }) }))
     expect(await runner.start()).toBe('joined')
-    expect(await runner.cancel()).toBe(false)
+    // Zoom may have already disconnected this participant. A completed SDK
+    // destroy is authoritative; a failed leave by itself must not block rejoin.
+    expect(await runner.cancel()).toBe(true)
+    expect(destroyed).toBe(1)
   })
 
   test('cancelling a joined client waits until leaveMeeting finishes', async () => {
@@ -292,6 +304,61 @@ describe('zoom embed runner — prevent overlapping SDK clients', () => {
     await stopping
     expect(cleanupResult).toBe(true)
     expect(calls.leave).toBe(1)
+  })
+})
+
+describe('zoom embed runner — leave and rejoin the same page', () => {
+  test('destroys the first SDK client before a second join, without refreshing the page', async () => {
+    let active = false
+    const order: string[] = []
+    const sdk = {
+      createClient: () => {
+        if (active) throw new Error('Zoom still has a stale Component View client')
+        active = true
+        const { client } = makeClient()
+        const originalLeave = client.leaveMeeting
+        client.leaveMeeting = () => {
+          order.push('leave')
+          return originalLeave()
+        }
+        return client
+      },
+      destroyClient: () => {
+        order.push('destroy')
+        active = false
+      },
+    }
+    const create = () => createZoomEmbedRunner(baseDeps({ getZoomSdk: () => sdk }))
+    const first = create()
+    expect(await first.start()).toBe('joined')
+    expect(await first.cancel()).toBe(true)
+    expect(order).toEqual(['leave', 'destroy'])
+    const next = create()
+    expect(await next.start()).toBe('joined')
+    expect(await next.cancel()).toBe(true)
+    expect(order).toEqual(['leave', 'destroy', 'leave', 'destroy'])
+    expect(errors).toEqual([])
+  })
+
+  test('still destroys the SDK when Zoom says the participant already left', async () => {
+    let destroyed = 0
+    const { client } = makeClient()
+    client.leaveMeeting = () => Promise.reject(new Error('already left'))
+    const sdk = { createClient: () => client, destroyClient: () => { destroyed += 1 } }
+    const runner = createZoomEmbedRunner(baseDeps({ getZoomSdk: () => sdk }))
+    expect(await runner.start()).toBe('joined')
+    expect(await runner.cancel()).toBe(true)
+    expect(destroyed).toBe(1)
+  })
+
+  test('failed or missing destroyClient does not authorize a second SDK client', async () => {
+    const { client } = makeClient()
+    const runner = createZoomEmbedRunner(baseDeps({ getZoomSdk: () => ({
+      createClient: () => client,
+      destroyClient: () => { throw new Error('SDK teardown rejected') },
+    }) }))
+    expect(await runner.start()).toBe('joined')
+    expect(await runner.cancel()).toBe(false)
   })
 })
 
@@ -319,6 +386,21 @@ describe('component wiring (source pins)', () => {
     expect(src).toContain('zoomCleanupRef.current')
     expect(src).toContain('zoomRetryBlocked')
     expect(src).toContain('if (!safeToStart)')
+  })
+
+  test('closing the room destroys the Zoom client before removing its Portal root', () => {
+    expect(src).toContain('const closeZoomRoom = useCallback(async () => {')
+    expect(src).toContain('zoomRunnerRef.current.cancel()')
+    expect(src).toContain('await zoomCleanupRef.current')
+    expect(src).toContain('setEmbeddedZoom(null)')
+    expect(src).toContain('zoomClosingRef.current')
+    expect(src).toContain('if (!open) void closeZoomRoom()')
+    expect(src).toContain('جارٍ الخروج من القاعة وإغلاق الاتصال')
+    expect(src).toContain('await embeddedSdk.destroyClient()')
+    const closeAt = src.indexOf('const closeZoomRoom = useCallback(')
+    const cleanupAt = src.indexOf('await zoomCleanupRef.current', closeAt)
+    const unmountAt = src.indexOf('setEmbeddedZoom(null)', closeAt)
+    expect(cleanupAt).toBeLessThan(unmountAt)
   })
 
   test('production timeout stays exactly 15 seconds', () => {

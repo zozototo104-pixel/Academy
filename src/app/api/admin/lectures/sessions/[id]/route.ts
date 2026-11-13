@@ -3,6 +3,9 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { auditLecture, canManageSession, isAdmin, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
 import { isLecturesEnabled } from '@/lib/lectures/config'
+import { safeAuditDetails } from '@/lib/lectures/audit'
+
+const deleteSessionSchema = z.object({ reason: z.string().trim().min(10).max(500) })
 
 const patchSessionSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -86,7 +89,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 // DELETE /api/admin/lectures/sessions/[id] — حذف نهائي للأدمن فقط.
 // حضور الطلاب سجل أكاديمي لا يُمحى؛ عند وجوده يُستخدم الإلغاء بدل الحذف.
 // الفيديوهات محفوظة في البرنامج ويرجع ربطها باللقاء إلى null (SetNull).
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await requireLectureManager()
     if (!isLecturesEnabled()) {
@@ -94,6 +97,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
     if (!isAdmin(actor)) {
       return NextResponse.json({ error: 'حذف اللقاء صلاحية الإدارة فقط' }, { status: 403 })
+    }
+    const parsed = deleteSessionSchema.safeParse(await req.json().catch(() => null))
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'سبب الحذف مطلوب (10 أحرف على الأقل)' }, { status: 400 })
     }
     const { id } = await params
     const session = await db.lectureSession.findUnique({
@@ -109,20 +116,37 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         error: 'لا يمكن حذف لقاء لديه سجل حضور؛ استخدم الإلغاء للحفاظ على سجل الطلاب',
       }, { status: 409 })
     }
-    // Conditional delete additionally protects against attendance being recorded
-    // between the initial lookup and the delete request.
-    const deleted = await db.lectureSession.deleteMany({
-      where: { id, attendances: { none: {} } },
+    // Both the conditional delete and its mandatory audit record must commit
+    // together. The shared auditLecture helper swallows logging errors, so it
+    // cannot provide the required rollback guarantee for a destructive action.
+    const deleted = await db.$transaction(async (tx) => {
+      // Protect against attendance being recorded between the initial lookup
+      // and this transaction's delete; the attendance ledger is never erased.
+      const result = await tx.lectureSession.deleteMany({
+        where: { id, attendances: { none: {} } },
+      })
+      if (result.count === 0) return false
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          actorName: actor.name,
+          action: 'LECTURE_SESSION_DELETED',
+          entity: 'LectureSession',
+          entityId: id,
+          details: safeAuditDetails({
+            title: session.title,
+            programId: session.series.programId,
+            status: session.status,
+            reason: parsed.data.reason,
+            detachedVideos: session._count.videos,
+          }),
+        },
+      })
+      return true
     })
-    if (deleted.count === 0) {
-      return NextResponse.json({ error: 'تعذر الحذف لأن حضورًا سُجل لهذا اللقاء؛ استخدم الإلغاء' }, { status: 409 })
+    if (!deleted) {
+      return NextResponse.json({ error: 'تعذر الحذف لأن حضورًا سُجل لهذا اللقاء أو لأنه حُذف مسبقًا' }, { status: 409 })
     }
-    await auditLecture(actor, 'LECTURE_SESSION_DELETED', 'LectureSession', id, {
-      title: session.title,
-      programId: session.series.programId,
-      status: session.status,
-      detachedVideos: session._count.videos,
-    })
     let notificationWarning = false
     if (new Date(session.startsAt).getTime() > Date.now() && session.status !== 'CANCELLED') {
       // Students were notified of the original schedule: clarify its removal.

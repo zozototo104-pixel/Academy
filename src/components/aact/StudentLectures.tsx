@@ -205,6 +205,7 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
   let cancelled = false
   let finished = false
   let client: any = null
+  let embeddedSdk: any = null
   let watchdog: ReturnType<typeof setTimeout> | null = null
   let cancelResolve: ((outcome: ZoomEmbedOutcome) => void) | null = null
   let pendingSdkOperation: Promise<void> | null = null
@@ -215,12 +216,21 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
     if (leavePromise) return leavePromise
     if (!client) return Promise.resolve(true)
     leavePromise = (async () => {
+      // Zoom Meeting SDK Component View owns destroyClient on ZoomMtgEmbedded,
+      // not on the meeting client. A new createClient after leaveMeeting alone
+      // can leave a stale singleton and break rejoining without a page reload.
+      if (typeof embeddedSdk?.destroyClient !== 'function') return false
       try {
-        if (typeof client.leaveMeeting !== 'function') return false
-        await client.leaveMeeting()
+        await client.leaveMeeting?.()
+      } catch {
+        // The meeting may already have ended or removed the participant.
+        // Still destroy the SDK client so the next attempt starts clean.
+      }
+      try {
+        await embeddedSdk.destroyClient()
         return true
       } catch {
-        // Never treat a failed SDK teardown as proof that retry is safe.
+        // Never start a second client when destroyClient could not complete.
         return false
       }
     })()
@@ -301,6 +311,7 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
         onStatus?.('init')
         const sdk = getZoomSdk()
         if (!sdk?.createClient) throw new Error('مكتبة Zoom غير متاحة')
+        embeddedSdk = sdk
         client = createZoomClient(sdk)
         await runSdkOperation(() => client.init({ zoomAppRoot: root, language: 'en-US', patchJsMedia: true, leaveOnPageUnload: true }))
         if (cancelled) { void leave(); return 'cancelled' }
@@ -371,6 +382,9 @@ export function StudentLectures() {
   const [zoomStatus, setZoomStatus] = useState<ZoomEmbedStage | null>(null)
   const [zoomAttempt, setZoomAttempt] = useState(0)
   const [zoomRetryBlocked, setZoomRetryBlocked] = useState(false)
+  const [zoomClosing, setZoomClosing] = useState(false)
+  const zoomClosingRef = useRef(false)
+  const zoomRunnerRef = useRef<ReturnType<typeof createZoomEmbedRunner> | null>(null)
   const zoomCleanupRef = useRef<Promise<boolean>>(Promise.resolve(true))
   const zoomRootRef = useRef<HTMLDivElement>(null)
 
@@ -391,6 +405,7 @@ export function StudentLectures() {
         setZoomStatus(null)
       },
     })
+    zoomRunnerRef.current = runner
     let disposed = false
     let started = false
     // Wait for the previous SDK client's async leave before starting a new one.
@@ -414,9 +429,28 @@ export function StudentLectures() {
     })
     return () => {
       disposed = true
+      if (zoomRunnerRef.current === runner) zoomRunnerRef.current = null
       if (started) zoomCleanupRef.current = runner.cancel()
     }
   }, [embeddedZoom, zoomAttempt])
+
+  const closeZoomRoom = useCallback(async () => {
+    if (zoomClosingRef.current) return
+    zoomClosingRef.current = true
+    setZoomClosing(true)
+    try {
+      // Keep the Portal root mounted while Zoom leaves and destroys the client.
+      // A normal Dialog unmount removes this node before effect cleanup runs.
+      if (zoomRunnerRef.current) zoomCleanupRef.current = zoomRunnerRef.current.cancel()
+      await zoomCleanupRef.current
+    } finally {
+      setEmbeddedZoom(null)
+      setZoomError(null)
+      setZoomStatus(null)
+      setZoomClosing(false)
+      zoomClosingRef.current = false
+    }
+  }, [])
   const [now, setNow] = useState(() => Date.now())
   const [activeWatch, setActiveWatch] = useState<{ video: VideoItem; watch: WatchDescriptor } | null>(null)
   const [openingVideoId, setOpeningVideoId] = useState<string | null>(null)
@@ -651,13 +685,18 @@ export function StudentLectures() {
 
   return (
     <div className="space-y-6">
-      <Dialog open={!!embeddedZoom} onOpenChange={(open) => { if (!open) { setEmbeddedZoom(null); setZoomError(null); setZoomStatus(null) } }}>
+      <Dialog open={!!embeddedZoom} onOpenChange={(open) => { if (!open) void closeZoomRoom() }}>
         <DialogContent className="flex h-[90vh] max-w-[96vw] flex-col" dir="rtl">
           <DialogHeader>
             <DialogTitle>{embeddedZoom?.title || 'قاعة المحاضرة'}</DialogTitle>
             <DialogDescription>المحاضرة تعمل داخل المنصة. تأكيد الحضور الفعلي من صلاحية المشرف.</DialogDescription>
           </DialogHeader>
-          {zoomStatus && zoomStatus !== 'joined' && (
+          {zoomClosing && (
+            <div className="flex items-center gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
+              <Loader2 className="h-4 w-4 animate-spin" /> جارٍ الخروج من القاعة وإغلاق الاتصال…
+            </div>
+          )}
+          {!zoomClosing && zoomStatus && zoomStatus !== 'joined' && (
             <div className="flex items-center gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
               <Loader2 className="h-4 w-4 animate-spin" /> {ZOOM_EMBED_STAGE_LABELS[zoomStatus]}
             </div>

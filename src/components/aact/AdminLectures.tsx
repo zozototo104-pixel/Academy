@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { zonedTimeToUtc } from '@/lib/lectures/recurrence'
+import { deriveEffectiveStatus } from '@/lib/lectures/student'
 import { parseVideoUrl } from '@/lib/lectures/video-embed'
 import {
   AlarmClock,
@@ -98,7 +99,7 @@ function fmtWhen(iso: string, timeZone?: string): string {
 const selectClass = 'h-9 rounded-md border border-slate-300 bg-white px-2 text-sm'
 const labelClass = 'mb-1 block text-xs font-bold text-slate-600'
 
-type ConfirmState = { title: string; message: string; run: () => Promise<void> }
+type ConfirmState = { title: string; message: string; attendanceCount: number; run: (reason: string) => Promise<void> }
 
 export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface } = {}) {
   const { toast } = useToast()
@@ -124,7 +125,14 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   const [attendanceSession, setAttendanceSession] = useState<SessionRow | null>(null)
   const [attendance, setAttendance] = useState<AttendanceData | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const [deleteReason, setDeleteReason] = useState('')
   const [busy, setBusy] = useState(false)
+  const [statusClock, setStatusClock] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setStatusClock(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -209,12 +217,18 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   )
 
   const askDeleteSession = (s: SessionRow) => {
+    if (surface !== 'admin') return
+    setDeleteReason('')
     setConfirm({
       title: 'حذف اللقاء',
       message: `حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده ويُفصل عنه أي فيديو مرتبط، ولن تتأثر الفيديوهات نفسها. لا يمكن استعادة اللقاء بعد الحذف.`,
-      run: async () => {
+      attendanceCount: s._count.attendances,
+      run: async (reason: string) => {
         await act(async () => {
-          const result = await api<{ deleted: boolean; notificationWarning?: boolean }>(`/api/admin/lectures/sessions/${s.id}`, { method: 'DELETE' })
+          const result = await api<{ deleted: boolean; notificationWarning?: boolean }>(`/api/admin/lectures/sessions/${s.id}`, {
+            method: 'DELETE',
+            body: JSON.stringify({ reason }),
+          })
           if (result.notificationWarning) {
             toast({ title: 'حُذف اللقاء، لكن تعذر إرسال إشعار لبعض الطلاب', variant: 'destructive' })
           }
@@ -376,7 +390,8 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
             <p className="py-6 text-center text-sm text-slate-500">لا توجد لقاءات مطابقة.</p>
           ) : (
             sessions.map((s) => {
-              const meta = STATUS_META[s.status] ?? STATUS_META.SCHEDULED
+              const actualStatus = deriveEffectiveStatus({ ...s, startsAt: new Date(s.startsAt), endsAt: new Date(s.endsAt) }, new Date(statusClock))
+              const meta = STATUS_META[actualStatus] ?? STATUS_META.SCHEDULED
               return (
                 <div key={s.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-3 last:border-0">
                   <div className="min-w-0 flex-1">
@@ -419,8 +434,8 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                     </Button>
                     {surface === 'admin' && (
                       <Button variant="ghost" size="sm" className="text-red-700"
-                        disabled={busy || s._count.attendances > 0}
-                        title={s._count.attendances > 0 ? 'لا يمكن حذف لقاء فيه سجل حضور؛ استخدم الإلغاء للاحتفاظ بالسجل الأكاديمي' : 'حذف اللقاء من قاعدة البيانات'}
+                        disabled={busy}
+                        title={s._count.attendances > 0 ? 'عرض سبب منع الحذف عند وجود سجل حضور' : 'حذف اللقاء بعد كتابة السبب وتأكيده'}
                         onClick={() => askDeleteSession(s)}>
                         <Trash2 className="ml-1 h-4 w-4" /> حذف
                       </Button>
@@ -773,26 +788,38 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
         </DialogContent>
       </Dialog>
       {confirm && (
-        <Dialog open onOpenChange={(o) => !o && setConfirm(null)}>
+        <Dialog open onOpenChange={(o) => { if (!o) { setConfirm(null); setDeleteReason('') } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>{confirm.title}</DialogTitle>
             </DialogHeader>
             <p className="text-sm leading-6 text-slate-600">{confirm.message}</p>
+            {confirm.attendanceCount > 0 ? (
+              <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+                لا يمكن حذف هذا اللقاء لأن فيه {confirm.attendanceCount} سجل حضور. حفاظًا على السجل الأكاديمي، يمكن للإدارة إلغاء اللقاء بدل حذفه.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                <label htmlFor="lecture-delete-reason" className={labelClass}>سبب حذف اللقاء (إجباري، 10 أحرف على الأقل)</label>
+                <Textarea id="lecture-delete-reason" value={deleteReason} maxLength={500}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="اكتب سبب الحذف لتوثيقه في سجل التدقيق" />
+              </div>
+            )}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirm(null)}>
+              <Button variant="outline" onClick={() => { setConfirm(null); setDeleteReason('') }}>
                 تراجع
               </Button>
-              <Button
-                variant="destructive"
-                disabled={busy}
+              <Button variant="destructive"
+                disabled={busy || confirm.attendanceCount > 0 || deleteReason.trim().length < 10}
                 onClick={() => {
                   const run = confirm.run
+                  const reason = deleteReason.trim()
                   setConfirm(null)
-                  void run()
-                }}
-              >
-                تأكيد
+                  setDeleteReason('')
+                  void run(reason)
+                }}>
+                تأكيد الحذف
               </Button>
             </div>
           </DialogContent>
