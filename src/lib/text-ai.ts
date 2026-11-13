@@ -26,6 +26,79 @@ export type TextAiProvider =
   | `CUSTOM_${string}`
   | 'AUTO'
 
+// Additional OpenAI-compatible providers live in the existing Setting table.
+// No built-in provider definition, key or routing policy is rewritten.
+export const CUSTOM_AI_PROVIDERS_SETTING = 'AI_CUSTOM_PROVIDERS'
+export interface CustomTextAiProvider {
+  id: `CUSTOM_${string}`
+  name: string
+  baseUrl: string
+  enabled: boolean
+  selectedModel: string
+}
+export function isCustomTextAiProviderId(value: unknown): value is `CUSTOM_${string}` {
+  return /^CUSTOM_[A-Z0-9_]{4,32}$/.test(String(value || ''))
+}
+export function customTextAiKeySetting(id: string): string {
+  if (!isCustomTextAiProviderId(id)) throw new Error('INVALID_CUSTOM_PROVIDER_ID')
+  return `AI_CUSTOM_KEY_${id}`
+}
+export function normalizeCustomTextAiUrl(value: string): string {
+  const raw = String(value || '').trim().replace(/\/+$/, '').replace(/\/(?:models|chat\/completions)$/i, '')
+  let url: URL
+  try { url = new URL(raw) } catch { throw new Error('CUSTOM_PROVIDER_URL_INVALID') }
+  const host = url.hostname.toLowerCase()
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash
+    || (url.port && url.port !== '443') || !host.includes('.') || isIP(host)
+    || /(^|\.)(localhost|local|internal|test|invalid|example)$/.test(host)
+    || !/^[a-z0-9.-]+$/.test(host) || host.includes('..')
+    || url.pathname.includes('..') || url.pathname.includes('//')) throw new Error('CUSTOM_PROVIDER_URL_UNSAFE')
+  return url.toString().replace(/\/+$/, '')
+}
+// Resolve before every dynamic provider request, not only when saving.
+// Reject local/private destinations and disable redirect following; a saved
+// endpoint must never be able to make server-to-server requests to metadata.
+export async function assertPublicCustomTextAiUrl(value: string): Promise<string> {
+  const url = normalizeCustomTextAiUrl(value)
+  const host = new URL(url).hostname
+  const records = await lookup(host, { all: true })
+  if (!records.length || records.some(({ address }) => {
+    if (isIP(address) === 4) {
+      const [a, b, c] = address.split('.').map(Number)
+      return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127)
+        || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
+        || (a === 192 && (b === 168 || b === 0 || (b === 0 && c === 2)))
+        || (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100)))
+        || (a === 203 && b === 0 && c === 113)
+    }
+    if (isIP(address) === 6) {
+      const lowered = address.toLowerCase()
+      return !/^[23]/.test(lowered) || lowered.startsWith('2001:db8:') || lowered.startsWith('2001:10:')
+    }
+    return true
+  })) throw new Error('CUSTOM_PROVIDER_ADDRESS_UNSAFE')
+  return url
+}
+export function parseCustomTextAiProviders(value: unknown): CustomTextAiProvider[] {
+  let rows: unknown
+  try { rows = typeof value === 'string' ? JSON.parse(value || '[]') : value } catch { return [] }
+  if (!Array.isArray(rows)) return []
+  const seen = new Set<string>()
+  return rows.slice(0, 32).flatMap((row): CustomTextAiProvider[] => {
+    if (!row || typeof row !== 'object') return []
+    const item = row as Record<string, unknown>
+    const id = String(item.id || '')
+    const name = String(item.name || '').trim()
+    if (!isCustomTextAiProviderId(id) || seen.has(id) || !name || name.length > 80) return []
+    let baseUrl = ''
+    try { baseUrl = normalizeCustomTextAiUrl(String(item.baseUrl || '')) } catch { return [] }
+    const selectedModel = String(item.selectedModel || '').trim()
+    if (selectedModel && !/^[A-Za-z0-9][A-Za-z0-9_.\/:@-]{0,179}$/.test(selectedModel)) return []
+    seen.add(id)
+    return [{ id, name, baseUrl, enabled: item.enabled === true, selectedModel }]
+  })
+}
+
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
 export type TextAiRouterPolicySource = 'legacy' | 'admin'
 export type TextAiPolicyRankBy = 'provider' | 'family'
