@@ -1,5 +1,6 @@
 /// <reference types="bun-types" />
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 
 // «ترتيب المزودات الاحتياطية» (2026-10-30): Haris's manual provider order is
 // literal law — routing policies must NOT reshuffle it. These tests pin the
