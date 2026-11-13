@@ -1306,7 +1306,7 @@ export function AdminSystemTab() {
               </div>
               <Badge className={textAiDiag?.externalConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}>{textAiDiag?.externalConfigured ? `نشط: ${textAiDiag.activeProvider}` : 'Gemini / غير خارجي'}</Badge>
             </div>
-            {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', TEXT_PROVIDER_CHOICES, textProviderHelp)}
+            {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', allTextProviderChoices, textProviderHelp)}
             {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, routerPolicyHelp)}
             {SelectF('AI_ROUTER_POLICY_SOURCE', 'مصدر سياسة الراوتر', ROUTER_POLICY_SOURCE_CHOICES, 'افتراضي النظام يحافظ على balanced/primary_first المكتوبة في الكود. سياسة لوحة الإدارة تجعل المسارات تستخدم AI_ROUTER_POLICY.')}
             {SelectF('AI_POLICY_RANK_BY', 'ترتيب الجودة والتكلفة حسب', POLICY_RANK_BY_CHOICES, 'provider يحافظ على السلوك الحالي، وfamily يرتب quality_first/cost_saver حسب عائلة النموذج.')}
