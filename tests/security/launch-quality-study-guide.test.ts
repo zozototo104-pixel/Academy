@@ -1212,6 +1212,10 @@ describe('chunk word repair: rules preview + confirm and manual edit on the link
     expect(repaired.changes.map((c) => `${c.before}→${c.after}`)).toEqual(['يف→في', 'يف→في', 'يف→في'])
     expect(repaired.changes[0].context).toContain('يف الهيكل')
     expect(repairKnownOcrWords('الكتاب يضيف قراءة جديدة في الفصل المهني.').replacements).toBe(0)
+    // «الن» المستقلة تشوه لـ«لان»: تُصلح، بينما «الناس» و«لان» نفسها لا تُمس.
+    expect(repairKnownOcrWords('قرر المدير الن المشروع يحتاج مراجعة.').text).toBe('قرر المدير لان المشروع يحتاج مراجعة.')
+    expect(repairKnownOcrWords('الناس يحتاجون تخطيطاً.').replacements).toBe(0)
+    expect(repairKnownOcrWords('لان المشروع مهم.').replacements).toBe(0)
     const long = GARBLED_PMI_PASSAGE + ' ' + CLEAN_FILLER.repeat(300)
     expect(long.length).toBeGreaterThan(12000)
     const longRepaired = repairKnownOcrWords(long)

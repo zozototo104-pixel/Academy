@@ -34,6 +34,7 @@ export interface OcrWordRepairResult {
 const KNOWN_OCR_WORD_REPAIRS: Array<{ pattern: RegExp; word: string; fix: string }> = [
   { pattern: /(^|[^\p{L}\p{N}])ويف(?=$|[^\p{L}\p{N}])/gu, word: 'ويف', fix: 'وفي' },
   { pattern: /(^|[^\p{L}\p{N}])يف(?=$|[^\p{L}\p{N}])/gu, word: 'يف', fix: 'في' },
+  { pattern: /(^|[^\p{L}\p{N}])الن(?=$|[^\p{L}\p{N}])/gu, word: 'الن', fix: 'لان' },
   { pattern: /(^|[^\p{L}\p{N}])الثاين(?=$|[^\p{L}\p{N}])/gu, word: 'الثاين', fix: 'الثاني' },
   { pattern: /(^|[^\p{L}\p{N}])اختاذ(?=$|[^\p{L}\p{N}])/gu, word: 'اختاذ', fix: 'اتخاذ' },
   { pattern: /(^|[^\p{L}\p{N}])اختاد(?=$|[^\p{L}\p{N}])/gu, word: 'اختاد', fix: 'اتخاذ' },
