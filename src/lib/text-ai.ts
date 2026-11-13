@@ -2605,7 +2605,7 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   const selected = modelFor(s, concrete)
   const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
   const models = [...new Set([...selectedPart, ...discovered, ...(strictDiscovered ? [] : staticDefaults)].filter(Boolean))]
-  const catalogLabel = concrete === 'ALBORIHI'
+  const catalogLabel = isCustomTextAiProviderId(concrete) ? 'نموذج مجاني مؤكد' : concrete === 'ALBORIHI'
     ? 'نموذج مسموح للمفتاح'
     : concrete === 'TOPTOOLS'
       ? 'نموذج متاح'
