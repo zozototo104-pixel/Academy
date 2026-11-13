@@ -71,17 +71,24 @@ describe('administrator lecture deletion confirmation and reason', () => {
     expect(code).toContain('details: safeAuditDetails({')
   })
 
-  test('administrator can inspect a blocked deletion but cannot erase an attendance ledger', () => {
+  test('admin can delete attended meetings with reason, visible warning, and archived attendance', () => {
     const ui = view()
     const code = route()
     expect(ui).toContain('attendanceCount: s._count.attendances')
     expect(ui).toContain('confirm.attendanceCount > 0')
-    expect(ui).toContain('سجل حضور')
-    expect(ui).toContain('disabled={busy || confirm.attendanceCount > 0 || deleteReason.trim().length < 10}')
+    expect(ui).toContain('سيتم حذف {confirm.attendanceCount} سجل حضور')
+    expect(ui).toContain('نسخة موثقة من تفاصيل الحضور وسبب الحذف')
+    expect(ui).toContain('disabled={busy || deleteReason.trim().length < 10}')
+    expect(ui).not.toContain('disabled={busy || confirm.attendanceCount > 0')
     expect(ui).not.toContain('disabled={busy || s._count.attendances > 0}')
-    expect(code).toContain('session._count.attendances > 0')
+    expect(code).not.toContain('if (session._count.attendances > 0)')
+    expect(code).toContain('tx.lectureAttendance.findMany({')
+    expect(code).toContain('tx.lectureAttendance.deleteMany({')
+    expect(code).toContain('deletedAttendanceCount: attendanceSnapshot.length')
+    expect(code).toContain('deletedAttendance: attendanceSnapshot')
     expect(code).toContain('attendances: { none: {} }')
-    expect(code).not.toContain('lectureAttendance.delete')
+    expect(code).toContain('deletedAttendances: deleted.attendanceCount')
+    expect(code).toContain('Prisma.TransactionIsolationLevel.Serializable')
   })
 
   test('deletion retains the existing video detach, notification and confirmation flow', () => {
