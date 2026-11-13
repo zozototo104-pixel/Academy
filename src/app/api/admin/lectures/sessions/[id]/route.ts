@@ -97,6 +97,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (!isAdmin(actor)) {
       return NextResponse.json({ error: 'حذف اللقاء صلاحية الإدارة فقط' }, { status: 403 })
     }
+    const parsed = deleteSessionSchema.safeParse(await req.json().catch(() => null))
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'سبب الحذف مطلوب (10 أحرف على الأقل)' }, { status: 400 })
+    }
     const { id } = await params
     const session = await db.lectureSession.findUnique({
       where: { id },
