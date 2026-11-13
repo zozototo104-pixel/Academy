@@ -221,7 +221,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
     setDeleteReason('')
     setConfirm({
       title: 'حذف اللقاء',
-      message: `حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده ويُفصل عنه أي فيديو مرتبط، ولن تتأثر الفيديوهات نفسها. لا يمكن استعادة اللقاء بعد الحذف.`,
+      message: `حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده وسجلات حضوره المرتبطة، ويُفصل عنه أي فيديو مرتبط دون حذف الفيديو نفسه. سيُسجّل سبب الحذف ونسخة من بيانات الحضور في سجل التدقيق. لا يمكن استعادة اللقاء بعد الحذف.`,
       attendanceCount: s._count.attendances,
       run: async (reason: string) => {
         await act(async () => {
