@@ -254,6 +254,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json()
+    const addedIds = (await adminCustomTextAiProviders()).map((entry) => entry.id)
     // Independent model choice for knowledge repair. Never alter global routing
     // for students, books, exams or other AI consumers.
     const repairProviderNames = new Set(['AUTO', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION'])
