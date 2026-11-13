@@ -464,7 +464,7 @@ export async function POST(req: NextRequest) {
     }
     if (action === 'add-academic-allowlist') {
       const item = String(allowlistItem || '').trim()
-      if (!isValidTextAiProviderModelSettingItem(item)) return NextResponse.json({ error: 'صيغة النموذج غير صالحة' }, { status: 400 })
+      if (!isValidTextAiProviderModelSettingItem(item, (await adminCustomTextAiProviders()).map((entry) => entry.id))) return NextResponse.json({ error: 'صيغة النموذج غير صالحة' }, { status: 400 })
       const row = await db.setting.findUnique({ where: { key: 'AI_ACADEMIC_ALLOWLIST' } })
       const current = String(row?.value || 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash').split(',').map((x) => x.trim()).filter(Boolean)
       if (!current.includes(item)) current.push(item)
