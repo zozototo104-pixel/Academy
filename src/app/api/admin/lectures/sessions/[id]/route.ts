@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { auditLecture, canManageSession, isAdmin, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
 import { isLecturesEnabled } from '@/lib/lectures/config'
+import { safeAuditDetails } from '@/lib/lectures/audit'
 
 const deleteSessionSchema = z.object({ reason: z.string().trim().min(10).max(500) })
 
