@@ -397,6 +397,8 @@ export function AdminSystemTab() {
   const [testing, setTesting] = useState(false)
   const [paymentQrUploading, setPaymentQrUploading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
+  const [customDraft, setCustomDraft] = useState({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })
+  const [customBusy, setCustomBusy] = useState(false)
   const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests' | null>('core')
   const toggleGeminiSection = (section: 'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests') => {
     const y = typeof window !== 'undefined' ? window.scrollY : 0
