@@ -71,7 +71,10 @@ export async function GET(req: NextRequest) {
         _count: { select: { attendances: true } },
       },
     })
-    return NextResponse.json({ sessions })
+    return NextResponse.json({ sessions: sessions.map((session) => ({
+      ...session,
+      status: deriveEffectiveStatus(session, now),
+    })) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
