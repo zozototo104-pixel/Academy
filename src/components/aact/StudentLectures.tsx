@@ -297,8 +297,8 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
         const sdk = getZoomSdk()
         if (!sdk?.createClient) throw new Error('مكتبة Zoom غير متاحة')
         client = createZoomClient(sdk)
-        await client.init({ zoomAppRoot: root, language: 'en-US', patchJsMedia: true, leaveOnPageUnload: true })
-        if (cancelled) { leave(); return 'cancelled' }
+        await runSdkOperation(() => client.init({ zoomAppRoot: root, language: 'en-US', patchJsMedia: true, leaveOnPageUnload: true }))
+        if (cancelled) { void leave(); return 'cancelled' }
         stage = 'join'
         onStatus?.('join')
         await client.join({
