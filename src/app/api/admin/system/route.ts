@@ -405,7 +405,7 @@ export async function POST(req: NextRequest) {
       })
       clearSecretCache()
       await audit(admin, existing ? 'AI_CUSTOM_PROVIDER_UPDATED' : 'AI_CUSTOM_PROVIDER_CREATED', 'Setting', id, `Custom AI provider: ${id}`)
-      return NextResponse.json({ ok: true, customProviders: await adminCustomTextAiProviders() })
+      return NextResponse.json({ ok: true, id, customProviders: await adminCustomTextAiProviders() })
     }
     if (action === 'toggle-custom-ai-provider') {
       const id = String(body?.id || '')
