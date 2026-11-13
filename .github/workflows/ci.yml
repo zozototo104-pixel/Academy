@@ -16,6 +16,8 @@ jobs:
       - run: bun run test:gemini-live-rotation
       - name: Test Zoom rejoin, lecture lifecycle statuses, and admin-only deletion
         run: bun test --isolate tests/lectures/student-zoom-embed-hang.test.ts tests/lectures/lecture-admin-ui.test.ts tests/lectures/lecture-student.test.ts tests/admin/lecture-session-delete-dialog.test.ts
+      - name: Test dynamic AI provider registration, routing and safe free-model filtering
+        run: bun test --isolate tests/ai/router-manual-provider-order.test.ts
       - run: bunx tsc --noEmit
 
   backup-restore-postgres:
