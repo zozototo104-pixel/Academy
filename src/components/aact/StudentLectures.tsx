@@ -196,6 +196,7 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
     createZoomClient = (sdk: any) => sdk.createClient(),
     timeoutMs = ZOOM_EMBED_TIMEOUT_MS,
     pollIntervalMs = 50,
+    cleanupWaitMs = 2_500,
     sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
     onStatus,
     onError,
