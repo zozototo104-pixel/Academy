@@ -154,6 +154,7 @@ export type ZoomEmbedRunnerDeps = {
   createZoomClient?: (sdk: any) => any
   timeoutMs?: number
   pollIntervalMs?: number
+  cleanupWaitMs?: number
   sleep?: (ms: number) => Promise<void>
   onStatus?: (stage: ZoomEmbedStage) => void
   onError?: (stage: ZoomEmbedStage, message: string) => void
