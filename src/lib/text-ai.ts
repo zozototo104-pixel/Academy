@@ -1589,6 +1589,15 @@ function zeroish(value: unknown): boolean {
   return Number.isFinite(n) && n === 0
 }
 
+function strictlyFreeCustomModel(row: any, id: string): boolean {
+  if (!id) return false
+  if (id.endsWith(':free') || /(^|[-_/:])free($|[-_/:])/.test(id) || row?.is_free === true || row?.free === true) return true
+  const price = row?.pricing || row?.price || row?.cost || {}
+  const input = price.prompt ?? price.input ?? price.prompt_tokens ?? price.input_tokens
+  const output = price.completion ?? price.output ?? price.completion_tokens ?? price.output_tokens
+  return input !== undefined && output !== undefined && zeroish(input) && zeroish(output)
+}
+
 function isFreeModel(row: any, id: string): boolean {
   if (!id) return false
   if (id.endsWith(':free') || /(^|[-_/:])free($|[-_/:])/.test(id)) return true
