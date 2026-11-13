@@ -14,6 +14,8 @@ jobs:
       - run: bunx prisma generate
       - run: bun run test:outline-units
       - run: bun run test:gemini-live-rotation
+      - name: Test student Zoom embed startup, safe logging, and retry isolation
+        run: bun test --isolate tests/lectures/student-zoom-embed-hang.test.ts
       - run: bunx tsc --noEmit
 
   backup-restore-postgres:
