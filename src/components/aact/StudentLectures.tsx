@@ -216,12 +216,21 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
     if (leavePromise) return leavePromise
     if (!client) return Promise.resolve(true)
     leavePromise = (async () => {
+      // Zoom Meeting SDK Component View owns destroyClient on ZoomMtgEmbedded,
+      // not on the meeting client. A new createClient after leaveMeeting alone
+      // can leave a stale singleton and break rejoining without a page reload.
+      if (typeof embeddedSdk?.destroyClient !== 'function') return false
       try {
-        if (typeof client.leaveMeeting !== 'function') return false
-        await client.leaveMeeting()
+        await client.leaveMeeting?.()
+      } catch {
+        // The meeting may already have ended or removed the participant.
+        // Still destroy the SDK client so the next attempt starts clean.
+      }
+      try {
+        await embeddedSdk.destroyClient()
         return true
       } catch {
-        // Never treat a failed SDK teardown as proof that retry is safe.
+        // Never start a second client when destroyClient could not complete.
         return false
       }
     })()
