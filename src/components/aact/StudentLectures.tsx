@@ -211,16 +211,20 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
   let cleanupPromise: Promise<boolean> | null = null
   let leavePromise: Promise<boolean> | null = null
 
-  const leave = async (): Promise<boolean> => {
-    if (!client) return true
-    try {
-      if (typeof client.leaveMeeting !== 'function') return false
-      await client.leaveMeeting()
-      return true
-    } catch {
-      // Never treat a failed SDK teardown as proof that retry is safe.
-      return false
-    }
+  const leave = (): Promise<boolean> => {
+    if (leavePromise) return leavePromise
+    if (!client) return Promise.resolve(true)
+    leavePromise = (async () => {
+      try {
+        if (typeof client.leaveMeeting !== 'function') return false
+        await client.leaveMeeting()
+        return true
+      } catch {
+        // Never treat a failed SDK teardown as proof that retry is safe.
+        return false
+      }
+    })()
+    return leavePromise
   }
   const waitForCleanup = async (task: Promise<boolean>): Promise<boolean> => {
     let timer: ReturnType<typeof setTimeout> | null = null
