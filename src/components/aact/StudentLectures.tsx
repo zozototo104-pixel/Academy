@@ -175,8 +175,9 @@ function loadZoomScript(src: string): Promise<void> {
 }
 
 function reportZoomEmbedStage(stage: ZoomEmbedStage, message: string) {
-  // Stage + message only — never the signature, the meeting password, or
-  // any URL. Mirrors the crash-report POST in src/app/error.tsx.
+  // Only allowlisted stage + fixed diagnostic code reach Vercel logs.
+  // Never forward raw Zoom SDK error messages: they may contain credentials.
+  // Mirrors the crash-report POST in src/app/error.tsx.
   try {
     const payload = JSON.stringify({ message: `[zoom-embed] stage=${stage}: ${message}` })
     fetch('/api/client-error', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }).catch(() => {})
