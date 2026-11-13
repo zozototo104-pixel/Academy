@@ -26,6 +26,7 @@ describe('administrator lecture deletion confirmation and reason', () => {
     expect(ui).toContain('سيُزال موعده ويُفصل عنه أي فيديو مرتبط')
     expect(ui).toContain('سبب حذف اللقاء (إجباري')
     expect(ui).toContain('deleteReason.trim().length < 10')
+    expect(ui).toContain('disabled={busy || deleteReason.trim().length < 10}')
     expect(ui).toContain('maxLength={500}')
     expect(ui).toContain('تأكيد الحذف')
     expect(ui).toContain('const reason = deleteReason.trim()')
