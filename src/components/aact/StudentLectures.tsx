@@ -207,6 +207,8 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
   let client: any = null
   let watchdog: ReturnType<typeof setTimeout> | null = null
   let cancelResolve: ((outcome: ZoomEmbedOutcome) => void) | null = null
+  let pendingSdkOperation: Promise<void> | null = null
+  let cleanupPromise: Promise<boolean> | null = null
 
   const leave = () => {
     if (!client) return
