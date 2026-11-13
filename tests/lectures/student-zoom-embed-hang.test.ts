@@ -87,6 +87,12 @@ const baseDeps = (overrides: Record<string, any> = {}) => ({
     reports.push({ stage: s, message: m })
   },
   ...overrides,
+  // The real Component View SDK exposes destroyClient. Keep mocks faithful
+  // so production teardown is exercised even in pre-existing runner tests.
+  getZoomSdk: () => {
+    const sdk = overrides.getZoomSdk?.() ?? { createClient: () => { throw new Error('no client injected') } }
+    return { ...sdk, destroyClient: sdk?.destroyClient ?? (() => {}) }
+  },
 })
 
 describe('zoom embed runner — happy path and stages', () => {
