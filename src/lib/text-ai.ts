@@ -1,4 +1,6 @@
 import { createHash } from 'crypto'
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
 import { db } from '@/lib/db'
 import { enforceAiUserDailyCostCap, estimateAiCostCents, estimatePromptTokens, recordAiUsage } from '@/lib/ai-usage-accounting'
 import { decryptSecret, isEncryptedSecret, isSecretKeyName, keyHashForRateLimit, redactSecrets } from '@/lib/secret-crypto'
