@@ -2448,7 +2448,7 @@ function baseOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Concret
   const customTail = (s.customProviders || []).filter((entry) => entry.enabled).map((entry) => entry.id)
   const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION', ...customTail]
   const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION', ...customTail]
-  const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
+  const primary: ConcreteProvider[] = [...ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER, ...customTail]
   if (s.policy === 'quality_first') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, quality, taskLevel) : quality)
   if (s.policy === 'cost_saver') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, cost, taskLevel) : cost)
   if (s.policy === 'fallback_only' && selected) return [selected]
