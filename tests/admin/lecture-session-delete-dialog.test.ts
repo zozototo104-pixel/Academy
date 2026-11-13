@@ -49,6 +49,27 @@ describe('administrator lecture deletion confirmation and reason', () => {
     expect(code).toContain("status: 400")
   })
 
+  test('delete and audit commit in one transaction; audit failure rolls back the deletion', () => {
+    const code = route()
+    const transactionAt = code.indexOf('const deleted = await db.$transaction(async (tx) => {')
+    const deleteAt = code.indexOf('await tx.lectureSession.deleteMany(', transactionAt)
+    const auditAt = code.indexOf('await tx.auditLog.create(', transactionAt)
+    const commitAt = code.indexOf('return true', auditAt)
+    const endAt = code.indexOf('})', commitAt)
+    expect(transactionAt).toBeGreaterThan(-1)
+    expect(deleteAt).toBeGreaterThan(transactionAt)
+    expect(auditAt).toBeGreaterThan(deleteAt)
+    expect(commitAt).toBeGreaterThan(auditAt)
+    expect(endAt).toBeGreaterThan(commitAt)
+    // The best-effort auditLecture helper catches errors, so it must not
+    // be used for a destructive operation requiring an audit guarantee.
+    expect(code.slice(transactionAt, endAt)).not.toContain('auditLecture(')
+    expect(code).toContain('if (result.count === 0) return false')
+    expect(code).toContain('if (!deleted)')
+    expect(code).toContain('attendances: { none: {} }')
+    expect(code).toContain('details: safeAuditDetails({')
+  })
+
   test('administrator can inspect a blocked deletion but cannot erase an attendance ledger', () => {
     const ui = view()
     const code = route()
