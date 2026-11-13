@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse as UnsafeNextResponse } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
