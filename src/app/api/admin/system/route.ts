@@ -122,7 +122,7 @@ function sanitizeFamilyOrder(value: string): string {
 
 // «ترتيب المزودات الاحتياطية» (2026-10-30): قائمة يدوية بترتيب المزودين كما
 // رتّبها الأدمن؛ تُحفظ كما هي بعد إسقاط الأسماء غير المعروفة والمكررات.
-function sanitizeProviderOrder(value: string): string {
+function sanitizeProviderOrder(value: string, addedIds: string[] = []): string {
   const allowed = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION'])
   const seen = new Set<string>()
   const items: string[] = []
