@@ -2579,6 +2579,19 @@ function cooldownList() {
     .map(([id, v]) => ({ provider: id.split(':')[0], key: id.split(':')[1], until: new Date(v.until).toISOString(), reason: v.reason }))
 }
 
+export async function refreshCustomTextAiFreeModels(providerId: string): Promise<{ provider: string; models: string[]; discoveredCount: number; staticCount: number; message: string }> {
+  if (!isCustomTextAiProviderId(providerId)) throw new Error('INVALID_CUSTOM_PROVIDER_ID')
+  const s = await settings()
+  const config = s.customProviders.find((entry) => entry.id === providerId)
+  if (!config) throw new Error('CUSTOM_PROVIDER_NOT_FOUND')
+  if (!config.enabled) throw new Error('CUSTOM_PROVIDER_DISABLED')
+  const key = await discoveryKey(providerId, s)
+  const cacheKey = cacheKeyForFreeModels(providerId, config.baseUrl, key)
+  freeModelsCache.delete(cacheKey)
+  await settingStore().delete(persistentModelsCacheKey(cacheKey))
+  return textAiFreeModelsForProvider(providerId)
+}
+
 export async function textAiFreeModelsForProvider(providerValue: unknown): Promise<{ provider: string; models: string[]; discoveredCount: number; staticCount: number; message: string }> {
   const s = await settings()
   const provider = normalizeProvider(providerValue)
