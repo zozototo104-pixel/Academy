@@ -98,6 +98,8 @@ function fmtWhen(iso: string, timeZone?: string): string {
 const selectClass = 'h-9 rounded-md border border-slate-300 bg-white px-2 text-sm'
 const labelClass = 'mb-1 block text-xs font-bold text-slate-600'
 
+type ConfirmState = { title: string; message: string; run: () => Promise<void> }
+
 export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface } = {}) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -121,6 +123,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   const [postponeSession, setPostponeSession] = useState<SessionRow | null>(null)
   const [attendanceSession, setAttendanceSession] = useState<SessionRow | null>(null)
   const [attendance, setAttendance] = useState<AttendanceData | null>(null)
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -203,6 +206,21 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
     },
     [load, toast],
   )
+
+  const askDeleteSession = (s: SessionRow) => {
+    setConfirm({
+      title: 'حذف اللقاء',
+      message: `حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده ويُفصل عنه أي فيديو مرتبط، ولن تتأثر الفيديوهات نفسها. لا يمكن استعادة اللقاء بعد الحذف.`,
+      run: async () => {
+        await act(async () => {
+          const result = await api<{ deleted: boolean; notificationWarning?: boolean }>(`/api/admin/lectures/sessions/${s.id}`, { method: 'DELETE' })
+          if (result.notificationWarning) {
+            toast({ title: 'حُذف اللقاء، لكن تعذر إرسال إشعار لبعض الطلاب', variant: 'destructive' })
+          }
+        }, 'حُذف اللقاء')
+      },
+    })
+  }
 
   const openAttendance = useCallback(
     async (s: SessionRow) => {
@@ -402,16 +420,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                       <Button variant="ghost" size="sm" className="text-red-700"
                         disabled={busy || s._count.attendances > 0}
                         title={s._count.attendances > 0 ? 'لا يمكن حذف لقاء فيه سجل حضور؛ استخدم الإلغاء للاحتفاظ بالسجل الأكاديمي' : 'حذف اللقاء من قاعدة البيانات'}
-                        onClick={() => {
-                          if (window.confirm(`حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده ويُفصل عنه أي فيديو مرتبط، ولن تتأثر الفيديوهات نفسها. لا يمكن استعادة اللقاء بعد الحذف.`)) {
-                            void act(async () => {
-                              const result = await api<{ deleted: boolean; notificationWarning?: boolean }>(`/api/admin/lectures/sessions/${s.id}`, { method: 'DELETE' })
-                              if (result.notificationWarning) {
-                                toast({ title: 'حُذف اللقاء، لكن تعذر إرسال إشعار لبعض الطلاب', variant: 'destructive' })
-                              }
-                            }, 'حُذف اللقاء')
-                          }
-                        }}>
+                        onClick={() => askDeleteSession(s)}>
                         <Trash2 className="ml-1 h-4 w-4" /> حذف
                       </Button>
                     )}
@@ -762,6 +771,32 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
           )}
         </DialogContent>
       </Dialog>
+      {confirm && (
+        <Dialog open onOpenChange={(o) => !o && setConfirm(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{confirm.title}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm leading-6 text-slate-600">{confirm.message}</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirm(null)}>
+                تراجع
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={() => {
+                  const run = confirm.run
+                  setConfirm(null)
+                  void run()
+                }}
+              >
+                تأكيد
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
