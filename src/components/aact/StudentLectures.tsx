@@ -685,7 +685,7 @@ export function StudentLectures() {
 
   return (
     <div className="space-y-6">
-      <Dialog open={!!embeddedZoom} onOpenChange={(open) => { if (!open) { setEmbeddedZoom(null); setZoomError(null); setZoomStatus(null) } }}>
+      <Dialog open={!!embeddedZoom} onOpenChange={(open) => { if (!open) void closeZoomRoom() }}>
         <DialogContent className="flex h-[90vh] max-w-[96vw] flex-col" dir="rtl">
           <DialogHeader>
             <DialogTitle>{embeddedZoom?.title || 'قاعة المحاضرة'}</DialogTitle>
