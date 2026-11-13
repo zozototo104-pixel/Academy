@@ -7,7 +7,7 @@ import { sendEmail, getSmtpConfig, emailTemplate } from '@/lib/mailer'
 import { ensureGeminiKey, hasGemini, invalidateGeminiKeyCache, normalizeGeminiModelName, geminiActiveLiveModel, isValidGeminiLiveModel, geminiApiKey, isQuotaError, isAuthError, isModelUnavailableError, isInvalidArgumentError, geminiKeyDiagnostics, geminiTestConnection } from '@/lib/gemini'
 import { localAgentDiagnostics, testLocalAgentConnection } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
-import { clearTextAiRouterState, textAiCheckAllModelHealth, textAiDiagnostics, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiRouterStateSnapshot, textAiTestConnection } from '@/lib/text-ai'
+import { assertPublicCustomTextAiUrl, CUSTOM_AI_PROVIDERS_SETTING, customTextAiKeySetting, isCustomTextAiProviderId, parseCustomTextAiProviders, refreshCustomTextAiFreeModels, clearTextAiRouterState, textAiCheckAllModelHealth, textAiDiagnostics, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiRouterStateSnapshot, textAiTestConnection } from '@/lib/text-ai'
 import { clearSecretCache, decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret, isMaskedSecret, isSecretKeyName, redactDeep, redactSecrets, secretLast4 } from '@/lib/secret-crypto'
 
 const NextResponse = {
