@@ -257,7 +257,7 @@ export async function PATCH(req: NextRequest) {
     const addedIds = (await adminCustomTextAiProviders()).map((entry) => entry.id)
     // Independent model choice for knowledge repair. Never alter global routing
     // for students, books, exams or other AI consumers.
-    const repairProviderNames = new Set(['AUTO', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION'])
+    const repairProviderNames = new Set(['AUTO', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION', ...addedIds])
     const repairProvider = String(body.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO').trim().toUpperCase()
     const repairModel = String(body.AI_KNOWLEDGE_REPAIR_MODEL || '').trim()
     if (!repairProviderNames.has(repairProvider)) return NextResponse.json({ error: 'مزوّد التصحيح غير معروف' }, { status: 400 })
