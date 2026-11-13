@@ -127,6 +127,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       title: session.title,
       programId: session.series.programId,
       status: session.status,
+      reason: parsed.data.reason,
       detachedVideos: session._count.videos,
     })
     let notificationWarning = false
