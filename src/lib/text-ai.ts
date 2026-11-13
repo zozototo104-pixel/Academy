@@ -2461,7 +2461,8 @@ function baseOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Concret
 function manualChain(s: Settings): ConcreteProvider[] {
   const saved = s.manualProviderOrder || []
   if (!saved.length) return []
-  return [...saved, ...ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER.filter((provider) => !saved.includes(provider))]
+  const available: ConcreteProvider[] = [...ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER, ...(s.customProviders || []).filter((entry) => entry.enabled).map((entry) => entry.id)]
+  return [...saved, ...available.filter((provider) => !saved.includes(provider))]
 }
 
 function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
