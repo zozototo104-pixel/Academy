@@ -21,10 +21,19 @@ export async function GET(req: NextRequest) {
     const status = q.get('status') ?? undefined
     const from = q.get('from') ?? undefined
     const to = q.get('to') ?? undefined
+    const now = new Date()
+    const activeStatuses = [LectureSessionStatus.SCHEDULED, LectureSessionStatus.LIVE, LectureSessionStatus.ENDED]
+    // Stored SCHEDULED may be live or finished; filters must use clock time,
+    // just like the student side, without mutating historic database rows.
+    const statusWhere: Prisma.LectureSessionWhereInput | null =
+      status === 'SCHEDULED' ? { status: { in: activeStatuses }, startsAt: { gt: now } } :
+      status === 'LIVE' ? { status: { in: activeStatuses }, startsAt: { lte: now }, endsAt: { gte: now } } :
+      status === 'ENDED' ? { status: { in: activeStatuses }, endsAt: { lt: now } } :
+      status === 'CANCELLED' || status === 'RESCHEDULED' ? { status: status as LectureSessionStatus } : null
 
     const sessions = await db.lectureSession.findMany({
       where: {
-        ...(status ? { status: status as never } : {}),
+        ...(statusWhere ? { AND: [statusWhere] } : {}),
         ...(from || to
           ? {
               startsAt: {
