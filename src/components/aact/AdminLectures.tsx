@@ -788,26 +788,38 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
         </DialogContent>
       </Dialog>
       {confirm && (
-        <Dialog open onOpenChange={(o) => !o && setConfirm(null)}>
+        <Dialog open onOpenChange={(o) => { if (!o) { setConfirm(null); setDeleteReason('') } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>{confirm.title}</DialogTitle>
             </DialogHeader>
             <p className="text-sm leading-6 text-slate-600">{confirm.message}</p>
+            {confirm.attendanceCount > 0 ? (
+              <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+                لا يمكن حذف هذا اللقاء لأن فيه {confirm.attendanceCount} سجل حضور. حفاظًا على السجل الأكاديمي، يمكن للإدارة إلغاء اللقاء بدل حذفه.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                <label htmlFor="lecture-delete-reason" className={labelClass}>سبب حذف اللقاء (إجباري، 10 أحرف على الأقل)</label>
+                <Textarea id="lecture-delete-reason" value={deleteReason} maxLength={500}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="اكتب سبب الحذف لتوثيقه في سجل التدقيق" />
+              </div>
+            )}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirm(null)}>
+              <Button variant="outline" onClick={() => { setConfirm(null); setDeleteReason('') }}>
                 تراجع
               </Button>
-              <Button
-                variant="destructive"
-                disabled={busy}
+              <Button variant="destructive"
+                disabled={busy || confirm.attendanceCount > 0 || deleteReason.trim().length < 10}
                 onClick={() => {
                   const run = confirm.run
+                  const reason = deleteReason.trim()
                   setConfirm(null)
-                  void run()
-                }}
-              >
-                تأكيد
+                  setDeleteReason('')
+                  void run(reason)
+                }}>
+                تأكيد الحذف
               </Button>
             </div>
           </DialogContent>
