@@ -215,11 +215,20 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
       // Leaving the UI must not be blocked by a provider teardown error.
     }
   }
-  const fail = (stage: ZoomEmbedStage, message: string) => {
+  const fail = (stage: ZoomEmbedStage) => {
     if (finished) return
     finished = true
-    onError?.(stage, message)
-    reportStage?.(stage, message)
+    // Zoom error text is untrusted: do not expose it to students or server logs.
+    const messages: Record<ZoomEmbedStage, string> = {
+      preparing: 'تعذّر تجهيز القاعة. حاول مجددًا.',
+      'script-load': 'تعذّر تحميل مكتبة Zoom. تحقق من الاتصال وحاول مجددًا.',
+      init: 'تعذّر تهيئة قاعة Zoom. حاول مجددًا.',
+      join: 'تعذّر الانضمام إلى اجتماع Zoom. حاول مجددًا.',
+      joined: 'تعذّر إكمال الاتصال بقاعة Zoom.',
+      timeout: 'تعذّر الاتصال بالقاعة خلال 15 ثانية — تحقق من اتصالك وحاول مجددًا.',
+    }
+    onError?.(stage, messages[stage])
+    reportStage?.(stage, `code=${stage.toUpperCase().replace('-', '_')}_FAILED`)
   }
   const clearWatchdog = () => {
     if (watchdog) { clearTimeout(watchdog); watchdog = null }
