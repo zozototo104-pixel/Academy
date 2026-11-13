@@ -156,6 +156,7 @@ export async function GET() {
     for (const r of rows) values[r.key] = shouldEncryptSystemKey(r.key) ? mask(r.value) : r.value
     const secretMeta = Object.fromEntries(SYSTEM_KEYS.filter(shouldEncryptSystemKey).map((key) => [key, settingSecretMeta(key, rowMap[key], process.env[key] || '')]))
     const unencryptedSecretKeys = SYSTEM_KEYS.filter((key) => shouldEncryptSystemKey(key) && rowMap[key] && !isEncryptedSecret(rowMap[key]))
+    const customProviders = await adminCustomTextAiProviders()
     const smtp = await getSmtpConfig()
     const emails = await db.emailLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 })
     const gemini = await geminiKeyDiagnostics()
