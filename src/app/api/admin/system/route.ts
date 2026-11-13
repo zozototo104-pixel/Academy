@@ -99,7 +99,7 @@ function sanitizeTextAiProviderTiers(value: string, addedIds: string[] = []): st
     const parts = item.split(':')
     const provider = (parts[0] || '').trim().toUpperCase()
     const tier = (parts[1] || '').trim().toUpperCase()
-    if (parts.length !== 2 || !TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider) || (tier !== 'PAID' && tier !== 'FREE')) return null
+    if (parts.length !== 2 || !(TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider) || addedIds.includes(provider)) || (tier !== 'PAID' && tier !== 'FREE')) return null
   }
   return items.map((item) => {
     const [provider, tier] = item.split(':')
