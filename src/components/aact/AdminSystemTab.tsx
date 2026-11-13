@@ -964,7 +964,9 @@ export function AdminSystemTab() {
       ? 'مفتاح Vercel الافتراضي'
       : 'لا يوجد مفتاح فعّال'
   const textAiDiag = data.textAi
-  const currentTextProvider = (form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI') as 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'APINEX' | 'OXION' | 'AUTO'
+  const currentTextProvider = form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI'
+  const customChoices = (data.customProviders || []).map((entry) => ({ value: entry.id, label: `${entry.name} — مزوّد مضاف من الإدارة` }))
+  const allTextProviderChoices = [...TEXT_PROVIDER_CHOICES, ...customChoices]
   // «ترتيب المزودات الاحتياطية» (2026-10-30): القائمة المعروضة = ترتيب الأدمن
   // المحفوظ أولاً ثم بقية المزودين بالترتيب الافتراضي المكتوب، حتى يرى كل
   // المزودين دائماً ويحرّك من يشاء. الحفظ يتم عبر حقل AI_PROVIDER_FALLBACK_ORDER.
