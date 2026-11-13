@@ -116,6 +116,185 @@ function fmtCountdown(ms: number): string {
   return days > 0 ? `${days} يوم و ${clock}` : clock
 }
 
+// Zoom embed startup for the student hall (2026-11-13): the old effect
+// returned once when the Portal hall element was not ready yet and never
+// retried, and there was no timeout anywhere — a hung load left the dialog
+// white forever with no error. The runner below waits for the hall element,
+// reports the stage, races the whole sequence against a 15s watchdog, and
+// reports the failing stage once so the real cause lands in server logs.
+export const ZOOM_EMBED_TIMEOUT_MS = 15_000
+const ZOOM_EMBED_SCRIPT_VERSION = '6.2.0'
+const ZOOM_EMBED_VENDOR_SCRIPTS = ['react', 'react-dom', 'redux', 'redux-thunk', 'react-redux', 'lodash']
+
+export type ZoomEmbedStage = 'script-load' | 'init' | 'join' | 'joined' | 'timeout'
+export type ZoomEmbedOutcome = 'joined' | 'failed' | 'timeout' | 'cancelled'
+
+export const ZOOM_EMBED_STAGE_LABELS: Record<ZoomEmbedStage, string> = {
+  'script-load': 'جارٍ تحميل مكتبة Zoom…',
+  init: 'جارٍ تهيئة القاعة…',
+  join: 'جارٍ الانضمام إلى الاجتماع…',
+  joined: 'تم الانضمام إلى المحاضرة',
+  timeout: 'انتهت مهلة الاتصال بالقاعة…',
+}
+
+export type ZoomEmbedMeeting = {
+  signature: string
+  sdkKey: string
+  meetingNumber: string
+  userName: string
+  password: string
+}
+
+export type ZoomEmbedRunnerDeps = {
+  meeting: ZoomEmbedMeeting
+  getRoot: () => unknown
+  loadScript?: (src: string) => Promise<void>
+  getZoomSdk?: () => any
+  createZoomClient?: (sdk: any) => any
+  timeoutMs?: number
+  pollIntervalMs?: number
+  sleep?: (ms: number) => Promise<void>
+  onStatus?: (stage: ZoomEmbedStage) => void
+  onError?: (stage: ZoomEmbedStage, message: string) => void
+  reportStage?: (stage: ZoomEmbedStage, message: string) => void
+}
+
+function loadZoomScript(src: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-zoom-src="' + src + '"]')
+    if (existing?.dataset.loaded === 'true') { resolve(); return }
+    if (existing) { existing.addEventListener('load', () => resolve(), { once: true }); existing.addEventListener('error', () => reject(new Error('تعذّر تحميل Zoom')), { once: true }); return }
+    const script = document.createElement('script')
+    script.src = src
+    script.dataset.zoomSrc = src
+    script.onload = () => { script.dataset.loaded = 'true'; resolve() }
+    script.onerror = () => { script.remove(); reject(new Error('تعذّر تحميل Zoom')) }
+    document.head.appendChild(script)
+  })
+}
+
+function reportZoomEmbedStage(stage: ZoomEmbedStage, message: string) {
+  // Stage + message only — never the signature, the meeting password, or
+  // any URL. Mirrors the crash-report POST in src/app/error.tsx.
+  try {
+    const payload = JSON.stringify({ message: `[zoom-embed] stage=${stage}: ${message}` })
+    fetch('/api/client-error', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }).catch(() => {})
+  } catch {
+    // Reporting must never break the join flow.
+  }
+}
+
+export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () => Promise<ZoomEmbedOutcome>; cancel: () => void } {
+  const {
+    meeting,
+    getRoot,
+    loadScript = loadZoomScript,
+    getZoomSdk = () => (globalThis as any).window?.ZoomMtgEmbedded ?? (globalThis as any).ZoomMtgEmbedded,
+    createZoomClient = (sdk: any) => sdk.createClient(),
+    timeoutMs = ZOOM_EMBED_TIMEOUT_MS,
+    pollIntervalMs = 50,
+    sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    onStatus,
+    onError,
+    reportStage = reportZoomEmbedStage,
+  } = deps
+  let cancelled = false
+  let finished = false
+  let client: any = null
+  let watchdog: ReturnType<typeof setTimeout> | null = null
+  let cancelResolve: ((outcome: ZoomEmbedOutcome) => void) | null = null
+
+  const leave = () => {
+    if (!client) return
+    try {
+      const pending = client.leaveMeeting?.()
+      if (pending && typeof pending.catch === 'function') void pending.catch(() => {})
+    } catch {
+      // Leaving the UI must not be blocked by a provider teardown error.
+    }
+  }
+  const fail = (stage: ZoomEmbedStage, message: string) => {
+    if (finished) return
+    finished = true
+    onError?.(stage, message)
+    reportStage?.(stage, message)
+  }
+  const clearWatchdog = () => {
+    if (watchdog) { clearTimeout(watchdog); watchdog = null }
+  }
+
+  const start = async (): Promise<ZoomEmbedOutcome> => {
+    const cancelPromise = new Promise<ZoomEmbedOutcome>((resolve) => { cancelResolve = resolve })
+    const watchdogPromise = new Promise<ZoomEmbedOutcome>((resolve) => {
+      watchdog = setTimeout(() => {
+        cancelled = true
+        resolve('timeout')
+      }, timeoutMs)
+    })
+    const work = (async (): Promise<ZoomEmbedOutcome> => {
+      let stage: ZoomEmbedStage = 'script-load'
+      try {
+        // Readiness gate: the hall element lives in a Portal and may not
+        // exist yet when the dialog opens — wait for it instead of
+        // returning once and never retrying.
+        let root: unknown = getRoot()
+        while (!root) {
+          if (cancelled) return 'cancelled'
+          await sleep(pollIntervalMs)
+          root = getRoot()
+        }
+        if (cancelled) return 'cancelled'
+        onStatus?.('script-load')
+        for (const name of ZOOM_EMBED_VENDOR_SCRIPTS) {
+          if (cancelled) return 'cancelled'
+          await loadScript(`https://source.zoom.us/${ZOOM_EMBED_SCRIPT_VERSION}/lib/vendor/${name}.min.js`)
+        }
+        if (cancelled) return 'cancelled'
+        await loadScript(`https://source.zoom.us/zoom-meeting-embedded-${ZOOM_EMBED_SCRIPT_VERSION}.min.js`)
+        if (cancelled) return 'cancelled'
+        stage = 'init'
+        onStatus?.('init')
+        const sdk = getZoomSdk()
+        if (!sdk?.createClient) throw new Error('مكتبة Zoom غير متاحة')
+        client = createZoomClient(sdk)
+        await client.init({ zoomAppRoot: root, language: 'en-US', patchJsMedia: true, leaveOnPageUnload: true })
+        if (cancelled) { leave(); return 'cancelled' }
+        stage = 'join'
+        onStatus?.('join')
+        await client.join({
+          signature: meeting.signature, sdkKey: meeting.sdkKey,
+          meetingNumber: meeting.meetingNumber, userName: meeting.userName,
+          password: meeting.password,
+        })
+        if (cancelled) { leave(); return 'cancelled' }
+        finished = true
+        clearWatchdog()
+        onStatus?.('joined')
+        return 'joined'
+      } catch (e) {
+        if (cancelled) return 'cancelled'
+        fail(stage, e instanceof Error ? e.message : 'تعذّر تشغيل Zoom داخل المنصة')
+        return 'failed'
+      }
+    })()
+    const outcome = await Promise.race([work, watchdogPromise, cancelPromise])
+    if (outcome === 'timeout') {
+      fail('timeout', 'تعذّر الاتصال بالقاعة خلال 15 ثانية — تحقق من اتصالك وحاول مجددًا.')
+    }
+    clearWatchdog()
+    return outcome
+  }
+
+  const cancel = () => {
+    cancelled = true
+    clearWatchdog()
+    leave()
+    cancelResolve?.('cancelled')
+  }
+
+  return { start, cancel }
+}
+
 export function StudentLectures() {
   const { toast } = useToast()
   const user = useAppStore((s) => s.user)
@@ -135,58 +314,30 @@ export function StudentLectures() {
     password: string
   }>(null)
   const [zoomError, setZoomError] = useState<string | null>(null)
+  const [zoomStatus, setZoomStatus] = useState<ZoomEmbedStage | null>(null)
+  const [zoomAttempt, setZoomAttempt] = useState(0)
   const zoomRootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!embeddedZoom || !zoomRootRef.current) return
-    let cancelled = false
-    let client: any = null
-    const leave = () => {
-      if (!client) return
-      try {
-        const pending = client.leaveMeeting?.()
-        if (pending && typeof pending.catch === 'function') void pending.catch(() => {})
-      } catch {
-        // Leaving the UI must not be blocked by a provider teardown error.
-      }
-    }
-    const loadScript = (src: string) => new Promise<void>((resolve, reject) => {
-      const existing = document.querySelector<HTMLScriptElement>('script[data-zoom-src="' + src + '"]')
-      if (existing?.dataset.loaded === 'true') { resolve(); return }
-      if (existing) { existing.addEventListener('load', () => resolve(), { once: true }); existing.addEventListener('error', () => reject(new Error('تعذّر تحميل Zoom')), { once: true }); return }
-      const script = document.createElement('script')
-      script.src = src
-      script.dataset.zoomSrc = src
-      script.onload = () => { script.dataset.loaded = 'true'; resolve() }
-      script.onerror = () => { script.remove(); reject(new Error('تعذّر تحميل Zoom')) }
-      document.head.appendChild(script)
+    if (!embeddedZoom) return
+    const runner = createZoomEmbedRunner({
+      meeting: {
+        signature: embeddedZoom.signature,
+        sdkKey: embeddedZoom.sdkKey,
+        meetingNumber: embeddedZoom.meetingNumber,
+        userName: embeddedZoom.userName,
+        password: embeddedZoom.password,
+      },
+      getRoot: () => zoomRootRef.current,
+      onStatus: (stage) => setZoomStatus(stage),
+      onError: (_stage, message) => {
+        setZoomError(message)
+        setZoomStatus(null)
+      },
     })
-    const start = async () => {
-      try {
-        const version = '6.2.0'
-        for (const name of ['react', 'react-dom', 'redux', 'redux-thunk', 'react-redux', 'lodash']) {
-          await loadScript('https://source.zoom.us/' + version + '/lib/vendor/' + name + '.min.js')
-        }
-        await loadScript('https://source.zoom.us/zoom-meeting-embedded-' + version + '.min.js')
-        if (cancelled) return
-        const sdk = (window as any).ZoomMtgEmbedded
-        if (!sdk?.createClient) throw new Error('مكتبة Zoom غير متاحة')
-        client = sdk.createClient()
-        await client.init({ zoomAppRoot: zoomRootRef.current, language: 'en-US', patchJsMedia: true, leaveOnPageUnload: true })
-        if (cancelled) { leave(); return }
-        await client.join({
-          signature: embeddedZoom.signature, sdkKey: embeddedZoom.sdkKey,
-          meetingNumber: embeddedZoom.meetingNumber, userName: embeddedZoom.userName,
-          password: embeddedZoom.password,
-        })
-        if (cancelled) leave()
-      } catch (e) {
-        if (!cancelled) setZoomError(e instanceof Error ? e.message : 'تعذّر تشغيل Zoom داخل المنصة')
-      }
-    }
-    void start()
-    return () => { cancelled = true; leave() }
-  }, [embeddedZoom])
+    void runner.start()
+    return () => runner.cancel()
+  }, [embeddedZoom, zoomAttempt])
   const [now, setNow] = useState(() => Date.now())
   const [activeWatch, setActiveWatch] = useState<{ video: VideoItem; watch: WatchDescriptor } | null>(null)
   const [openingVideoId, setOpeningVideoId] = useState<string | null>(null)
@@ -263,6 +414,7 @@ export function StudentLectures() {
         )
         if (res.zoomSdk) {
           setZoomError(null)
+          setZoomStatus(null)
           setEmbeddedZoom({ title: s.title, meetingUrl: res.meetingUrl, ...res.zoomSdk })
         } else {
           window.open(res.meetingUrl, '_blank', 'noopener')
@@ -419,16 +571,22 @@ export function StudentLectures() {
 
   return (
     <div className="space-y-6">
-      <Dialog open={!!embeddedZoom} onOpenChange={(open) => { if (!open) { setEmbeddedZoom(null); setZoomError(null) } }}>
+      <Dialog open={!!embeddedZoom} onOpenChange={(open) => { if (!open) { setEmbeddedZoom(null); setZoomError(null); setZoomStatus(null) } }}>
         <DialogContent className="flex h-[90vh] max-w-[96vw] flex-col" dir="rtl">
           <DialogHeader>
             <DialogTitle>{embeddedZoom?.title || 'قاعة المحاضرة'}</DialogTitle>
             <DialogDescription>المحاضرة تعمل داخل المنصة. تأكيد الحضور الفعلي من صلاحية المشرف.</DialogDescription>
           </DialogHeader>
+          {zoomStatus && zoomStatus !== 'joined' && (
+            <div className="flex items-center gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
+              <Loader2 className="h-4 w-4 animate-spin" /> {ZOOM_EMBED_STAGE_LABELS[zoomStatus]}
+            </div>
+          )}
           {zoomError && (
             <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
               {zoomError} — يمكنك فتح المحاضرة في Zoom مباشرة.
               <a className="mr-2 underline" href={embeddedZoom?.meetingUrl} target="_blank" rel="noopener noreferrer">فتح الرابط الخارجي</a>
+              <Button variant="outline" size="sm" className="mr-2" onClick={() => { setZoomError(null); setZoomStatus(null); setZoomAttempt((n) => n + 1) }}>إعادة المحاولة داخل المنصة</Button>
             </div>
           )}
           <div ref={zoomRootRef} className="min-h-0 flex-1 overflow-auto" dir="ltr" />
