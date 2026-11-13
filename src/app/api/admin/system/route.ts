@@ -352,6 +352,100 @@ export async function POST(req: NextRequest) {
     const admin = await requireAdmin()
     const body = await req.json()
     const { action, model: selectedLiveModel, purpose: livePurpose, provider: modelProvider, allowlistItem } = body || {}
+    if (action === 'save-custom-ai-provider') {
+      const incomingId = String(body?.id || '').trim()
+      const name = String(body?.name || '').trim()
+      const key = String(body?.apiKey || '').trim()
+      const enabled = body?.enabled !== false
+      if (name.length < 2 || name.length > 80 || /[<>\r\n]/.test(name)) {
+        return NextResponse.json({ error: 'اسم المزوّد يجب أن يكون من 2 إلى 80 حرفًا' }, { status: 400 })
+      }
+      let baseUrl: string
+      try {
+        baseUrl = await assertPublicCustomTextAiUrl(String(body?.baseUrl || ''))
+      } catch {
+        return NextResponse.json({ error: 'رابط API يجب أن يكون HTTPS عامًا وقابلًا للوصول، وليس عنوانًا داخليًا' }, { status: 400 })
+      }
+      const existingRow = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+      const providers = parseCustomTextAiProviders(existingRow?.value || '')
+      const existing = incomingId ? providers.find((entry) => entry.id === incomingId) : null
+      if (incomingId && (!isCustomTextAiProviderId(incomingId) || !existing)) {
+        return NextResponse.json({ error: 'المزوّد المطلوب تعديله غير موجود' }, { status: 404 })
+      }
+      if (!incomingId && providers.length >= 32) {
+        return NextResponse.json({ error: 'الحد الأقصى 32 مزوّدًا إضافيًا' }, { status: 400 })
+      }
+      const id = existing?.id || (`CUSTOM_${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}` as `CUSTOM_${string}`)
+      const hasNewKey = !!key && !isMaskedSecret(key)
+      if (!existing && !hasNewKey) return NextResponse.json({ error: 'مفتاح API مطلوب لإضافة مزوّد جديد' }, { status: 400 })
+      if (hasNewKey && (key.length > 2048 || /[\r\n]/.test(key))) {
+        return NextResponse.json({ error: 'تنسيق مفتاح API غير صالح' }, { status: 400 })
+      }
+      if (hasNewKey && !hasSecretEncryptionKey()) {
+        return NextResponse.json({ error: 'مفتاح تشفير إعدادات النظام غير متوفر' }, { status: 400 })
+      }
+      const updated = { id, name, baseUrl, enabled, selectedModel: existing?.selectedModel || '' }
+      const registry = existing ? providers.map((item) => item.id === id ? updated : item) : [...providers, updated]
+      await db.$transaction(async (tx) => {
+        await tx.setting.upsert({
+          where: { key: CUSTOM_AI_PROVIDERS_SETTING },
+          create: { key: CUSTOM_AI_PROVIDERS_SETTING, value: JSON.stringify(registry) },
+          update: { value: JSON.stringify(registry) },
+        })
+        if (hasNewKey) {
+          const secretName = customTextAiKeySetting(id)
+          const value = encryptSecret(key)
+          await tx.setting.upsert({
+            where: { key: secretName },
+            create: { key: secretName, value },
+            update: { value },
+          })
+        }
+      })
+      clearSecretCache()
+      await audit(admin, existing ? 'AI_CUSTOM_PROVIDER_UPDATED' : 'AI_CUSTOM_PROVIDER_CREATED', 'Setting', id, `Custom AI provider: ${id}`)
+      return NextResponse.json({ ok: true, customProviders: await adminCustomTextAiProviders() })
+    }
+    if (action === 'toggle-custom-ai-provider') {
+      const id = String(body?.id || '')
+      const existingRow = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+      const providers = parseCustomTextAiProviders(existingRow?.value || '')
+      if (!isCustomTextAiProviderId(id) || !providers.some((entry) => entry.id === id)) {
+        return NextResponse.json({ error: 'المزوّد غير موجود' }, { status: 404 })
+      }
+      const updated = providers.map((entry) => entry.id === id ? { ...entry, enabled: body?.enabled === true } : entry)
+      await db.setting.update({ where: { key: CUSTOM_AI_PROVIDERS_SETTING }, data: { value: JSON.stringify(updated) } })
+      await audit(admin, 'AI_CUSTOM_PROVIDER_TOGGLED', 'Setting', id, `enabled=${body?.enabled === true}`)
+      return NextResponse.json({ ok: true, customProviders: await adminCustomTextAiProviders() })
+    }
+    if (action === 'refresh-custom-ai-models') {
+      const id = String(body?.id || '')
+      if (!isCustomTextAiProviderId(id)) return NextResponse.json({ error: 'المزوّد غير صالح' }, { status: 400 })
+      try {
+        const catalog = await refreshCustomTextAiFreeModels(id)
+        return NextResponse.json({ ok: true, ...catalog })
+      } catch {
+        return NextResponse.json({ error: 'تعذر تحديث نماذج المزوّد. راجع الرابط والمفتاح وتفعيل المزوّد.' }, { status: 400 })
+      }
+    }
+    if (action === 'select-custom-ai-model') {
+      const id = String(body?.id || '')
+      const model = String(body?.model || '').trim()
+      if (!isCustomTextAiProviderId(id) || !model || model.length > 180) {
+        return NextResponse.json({ error: 'المزوّد أو النموذج غير صالح' }, { status: 400 })
+      }
+      const catalog = await textAiFreeModelsForProvider(id)
+      if (!catalog.models.includes(model)) return NextResponse.json({ error: 'النموذج غير مثبت كمجاني في كتالوج المزوّد' }, { status: 400 })
+      const row = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+      const providers = parseCustomTextAiProviders(row?.value || '')
+      if (!providers.some((entry) => entry.id === id && entry.enabled)) {
+        return NextResponse.json({ error: 'المزوّد غير مفعّل أو غير موجود' }, { status: 400 })
+      }
+      const updated = providers.map((entry) => entry.id === id ? { ...entry, selectedModel: model } : entry)
+      await db.setting.update({ where: { key: CUSTOM_AI_PROVIDERS_SETTING }, data: { value: JSON.stringify(updated) } })
+      await audit(admin, 'AI_CUSTOM_MODEL_SELECTED', 'Setting', id, `model=${model}`)
+      return NextResponse.json({ ok: true, customProviders: await adminCustomTextAiProviders() })
+    }
     if (action === 'encrypt-legacy-secrets') {
       if (!hasSecretEncryptionKey()) return NextResponse.json({ ok: false, error: 'أضف AACT_SECRETS_KEY في Vercel أولاً' }, { status: 400 })
       const rows = await db.setting.findMany({ where: { key: { in: SYSTEM_KEYS.filter(shouldEncryptSystemKey) } } })
