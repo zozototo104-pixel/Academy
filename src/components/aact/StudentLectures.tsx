@@ -320,16 +320,25 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
     const outcome = await Promise.race([work, watchdogPromise, cancelPromise])
     if (outcome === 'timeout') {
       fail('timeout')
+      void cancel()
     }
     clearWatchdog()
     return outcome
   }
 
-  const cancel = () => {
+  const cancel = (): Promise<boolean> => {
+    if (cleanupPromise) return cleanupPromise
     cancelled = true
     clearWatchdog()
-    leave()
     cancelResolve?.('cancelled')
+    cleanupPromise = (async () => {
+      // If an SDK call still runs, do not start a second client on the same hall.
+      // A permanently hung call yields false: the UI instructs the student to reload.
+      const inFlight = pendingSdkOperation
+      if (inFlight && !(await waitForCleanup(inFlight.then(() => true)))) return false
+      return waitForCleanup(leave())
+    })()
+    return cleanupPromise
   }
 
   return { start, cancel }
