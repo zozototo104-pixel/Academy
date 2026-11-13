@@ -221,6 +221,69 @@ describe('zoom embed runner — stage logging', () => {
   })
 })
 
+describe('zoom embed runner — prevent overlapping SDK clients', () => {
+  test('a hung join cannot be treated as a completed teardown; late resolution only leaves', async () => {
+    let releaseJoin: () => void = () => {}
+    const { client, calls } = makeClient({
+      join: () => new Promise<void>((resolve) => { releaseJoin = resolve }),
+    })
+    const runner = createZoomEmbedRunner(baseDeps({
+      getZoomSdk: () => ({ createClient: () => client }),
+      timeoutMs: 200,
+      cleanupWaitMs: 30,
+    }))
+    expect(await runner.start()).toBe('timeout')
+    // No new Zoom client may start while the old join promise is still live.
+    expect(await runner.cancel()).toBe(false)
+    expect(calls.join.length).toBe(1)
+    expect(calls.leave).toBe(0)
+    releaseJoin()
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    expect(calls.leave).toBeGreaterThan(0)
+    expect(statuses).not.toContain('joined')
+    expect(reports).toHaveLength(1)
+  })
+
+  test('an unresolved init is not mistaken for safe cleanup, and never proceeds to join', async () => {
+    let releaseInit: () => void = () => {}
+    const { client, calls } = makeClient({
+      init: () => new Promise<void>((resolve) => { releaseInit = resolve }),
+    })
+    const runner = createZoomEmbedRunner(baseDeps({
+      getZoomSdk: () => ({ createClient: () => client }),
+      timeoutMs: 200,
+      cleanupWaitMs: 30,
+    }))
+    expect(await runner.start()).toBe('timeout')
+    expect(await runner.cancel()).toBe(false)
+    expect(calls.join.length).toBe(0)
+    releaseInit()
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    expect(calls.join.length).toBe(0)
+    expect(calls.leave).toBeGreaterThan(0)
+  })
+
+  test('cancelling a joined client waits until leaveMeeting finishes', async () => {
+    const { client, calls } = makeClient()
+    let finishLeave: () => void = () => {}
+    const leavePending = new Promise<void>((resolve) => { finishLeave = resolve })
+    client.leaveMeeting = () => {
+      calls.leave += 1
+      return leavePending
+    }
+    const runner = createZoomEmbedRunner(baseDeps({ getZoomSdk: () => ({ createClient: () => client }) }))
+    expect(await runner.start()).toBe('joined')
+    let cleanupResult: boolean | undefined
+    const stopping = runner.cancel().then((value: boolean) => { cleanupResult = value })
+    await Promise.resolve()
+    expect(cleanupResult).toBeUndefined()
+    finishLeave()
+    await stopping
+    expect(cleanupResult).toBe(true)
+    expect(calls.leave).toBe(1)
+  })
+})
+
 describe('component wiring (source pins)', () => {
   const src = readFileSync(join(import.meta.dir, '../../src/components/aact/StudentLectures.tsx'), 'utf8')
 
