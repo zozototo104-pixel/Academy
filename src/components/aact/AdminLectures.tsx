@@ -99,7 +99,7 @@ function fmtWhen(iso: string, timeZone?: string): string {
 const selectClass = 'h-9 rounded-md border border-slate-300 bg-white px-2 text-sm'
 const labelClass = 'mb-1 block text-xs font-bold text-slate-600'
 
-type ConfirmState = { title: string; message: string; run: () => Promise<void> }
+type ConfirmState = { title: string; message: string; attendanceCount: number; run: (reason: string) => Promise<void> }
 
 export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface } = {}) {
   const { toast } = useToast()
