@@ -225,6 +225,7 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
   }
 
   const start = async (): Promise<ZoomEmbedOutcome> => {
+    onStatus?.('preparing')
     const cancelPromise = new Promise<ZoomEmbedOutcome>((resolve) => { cancelResolve = resolve })
     const watchdogPromise = new Promise<ZoomEmbedOutcome>((resolve) => {
       watchdog = setTimeout(() => {
