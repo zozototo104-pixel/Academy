@@ -132,7 +132,7 @@ async function runQuestionBankDocumentationAiBatch(programId: string, needs: Ban
   const updates = buildQuestionBankDocumentationUpdates(needs, raw)
   let filled = 0
   for (const { item, data, error } of updates) {
-    if (error) {
+    if (error || data === null) {
       console.warn('[question-bank-doc] item backfill failed', { programId, id: item.id, error })
       continue
     }
