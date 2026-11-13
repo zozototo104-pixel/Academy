@@ -304,7 +304,7 @@ export async function PATCH(req: NextRequest) {
         value = sanitizeProviderOrder(value, addedIds)
       }
       if (key === 'AI_PROVIDER_TIERS') {
-        const cleaned = sanitizeTextAiProviderTiers(value)
+        const cleaned = sanitizeTextAiProviderTiers(value, addedIds)
         if (cleaned == null) return NextResponse.json({ error: 'مستويات المزودين يجب أن تكون بصيغة PROVIDER:PAID أو PROVIDER:FREE مثل ALBORIHI:PAID,GROQ:FREE' }, { status: 400 })
         value = cleaned
       }
