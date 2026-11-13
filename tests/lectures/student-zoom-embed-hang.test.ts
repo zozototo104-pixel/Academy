@@ -301,6 +301,7 @@ describe('component wiring (source pins)', () => {
     expect(src).toContain('جارٍ تهيئة القاعة')
     expect(src).toContain('جارٍ الانضمام إلى الاجتماع')
     expect(src).toContain('zoomStatus')
+    expect(src).toContain("setZoomStatus('preparing')")
   })
 
   test('retry button re-runs the start in-platform', () => {
