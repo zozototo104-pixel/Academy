@@ -1438,6 +1438,7 @@ function modelFor(s: Settings, provider: ConcreteProvider): string {
     case 'APINEX': return s.apinexModel
     case 'OXION': return s.oxionModel
     case 'OPENAI_COMPAT': return s.openaiCompatModel
+    default: return s.customProviders?.find((entry) => entry.id === provider)?.selectedModel || ''
   }
 }
 
