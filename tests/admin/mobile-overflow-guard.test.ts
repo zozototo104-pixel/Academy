@@ -40,4 +40,29 @@ describe('admin mobile overflow guard', () => {
     expect(books).toContain('<div key={section.id} dir="rtl" className="mt-1 break-words">')
     expect(books).toContain('className="break-words rounded bg-white p-2 text-[10px] leading-5 text-slate-700"')
   })
+
+  test('email-change dialog keeps its mobile margins and shrinks its select', () => {
+    const view = read('src/components/aact/AdminView.tsx')
+    // The email dialog is the only one that must not set a base max-w:
+    // max-w-md would override the base max-w-[calc(100%-2rem)] and push
+    // the dialog past a 390px viewport (Haris's phone 2026-11-13).
+    expect(view).toContain('<DialogContent dir="rtl" className="sm:max-w-md">')
+    expect(view).not.toContain('<DialogContent dir="rtl" className="max-w-md">')
+    expect(view).toContain('<SelectTrigger className="min-w-0 w-full max-w-full"><SelectValue /></SelectTrigger>')
+    expect(view).toContain('<span className="break-all">{emailChangeStudent?.email}</span>')
+    // The trigger alone is not enough: the dialog is a grid, so its direct
+    // child (the space-y-3 body) also needs min-w-0, or the grid track is
+    // sized by the trigger's nowrap min-content and everything still spills
+    // left (proven by the 390px render: 613px track without it, 308px with it).
+    expect(view).toContain('<div className="min-w-0 space-y-3">')
+  })
+
+  test('email-change close is deferred one frame on iOS Safari', () => {
+    const view = read('src/components/aact/AdminView.tsx')
+    // Hardening, not a proven fix: closing in the same commit as the
+    // toast+blur races Radix's unmount on iOS Safari (removeChild crash
+    // screen). The real proof is retrying the action on a phone.
+    expect(view).toContain('requestAnimationFrame(() => setEmailChangeStudent(null))')
+    expect(view).toContain("typeof requestAnimationFrame === 'function'")
+  })
 })

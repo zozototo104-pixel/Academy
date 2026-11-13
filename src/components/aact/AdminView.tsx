@@ -455,7 +455,16 @@ export function AdminView() {
       // fix: the error report (see src/app/error.tsx) will prove the real
       // cause if the crash ever recurs.
       try { (document.activeElement as HTMLElement | null)?.blur?.() } catch { /* ignore */ }
-      setEmailChangeStudent(null)
+      // Defer ONLY the close by one animation frame: closing in the same
+      // commit as the toast+blur races Radix's unmount on iOS Safari (the
+      // removeChild crash screen right after this action). One frame lets
+      // the commit settle first. Hardening, not a proven fix — the real
+      // proof is retrying the action on a phone after merge.
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => setEmailChangeStudent(null))
+      } else {
+        setEmailChangeStudent(null)
+      }
       setEmailChangeValue('')
     } catch (e: any) {
       toast({ title: 'تعذر بدء تغيير البريد', description: e.message || 'حاول لاحقاً', variant: 'destructive' })
@@ -2454,14 +2463,14 @@ export function AdminView() {
           </Card>
           <AdminPager page={currentStudentPage} pageSize={studentPageSize} total={studentTotal} onPageChange={setStudentPage} label={isApplicationRowStudentsFilter ? 'طلب غير مستكمل' : 'طالب'} />
           <Dialog open={!!emailChangeStudent} onOpenChange={(o) => { if (!o) setEmailChangeStudent(null) }}>
-            <DialogContent dir="rtl" className="max-w-md">
+            <DialogContent dir="rtl" className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="text-right font-black text-[#0f2b46]">تغيير بريد الطالب</DialogTitle>
                 <DialogDescription className="text-right font-bold">
-                  {emailChangeStudent?.name} — البريد الحالي: {emailChangeStudent?.email}. سيرسل النظام رابط تأكيد إلى البريد الجديد، ولن يسري أي تغيير قبل أن يضغطه الطالب من بريده الجديد.
+                  {emailChangeStudent?.name} — البريد الحالي: <span className="break-all">{emailChangeStudent?.email}</span>. سيرسل النظام رابط تأكيد إلى البريد الجديد، ولن يسري أي تغيير قبل أن يضغطه الطالب من بريده الجديد.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-3">
+              <div className="min-w-0 space-y-3">
                 <div className="space-y-1.5">
                   <Label className="font-black">البريد الجديد</Label>
                   <Input type="email" value={emailChangeValue} onChange={(e) => setEmailChangeValue(e.target.value)} placeholder="new@example.com" dir="ltr" />
@@ -2469,7 +2478,7 @@ export function AdminView() {
                 <div className="space-y-1.5">
                   <Label className="font-black">نوع التغيير</Label>
                   <Select value={emailChangePurpose} onValueChange={(v) => setEmailChangePurpose(v as 'LOGIN' | 'NOTIFICATION')}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="min-w-0 w-full max-w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="NOTIFICATION">بريد إشعارات فقط — الدخول يبقى بالبريد الحالي (الأنسب لحسابات Google ولصناديق البريد الممتلئة)</SelectItem>
                       <SelectItem value="LOGIN">بريد دخول جديد — لحسابات البريد وكلمة المرور فقط</SelectItem>
