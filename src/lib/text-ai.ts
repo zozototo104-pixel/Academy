@@ -2074,7 +2074,7 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     models = await fetchMistralTextModels(baseUrl, key)
   } else if (provider === 'APINEX') {
     models = await fetchApinexTextModels(baseUrl, key)
-  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI', 'CLOUDFLARE', 'OXION'].includes(provider)) {
+  } else if (isCustomTextAiProviderId(provider) || ['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI', 'CLOUDFLARE', 'OXION'].includes(provider)) {
     models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
   }
 
