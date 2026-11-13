@@ -1745,7 +1745,7 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
               ? isStrongTopToolsTextModel(raw, id)
               : nvidiaCompat
                 ? isNvidiaFreeTrialTextModel(raw, id)
-                : isFreeModel(raw, id)
+                : isCustomTextAiProviderId(provider) ? strictlyFreeCustomModel(raw, id) : isFreeModel(raw, id)
       ))
     const orderedRows = provider === 'TOPTOOLS'
       ? rows.sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
