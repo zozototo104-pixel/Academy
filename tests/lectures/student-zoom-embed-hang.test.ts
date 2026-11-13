@@ -167,7 +167,7 @@ describe('zoom embed runner — timeout and retry', () => {
     expect(await retry.start()).toBe('joined')
     expect(calls.join.length).toBe(1)
     // The timed-out run reported once; the retry re-ran every stage.
-    expect(statuses).toEqual(['script-load', 'script-load', 'init', 'join', 'joined'])
+    expect(statuses).toEqual(['preparing', 'script-load', 'preparing', 'script-load', 'init', 'join', 'joined'])
     expect(errors.length).toBe(1)
     expect(reports.length).toBe(1)
   })
