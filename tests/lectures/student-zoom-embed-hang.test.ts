@@ -266,6 +266,14 @@ describe('zoom embed runner — prevent overlapping SDK clients', () => {
     expect(calls.leave).toBe(1)
   })
 
+  test('a rejected SDK teardown blocks safe retry rather than assuming success', async () => {
+    const { client } = makeClient()
+    client.leaveMeeting = async () => { throw new Error('leave failed') }
+    const runner = createZoomEmbedRunner(baseDeps({ getZoomSdk: () => ({ createClient: () => client }) }))
+    expect(await runner.start()).toBe('joined')
+    expect(await runner.cancel()).toBe(false)
+  })
+
   test('cancelling a joined client waits until leaveMeeting finishes', async () => {
     const { client, calls } = makeClient()
     let finishLeave: () => void = () => {}
