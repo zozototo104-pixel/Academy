@@ -217,12 +217,18 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   )
 
   const askDeleteSession = (s: SessionRow) => {
+    if (surface !== 'admin') return
+    setDeleteReason('')
     setConfirm({
       title: 'حذف اللقاء',
       message: `حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده ويُفصل عنه أي فيديو مرتبط، ولن تتأثر الفيديوهات نفسها. لا يمكن استعادة اللقاء بعد الحذف.`,
-      run: async () => {
+      attendanceCount: s._count.attendances,
+      run: async (reason: string) => {
         await act(async () => {
-          const result = await api<{ deleted: boolean; notificationWarning?: boolean }>(`/api/admin/lectures/sessions/${s.id}`, { method: 'DELETE' })
+          const result = await api<{ deleted: boolean; notificationWarning?: boolean }>(`/api/admin/lectures/sessions/${s.id}`, {
+            method: 'DELETE',
+            body: JSON.stringify({ reason }),
+          })
           if (result.notificationWarning) {
             toast({ title: 'حُذف اللقاء، لكن تعذر إرسال إشعار لبعض الطلاب', variant: 'destructive' })
           }
