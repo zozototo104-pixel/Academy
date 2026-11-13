@@ -171,7 +171,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         emailSubject: 'تحديث جدول محاضرات البرنامج',
       }).catch(() => { notificationWarning = true })
     }
-    return NextResponse.json({ deleted: true, detachedVideos: session._count.videos, notificationWarning })
+    return NextResponse.json({ deleted: true, deletedAttendances: deleted.attendanceCount, detachedVideos: session._count.videos, notificationWarning })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
