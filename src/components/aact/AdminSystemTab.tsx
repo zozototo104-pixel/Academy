@@ -615,6 +615,81 @@ export function AdminSystemTab() {
     }
   }
 
+  // Custom gateways use their own admin actions. They never modify any of
+  // the legacy fields in form, even if some system settings remain unsaved.
+  const saveCustomProvider = async () => {
+    setCustomBusy(true)
+    try {
+      const result = await api<{ ok: boolean; id: string; customProviders: CustomProviderSummary[] }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'save-custom-ai-provider', ...customDraft }),
+      })
+      setData((prev) => prev ? { ...prev, customProviders: result.customProviders } : prev)
+      setCustomDraft({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })
+      toast({ title: 'تم حفظ المزوّد الجديد', description: 'تم تشفير مفتاحه. يمكن اختياره من القائمة والترتيب اليدوي.' })
+      if (customDraft.enabled) {
+        try {
+          const catalog = await api<{ provider: string; models: string[]; message: string; discoveredCount: number; staticCount: number }>('/api/admin/system', {
+            method: 'POST', body: JSON.stringify({ action: 'refresh-custom-ai-models', id: result.id }),
+          })
+          setTextModelCatalog((prev) => ({ ...prev, [catalog.provider]: catalog }))
+          toast({ title: 'تحديث نماذج المزوّد', description: catalog.message })
+        } catch {
+          toast({ title: 'المزوّد محفوظ، لكن تعذر اكتشاف نماذج مجانية مؤكدة', description: 'تأكد من دعم /models، ثم جرّب تحديث النماذج.', variant: 'destructive' })
+        }
+      }
+    } catch (e: any) {
+      toast({ title: 'تعذّر إضافة المزوّد', description: e.message, variant: 'destructive' })
+    } finally {
+      setCustomBusy(false)
+    }
+  }
+
+  const toggleCustomProvider = async (id: string, enabled: boolean) => {
+    setCustomBusy(true)
+    try {
+      const r = await api<{ customProviders: CustomProviderSummary[] }>('/api/admin/system', {
+        method: 'POST', body: JSON.stringify({ action: 'toggle-custom-ai-provider', id, enabled }),
+      })
+      setData((prev) => prev ? { ...prev, customProviders: r.customProviders } : prev)
+      toast({ title: enabled ? 'تم تفعيل المزوّد' : 'تم إيقاف المزوّد' })
+    } catch (e: any) {
+      toast({ title: 'تعذّر تغيير حالة المزوّد', description: e.message, variant: 'destructive' })
+    } finally {
+      setCustomBusy(false)
+    }
+  }
+
+  const refreshCustomModels = async (id: string) => {
+    setCustomBusy(true)
+    try {
+      const catalog = await api<{ provider: string; models: string[]; message: string; discoveredCount: number; staticCount: number }>('/api/admin/system', {
+        method: 'POST', body: JSON.stringify({ action: 'refresh-custom-ai-models', id }),
+      })
+      setTextModelCatalog((prev) => ({ ...prev, [catalog.provider]: catalog }))
+      toast({ title: 'نتيجة تحديث النماذج', description: catalog.message })
+    } catch (e: any) {
+      toast({ title: 'تعذّر تحديث النماذج', description: e.message, variant: 'destructive' })
+    } finally {
+      setCustomBusy(false)
+    }
+  }
+
+  const selectCustomModel = async (id: string, model: string) => {
+    setCustomBusy(true)
+    try {
+      const r = await api<{ customProviders: CustomProviderSummary[] }>('/api/admin/system', {
+        method: 'POST', body: JSON.stringify({ action: 'select-custom-ai-model', id, model }),
+      })
+      setData((prev) => prev ? { ...prev, customProviders: r.customProviders } : prev)
+      toast({ title: 'تم اعتماد النموذج المجاني', description: model })
+    } catch (e: any) {
+      toast({ title: 'تعذّر اختيار النموذج', description: e.message, variant: 'destructive' })
+    } finally {
+      setCustomBusy(false)
+    }
+  }
+
   const uploadBinanceQr = async (file?: File | null) => {
     if (!file) return
     setPaymentQrUploading(true)
