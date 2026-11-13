@@ -90,7 +90,7 @@ const TEXT_AI_MODEL_SETTING_PROVIDERS = new Set(['GEMINI', 'UNOROUTER', 'OPENROU
 
 function isValidTextAiProviderModelSettingItem(item: string, addedIds: string[] = []): boolean {
   const [provider, model] = item.split(/:(.+)/).filter(Boolean)
-  return !!(provider && model && TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider.toUpperCase()) && /^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item))
+  return !!(provider && model && (TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider.toUpperCase()) || addedIds.includes(provider.toUpperCase())) && /^[A-Z0-9_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item))
 }
 
 function sanitizeTextAiProviderTiers(value: string): string | null {
