@@ -187,7 +187,7 @@ function reportZoomEmbedStage(stage: ZoomEmbedStage, message: string) {
   }
 }
 
-export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () => Promise<ZoomEmbedOutcome>; cancel: () => void } {
+export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () => Promise<ZoomEmbedOutcome>; cancel: () => Promise<boolean> } {
   const {
     meeting,
     getRoot,
