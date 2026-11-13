@@ -42,7 +42,10 @@ describe('administrator lecture deletion confirmation and reason', () => {
     expect(code).toContain("z.string().trim().min(10).max(500)")
     expect(code).toContain('reason: parsed.data.reason')
     expect(code).toContain("LECTURE_SESSION_DELETED")
-    expect(code).toContain('auditLecture(actor,')
+    expect(code).toContain('tx.auditLog.create({')
+    expect(code).toContain('actorId: actor.id')
+    expect(code).toContain('actorName: actor.name')
+    expect(code).toContain('details: safeAuditDetails({')
     expect(code).toContain("status: 400")
   })
 
