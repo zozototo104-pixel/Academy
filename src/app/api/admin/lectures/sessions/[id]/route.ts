@@ -88,7 +88,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // DELETE /api/admin/lectures/sessions/[id] — حذف نهائي للأدمن فقط.
-// حضور الطلاب سجل أكاديمي لا يُمحى؛ عند وجوده يُستخدم الإلغاء بدل الحذف.
+// الإدارة وحدها تستطيع حذف اللقاء حتى مع وجود حضور، بعد سبب وتأكيد صريح.
+// نسخة الحضور تحفظ في سجل التدقيق الذرّي قبل حذف سجلاته المرتبطة.
 // الفيديوهات محفوظة في البرنامج ويرجع ربطها باللقاء إلى null (SetNull).
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
