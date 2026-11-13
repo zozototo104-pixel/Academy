@@ -487,6 +487,7 @@ export function StudentLectures() {
           { method: 'POST' },
         )
         if (res.zoomSdk) {
+          setZoomRetryBlocked(false)
           setZoomError(null)
           setZoomStatus('preparing')
           setEmbeddedZoom({ title: s.title, meetingUrl: res.meetingUrl, ...res.zoomSdk })
