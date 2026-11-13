@@ -291,7 +291,7 @@ export function createZoomEmbedRunner(deps: ZoomEmbedRunnerDeps): { start: () =>
     })()
     const outcome = await Promise.race([work, watchdogPromise, cancelPromise])
     if (outcome === 'timeout') {
-      fail('timeout', 'تعذّر الاتصال بالقاعة خلال 15 ثانية — تحقق من اتصالك وحاول مجددًا.')
+      fail('timeout')
     }
     clearWatchdog()
     return outcome
