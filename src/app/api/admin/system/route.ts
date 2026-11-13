@@ -93,7 +93,7 @@ function isValidTextAiProviderModelSettingItem(item: string, addedIds: string[] 
   return !!(provider && model && (TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider.toUpperCase()) || addedIds.includes(provider.toUpperCase())) && /^[A-Z0-9_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item))
 }
 
-function sanitizeTextAiProviderTiers(value: string): string | null {
+function sanitizeTextAiProviderTiers(value: string, addedIds: string[] = []): string | null {
   const items = value.split(',').map((item) => item.trim()).filter(Boolean)
   for (const item of items) {
     const parts = item.split(':')
