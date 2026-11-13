@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
-import { getProgramKnowledgeItems, rebuildKnowledgeForBook, rebuildProgramKnowledge, looksLikeBrokenAcademicOutput, KNOWLEDGE_BANK_LIMITS } from '@/lib/knowledge-bank'
+import { getProgramKnowledgeItems, rebuildKnowledgeForBook, rebuildProgramKnowledge, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt, KNOWLEDGE_BANK_LIMITS } from '@/lib/knowledge-bank'
 import { scheduleProgramKnowledgeV2, enqueueKnowledgeAiRepairJob, getKnowledgeAiRepairJob } from '@/lib/book-knowledge-v2-scheduler'
-import { planKnowledgeItemCleanup } from '@/lib/academic-output-quality'
+import { planKnowledgeItemCleanup, repairKnownOcrWords, type OcrWordRepair } from '@/lib/academic-output-quality'
 import { withTimedResponse, withTiming } from '@/lib/timing'
 
 export const runtime = 'nodejs'
@@ -80,6 +80,30 @@ export async function GET(req: NextRequest) {
       }, { headers: { 'Cache-Control': 'no-store' } })
     }
 
+    if (req.nextUrl.searchParams.get('chunkRepairPreview') === '1') {
+      // Read-only preview of the rules fix for the item's own linked chunk.
+      // Nothing is written here; the admin confirms from this preview, and
+      // the manual editor is seeded from the full chunk text it returns.
+      const itemId = String(req.nextUrl.searchParams.get('itemId') || '').slice(0, 100)
+      if (!itemId) return NextResponse.json({ error: 'معرف عنصر المعرفة مطلوب' }, { status: 400 })
+      const item = await db.bookKnowledgeItem.findFirst({ where: { id: itemId, programId } })
+      if (!item) return NextResponse.json({ error: 'عنصر المعرفة غير موجود في البرنامج' }, { status: 404 })
+      if (!item.bookId || !item.chunkId) return NextResponse.json({ error: 'المقطع الأصلي غير موثّق؛ يلزم استعادة المصدر قبل إصلاح كلماته' }, { status: 422 })
+      const chunk = await db.bookChunk.findFirst({
+        where: { id: item.chunkId, programId, bookId: item.bookId },
+        select: { id: true, status: true, text: true, pageStart: true, pageEnd: true, updatedAt: true },
+      })
+      if (!chunk || chunk.status !== 'ANALYZED' || !chunk.text) return NextResponse.json({ error: 'المقطع غير قابل للفحص؛ لم يتغير أي نص' }, { status: 422 })
+      const repair = repairKnownOcrWords(chunk.text)
+      return NextResponse.json({
+        itemId, chunkId: chunk.id, pageStart: chunk.pageStart, pageEnd: chunk.pageEnd,
+        replacements: repair.replacements, changes: repair.changes,
+        originalLength: chunk.text.length, repairedLength: repair.text.length,
+        stillBroken: looksLikeBrokenAcademicOutput(repair.text),
+        chunkText: chunk.text, chunkUpdatedAt: chunk.updatedAt,
+      }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+
     if (req.nextUrl.searchParams.get('review') === '1') {
       // Cursor-based review over the actual table: the normal 140/2000-item
       // preview deliberately hides suspect content and cannot be used as a queue.
@@ -94,7 +118,7 @@ export async function GET(req: NextRequest) {
         if (!rows.length) { hasMoreRows = false; break }
         cursor = rows[rows.length - 1].id
         collected.push(...rows.filter((row) =>
-          ['REVIEW', 'DELETE_EMPTY'].includes(planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput).action) ||
+          ['REVIEW', 'DELETE_EMPTY'].includes(planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt).action) ||
           !row.bookId || !row.chunkId || row.pageStart == null || row.pageEnd == null
         ))
         hasMoreRows = rows.length === 100
@@ -239,6 +263,69 @@ export async function PATCH(req: NextRequest) {
         })
       }
 
+      if (body.action === 'repair-chunk' || body.action === 'edit-chunk') {
+        // Chunk-level repair: an item's excerpt can only be grounded once the
+        // linked chunk itself is clean. Both actions rewrite ONLY the text of
+        // the item's own linked chunk — never the item, book, page range or
+        // any reference. The verbatim grounding rule below is untouched.
+        const chunkExpectedAt = new Date(String(body.expectedUpdatedAt || ''))
+        if (Number.isNaN(chunkExpectedAt.getTime())) {
+          return NextResponse.json({ error: 'المقطع تغيّر؛ حدّث بياناته قبل إصلاح كلماته' }, { status: 409 })
+        }
+        const item = await db.bookKnowledgeItem.findFirst({ where: { id, programId } })
+        if (!item) return NextResponse.json({ error: 'عنصر المعرفة غير موجود في البرنامج' }, { status: 404 })
+        if (!item.bookId || !item.chunkId) return NextResponse.json({ error: 'المقطع الأصلي غير موثّق؛ يلزم استعادة المصدر قبل إصلاح كلماته' }, { status: 422 })
+        const chunk = await db.bookChunk.findFirst({
+          where: { id: item.chunkId, programId, bookId: item.bookId },
+          select: { id: true, status: true, text: true, pageStart: true, pageEnd: true, updatedAt: true },
+        })
+        if (!chunk || chunk.status !== 'ANALYZED' || !chunk.text) return NextResponse.json({ error: 'المقطع غير قابل للفحص؛ لم يتغير أي نص' }, { status: 422 })
+        if (chunkExpectedAt.getTime() !== chunk.updatedAt.getTime()) {
+          return NextResponse.json({ error: 'المقطع تغيّر منذ فتحه؛ حدّث القائمة قبل إصلاح كلماته' }, { status: 409 })
+        }
+        let nextText: string
+        let replacements = 0
+        let changes: OcrWordRepair[] = []
+        if (body.action === 'repair-chunk') {
+          // The repair is recomputed server-side from the current chunk text;
+          // the preview never carries text back, so a stale confirmation
+          // cannot write a different version than the one previewed.
+          const repair = repairKnownOcrWords(chunk.text)
+          if (repair.replacements === 0) {
+            return NextResponse.json({ error: 'لا توجد كلمات مشوّهة تصلحها القواعد في هذا المقطع؛ لم يُحفظ أي تعديل' }, { status: 422 })
+          }
+          nextText = repair.text
+          replacements = repair.replacements
+          changes = repair.changes
+        } else {
+          if (typeof body.text !== 'string') return NextResponse.json({ error: 'اكتب نص المقطع كاملاً قبل الحفظ' }, { status: 422 })
+          nextText = body.text.trim()
+          if (nextText.length < 20 || nextText.length > 200_000) {
+            return NextResponse.json({ error: 'نص المقطع غير مكتمل أو يتجاوز الحد المسموح' }, { status: 422 })
+          }
+          if (nextText === chunk.text.trim()) {
+            return NextResponse.json({ error: 'النص الجديد مطابق للنص الحالي؛ لا يوجد ما يُحفظ' }, { status: 422 })
+          }
+        }
+        const updated = await db.bookChunk.updateMany({
+          where: { id: chunk.id, programId, updatedAt: chunk.updatedAt },
+          data: { text: nextText },
+        })
+        if (updated.count !== 1) {
+          return NextResponse.json({ error: 'المقطع تغيّر بالتزامن؛ لم يُحفظ أي تعديل' }, { status: 409 })
+        }
+        const refreshed = await db.bookChunk.findFirst({ where: { id: chunk.id, programId, bookId: item.bookId }, select: { id: true, updatedAt: true } })
+        await audit(admin, body.action === 'repair-chunk' ? 'REPAIR_KNOWLEDGE_CHUNK_WORDS' : 'EDIT_KNOWLEDGE_CHUNK_TEXT', 'BookChunk', chunk.id,
+          body.action === 'repair-chunk'
+            ? `إصلاح كلمات المقطع بالقواعد من مراجعة العنصر ${id}: ${replacements} استبدالاً، دون تغيير الكتاب أو الصفحات أو المراجع`
+            : `تعديل يدوي لنص المقطع من مراجعة العنصر ${id}، دون تغيير الكتاب أو الصفحات أو المراجع`)
+        return NextResponse.json({
+          ok: true, id, chunkId: chunk.id, replacements, changes,
+          stillBroken: looksLikeBrokenAcademicOutput(nextText),
+          chunkUpdatedAt: refreshed?.updatedAt || null,
+        })
+      }
+
       if (typeof body.title !== 'string' || typeof body.summary !== 'string' || typeof body.excerpt !== 'string') {
         return NextResponse.json({ error: 'اكتب عنوان العنصر وشرحه ومقتطف المصدر كاملاً قبل الاعتماد' }, { status: 422 })
       }
@@ -248,7 +335,12 @@ export async function PATCH(req: NextRequest) {
       if (title.length < 6 || title.length > 220 || summary.length < 20 || summary.length > 1800 || excerpt.length < 20 || excerpt.length > 1500) {
         return NextResponse.json({ error: 'عنوان أو شرح أو مقتطف المصدر غير مكتمل أو يتجاوز الحد المسموح' }, { status: 422 })
       }
-      if (planKnowledgeItemCleanup({ title, summary, excerpt }, looksLikeBrokenAcademicOutput).action !== 'KEEP') {
+      // KEEP or UPDATE both mean "all three texts are clean": UPDATE only says
+      // the cleaner would normalize a detail (e.g. «2. .1» → «2.1») in a
+      // verbatim quote, which must stay exactly as written in the book.
+      // Only REVIEW (still broken/empty) refuses the save.
+      const plan = planKnowledgeItemCleanup({ title, summary, excerpt }, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt)
+      if (plan.action === 'REVIEW' || plan.action === 'DELETE_EMPTY') {
         return NextResponse.json({ error: 'بقي تشوه أو جزء ناقص؛ راجع النصوص الثلاثة كاملة' }, { status: 422 })
       }
       const item = await db.bookKnowledgeItem.findFirst({ where: { id, programId } })
@@ -326,7 +418,7 @@ export async function POST(req: NextRequest) {
         const deleteIds: string[] = []
         const updates: Promise<any>[] = []
         for (const row of rows) {
-          const plan = planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput)
+          const plan = planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt)
           if (plan.action === 'DELETE_EMPTY') {
             deleteIds.push(row.id)
           } else if (plan.action === 'UPDATE') {

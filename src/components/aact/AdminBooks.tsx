@@ -819,6 +819,21 @@ export function AdminBooksTab() {
   const [manualReviewSaving, setManualReviewSaving] = useState(false)
   const [sourceRecoveryEvidence, setSourceRecoveryEvidence] = useState<Record<string, SourceRecoveryEvidence>>({})
   const [sourceRecoveryBusyId, setSourceRecoveryBusyId] = useState<string | null>(null)
+  type ChunkRepairPreview = {
+    chunkId: string
+    pageStart: number
+    pageEnd: number
+    replacements: number
+    changes: Array<{ before: string; after: string; context: string }>
+    originalLength: number
+    repairedLength: number
+    stillBroken: boolean
+    chunkText: string
+    chunkUpdatedAt: string
+  }
+  const [chunkRepairPreview, setChunkRepairPreview] = useState<Record<string, ChunkRepairPreview>>({})
+  const [chunkRepairManualText, setChunkRepairManualText] = useState<Record<string, string>>({})
+  const [chunkRepairBusyId, setChunkRepairBusyId] = useState<string | null>(null)
   const knowledgeRepairProgramRef = useRef(programId)
   useEffect(() => { knowledgeRepairProgramRef.current = programId }, [programId])
   // Review results are program-scoped. Never show another program's items
@@ -832,6 +847,9 @@ export function AdminBooksTab() {
     setManualReviewError(null)
     setSourceRecoveryEvidence({})
     setSourceRecoveryBusyId(null)
+    setChunkRepairPreview({})
+    setChunkRepairManualText({})
+    setChunkRepairBusyId(null)
   }, [programId])
   const [rebuildingBookId, setRebuildingBookId] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
@@ -1551,6 +1569,88 @@ export function AdminBooksTab() {
       toast({ title: 'تعذر حفظ المراجعة اليدوية', description: e.message || 'حاول مجدداً؛ لم يُحفظ أي تعديل جزئي.', variant: 'destructive' })
     } finally {
       setManualReviewSaving(false)
+    }
+  }
+
+  const previewChunkRepair = async (item: ManualReviewItem) => {
+    if (!programId || chunkRepairBusyId || !item.sourceValid) return
+    const selectedProgramId = programId
+    setChunkRepairBusyId(item.id)
+    try {
+      const preview = await api<ChunkRepairPreview>(`/api/admin/knowledge-bank?programId=${encodeURIComponent(selectedProgramId)}&chunkRepairPreview=1&itemId=${encodeURIComponent(item.id)}`)
+      if (knowledgeRepairProgramRef.current !== selectedProgramId) return
+      setChunkRepairPreview((prev) => ({ ...prev, [item.id]: preview }))
+      setChunkRepairManualText((prev) => ({ ...prev, [item.id]: preview.chunkText }))
+      if (preview.replacements === 0) {
+        toast({ title: 'لا توجد كلمات مشوّهة بالقواعد', description: 'القواعد لم تجد كلمة مشوّهة في هذا المقطع؛ عدّل النص يدويًا إن بقي فيه تشوه.' })
+      }
+    } catch (e: any) {
+      if (knowledgeRepairProgramRef.current === selectedProgramId) {
+        toast({ title: 'تعذر فحص كلمات المقطع', description: e.message || 'لم يتغير أي نص.', variant: 'destructive' })
+      }
+    } finally {
+      setChunkRepairBusyId(null)
+    }
+  }
+
+  const confirmChunkRepair = async (item: ManualReviewItem) => {
+    const preview = chunkRepairPreview[item.id]
+    if (!programId || chunkRepairBusyId || !preview || preview.replacements === 0) return
+    const ok = await askAdminConfirm({
+      title: 'اعتماد إصلاح كلمات المقطع',
+      description: `ستُصلح القواعد ${preview.replacements} كلمة مشوّهة في نص المقطع (صفحات ${preview.pageStart}–${preview.pageEnd})، دون تغيير الكتاب أو الصفحات أو مراجع العناصر. بعدها انسخ المقطع الصحيح في حقل المقتطف واحفظ مراجعتك.`,
+      confirmLabel: 'اعتماد إصلاح القواعد',
+    })
+    if (!ok) return
+    const selectedProgramId = programId
+    setChunkRepairBusyId(item.id)
+    try {
+      const result = await api<{ ok: boolean; replacements: number; chunkUpdatedAt: string | null }>('/api/admin/knowledge-bank', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          action: 'repair-chunk', programId: selectedProgramId, id: item.id,
+          expectedUpdatedAt: preview.chunkUpdatedAt,
+        }),
+      })
+      if (knowledgeRepairProgramRef.current !== selectedProgramId) return
+      setChunkRepairPreview((prev) => { const next = { ...prev }; delete next[item.id]; return next })
+      setChunkRepairManualText((prev) => { const next = { ...prev }; delete next[item.id]; return next })
+      toast({ title: 'تم إصلاح كلمات المقطع', description: `صُحّحت ${result.replacements} كلمة؛ أُعيد تحميل قائمة المراجعة، انسخ المقطع الصحيح في حقل المقتطف ثم احفظ مراجعتك.` })
+      await loadManualReview(null)
+    } catch (e: any) {
+      if (knowledgeRepairProgramRef.current === selectedProgramId) {
+        toast({ title: 'تعذر إصلاح كلمات المقطع', description: e.message || 'لم يتغير أي نص.', variant: 'destructive' })
+      }
+    } finally {
+      setChunkRepairBusyId(null)
+    }
+  }
+
+  const saveChunkManualEdit = async (item: ManualReviewItem) => {
+    const preview = chunkRepairPreview[item.id]
+    const text = chunkRepairManualText[item.id] || ''
+    if (!programId || chunkRepairBusyId || !preview) return
+    const selectedProgramId = programId
+    setChunkRepairBusyId(item.id)
+    try {
+      await api('/api/admin/knowledge-bank', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          action: 'edit-chunk', programId: selectedProgramId, id: item.id,
+          text, expectedUpdatedAt: preview.chunkUpdatedAt,
+        }),
+      })
+      if (knowledgeRepairProgramRef.current !== selectedProgramId) return
+      setChunkRepairPreview((prev) => { const next = { ...prev }; delete next[item.id]; return next })
+      setChunkRepairManualText((prev) => { const next = { ...prev }; delete next[item.id]; return next })
+      toast({ title: 'تم حفظ نص المقطع المعدّل', description: 'أُعيد تحميل قائمة المراجعة، انسخ المقطع الصحيح في حقل المقتطف ثم احفظ مراجعتك.' })
+      await loadManualReview(null)
+    } catch (e: any) {
+      if (knowledgeRepairProgramRef.current === selectedProgramId) {
+        toast({ title: 'تعذر حفظ تعديل المقطع', description: e.message || 'لم يتغير أي نص.', variant: 'destructive' })
+      }
+    } finally {
+      setChunkRepairBusyId(null)
     }
   }
 
@@ -3306,6 +3406,55 @@ export function AdminBooksTab() {
                                 <summary className="cursor-pointer text-[11px] font-black text-slate-600">عرض نص المقطع الأصلي</summary>
                                 <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-600">{item.sourceTextPreview}</p>
                               </details>
+                            )}
+                            {item.sourceValid && (
+                              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2">
+                                <p className="text-[11px] font-black text-slate-700">إصلاح كلمات المقطع الأصلي</p>
+                                <p className="mt-1 text-[11px] leading-5 text-slate-500">إذا كان نص المقطع نفسه مشوّهًا، لا يمكن حفظ تصحيح العنصر. أصلح كلمات المقطع أولًا — بالقواعد أو يدويًا — ثم انسخ المقطع الصحيح في حقل المقتطف.</p>
+                                {!chunkRepairPreview[item.id] ? (
+                                  <Button size="sm" variant="outline" className="mt-2 h-8 text-[11px]" disabled={chunkRepairBusyId !== null || manualReviewSaving} onClick={() => previewChunkRepair(item)}>
+                                    {chunkRepairBusyId === item.id && <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" />}
+                                    إصلاح كلمات المقطع
+                                  </Button>
+                                ) : (
+                                  <div className="mt-2 space-y-2">
+                                    {chunkRepairPreview[item.id].replacements > 0 ? (
+                                      <div>
+                                        <p className="text-[11px] font-bold text-slate-700">القواعد وجدت {chunkRepairPreview[item.id].replacements} كلمة مشوّهة:</p>
+                                        <ul className="mt-1 space-y-1">
+                                          {chunkRepairPreview[item.id].changes.slice(0, 8).map((change, i) => (
+                                            <li key={i} className="break-words text-[11px] leading-5 text-slate-600">
+                                              <span className="font-black text-red-700">{change.before}</span>
+                                              {' → '}
+                                              <span className="font-black text-emerald-700">{change.after}</span>
+                                              <span className="text-slate-500"> — {change.context}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                        {chunkRepairPreview[item.id].replacements > 8 && <p className="text-[11px] text-slate-500">…و{chunkRepairPreview[item.id].replacements - 8} كلمة أخرى.</p>}
+                                        {chunkRepairPreview[item.id].stillBroken && <p className="font-bold text-amber-800">ما زالت في المقطع كلمات مشوّهة لا تصلحها القواعد؛ عدّلها يدويًا في الأسفل.</p>}
+                                        <Button size="sm" className="mt-2 h-8 text-[11px]" disabled={chunkRepairBusyId !== null} onClick={() => confirmChunkRepair(item)}>
+                                          اعتماد إصلاح القواعد
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <p className="text-[11px] font-bold text-slate-600">القواعد لم تجد كلمة مشوّهة في هذا المقطع؛ عدّل النص يدويًا إن بقي فيه تشوه.</p>
+                                    )}
+                                    <div>
+                                      <Label className="text-[11px]">تعديل نص المقطع يدويًا</Label>
+                                      <Textarea value={chunkRepairManualText[item.id] || ''} onChange={(e) => setChunkRepairManualText((prev) => ({ ...prev, [item.id]: e.target.value }))} rows={6} dir="rtl" className="bg-white" />
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={chunkRepairBusyId !== null} onClick={() => saveChunkManualEdit(item)}>
+                                        حفظ التعديل اليدوي للمقطع
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-8 text-[11px]" onClick={() => { setChunkRepairPreview((prev) => { const next = { ...prev }; delete next[item.id]; return next }) }}>
+                                        إغلاق
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             )}
                             <div className="flex flex-wrap gap-2">
                               <Button size="sm" disabled={manualReviewSaving || !item.sourceValid} onClick={() => saveManualReview(item)}>اعتماد التصحيح</Button>

@@ -15,8 +15,71 @@ export function normalizeAcademic(value: unknown): string {
     .trim()
 }
 
+export interface OcrWordRepair {
+  before: string
+  after: string
+  context: string
+}
+
+export interface OcrWordRepairResult {
+  text: string
+  replacements: number
+  changes: OcrWordRepair[]
+}
+
+// إصلاحات OCR عربية شائعة على مستوى الكلمة المستقلة فقط — القائمة نفسها
+// التي يستخدمها cleanAcademicOutput. تُستخدم وحدها لإصلاح نص مقطع كتاب
+// دون حذف أي بادئة أو علامة أو اقتطاع أي حرف: نص المقطع نص كتاب، لا
+// مخرجات ذكاء، فلا يصح أن يمر على تنظيف مخرجات الذكاء كاملاً.
+const KNOWN_OCR_WORD_REPAIRS: Array<{ pattern: RegExp; word: string; fix: string }> = [
+  { pattern: /(^|[^\p{L}\p{N}])ويف(?=$|[^\p{L}\p{N}])/gu, word: 'ويف', fix: 'وفي' },
+  { pattern: /(^|[^\p{L}\p{N}])يف(?=$|[^\p{L}\p{N}])/gu, word: 'يف', fix: 'في' },
+  { pattern: /(^|[^\p{L}\p{N}])الن(?=$|[^\p{L}\p{N}])/gu, word: 'الن', fix: 'لان' },
+  { pattern: /(^|[^\p{L}\p{N}])الثاين(?=$|[^\p{L}\p{N}])/gu, word: 'الثاين', fix: 'الثاني' },
+  { pattern: /(^|[^\p{L}\p{N}])اختاذ(?=$|[^\p{L}\p{N}])/gu, word: 'اختاذ', fix: 'اتخاذ' },
+  { pattern: /(^|[^\p{L}\p{N}])اختاد(?=$|[^\p{L}\p{N}])/gu, word: 'اختاد', fix: 'اتخاذ' },
+  { pattern: /(^|[^\p{L}\p{N}])القررا(?=$|[^\p{L}\p{N}])/gu, word: 'القررا', fix: 'القرار' },
+  { pattern: /(^|[^\p{L}\p{N}])القرا(?=$|[^\p{L}\p{N}])/gu, word: 'القرا', fix: 'القرار' },
+  { pattern: /(^|[^\p{L}\p{N}])مبعن(?=$|[^\p{L}\p{N}])/gu, word: 'مبعن', fix: 'بمعنى' },
+  { pattern: /(^|[^\p{L}\p{N}])املوضوعية(?=$|[^\p{L}\p{N}])/gu, word: 'املوضوعية', fix: 'الموضوعية' },
+  { pattern: /(^|[^\p{L}\p{N}])املوضوعيه(?=$|[^\p{L}\p{N}])/gu, word: 'املوضوعيه', fix: 'الموضوعية' },
+  { pattern: /(^|[^\p{L}\p{N}])املبادي(?=$|[^\p{L}\p{N}])/gu, word: 'املبادي', fix: 'المبادئ' },
+  { pattern: /(^|[^\p{L}\p{N}])املكتسب(?=$|[^\p{L}\p{N}])/gu, word: 'املكتسب', fix: 'المكتسب' },
+  { pattern: /(^|[^\p{L}\p{N}])االستراتيجية(?=$|[^\p{L}\p{N}])/gu, word: 'االستراتيجية', fix: 'الاستراتيجية' },
+  { pattern: /(^|[^\p{L}\p{N}])االستراتيجيه(?=$|[^\p{L}\p{N}])/gu, word: 'االستراتيجيه', fix: 'الاستراتيجية' },
+  { pattern: /(^|[^\p{L}\p{N}])الاستراتيجيه(?=$|[^\p{L}\p{N}])/gu, word: 'الاستراتيجيه', fix: 'الاستراتيجية' },
+  { pattern: /(^|[^\p{L}\p{N}])الإستراتيجيه(?=$|[^\p{L}\p{N}])/gu, word: 'الإستراتيجيه', fix: 'الإستراتيجية' },
+  { pattern: /(^|[^\p{L}\p{N}])المدرسه(?=$|[^\p{L}\p{N}])/gu, word: 'المدرسه', fix: 'المدرسة' },
+  { pattern: /(^|[^\p{L}\p{N}])سلسله(?=$|[^\p{L}\p{N}])/gu, word: 'سلسله', fix: 'سلسلة' },
+  { pattern: /(^|[^\p{L}\p{N}])متتابعه(?=$|[^\p{L}\p{N}])/gu, word: 'متتابعه', fix: 'متتابعة' },
+  { pattern: /(^|[^\p{L}\p{N}])متكامله(?=$|[^\p{L}\p{N}])/gu, word: 'متكامله', fix: 'متكاملة' },
+  { pattern: /(^|[^\p{L}\p{N}])حاله(?=$|[^\p{L}\p{N}])/gu, word: 'حاله', fix: 'حالة' },
+  { pattern: /(^|[^\p{L}\p{N}])تكتيكيه(?=$|[^\p{L}\p{N}])/gu, word: 'تكتيكيه', fix: 'تكتيكية' },
+]
+
+const MAX_OCR_REPAIR_CHANGES = 20
+
+export function repairKnownOcrWords(value: unknown): OcrWordRepairResult {
+  let text = String(value || '')
+  const changes: OcrWordRepair[] = []
+  let replacements = 0
+  for (const { pattern, word, fix } of KNOWN_OCR_WORD_REPAIRS) {
+    pattern.lastIndex = 0
+    text = text.replace(pattern, (match: string, prefix: string, offset: number, whole: string) => {
+      replacements += 1
+      if (changes.length < MAX_OCR_REPAIR_CHANGES) {
+        const start = Math.max(0, offset - 50)
+        const end = Math.min(whole.length, offset + match.length + 50)
+        changes.push({ before: word, after: fix, context: whole.slice(start, end) })
+      }
+      return `${prefix}${fix}`
+    })
+  }
+  return { text, replacements, changes }
+}
+
 export function cleanAcademicOutput(value: unknown, max = 1800): string {
-  return String(value || '')
+  const stripped = String(value || '')
     .replace(/\u0000/g, ' ')
     .replace(/\r\n?/g, '\n')
     .replace(/\[([^\]\n]{1,120})\]\([^\)\n]{1,500}\)/g, '$1')
@@ -28,30 +91,9 @@ export function cleanAcademicOutput(value: unknown, max = 1800): string {
     .replace(/\bصفحة\s+\d{1,5}\s+(?:من|\/|of)\s+\d{1,5}\b/gi, ' ')
     .replace(/\[\s*(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\s*(?:\|[^\]]*)?\]/gi, ' ')
     .replace(/\b(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\b\s*(?:\|\s*(?:أهمية|اهمية)\s*\d{1,3})?/gi, ' ')
-    .replace(/(?:^|[\n\s.؛،-])(?:محور\s+معرفي\s+مهم|الفكرة|خلاصة\s+أكاديمية|خلاصة\s+اكاديمية|مقتطف\s+داعم|دليل\s+من\s+المحتوى|دليل\s+من\s+المحتوي|كلمات\s+مفتاحية|مصطلحات\s+مرتبطة|مصدر\s+القراءة|جودة\s+المحتوى|جودة\s+المحتوي)\s*[:：]\s*/giu, ' ')
-    // إصلاحات OCR عربية شائعة قبل الحكم على جودة النص؛ الهدف ليس إخفاء الخلل بل إنقاذ النص الصحيح قبل التوليد.
-    .replace(/(^|[^\p{L}\p{N}])ويف(?=$|[^\p{L}\p{N}])/gu, '$1وفي')
-    .replace(/(^|[^\p{L}\p{N}])يف(?=$|[^\p{L}\p{N}])/gu, '$1في')
-    .replace(/(^|[^\p{L}\p{N}])الثاين(?=$|[^\p{L}\p{N}])/gu, '$1الثاني')
-    .replace(/(^|[^\p{L}\p{N}])اختاذ(?=$|[^\p{L}\p{N}])/gu, '$1اتخاذ')
-    .replace(/(^|[^\p{L}\p{N}])اختاد(?=$|[^\p{L}\p{N}])/gu, '$1اتخاذ')
-    .replace(/(^|[^\p{L}\p{N}])القررا(?=$|[^\p{L}\p{N}])/gu, '$1القرار')
-    .replace(/(^|[^\p{L}\p{N}])القرا(?=$|[^\p{L}\p{N}])/gu, '$1القرار')
-    .replace(/(^|[^\p{L}\p{N}])مبعن(?=$|[^\p{L}\p{N}])/gu, '$1بمعنى')
-    .replace(/(^|[^\p{L}\p{N}])املوضوعية(?=$|[^\p{L}\p{N}])/gu, '$1الموضوعية')
-    .replace(/(^|[^\p{L}\p{N}])املوضوعيه(?=$|[^\p{L}\p{N}])/gu, '$1الموضوعية')
-    .replace(/(^|[^\p{L}\p{N}])املبادي(?=$|[^\p{L}\p{N}])/gu, '$1المبادئ')
-    .replace(/(^|[^\p{L}\p{N}])املكتسب(?=$|[^\p{L}\p{N}])/gu, '$1المكتسب')
-    .replace(/(^|[^\p{L}\p{N}])االستراتيجية(?=$|[^\p{L}\p{N}])/gu, '$1الاستراتيجية')
-    .replace(/(^|[^\p{L}\p{N}])االستراتيجيه(?=$|[^\p{L}\p{N}])/gu, '$1الاستراتيجية')
-    .replace(/(^|[^\p{L}\p{N}])الاستراتيجيه(?=$|[^\p{L}\p{N}])/gu, '$1الاستراتيجية')
-    .replace(/(^|[^\p{L}\p{N}])الإستراتيجيه(?=$|[^\p{L}\p{N}])/gu, '$1الإستراتيجية')
-    .replace(/(^|[^\p{L}\p{N}])المدرسه(?=$|[^\p{L}\p{N}])/gu, '$1المدرسة')
-    .replace(/(^|[^\p{L}\p{N}])سلسله(?=$|[^\p{L}\p{N}])/gu, '$1سلسلة')
-    .replace(/(^|[^\p{L}\p{N}])متتابعه(?=$|[^\p{L}\p{N}])/gu, '$1متتابعة')
-    .replace(/(^|[^\p{L}\p{N}])متكامله(?=$|[^\p{L}\p{N}])/gu, '$1متكاملة')
-    .replace(/(^|[^\p{L}\p{N}])حاله(?=$|[^\p{L}\p{N}])/gu, '$1حالة')
-    .replace(/(^|[^\p{L}\p{N}])تكتيكيه(?=$|[^\p{L}\p{N}])/gu, '$1تكتيكية')
+    .replace(/(?:^|[\n\s.؛،-])(?:محور\s+معرفي\s+مهم|الفكرة|خلاصة\s+أكاديمية|خلاصة\s+اكاديمية|مقتطف\s+داعم|دليل\s+من\s+المحتوى|دليل\s+من\s+المحتوي|كلمات\s+مفتاحية|مصطلحات\s+مرتبطة|مصدر\s+القراءة|جودة\s+المحتوى|جودة\s+المحتوي)\s*[:：]\s*/giu, ' ');
+  // إصلاحات OCR عربية شائعة قبل الحكم على جودة النص؛ الهدف ليس إخفاء الخلل بل إنقاذ النص الصحيح قبل التوليد.
+  return repairKnownOcrWords(stripped).text
     .replace(/\bStrategic\s+Paradigm\b/gi, 'النموذج الذهني الاستراتيجي')
     .replace(/\bLogistics\b/gi, 'اللوجستيات')
     .replace(/\bTactics\b/gi, 'التكتيك')
@@ -239,6 +281,7 @@ export type KnowledgeItemCleanupPlan =
 export function planKnowledgeItemCleanup(
   row: { title: string; summary: string; excerpt?: string | null },
   isBroken: (text: string) => boolean = looksLikeBrokenGeneratedArabic,
+  isBrokenExcerpt: (text: string) => boolean = isBroken,
 ): KnowledgeItemCleanupPlan {
   const fullClean = (value: string) => cleanAcademicOutput(value, Math.max(1800, value.length + 128))
   const title = fullClean(row.title || '')
@@ -249,8 +292,10 @@ export function planKnowledgeItemCleanup(
   if (![row.title, row.summary, row.excerpt].some((value) => String(value || '').trim())) return { action: 'DELETE_EMPTY' }
   // Never commit a partial repair: if ANY field remains empty/corrupted,
   // leave all original fields and reference identifiers untouched.
+  // The excerpt is a quote from the book: its own gate checks garble only,
+  // while the title+summary keep the full Arabic requirement.
   if (!title || !summary || (row.excerpt && !excerpt)
-    || isBroken(`${title}. ${summary}`) || (excerpt && isBroken(excerpt))) {
+    || isBroken(`${title}. ${summary}`) || (excerpt && isBrokenExcerpt(excerpt))) {
     return { action: 'REVIEW', reason: 'UNRESOLVED' }
   }
   if (title !== row.title || summary !== row.summary || excerpt !== (row.excerpt ?? null)) {

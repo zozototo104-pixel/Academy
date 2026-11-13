@@ -265,7 +265,7 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(worker).toContain('REPAIR_RATE_GATE')
     expect(worker).toContain("const owned = await db.setting.updateMany")
     expect(worker).toContain('validateGroundedKnowledgeRepair(parsed, evidence)')
-    expect(worker).toContain('planKnowledgeItemCleanup(item, looksLikeBrokenAcademicOutput)')
+    expect(worker).toContain('planKnowledgeItemCleanup(item, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt)')
     expect(worker).toContain('!looksLikeBrokenAcademicOutput(candidate.excerpt)')
     expect(worker).toContain('db.bookKnowledgeItem.updateMany')
     expect(worker).toContain('updatedAt: item.updatedAt')
@@ -343,7 +343,7 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
 
   test('admin sanitizer routes deletion only through the fully-empty classification', () => {
     const source = readFileSync(new URL('../../src/app/api/admin/knowledge-bank/route.ts', import.meta.url), 'utf8')
-    expect(source).toContain("const plan = planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput)")
+    expect(source).toContain("const plan = planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt)")
     expect(source).toContain("if (plan.action === 'DELETE_EMPTY')")
     expect(source).toContain("} else if (plan.action === 'REVIEW') {")
     expect(source).toContain("needsReview++")
@@ -431,7 +431,9 @@ Object.assign(fakeDb, {
     (where.chunkId ? where.chunkId.in.includes(item.chunkId) : true)) },
 })
 mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-guide-test', name: 'Administrator' }) }))
-mock.module('@/lib/notify', () => ({ audit: async () => {} }))
+mock.module('@/lib/notify', () => ({ audit: async (actor: any, action: string, entity: string, entityId?: string | null, details?: string) => {
+  auditRows.push({ actorId: actor?.id || null, actorName: actor?.name || 'النظام', action, entity, entityId: entityId || null, details: details || null })
+} }))
 mock.module('@/lib/timing', () => ({
   withTiming: async (_name: string, fn: () => any) => fn(),
   withTimedResponse: async (fn: () => any) => fn(),
@@ -705,6 +707,7 @@ describe('manual review: unified quality checkers never flag valid يضيف/في
 let reviewItems: any[] = []
 let reviewBooks: any[] = []
 let reviewChunks: any[] = []
+const auditRows: any[] = []
 const REVIEW_PROGRAM_ID = AUTO_PROGRAM_ID
 const REVIEW_BOOK_ID = 'book-review-source'
 const REVIEW_CHUNK_ID = 'chunk-review-source'
@@ -747,6 +750,15 @@ Object.assign(fakeDb, {
         chunk.index >= where.index.gte && chunk.index <= where.index.lte))),
     findFirst: async ({ where }: any) => [...autoChunks, ...reviewChunks].find((chunk) =>
       chunk.id === where.id && chunk.programId === where.programId && chunk.bookId === where.bookId) || null,
+    updateMany: async ({ where, data }: any) => {
+      const row = [...autoChunks, ...reviewChunks].find((chunk) =>
+        chunk.id === where.id && chunk.programId === where.programId &&
+        chunk.updatedAt && chunk.updatedAt.getTime() === where.updatedAt.getTime())
+      if (!row) return { count: 0 }
+      Object.assign(row, data)
+      row.updatedAt = new Date()
+      return { count: 1 }
+    },
   },
 })
 
@@ -754,13 +766,14 @@ const { GET: getKnowledgeBank, PATCH: patchKnowledgeBank } = await import('../..
 
 function resetReviewFixture() {
   reset()
+  auditRows.length = 0
   autoUnits = []
   autoBooks = []
   autoChunks = []
   autoKnowledge = []
   reviewBooks = [{ id: REVIEW_BOOK_ID, programId: REVIEW_PROGRAM_ID, title: 'كتاب المراجعة المعتمد' }]
   reviewChunks = [{ id: REVIEW_CHUNK_ID, programId: REVIEW_PROGRAM_ID, bookId: REVIEW_BOOK_ID,
-    index: 1, status: 'ANALYZED', pageStart: 10, pageEnd: 40, text: REVIEW_CHUNK_TEXT }]
+    index: 1, status: 'ANALYZED', pageStart: 10, pageEnd: 40, text: REVIEW_CHUNK_TEXT, updatedAt: REVIEW_UPDATED_AT }]
   reviewItems = [
     {
       id: 'review-valid-yadeef', programId: REVIEW_PROGRAM_ID, bookId: REVIEW_BOOK_ID, chunkId: REVIEW_CHUNK_ID,
@@ -802,6 +815,12 @@ async function patchReview(body: Record<string, any>) {
 
 async function getSourceCandidates(itemId: string, programId = REVIEW_PROGRAM_ID) {
   const requestUrl = `http://localhost/api/admin/knowledge-bank?programId=${programId}&sourceCandidates=1&itemId=${encodeURIComponent(itemId)}`
+  const response = await getKnowledgeBank({ nextUrl: new URL(requestUrl) } as any)
+  return { response, body: await response.json() }
+}
+
+async function getChunkRepairPreview(itemId: string, programId = REVIEW_PROGRAM_ID) {
+  const requestUrl = `http://localhost/api/admin/knowledge-bank?programId=${programId}&chunkRepairPreview=1&itemId=${encodeURIComponent(itemId)}`
   const response = await getKnowledgeBank({ nextUrl: new URL(requestUrl) } as any)
   return { response, body: await response.json() }
 }
@@ -1170,5 +1189,244 @@ describe('manual review UI: the admin panel reaches the review queue and the man
     expect(resetBlock).toContain('setManualReviewCursor(null)')
     expect(resetBlock).toContain('setManualReviewEditingId(null)')
     expect(resetBlock).toContain('}, [programId])')
+  })
+})
+
+// Chunk word repair: a garbled chunk blocks every manual item correction,
+// because the excerpt must be a verbatim span of the chunk and must be clean.
+// The rules fix and the manual edit repair the CHUNK itself; only then can
+// the existing manual-review save pass. The auto-fix list is exactly the
+// shared cleaner's list — no new word rule is invented here.
+const GARBLED_PMI_PASSAGE = 'تتشابه إدارة المشاريع يف الهيكل المصفوفي الضعيف مع ما هو متبع يف الهيكل الإجرائي حيث تقسّم المنشأة إلى أقسام متخصصة أو إجرائية، ولا يخصص من هذه الأقسام أي وحدة للمشاريع؛ وبالتالي فإن دور مدير المشروع يف هذه المنشآت يكون تنسيقياً بحتاً.'
+const REPAIRED_PMI_PASSAGE = 'تتشابه إدارة المشاريع في الهيكل المصفوفي الضعيف مع ما هو متبع في الهيكل الإجرائي حيث تقسّم المنشأة إلى أقسام متخصصة أو إجرائية، ولا يخصص من هذه الأقسام أي وحدة للمشاريع؛ وبالتالي فإن دور مدير المشروع في هذه المنشآت يكون تنسيقياً بحتاً.'
+const PMI_REVIEW_TITLE = 'الهيكل المصفوفي الضعيف في إدارة المشاريع'
+const PMI_REVIEW_SUMMARY = 'يوضح هذا المفهوم الهيكل المصفوفي الضعيف في إدارة المشاريع وكيف تتوزع المسؤوليات بين الأقسام المتخصصة وفرق العمل.'
+const CLEAN_FILLER = 'إدارة المشاريع تعتمد على التخطيط والتنفيذ والمتابعة. '
+
+describe('chunk word repair: rules preview + confirm and manual edit on the linked chunk', () => {
+  test('rules repair fixes standalone يف without touching valid يضيف and without truncating a long chunk', async () => {
+    const { repairKnownOcrWords, cleanAcademicOutput } = await import('../../src/lib/academic-output-quality')
+    const repaired = repairKnownOcrWords(GARBLED_PMI_PASSAGE)
+    expect(repaired.replacements).toBe(3)
+    expect(repaired.text).toBe(REPAIRED_PMI_PASSAGE)
+    expect(repaired.changes.map((c) => `${c.before}→${c.after}`)).toEqual(['يف→في', 'يف→في', 'يف→في'])
+    expect(repaired.changes[0].context).toContain('يف الهيكل')
+    expect(repairKnownOcrWords('الكتاب يضيف قراءة جديدة في الفصل المهني.').replacements).toBe(0)
+    // «الن» المستقلة تشوه لـ«لان»: تُصلح، بينما «الناس» و«لان» نفسها لا تُمس.
+    expect(repairKnownOcrWords('قرر المدير الن المشروع يحتاج مراجعة.').text).toBe('قرر المدير لان المشروع يحتاج مراجعة.')
+    expect(repairKnownOcrWords('الناس يحتاجون تخطيطاً.').replacements).toBe(0)
+    expect(repairKnownOcrWords('لان المشروع مهم.').replacements).toBe(0)
+    const long = GARBLED_PMI_PASSAGE + ' ' + CLEAN_FILLER.repeat(300)
+    expect(long.length).toBeGreaterThan(12000)
+    const longRepaired = repairKnownOcrWords(long)
+    expect(longRepaired.replacements).toBe(3)
+    expect(longRepaired.text.length).toBe(long.length)
+    expect(longRepaired.text.endsWith(long.slice(-200))).toBe(true)
+    // The shared cleaner is unchanged by the extraction: labels still
+    // stripped, OCR words still repaired, long output still capped at max.
+    expect(cleanAcademicOutput('مفهوم: نص يف المقطع عن الثاين.', 1800)).toBe('نص في المقطع عن الثاني.')
+    expect(cleanAcademicOutput('نص طويل. '.repeat(500), 1800).length).toBe(1800)
+  })
+
+  test('preview reports the rules fix and writes nothing, including for a word the rules do not cover', async () => {
+    resetReviewFixture()
+    reviewChunks[0].text = GARBLED_PMI_PASSAGE + ' وتشير الفقرة انها تشرح الهيكل المصفوفي.'
+    const { response, body } = await getChunkRepairPreview('review-broken-text')
+    expect(response.status).toBe(200)
+    // Exactly the shared cleaner list: three يف fixes, no invented انها rule.
+    expect(body.replacements).toBe(3)
+    expect(body.changes).toHaveLength(3)
+    expect(body.changes.every((c: any) => c.before === 'يف' && c.after === 'في')).toBe(true)
+    expect(body.chunkId).toBe(REVIEW_CHUNK_ID)
+    expect(body.pageStart).toBe(10)
+    expect(body.pageEnd).toBe(40)
+    expect(body.chunkText).toBe(reviewChunks[0].text)
+    expect(body.chunkUpdatedAt).toBe(REVIEW_UPDATED_AT.toISOString())
+    expect(body.originalLength).toBe(reviewChunks[0].text.length)
+    expect(body.repairedLength).toBe(body.originalLength)
+    expect(reviewChunks[0].text).toContain(' يف ')
+    expect(auditRows).toHaveLength(0)
+  })
+
+  test('preview on a clean chunk finds nothing and writes nothing', async () => {
+    resetReviewFixture()
+    const { response, body } = await getChunkRepairPreview('review-broken-text')
+    expect(response.status).toBe(200)
+    expect(body.replacements).toBe(0)
+    expect(body.changes).toEqual([])
+    expect(body.chunkText).toBe(REVIEW_CHUNK_TEXT)
+    expect(reviewChunks[0].text).toBe(REVIEW_CHUNK_TEXT)
+    expect(auditRows).toHaveLength(0)
+  })
+
+  test('preview refuses an item without a linked chunk', async () => {
+    resetReviewFixture()
+    const { response, body } = await getChunkRepairPreview('review-no-source')
+    expect(response.status).toBe(422)
+    expect(body.error).toContain('غير موثّق')
+  })
+
+  test('confirm writes the repaired chunk, audits, and refuses a stale stamp', async () => {
+    resetReviewFixture()
+    reviewChunks[0].text = GARBLED_PMI_PASSAGE + ' ' + CLEAN_FILLER.repeat(10)
+    const { response, body } = await patchReview({
+      action: 'repair-chunk', programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(response.status).toBe(200)
+    expect(body.ok).toBe(true)
+    expect(body.replacements).toBe(3)
+    expect(body.chunkId).toBe(REVIEW_CHUNK_ID)
+    expect(typeof body.chunkUpdatedAt).toBe('string')
+    expect(body.chunkUpdatedAt).not.toBe(REVIEW_UPDATED_AT.toISOString())
+    expect(reviewChunks[0].text).toBe(REPAIRED_PMI_PASSAGE + ' ' + CLEAN_FILLER.repeat(10))
+    expect(reviewChunks[0].updatedAt.getTime()).not.toBe(REVIEW_UPDATED_AT.getTime())
+    expect(auditRows).toHaveLength(1)
+    expect(auditRows[0].action).toBe('REPAIR_KNOWLEDGE_CHUNK_WORDS')
+    expect(auditRows[0].entity).toBe('BookChunk')
+    expect(auditRows[0].entityId).toBe(REVIEW_CHUNK_ID)
+    const stale = await patchReview({
+      action: 'repair-chunk', programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(stale.response.status).toBe(409)
+    expect(reviewChunks[0].text).toBe(REPAIRED_PMI_PASSAGE + ' ' + CLEAN_FILLER.repeat(10))
+  })
+
+  test('confirm with nothing to fix saves nothing', async () => {
+    resetReviewFixture()
+    const { response, body } = await patchReview({
+      action: 'repair-chunk', programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(response.status).toBe(422)
+    expect(reviewChunks[0].text).toBe(REVIEW_CHUNK_TEXT)
+    expect(auditRows).toHaveLength(0)
+  })
+
+  test('manual edit accepts arbitrary admin-chosen corrections, audits, and enforces the same guards', async () => {
+    resetReviewFixture()
+    reviewChunks[0].text = GARBLED_PMI_PASSAGE + ' وتشير الفقرة انها تشرح الهيكل المصفوفي.'
+    // The replacement below is the admin's choice in this fixture only: the
+    // route never judges a manual correction. The correct form of «انها» is
+    // still an open question — this test proves the mechanism accepts any
+    // admin-chosen text, not that «إنها» is the right spelling.
+    const edited = reviewChunks[0].text.replace(' انها ', ' إنها ')
+    const { response, body } = await patchReview({
+      action: 'edit-chunk', programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      text: edited, expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(response.status).toBe(200)
+    expect(body.ok).toBe(true)
+    expect(body.replacements).toBe(0)
+    expect(typeof body.chunkUpdatedAt).toBe('string')
+    expect(body.chunkUpdatedAt).not.toBe(REVIEW_UPDATED_AT.toISOString())
+    expect(reviewChunks[0].text).toBe(edited)
+    expect(reviewChunks[0].text).toContain(' إنها ')
+    expect(reviewChunks[0].text).not.toContain(' انها ')
+    expect(auditRows).toHaveLength(1)
+    expect(auditRows[0].action).toBe('EDIT_KNOWLEDGE_CHUNK_TEXT')
+    expect(auditRows[0].entity).toBe('BookChunk')
+    const stale = await patchReview({
+      action: 'edit-chunk', programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      text: edited + ' جملة إضافية.', expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(stale.response.status).toBe(409)
+  })
+
+  test('manual edit refuses identical, too-short, or non-string text without writing', async () => {
+    resetReviewFixture()
+    reviewChunks[0].text = GARBLED_PMI_PASSAGE
+    const base = { action: 'edit-chunk', programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString() }
+    const identical = await patchReview({ ...base, text: GARBLED_PMI_PASSAGE })
+    expect(identical.response.status).toBe(422)
+    const short = await patchReview({ ...base, text: 'نص قصير' })
+    expect(short.response.status).toBe(422)
+    const missing = await patchReview({ ...base, text: undefined })
+    expect(missing.response.status).toBe(422)
+    expect(reviewChunks[0].text).toBe(GARBLED_PMI_PASSAGE)
+    expect(auditRows).toHaveLength(0)
+  })
+
+  test('after the chunk is repaired, the existing manual-review save passes with a verbatim excerpt', async () => {
+    resetReviewFixture()
+    reviewChunks[0].text = GARBLED_PMI_PASSAGE + ' ' + CLEAN_FILLER.repeat(10)
+    const saveBody = {
+      programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      title: PMI_REVIEW_TITLE, summary: PMI_REVIEW_SUMMARY, excerpt: REPAIRED_PMI_PASSAGE,
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    }
+    const before = await patchReview(saveBody)
+    expect(before.response.status).toBe(422)
+    expect(before.body.error).toContain('حرفيًا')
+    const repaired = await patchReview({
+      action: 'repair-chunk', programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(repaired.response.status).toBe(200)
+    expect(repaired.body.replacements).toBe(3)
+    const after = await patchReview(saveBody)
+    expect(after.response.status).toBe(200)
+    expect(after.body.ok).toBe(true)
+    expect(reviewItems.find((item) => item.id === 'review-broken-text')!.excerpt).toBe(REPAIRED_PMI_PASSAGE)
+  })
+
+  test('AdminBooks wires chunk repair preview, confirm and manual edit to the knowledge-bank endpoints', () => {
+    const adminBooks = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
+    expect(adminBooks).toContain('إصلاح كلمات المقطع')
+    expect(adminBooks).toContain('chunkRepairPreview=1')
+    expect(adminBooks).toContain("action: 'repair-chunk'")
+    expect(adminBooks).toContain("action: 'edit-chunk'")
+    expect(adminBooks).toContain('اعتماد إصلاح القواعد')
+    expect(adminBooks).toContain('حفظ التعديل اليدوي للمقطع')
+    expect(adminBooks).toContain('تعديل نص المقطع يدويًا')
+    expect(adminBooks).toContain('expectedUpdatedAt: preview.chunkUpdatedAt')
+  })
+})
+
+// Excerpt loosening (Haris 2026-11-13): an excerpt is a quote from the book,
+// so the Latin-proportion rules must not flag a faithful English list from
+// the PMI book. Title+summary keep the full Arabic requirement.
+const HARIS_ENGLISH_EXCERPT = 'Project management plan 2. .1 Schedule forecasts 3. Cost forecasts 4. Validated changes 5. Work performance information 6. Enterprise environmental factors 7. Organizational process assets'
+const HARIS_TITLE = 'مدخلات عملية المراقبة والتحكم'
+const HARIS_SUMMARY = 'تشمل الخطة الإدارية للمشروع، وتوقعات الجدول الزمني، وتوقعات التكلفة، والتغييرات المعتمدة، ومعلومات أداء العمل، والعوامل البيئية للمؤسسة، والأصول العملية للمنظمة.'
+
+describe('excerpt loosening: an English list quoted from the book is not broken', () => {
+  test('allowForeign skips only the Latin rules; a forbidden fragment still fails', async () => {
+    const { looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt } = await import('../../src/lib/knowledge-bank')
+    expect(looksLikeBrokenAcademicOutput(HARIS_ENGLISH_EXCERPT)).toBe(true)
+    expect(looksLikeBrokenAcademicOutput(HARIS_ENGLISH_EXCERPT, { allowForeign: true })).toBe(false)
+    expect(looksLikeBrokenExcerpt(HARIS_ENGLISH_EXCERPT)).toBe(false)
+    expect(looksLikeBrokenExcerpt(`${HARIS_ENGLISH_EXCERPT} google books`)).toBe(true)
+  })
+
+  test('the planner stops flagging Haris’s exact item as broken once the excerpt gate is the quote gate', async () => {
+    const { planKnowledgeItemCleanup } = await import('../../src/lib/academic-output-quality')
+    const { looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt } = await import('../../src/lib/knowledge-bank')
+    expect(planKnowledgeItemCleanup(
+      { title: HARIS_TITLE, summary: HARIS_SUMMARY, excerpt: HARIS_ENGLISH_EXCERPT },
+      looksLikeBrokenAcademicOutput,
+    ).action).toBe('REVIEW')
+    // UPDATE, not KEEP: the fields are clean, but the cleaner would normalize
+    // «2. .1» → «2.1» in the verbatim quote. The manual-review save accepts
+    // both KEEP and UPDATE; only REVIEW refuses it.
+    expect(planKnowledgeItemCleanup(
+      { title: HARIS_TITLE, summary: HARIS_SUMMARY, excerpt: HARIS_ENGLISH_EXCERPT },
+      looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt,
+    ).action).toBe('UPDATE')
+  })
+
+  test('the manual-review save passes for Haris’s exact item with a verbatim English excerpt', async () => {
+    resetReviewFixture()
+    reviewChunks[0].text = `${REVIEW_CHUNK_TEXT} ${HARIS_ENGLISH_EXCERPT}`
+    const { response, body } = await patchReview({
+      programId: REVIEW_PROGRAM_ID, id: 'review-broken-text',
+      title: HARIS_TITLE, summary: HARIS_SUMMARY, excerpt: HARIS_ENGLISH_EXCERPT,
+      expectedUpdatedAt: REVIEW_UPDATED_AT.toISOString(),
+    })
+    expect(response.status).toBe(200)
+    expect(body.ok).toBe(true)
+    expect(reviewItems.find((item) => item.id === 'review-broken-text')!.excerpt).toBe(HARIS_ENGLISH_EXCERPT)
   })
 })
