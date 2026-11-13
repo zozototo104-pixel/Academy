@@ -1992,7 +1992,7 @@ function freeModelsMemoryCacheMs(provider: ConcreteProvider): number {
 }
 
 function freeModelsPersistentCacheMs(provider: ConcreteProvider): number {
-  return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 24 * 60 * 60 * 1000
+  return isCustomTextAiProviderId(provider) ? 30 * 60 * 1000 : provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 24 * 60 * 60 * 1000
 }
 
 // Discovery is background traffic: it must never spend a request on a key the
