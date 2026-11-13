@@ -141,8 +141,8 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
         api<{ videos: VideoRow[]; storageConfigured?: boolean; uploadMaxBytes?: number }>(`/api/admin/lectures/videos/list?${videoParams.toString()}`),
         api<{ programs: ProgramOption[] }>('/api/programs').catch(() => ({ programs: [] as ProgramOption[] })),
         surface === 'supervisor'
-          ? api<{ series: SeriesScopeRow[]; assignedProgramIds?: string[] }>('/api/admin/lectures/series').catch(() => ({ series: [] as SeriesScopeRow[] }))
-          : Promise.resolve({ series: [] as SeriesScopeRow[] }),
+          ? api<{ series: SeriesScopeRow[]; assignedProgramIds?: string[] }>('/api/admin/lectures/series').catch(() => ({ series: [] as SeriesScopeRow[], assignedProgramIds: [] as string[] }))
+          : Promise.resolve({ series: [] as SeriesScopeRow[], assignedProgramIds: [] as string[] }),
       ])
       const nextSessions = ses.sessions || []
       const nextVideos = vid.videos || []
