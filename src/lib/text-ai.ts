@@ -1720,8 +1720,10 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
   if (!normalizedBaseUrl) return []
   const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(normalizedBaseUrl)
   try {
+    if (isCustomTextAiProviderId(provider)) await assertPublicCustomTextAiUrl(normalizedBaseUrl)
     const response = await fetchWithTimeout(provider, `${normalizedBaseUrl}/models`, {
       cache: 'no-store',
+      ...(isCustomTextAiProviderId(provider) ? { redirect: 'error' as const } : {}),
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
     }, aiDiscoveryTimeoutMs())
     if (!response.ok) return []
