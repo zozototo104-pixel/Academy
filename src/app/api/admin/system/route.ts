@@ -88,7 +88,7 @@ function shouldEncryptSystemKey(key: string) {
 
 const TEXT_AI_MODEL_SETTING_PROVIDERS = new Set(['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'ALBORIHI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT'])
 
-function isValidTextAiProviderModelSettingItem(item: string): boolean {
+function isValidTextAiProviderModelSettingItem(item: string, addedIds: string[] = []): boolean {
   const [provider, model] = item.split(/:(.+)/).filter(Boolean)
   return !!(provider && model && TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider.toUpperCase()) && /^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item))
 }
