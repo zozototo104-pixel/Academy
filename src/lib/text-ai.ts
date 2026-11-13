@@ -1482,6 +1482,7 @@ function staticTextModelsForProvider(provider: ConcreteProvider, s?: Settings): 
     case 'APINEX': return APINEX_TEXT_MODELS
     case 'OXION': return OXION_TEXT_MODELS
     case 'OPENAI_COMPAT': return s && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
+    default: return [] // Never invent a free-model catalog for a dynamic provider.
   }
 }
 
