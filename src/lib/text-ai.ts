@@ -1293,7 +1293,7 @@ function persistentRouterStateItem(key: string, value: string): TextAiRouterStat
 
 function memoryKeyIndexLookup(s: Settings): Map<string, { provider: ConcreteProvider; keyIndex: number }> {
   const lookup = new Map<string, { provider: ConcreteProvider; keyIndex: number }>()
-  for (const provider of ROUTER_STATE_PROVIDERS) {
+  for (const provider of [...ROUTER_STATE_PROVIDERS, ...(s.customProviders || []).map((entry) => entry.id)]) {
     providerKeys(s, provider).forEach((key, index) => lookup.set(cooldownId(provider, key), { provider, keyIndex: index }))
   }
   return lookup
