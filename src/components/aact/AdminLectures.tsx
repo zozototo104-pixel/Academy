@@ -435,7 +435,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                     {surface === 'admin' && (
                       <Button variant="ghost" size="sm" className="text-red-700"
                         disabled={busy}
-                        title={s._count.attendances > 0 ? 'عرض سبب منع الحذف عند وجود سجل حضور' : 'حذف اللقاء بعد كتابة السبب وتأكيده'}
+                        title={s._count.attendances > 0 ? 'حذف اللقاء وسجلات حضوره بعد تأكيد الإدارة وكتابة السبب' : 'حذف اللقاء بعد كتابة السبب وتأكيده'}
                         onClick={() => askDeleteSession(s)}>
                         <Trash2 className="ml-1 h-4 w-4" /> حذف
                       </Button>
