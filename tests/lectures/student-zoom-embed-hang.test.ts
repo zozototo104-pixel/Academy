@@ -263,7 +263,7 @@ describe('zoom embed runner — prevent overlapping SDK clients', () => {
     releaseInit()
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
     expect(calls.join.length).toBe(0)
-    expect(calls.leave).toBeGreaterThan(0)
+    expect(calls.leave).toBe(1)
   })
 
   test('cancelling a joined client waits until leaveMeeting finishes', async () => {
