@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { zonedTimeToUtc } from '@/lib/lectures/recurrence'
+import { deriveEffectiveStatus } from '@/lib/lectures/student'
 import { parseVideoUrl } from '@/lib/lectures/video-embed'
 import {
   AlarmClock,
