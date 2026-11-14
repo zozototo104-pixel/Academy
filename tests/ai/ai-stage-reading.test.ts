@@ -239,6 +239,71 @@ describe('legacy book readers: profile rescue only after failure', () => {
     }
   })
 
+  test('empty original OCR activates the configured READING rescue on the same PDF page', async () => {
+    const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
+    configureReadingProfile(true)
+    const pdf = await PDFDocument.create()
+    pdf.addPage([300, 400])
+    const calls: any[] = []
+    visionRouterCall = async (opts) => {
+      calls.push(opts)
+      return calls.length === 1
+        ? { provider: 'GEMINI', model: 'original', text: JSON.stringify({ pages: [{ page: 1, text: '   ' }] }) }
+        : { provider: 'OPENAI', model: 'gpt-4o', text: JSON.stringify({ pages: [{ page: 1, text: 'نص الصفحة المقروءة من الإنقاذ' }] }) }
+    }
+    try {
+      const pages = await transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1])
+      expect(pages.map((page) => [page.page, page.text])).toEqual([
+        [1, 'نص الصفحة المقروءة من الإنقاذ'],
+      ])
+      expect(calls).toHaveLength(2)
+      expect(calls[0].restrictToModels).toBeUndefined()
+      expect(calls[1].restrictToModels).toEqual([{ provider: 'OPENAI', model: 'gpt-4o' }])
+    } finally {
+      __setStageProfileStoreForTests(null)
+    }
+  })
+
+  test('empty rescue OCR is rejected and never reported as a successful read', async () => {
+    const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
+    configureReadingProfile(true)
+    const pdf = await PDFDocument.create()
+    pdf.addPage([300, 400])
+    const calls: any[] = []
+    visionRouterCall = async (opts) => {
+      calls.push(opts)
+      if (calls.length === 1) throw Object.assign(new Error('429 primary quota exhausted'), { status: 429 })
+      return { provider: 'OPENAI', model: 'gpt-4o', text: JSON.stringify({ pages: [{ page: 1, text: '  ' }] }) }
+    }
+    try {
+      await expect(transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1]))
+        .rejects.toThrow('429 primary quota exhausted')
+      expect(calls).toHaveLength(2)
+      expect(calls[1].restrictToModels).toEqual([{ provider: 'OPENAI', model: 'gpt-4o' }])
+    } finally {
+      __setStageProfileStoreForTests(null)
+    }
+  })
+
+  test('two empty OCR attempts retain the original explicit unreadable error', async () => {
+    const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
+    configureReadingProfile(true)
+    const pdf = await PDFDocument.create()
+    pdf.addPage([300, 400])
+    let calls = 0
+    visionRouterCall = async () => {
+      calls++
+      return { provider: 'GEMINI', model: 'empty', text: JSON.stringify({ pages: [{ page: 1, text: '' }] }) }
+    }
+    try {
+      await expect(transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1]))
+        .rejects.toThrow('BOOK_OUTLINE_OCR_EMPTY_RESPONSE')
+      expect(calls).toBe(2)
+    } finally {
+      __setStageProfileStoreForTests(null)
+    }
+  })
+
   test('disabled READING profile preserves the historical failure, without retry', async () => {
     const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
     configureReadingProfile(false)
