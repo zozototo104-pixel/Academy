@@ -217,8 +217,10 @@ test.describe('AACT mobile UX guardrails suite', () => {
       await assertNoPageHorizontalOverflow(page, 'admin-system-routing-' + width)
       await assertMobileFormControlsFit(page, routingPanel, 'admin-system-routing-' + width)
       const firstSelect = page.locator(routingPanel + ' [data-slot="select-trigger"]').first()
-      const firstValue = firstSelect.locator('[data-slot="select-value"]')
-      await expect(firstValue).toHaveCSS('text-overflow', 'ellipsis')
+      // The selected AI model must be readable (wrapped), not clipped off-screen.
+      const visibleLabel = firstSelect.locator('span.min-w-0.flex-1')
+      await expect(visibleLabel).toBeVisible()
+      await expect(visibleLabel).toHaveCSS('white-space', 'normal')
       await firstSelect.click()
       const dropdown = page.locator('[data-slot="select-content"]').last()
       await expect(dropdown).toBeVisible()
