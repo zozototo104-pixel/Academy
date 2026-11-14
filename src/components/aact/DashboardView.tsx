@@ -996,8 +996,8 @@ export function DashboardView() {
     <div className="aact-fade-in mx-auto max-w-[1600px] px-3 py-5 sm:px-4 sm:py-8">
       <div className="mb-5 rounded-[2rem] border border-white/80 bg-white/90 p-3 shadow-sm backdrop-blur">
         <div className="grid gap-3 lg:grid-cols-[1fr_520px_auto] lg:items-center">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0f2b46] via-[#1f4f86] to-[#2f6df6] text-lg font-black text-white shadow-sm">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0f2b46] via-[#1f4f86] to-[#2f6df6] text-lg font-black text-white shadow-sm">
               {(user.name || 'ط')[0]}
             </div>
             <div>
