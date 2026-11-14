@@ -1665,6 +1665,7 @@ export function AdminSystemTab() {
                     {textModelHealthLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Bot className="ml-1 h-3 w-3" />} تحديث صحة النماذج
                   </Button>
                   <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading || !healthSelectedModel.trim()} onClick={checkSelectedTextModelNow} className="border-indigo-200 text-[10px] font-black text-indigo-700">فحص النموذج المحدد</Button>
+                  <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={checkProviderModelsNow} className="border-indigo-200 text-[10px] font-black text-indigo-700">فحص كل نماذج المزود</Button>
                   <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={checkAllTextModelsNow} className="border-emerald-200 text-[10px] font-black text-emerald-700">
                     فحص الكل هلأ
                   </Button>
