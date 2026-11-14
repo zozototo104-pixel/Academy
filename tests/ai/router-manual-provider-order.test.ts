@@ -327,7 +327,7 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     const source = readFileSync(new URL('../../src/app/api/admin/system/route.ts', import.meta.url), 'utf8')
     expect(source).toContain('async function mutateCustomTextAiProviders<T>')
     expect(source).toContain('Prisma.TransactionIsolationLevel.Serializable')
-    expect(source).toContain("error?.code !== 'P2034'")
+    expect(source).toContain("['P2034', 'P2002'].includes(String(error?.code || ''))")
     expect(source).toContain('attempt < 4')
     for (const action of [
       'save-custom-ai-provider', 'toggle-custom-ai-provider',
