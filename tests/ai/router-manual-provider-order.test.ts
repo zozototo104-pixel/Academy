@@ -323,6 +323,60 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     expect(() => textAi.settingsAfterCustomTextAiProviderDeletion('GEMINI', saved)).toThrow('INVALID_CUSTOM_PROVIDER_ID')
   })
 
+  test('all registry mutations use serializable retries instead of reading stale lists', () => {
+    const source = readFileSync(new URL('../../src/app/api/admin/system/route.ts', import.meta.url), 'utf8')
+    expect(source).toContain('async function mutateCustomTextAiProviders<T>')
+    expect(source).toContain('Prisma.TransactionIsolationLevel.Serializable')
+    expect(source).toContain("error?.code !== 'P2034'")
+    expect(source).toContain('attempt < 4')
+    for (const action of [
+      'save-custom-ai-provider', 'toggle-custom-ai-provider',
+      'select-custom-ai-model', 'delete-custom-ai-provider',
+    ]) {
+      const start = source.indexOf(`if (action === '${action}')`)
+      expect(start).toBeGreaterThan(-1)
+      const end = source.indexOf("    if (action === '", start + 1)
+      const body = source.slice(start, end < 0 ? undefined : end)
+      expect(body).toContain('await mutateCustomTextAiProviders(async (tx) => {')
+      expect(body).toContain('await tx.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })')
+    }
+  })
+
+  test('custom image and PDF routing requires declared capabilities, not just a model name', () => {
+    const supports = textAi.__testVisionSupportForTests
+    const custom = { provider: 'CUSTOM_EXTRAA', model: 'gpt-4o-vision' }
+    expect(supports({ ...custom, vision: true, modalities: ['text', 'image'] })).toBe(true)
+    expect(supports({ ...custom, vision: true, modalities: [] })).toBe(false)
+    expect(supports({ ...custom, vision: false, modalities: ['text'] })).toBe(false)
+    expect(supports({ ...custom, vision: true, modalities: ['text', 'image'], pdf: true })).toBe(false)
+    expect(supports({ ...custom, vision: true, modalities: ['text', 'image', 'document'], pdf: true })).toBe(true)
+    // Existing provider handling remains unchanged.
+    expect(supports({ provider: 'OPENAI', model: 'gpt-4o', vision: true, modalities: ['text', 'image'] })).toBe(true)
+  })
+
+  test('deleted custom provider stats stay stored but disappear from live health diagnostics', async () => {
+    const existing = 'CUSTOM_EXISTING'
+    const deleted = 'CUSTOM_DELETED'
+    const store: Record<string, string> = {
+      AI_CUSTOM_PROVIDERS: JSON.stringify([{ id: existing, name: 'Active', baseUrl: 'https://api.gateway.test-provider.ai/v1', enabled: true }]),
+      [`AI_MODEL_STATS:${existing}:free-model`]: '{"success":1,"fail":{},"avgMs":20}',
+      [`AI_MODEL_STATS:${deleted}:old-model`]: '{"success":1,"fail":{},"avgMs":10}',
+      'AI_MODEL_STATS:GEMINI:gemini-test': '{"success":1,"fail":{},"avgMs":5}',
+    }
+    textAi.__setTextAiSettingStoreForTests({
+      read: async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, store[key] || ''])),
+      write: async () => {},
+      delete: async (key: string) => { delete store[key] },
+      scan: async (prefix: string) => Object.fromEntries(Object.entries(store).filter(([key]) => key.startsWith(prefix))),
+    })
+    const health = await textAi.textAiModelHealthSnapshot()
+    expect(health.some((row) => row.provider === existing)).toBe(true)
+    expect(health.some((row) => row.provider === deleted)).toBe(false)
+    expect(health.some((row) => row.provider === 'GEMINI')).toBe(true)
+    textAi.forgetCustomTextAiProviderRuntimeState(deleted)
+    expect(store[`AI_MODEL_STATS:${deleted}:old-model`]).toBeTruthy()
+  })
+
   test('deletion is admin-gated, audited and atomic; existing providers have no delete button', () => {
     const code = readFileSync(new URL('../../src/app/api/admin/system/route.ts', import.meta.url), 'utf8')
     const ui = readFileSync(new URL('../../src/components/aact/AdminSystemTab.tsx', import.meta.url), 'utf8')
