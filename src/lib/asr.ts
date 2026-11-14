@@ -204,6 +204,48 @@ async function transcribeWithWhisperCompatible(audioBase64: string, mimeType: st
   return null
 }
 
+// WhatsApp voice clips have a hard processing budget in the webhook. For these
+// short clips, avoid uploading a temporary Gemini File and polling its state
+// before transcription. The general ASR API keeps its historical behavior.
+export async function transcribeWhatsAppVoiceBase64(audioBase64: string, options: TranscribeAudioOptions = {}) {
+  const { clean, mimeType } = cleanBase64AndMime(audioBase64, options.mimeType)
+  if (!clean) throw new Error('ASR_AUDIO_EMPTY')
+
+  const model = String(process.env.GEMINI_WHATSAPP_ASR_MODEL || 'gemini-3.8-flash').trim()
+  const keys = await asrGeminiKeys()
+  const startedAt = Date.now()
+  for (const apiKey of keys.slice(0, 2)) {
+    // Leave time for an independent Whisper-compatible provider and the
+    // historical ASR path before WhatsApp's 38-second envelope expires.
+    if (Date.now() - startedAt > 14_000) break
+    try {
+      const ai = new GoogleGenAI({ apiKey })
+      const response = await ai.models.generateContent({
+        model,
+        contents: [createUserContent([
+          'انسخ الكلام المسموع حرفياً باللغة المنطوقة، بما فيها العربية. أرجع النص المنطوق فقط دون شرح أو ترجمة أو تخمين.',
+          { inlineData: { mimeType, data: clean } },
+        ])],
+        config: {
+          temperature: 0,
+          maxOutputTokens: 4096,
+          httpOptions: { timeout: 8_000 },
+        },
+      } as any)
+      const transcript = extractGeminiTranscript(response).trim()
+      if (transcript) return transcript
+    } catch (error) {
+      console.warn('WhatsApp fast ASR failed; trying next available backend:', String((error as any)?.message || error).slice(0, 180))
+    }
+  }
+
+  // Whisper is attempted BEFORE the slower file-upload path, not after it:
+  // otherwise a Gemini Files API stall can consume the webhook deadline.
+  const whisper = await transcribeWithWhisperCompatible(clean, mimeType, 6_000)
+  if (whisper?.trim()) return whisper.trim()
+  return transcribeAudioBase64(clean, { ...options, mimeType })
+}
+
 export async function transcribeAudioBase64(audioBase64: string, options: TranscribeAudioOptions = {}) {
   const { clean, mimeType } = cleanBase64AndMime(audioBase64, options.mimeType)
   if (!clean) throw new Error('ASR_AUDIO_EMPTY')
