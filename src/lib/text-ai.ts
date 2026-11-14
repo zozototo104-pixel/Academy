@@ -3046,7 +3046,8 @@ function providerSupportsVisionAttachments(provider: ConcreteProvider, capabilit
   // The built-in vision allowlists are unchanged. A custom OpenAI-compatible
   // gateway is eligible ONLY if its live /models metadata confirms image input.
   return VISION_NATIVE_PROVIDERS.has(provider) || VISION_OPENAI_COMPAT_PROVIDERS.has(provider)
-    || (isCustomTextAiProviderId(provider) && capability?.vision === true)
+    || (isCustomTextAiProviderId(provider) && capability?.modalities?.some((modality) =>
+      /image|vision|multimodal|input_image|image_url/.test(modality)) === true)
 }
 
 // Haris's vision queue (2026-10-30 ruling): for attachment calls, GEMINI
