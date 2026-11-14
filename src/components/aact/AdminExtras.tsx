@@ -2401,7 +2401,7 @@ export function AdminCertificatesTab() {
     if (!id) return toast({ title: 'تعذر التعديل', description: 'معرّف الشهادة غير متوفر.', variant: 'destructive' })
     const holderNameEn = await promptAction({ title: 'تعديل بيانات الشهادة', fieldLabel: 'الاسم بالإنجليزي', defaultValue: certificate.holderNameEn || '', confirmLabel: 'التالي' })
     if (holderNameEn === null) return
-    const programEn = window.prompt('البرنامج بالإنجليزي', certificate.programEn || '')
+    const programEn = await promptAction({ title: 'تعديل بيانات الشهادة', fieldLabel: 'البرنامج بالإنجليزي', defaultValue: certificate.programEn || '', confirmLabel: 'التالي' })
     if (programEn === null) return
     const gradeEn = window.prompt('التقدير بالإنجليزي', certificate.gradeEn || '')
     if (gradeEn === null) return
