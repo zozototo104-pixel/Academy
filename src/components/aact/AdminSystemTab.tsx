@@ -1408,8 +1408,8 @@ export function AdminSystemTab() {
           </div>
           </div>
 
-          <div id="gemini-section-routing" role="region" aria-label="سياسات توجيه الذكاء" hidden={openGeminiSection !== 'routing'}>
-          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
+          <div id="gemini-section-routing" role="region" aria-label="سياسات توجيه الذكاء" hidden={openGeminiSection !== 'routing'} className="min-w-0 max-w-full">
+          <div className="grid min-w-0 grid-cols-1 gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 sm:grid-cols-2 sm:p-4">
             <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h4 className="text-[11px] font-black text-indigo-900">مزود النصوص الخارجي — للامتحانات والتحليل والتصحيح والقراءة النصية</h4>
