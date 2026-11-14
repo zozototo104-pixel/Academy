@@ -26,7 +26,14 @@ describe('admin mobile overflow guard', () => {
     expect(tab).toContain('<div key={k} className="min-w-0 space-y-1">')
     expect(tab).toContain('<Label className="block max-w-full break-words text-[11px] font-black text-[#0f2b46]">{label}</Label>')
     expect(tab).toContain('<SelectTrigger className="min-h-11 h-auto min-w-0 w-full max-w-full overflow-hidden whitespace-normal bg-white py-2 text-sm" dir="rtl">')
-    expect(tab).toContain('<SelectValue className="sr-only" placeholder="اختر" />')
+    // SelectF renders its label exactly once, from the manual span: the
+    // sr-only <SelectValue /> that used to sit beside it rendered visibly
+    // on Haris's phone (2026-11-14), duplicating every SelectF label
+    // (provider, voices, Live models, policies). The only <SelectValue />
+    // left in the tab is the custom-provider free-model picker, which has
+    // no manual span and renders its value once by design.
+    expect(tab.match(/<SelectValue/g)?.length).toBe(1)
+    expect(tab).not.toContain('<SelectValue className="sr-only"')
     expect(tab).toContain("normalizedOptions.find((opt) => opt.value === current)?.label || 'اختر'")
     expect(tab).toContain('className="min-w-0 whitespace-normal break-words"')
     expect(tab).toContain('className="grid min-w-0 grid-cols-1 gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 sm:grid-cols-2 sm:p-4"')

@@ -1073,7 +1073,6 @@ export function AdminSystemTab() {
         <Label className="block max-w-full break-words text-[11px] font-black text-[#0f2b46]">{label}</Label>
         <Select value={current} onValueChange={(v) => set(k, v)}>
           <SelectTrigger className="min-h-11 h-auto min-w-0 w-full max-w-full overflow-hidden whitespace-normal bg-white py-2 text-sm" dir="rtl">
-            <SelectValue className="sr-only" placeholder="اختر" />
             <span className="min-w-0 flex-1 break-words text-right leading-5">{normalizedOptions.find((opt) => opt.value === current)?.label || 'اختر'}</span>
           </SelectTrigger>
           <SelectContent className="max-w-[calc(100vw-1rem)]" dir="rtl">
@@ -1658,7 +1657,7 @@ export function AdminSystemTab() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-xs font-black text-indigo-900">صحة نماذج النصوص — {catalogProviderForModels}</p>
-                  <p className="text-[10px] text-slate-500">يعرض النماذج المكتشفة وسجل فحوص الصحة. «فحص الكل» يفحص حتى 3 نماذج من كل مزود ضمن مهلة 40 ثانية؛ وقد لا يشمل النموذج المختار. فحص الاتصال بالمزود لا يضيف نتيجة لهذا السجل.</p>
+                  <p className="text-[10px] text-slate-500">يعرض النماذج المكتشفة، المستبعدة مؤقتاً، وأفضل النماذج حسب سجل النجاح.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={loadTextModelHealth} className="border-indigo-200 text-[10px] font-black text-indigo-700">
@@ -1700,7 +1699,7 @@ export function AdminSystemTab() {
                   {!!textModelHealth.health?.length && (
                     <div className="rounded-lg border border-slate-100 bg-slate-50 p-2 text-slate-700 sm:col-span-3">
                       <p className="mb-1 font-black">فحوص الصحة والغرض</p>
-                      {textModelHealth.health.filter((item) => item.provider === catalogProviderForModels).map((item) => (
+                      {textModelHealth.health.slice(0, 40).map((item) => (
                         <div key={`${item.provider}:${item.model}`} className="flex min-w-0 flex-col gap-2 border-b border-slate-200/70 py-2 text-[10px] last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
                           <span dir="ltr" className="block min-w-0 w-full whitespace-normal break-all leading-relaxed sm:flex-1">{item.provider}/{item.model} — {item.status} — {item.health?.latencyMs ? `${Math.round(item.health.latencyMs)}ms` : 'no-check'} — {Object.entries(item.purposeScores || {}).map(([p, s]) => `${p}:${Number(s).toFixed(2)}`).join(' ')}{item.health && item.health.ok === false ? ` — ${item.health.status || 'ERR'} ${String(item.health.error || '').slice(0, 120)}` : ''}</span>
                           <div className="flex min-w-0 flex-wrap gap-1 sm:shrink-0">
