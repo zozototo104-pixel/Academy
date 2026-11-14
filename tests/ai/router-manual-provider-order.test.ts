@@ -239,6 +239,8 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     const safe = textAi.__testRedactCustomTextAiErrorForTests('CUSTOM_TEST1234', key, raw)
     expect(safe).toBe('HTTP 401 Authorization Bearer [redacted]; echoed again: [redacted]')
     expect(safe).not.toContain(key)
+    // Provider-controlled request IDs are diagnostics too, not trusted data.
+    expect(textAi.__testRedactCustomTextAiErrorForTests('CUSTOM_TEST1234', key, key)).toBe('[redacted]')
     // Treat the key as a literal string, including punctuation that would
     // have special meaning in a regular expression.
     const punctuatedKey = 'gateway.a+b$secret?test*'
