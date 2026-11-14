@@ -309,7 +309,8 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 space-y-6">
+      {actionDialog}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-black text-slate-800">
