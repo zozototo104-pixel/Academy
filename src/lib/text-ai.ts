@@ -957,7 +957,6 @@ async function fetchCustomTextAiWithPinnedDns(provider: string, url: string, ini
     }, effectiveTimeoutMs)
     // The total deadline covers DNS resolution, TLS, headers and full body.
     request.on('error', (error) => { clearTimeout(timeout); reject(error) })
-    request.on('close', () => clearTimeout(timeout))
     request.end(init.body as string | undefined)
   })
 }
