@@ -2,8 +2,15 @@ import { describe, expect, mock, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
 // عزل عن قاعدة البيانات: تُستورد الوحدة بعد تثبيت البدائل.
-mock.module('@/lib/db', () => ({ db: {} }))
-mock.module('@/lib/text-ai', () => ({ pipelineConfigSnapshot: async () => ({ policy: 'balanced', allowedModels: [], verifierPreferred: [] }) }))
+let customProviderRegistry = '[]'
+mock.module('@/lib/db', () => ({
+  db: { setting: { findUnique: async () => ({ value: customProviderRegistry }) } },
+}))
+mock.module('@/lib/text-ai', () => ({
+  pipelineConfigSnapshot: async () => ({ policy: 'balanced', allowedModels: [], verifierPreferred: [] }),
+  CUSTOM_AI_PROVIDERS_SETTING: 'AI_CUSTOM_PROVIDERS',
+  parseCustomTextAiProviders: (value: string) => JSON.parse(value || '[]'),
+}))
 
 const {
   __setStageProfileStoreForTests,
