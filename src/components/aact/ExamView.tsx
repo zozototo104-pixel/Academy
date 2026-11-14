@@ -1045,7 +1045,8 @@ export function ExamView() {
 
   // ===== Exam taking screen =====
   return (
-    <div className="aact-fade-in mx-auto max-w-3xl px-4 py-8">
+    <div className="aact-fade-in mx-auto w-full min-w-0 max-w-3xl px-3 py-6 sm:px-4 sm:py-8">
+      {actionDialog}
       {/* Header */}
       <div className="mb-6">
         <div className="flex flex-wrap items-center gap-2">
