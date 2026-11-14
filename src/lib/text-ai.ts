@@ -2845,6 +2845,10 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): 
 }
 
 export async function textAiModelHealthSnapshot(): Promise<Array<{ provider: string; model: string; status: string; health?: ModelHealth | null; stats?: ModelStats | null; purposeScores?: Record<string, number> }>> {
+  // Keep historical stats in storage, but don't list deleted custom providers
+  // as live/healthy models in the administrator's model-health view.
+  const registry = await settingStore().read([CUSTOM_AI_PROVIDERS_SETTING])
+  const registeredCustomIds = new Set(parseCustomTextAiProviders(registry[CUSTOM_AI_PROVIDERS_SETTING]).map((entry) => entry.id))
   const rows = await settingStore().scan?.('AI_MODEL_') || {}
   const models = new Map<string, { provider: string; model: string; status?: string; health?: ModelHealth | null; stats?: ModelStats | null; purposeScores?: Record<string, number> }>()
   const ensure = (provider: string, model: string) => {
