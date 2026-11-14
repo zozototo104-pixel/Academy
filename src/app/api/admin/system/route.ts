@@ -435,7 +435,7 @@ export async function POST(req: NextRequest) {
       // Delete the custom registration, its encrypted credential and any saved
       // router selections in one transaction. Built-in providers are untouched.
       // Audit is in the same transaction so a failed write rolls everything back.
-      const cleanedSettings = await db.$transaction(async (tx) => {
+      const cleanedSettings = await mutateCustomTextAiProviders(async (tx) => {
         const row = await tx.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
         const providers = parseCustomTextAiProviders(row?.value || '')
         if (!providers.some((entry) => entry.id === id)) return null
