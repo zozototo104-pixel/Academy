@@ -44,6 +44,19 @@ describe('ASR fallback for WhatsApp voice and ordinary audio', () => {
     })
   })
 
+  test('WhatsApp ASR accepts Meta OGG/Opus MIME and reaches Whisper before a slow Gemini upload', async () => {
+    await withWhisperMock({ ok: true, body: { text: 'هذه الرسالة الصوتية وصلت وتم تفريغها' } }, async (calls) => {
+      const { transcribeWhatsAppVoiceBase64 } = await import('../src/lib/asr')
+      const transcript = await transcribeWhatsAppVoiceBase64(Buffer.from('test-ogg-opus').toString('base64'), {
+        mimeType: 'audio/ogg; codecs=opus',
+      })
+      expect(transcript).toBe('هذه الرسالة الصوتية وصلت وتم تفريغها')
+      expect(calls).toHaveLength(1)
+      expect(calls[0].url).toContain('/audio/transcriptions')
+      expect(calls[0].mime).toBe('audio/ogg')
+    })
+  })
+
   test('all ASR providers failing produces explicit error instead of empty transcript', async () => {
     await withWhisperMock({ ok: false, body: { error: { message: 'provider unavailable' } } }, async (calls) => {
       const { transcribeAudioBase64 } = await import('../src/lib/asr')
