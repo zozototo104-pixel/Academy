@@ -909,14 +909,21 @@ async function fetchCustomTextAiWithPinnedDns(provider: string, url: string, ini
       headers: { 'accept-encoding': 'identity', ...Object.fromEntries(new Headers(init.headers).entries()) },
       agent: false, // New socket and guarded lookup for every custom request.
       servername: new URL(url).hostname, // Preserve hostname TLS verification.
-      lookup: (hostname, _options, callback) => {
+      lookup: (hostname, options, callback) => {
         lookup(hostname, { all: true }).then((addresses) => {
           if (!__testCustomProviderPublicDnsForTests(addresses)) {
             callback(new Error('CUSTOM_PROVIDER_ADDRESS_UNSAFE'), '')
             return
           }
           const pinned = addresses.find((entry) => entry.family === 4) || addresses[0]
-          callback(null, pinned.address, pinned.family)
+          // Node 20+ may use autoSelectFamily and request { all: true }.
+          // Returning a single string to that callback causes
+          // ERR_INVALID_IP_ADDRESS before a connection is attempted.
+          if (typeof options === 'object' && options.all) {
+            (callback as (error: Error | null, addresses: Array<{ address: string; family: number }>) => void)(null, [pinned])
+          } else {
+            callback(null, pinned.address, pinned.family)
+          }
         }, (error) => callback(error as Error, ''))
       },
     }, (response) => {
