@@ -2819,8 +2819,10 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number; provider
   const results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> = []
   const selectedProvider = opts.provider?.trim().toUpperCase()
   const selectedModel = opts.model?.trim()
-  if (Boolean(selectedProvider) !== Boolean(selectedModel)) throw new Error('المزود والنموذج مطلوبان معاً')
+  if (selectedModel && !selectedProvider) throw new Error('المزود مطلوب')
+  if (selectedProvider && !selectedModel && !opts.models) throw new Error('النموذج مطلوب')
   if (selectedModel && (selectedModel.length > 200 || /[\r\n]/.test(selectedModel))) throw new Error('اسم النموذج غير صالح')
+  if (opts.models && (!selectedProvider || opts.models.length > 1000 || opts.models.some((model) => !model || model.length > 200 || /[\r\n]/.test(model)))) throw new Error('قائمة النماذج غير صالحة')
   const providers = providerOrder(s)
   if (selectedProvider && !providers.includes(selectedProvider as ConcreteProvider)) throw new Error('المزود غير متاح')
   for (const provider of providers) {
