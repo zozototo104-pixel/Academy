@@ -409,6 +409,7 @@ export function AdminSystemTab() {
   }
   const [textModelCatalog, setTextModelCatalog] = useState<Record<string, { models: string[]; message: string; discoveredCount: number; staticCount: number }>>({})
   const [textModelHealth, setTextModelHealth] = useState<TextAiModelHealth | null>(null)
+  const [healthSelectedModel, setHealthSelectedModel] = useState('')
   const [textModelHealthLoading, setTextModelHealthLoading] = useState(false)
   const [routerState, setRouterState] = useState<TextAiRouterStateItem[]>([])
   const [routerStateLoading, setRouterStateLoading] = useState(false)
