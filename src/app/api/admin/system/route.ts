@@ -515,13 +515,15 @@ export async function POST(req: NextRequest) {
       }
       const catalog = await textAiFreeModelsForProvider(id)
       if (!catalog.models.includes(model)) return NextResponse.json({ error: 'النموذج غير مثبت كمجاني في كتالوج المزوّد' }, { status: 400 })
-      const row = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
-      const providers = parseCustomTextAiProviders(row?.value || '')
-      if (!providers.some((entry) => entry.id === id && entry.enabled)) {
-        return NextResponse.json({ error: 'المزوّد غير مفعّل أو غير موجود' }, { status: 400 })
-      }
-      const updated = providers.map((entry) => entry.id === id ? { ...entry, selectedModel: model } : entry)
-      await db.setting.update({ where: { key: CUSTOM_AI_PROVIDERS_SETTING }, data: { value: JSON.stringify(updated) } })
+      const found = await mutateCustomTextAiProviders(async (tx) => {
+        const row = await tx.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+        const providers = parseCustomTextAiProviders(row?.value || '')
+        if (!providers.some((entry) => entry.id === id && entry.enabled)) return false
+        const updated = providers.map((entry) => entry.id === id ? { ...entry, selectedModel: model } : entry)
+        await tx.setting.update({ where: { key: CUSTOM_AI_PROVIDERS_SETTING }, data: { value: JSON.stringify(updated) } })
+        return true
+      })
+      if (!found) return NextResponse.json({ error: 'المزوّد غير مفعّل أو غير موجود' }, { status: 400 })
       await audit(admin, 'AI_CUSTOM_MODEL_SELECTED', 'Setting', id, `model=${model}`)
       return NextResponse.json({ ok: true, customProviders: await adminCustomTextAiProviders() })
     }
