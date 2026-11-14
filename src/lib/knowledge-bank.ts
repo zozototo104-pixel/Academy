@@ -917,7 +917,7 @@ ${sample}
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_ROUTER_TIMEOUT')), 36000)),
     ])
     const normalized = normalizeDrafts(extractJsonArray(raw), [], semester)
-    return hasBalancedKnowledgeShape(normalized) ? normalized : null
+    if (hasBalancedKnowledgeShape(normalized)) return normalized
   } catch (e: any) {
     console.error('aiKnowledgeItems all providers failed:', String(e?.message || e).slice(0, 300))
   }
