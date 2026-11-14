@@ -467,7 +467,8 @@ export function AdminSystemTab() {
     ? (data?.textAi?.activeProvider || 'GEMINI')
     : activeTextProviderForModels
 
-  const loadTextModelHealth = (opts?: { notify?: boolean }) => {
+  type LoadTextModelHealthOpts = { notify?: boolean }
+  const loadTextModelHealth = (opts?: LoadTextModelHealthOpts) => {
     if (!catalogProviderForModels) return
     setTextModelHealthLoading(true)
     api<TextAiModelHealth>('/api/admin/system', {
@@ -1699,9 +1700,17 @@ export function AdminSystemTab() {
                   {!lastHealthCheck.results.length && (
                     <p className="text-[10px]">لم يُفحص أي نموذج في هذه المحاولة.</p>
                   )}
-                  {lastHealthCheck.results.slice(0, 100).map((item) => (
-                    <div key={`${item.provider}:${item.model}`} dir="ltr" className="min-w-0 whitespace-normal break-all border-b border-emerald-200/70 py-1 text-[10px] leading-relaxed last:border-b-0">{item.provider}/{item.model} — {item.ok ? 'يعمل' : 'فشل'} — {item.latencyMs != null ? `${Math.round(item.latencyMs)}ms` : 'no-check'}{item.ok ? '' : ` — ${String(item.error || '').slice(0, 120)}`}</div>
-                  ))}
+                  {lastHealthCheck.results.slice(0, 100).map((item) => {
+                    const isDead = textModelHealth?.health?.some((h) => h.provider === item.provider && h.model === item.model && h.status === 'ميت')
+                    return (
+                      <div key={`${item.provider}:${item.model}`} className="flex min-w-0 flex-col gap-2 border-b border-emerald-200/70 py-2 text-[10px] last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
+                        <span dir="ltr" className="block min-w-0 w-full whitespace-normal break-all leading-relaxed sm:flex-1">{item.provider}/{item.model} — {item.ok ? 'يعمل' : 'فشل'} — {item.latencyMs != null ? `${Math.round(item.latencyMs)}ms` : 'no-check'}{item.ok ? '' : ` — ${String(item.error || '').slice(0, 120)}`}</span>
+                        <div className="flex min-w-0 flex-wrap gap-1 sm:shrink-0">
+                          <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={() => toggleAiModel(item.provider, item.model)} className="h-6 px-2 text-[10px]">{isDead ? 'تفعيل' : 'تعطيل'}</Button>
+                        </div>
+                      </div>
+                    )
+                  })}
                   {lastHealthCheck.results.length > 100 && (
                     <p className="mt-1 text-[10px]">يعرض أول 100 من {lastHealthCheck.results.length} نموذجاً.</p>
                   )}

@@ -35,11 +35,14 @@ describe('ai health-check results display', () => {
   test('results section renders what was just checked, not the old log', () => {
     const tab = read('src/components/aact/AdminSystemTab.tsx')
     expect(tab).toContain('نتائج آخر فحص — {lastHealthCheck.label}')
-    expect(tab).toContain('lastHealthCheck.results.slice(0, 100).map((item) => (')
+    expect(tab).toContain('lastHealthCheck.results.slice(0, 100).map((item) => {')
     expect(tab).toContain("{item.provider}/{item.model} — {item.ok ? 'يعمل' : 'فشل'}")
     expect(tab).toContain("String(item.error || '').slice(0, 120)")
     expect(tab).toContain('لم يُفحص أي نموذج في هذه المحاولة.')
     expect(tab).toContain('يعرض أول 100 من {lastHealthCheck.results.length} نموذجاً.')
+    expect(tab).toContain("onClick={() => toggleAiModel(item.provider, item.model)}")
+    expect(tab).toContain("{isDead ? 'تفعيل' : 'تعطيل'}")
+    expect(tab).toContain("h.status === 'ميت'")
   })
 
   test('refresh clears the last check and visibly answers', () => {
@@ -49,7 +52,8 @@ describe('ai health-check results display', () => {
     expect(tab).toContain('loadTextModelHealth({ notify: true })')
     expect(tab).toContain('onClick={refreshTextModelHealthNow}')
     expect(tab).not.toContain('onClick={loadTextModelHealth}')
-    expect(tab).toContain("const loadTextModelHealth = (opts?: { notify?: boolean }) => {")
+    expect(tab).toContain('type LoadTextModelHealthOpts = { notify?: boolean }')
+    expect(tab).toContain('const loadTextModelHealth = (opts?: LoadTextModelHealthOpts) => {')
     expect(tab).toContain("toast({ title: 'تم تحديث صحة النماذج'")
     expect(tab).toContain("toast({ title: 'تعذر تحديث صحة النماذج'")
   })
