@@ -2423,7 +2423,9 @@ export function AdminCertificatesTab() {
       toast({ title: 'تعذر الإلغاء', description: 'معرّف الشهادة غير متوفر في السجل الحالي.', variant: 'destructive' })
       return
     }
-    const reason = window.prompt(`اكتب سبب إلغاء الشهادة ${certificate.serial}`)?.trim() || ''
+    const reasonInput = await promptAction({ title: 'إلغاء الشهادة', description: `اكتب سبب إلغاء الشهادة ${certificate.serial}. ستبقى معلّمة كملغاة في صفحة التحقق.`, fieldLabel: 'سبب الإلغاء', defaultValue: '', multiline: true, required: true, minLength: 6, confirmLabel: 'متابعة الإلغاء', tone: 'danger' })
+    if (reasonInput === null) return
+    const reason = reasonInput.trim()
     if (reason.length < 6) {
       toast({ title: 'سبب الإلغاء إلزامي', description: 'اكتب سبباً واضحاً لا يقل عن 6 أحرف.', variant: 'destructive' })
       return
