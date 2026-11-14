@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import { BookOpen, ChevronDown, Lightbulb, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 
 // المحتوى والوحدات عند المشرف: عرض كامل لبرامجه كما تراه الإدارة
@@ -54,6 +55,7 @@ function statusChip(status: string) {
 
 export function SupervisorContentTab() {
   const { toast } = useToast()
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [programs, setPrograms] = useState<ProgramSummary[]>([])
   const [programId, setProgramId] = useState('')
   const [detail, setDetail] = useState<any>(null)
@@ -152,7 +154,7 @@ export function SupervisorContentTab() {
   }
 
   const deleteQuestion = async (kind: 'BANK' | 'PROGRAM', q: any) => {
-    if (!window.confirm('حذف هذا السؤال نهائيًا؟ سيصل الإدارة إشعار بالحذف.')) return
+    if (!(await confirmAction({ title: 'حذف سؤال المشرف', description: 'حذف هذا السؤال نهائيًا؟ سيصل الإدارة إشعار بالحذف.', confirmLabel: 'حذف السؤال', tone: 'danger' }))) return
     try {
       await api('/api/supervisor/questions', { method: 'DELETE', body: JSON.stringify({ kind, questionId: q.id }) })
       toast({ title: 'حُذف السؤال' })
@@ -184,7 +186,8 @@ export function SupervisorContentTab() {
   const formOptions = form ? form.options.split('\n').map((x) => x.trim()).filter(Boolean) : []
 
   return (
-    <div className="space-y-5" dir="rtl">
+    <div className="w-full min-w-0 space-y-5" dir="rtl">
+      {actionDialog}
       <Card><CardContent className="space-y-3 p-5">
         <div className="flex flex-wrap items-center gap-3">
           <h3 className="flex items-center gap-2 text-base font-black text-[#0f2b46]"><BookOpen className="h-5 w-5 text-[#a8841a]" /> المحتوى والوحدات — عرض كامل</h3>
