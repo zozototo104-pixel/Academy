@@ -1538,6 +1538,45 @@ ${unitText}
     return normalized
   } catch (e: any) {
     console.error(`knowledge unit ${unit.index + 1} provider router failed:`, String(e?.message || e).slice(0, 420))
+    // Keep the historical academic router primary. A failed unit analysis
+    // may use the enabled ANALYSIS profile, but never restart reading, skip
+    // evidence validation or change already-saved successful units.
+    try {
+      const { prepareStageRun } = await import('@/lib/ai-stage-runner')
+      const plan = await prepareStageRun('ANALYSIS')
+      if (plan.routing?.preferredModels.length) {
+        const models = plan.routing.preferredModels.map((item) => ({
+          provider: item.provider as import('@/lib/text-ai').TextAiPreferredModel['provider'],
+          model: item.model,
+        }))
+        const raw = await Promise.race([
+          textAiCompleteJson({
+            system: 'أنت محلل كتب جامعية. أرجع JSON صالحاً فقط، ولا تؤلف أي عنصر غير موجود في نص الوحدة. إذا كان جزء داخل الوحدة غير مفهوم فتجاوزه وأكمل بقية الوحدة.',
+            history: [{ role: 'user', text: prompt }],
+            temperature: 0.05,
+            maxOutputTokens: 8192,
+            taskLevel: 'ACADEMIC_CRITICAL',
+            purpose: 'ANALYSIS',
+            preferredModels: models,
+            restrictToModels: models,
+            ...(plan.routing.preferredProviders.length ? { preferredProviders: plan.routing.preferredProviders as import('@/lib/text-ai').TextAiProvider[] } : {}),
+            ...(plan.routing.policy ? { routerPolicy: plan.routing.policy as import('@/lib/text-ai').TextAiRouterPolicy } : {}),
+            validate: (text) => {
+              if (!normalizeUnitItems(text).length) {
+                const error: any = new Error('AI_KNOWLEDGE_EMPTY_OUTPUT')
+                error.code = 'VALIDATION_REJECTED'
+                throw error
+              }
+            },
+          }),
+          new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_UNIT_STAGE_TIMEOUT')), UNIT_ANALYSIS_TIMEOUT_MS)),
+        ])
+        const items = normalizeUnitItems(raw)
+        if (items.length) return items
+      }
+    } catch (stageError) {
+      console.error(`knowledge unit ${unit.index + 1} analysis-profile rescue failed:`, String(stageError instanceof Error ? stageError.message : stageError).slice(0, 300))
+    }
     if (e?.code === 'AI_ACADEMIC_PROVIDER_UNAVAILABLE') throw e
     const err: any = new Error('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
     err.code = 'AI_ACADEMIC_PROVIDER_UNAVAILABLE'
