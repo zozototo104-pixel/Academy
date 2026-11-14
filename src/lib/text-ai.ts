@@ -937,9 +937,10 @@ async function fetchCustomTextAiWithPinnedDns(provider: string, url: string, ini
         }
         chunks.push(data)
       })
-      response.on('error', reject)
-      response.on('aborted', () => reject(new Error('CUSTOM_PROVIDER_RESPONSE_ABORTED')))
+      response.on('error', (error) => { clearTimeout(timeout); reject(error) })
+      response.on('aborted', () => { clearTimeout(timeout); reject(new Error('CUSTOM_PROVIDER_RESPONSE_ABORTED')) })
       response.on('end', () => {
+        clearTimeout(timeout)
         const headers = new Headers()
         for (const [name, value] of Object.entries(response.headers)) {
           if (Array.isArray(value)) value.forEach((item) => headers.append(name, item))
