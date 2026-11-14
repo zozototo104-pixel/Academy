@@ -408,6 +408,62 @@ export async function POST(req: NextRequest) {
       await audit(admin, existing ? 'AI_CUSTOM_PROVIDER_UPDATED' : 'AI_CUSTOM_PROVIDER_CREATED', 'Setting', id, `Custom AI provider: ${id}`)
       return NextResponse.json({ ok: true, id, customProviders: await adminCustomTextAiProviders() })
     }
+    if (action === 'delete-custom-ai-provider') {
+      const id = String(body?.id || '').trim()
+      if (!isCustomTextAiProviderId(id)) {
+        return NextResponse.json({ error: 'يمكن حذف المزوّدين الذين أُضيفوا من الإدارة فقط' }, { status: 400 })
+      }
+      // Delete the custom registration, its encrypted credential and any saved
+      // router selections in one transaction. Built-in providers are untouched.
+      // Audit is in the same transaction so a failed write rolls everything back.
+      const cleanedSettings = await db.$transaction(async (tx) => {
+        const row = await tx.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+        const providers = parseCustomTextAiProviders(row?.value || '')
+        if (!providers.some((entry) => entry.id === id)) return null
+        const savedRows = await tx.setting.findMany({
+          where: { key: { in: [...CUSTOM_AI_PROVIDER_REFERENCE_KEYS] } },
+          select: { key: true, value: true },
+        })
+        const before = Object.fromEntries(savedRows.map((entry) => [entry.key, entry.value]))
+        const after = settingsAfterCustomTextAiProviderDeletion(id, before)
+        for (const entry of savedRows) {
+          if (after[entry.key] !== entry.value) {
+            await tx.setting.update({
+              where: { key: entry.key },
+              data: { value: after[entry.key] },
+            })
+          }
+        }
+        await tx.setting.update({
+          where: { key: CUSTOM_AI_PROVIDERS_SETTING },
+          data: { value: JSON.stringify(providers.filter((entry) => entry.id !== id)) },
+        })
+        await tx.setting.deleteMany({ where: { key: customTextAiKeySetting(id) } })
+        // Discovery results are transient cache, not historical AI usage data.
+        await tx.setting.deleteMany({ where: { key: { startsWith: `AI_MODELS_AVAILABLE:${id}:` } } })
+        await tx.auditLog.create({
+          data: {
+            actorId: admin.id,
+            actorName: admin.name,
+            action: 'AI_CUSTOM_PROVIDER_DELETED',
+            entity: 'Setting',
+            entityId: id,
+            details: JSON.stringify({ providerId: id, removedCredential: true, affectedSettings: Object.keys(after).filter((key) => after[key] !== before[key]) }),
+          },
+        })
+        return Object.fromEntries(
+          Object.entries(after).filter(([key, value]) => value !== before[key]),
+        )
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+      if (!cleanedSettings) return NextResponse.json({ error: 'المزوّد المطلوب حذفه غير موجود' }, { status: 404 })
+      clearSecretCache()
+      return NextResponse.json({
+        ok: true,
+        deletedProvider: id,
+        clearedSettings: cleanedSettings,
+        customProviders: await adminCustomTextAiProviders(),
+      })
+    }
     if (action === 'toggle-custom-ai-provider') {
       const id = String(body?.id || '')
       const existingRow = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
