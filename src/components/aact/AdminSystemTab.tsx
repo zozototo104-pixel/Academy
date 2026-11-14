@@ -1700,7 +1700,7 @@ export function AdminSystemTab() {
                   {!!textModelHealth.health?.length && (
                     <div className="rounded-lg border border-slate-100 bg-slate-50 p-2 text-slate-700 sm:col-span-3">
                       <p className="mb-1 font-black">فحوص الصحة والغرض</p>
-                      {textModelHealth.health.slice(0, 40).map((item) => (
+                      {textModelHealth.health.filter((item) => item.provider === catalogProviderForModels).map((item) => (
                         <div key={`${item.provider}:${item.model}`} className="flex min-w-0 flex-col gap-2 border-b border-slate-200/70 py-2 text-[10px] last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
                           <span dir="ltr" className="block min-w-0 w-full whitespace-normal break-all leading-relaxed sm:flex-1">{item.provider}/{item.model} — {item.status} — {item.health?.latencyMs ? `${Math.round(item.health.latencyMs)}ms` : 'no-check'} — {Object.entries(item.purposeScores || {}).map(([p, s]) => `${p}:${Number(s).toFixed(2)}`).join(' ')}{item.health && item.health.ok === false ? ` — ${item.health.status || 'ERR'} ${String(item.health.error || '').slice(0, 120)}` : ''}</span>
                           <div className="flex min-w-0 flex-wrap gap-1 sm:shrink-0">
