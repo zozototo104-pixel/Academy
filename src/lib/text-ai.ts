@@ -4233,6 +4233,15 @@ export async function* textAiStreamText(opts: TextAiCallOpts): AsyncGenerator<st
   yield await textAiComplete(opts)
 }
 
+// Provider-controlled error messages may echo an API key, including keys
+// that do not match the generic secret patterns. Scrub the exact custom key
+// before truncating, recording, or returning diagnostic text.
+export function __testRedactCustomTextAiErrorForTests(provider: string, key: string, message: string): string {
+  const raw = String(message || '')
+  if (!isCustomTextAiProviderId(provider) || !key) return raw
+  return redactSecrets(raw.split(key).join('[redacted]'))
+}
+
 export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: string; model?: string; reply?: string; error?: string; nvidiaDiscovery?: { count: number; selected: string[] } }> {
   const s = await settings()
   const providers = providerOrder(s)
