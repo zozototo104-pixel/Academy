@@ -1011,11 +1011,41 @@ async function aiKnowledgeItemsFromUploadedFile(
       ...item,
       sourceNote: appendTextProvenanceNote(item.sourceNote || 'قراءة مباشرة من ملف الكتاب المرفوع عبر الذكاء البصري', 'VISION_DESCRIPTION'),
     }))
-    return hasBalancedKnowledgeShape(normalized) ? normalized : null
+    if (hasBalancedKnowledgeShape(normalized)) return normalized
   } catch (e: any) {
-    console.error('aiKnowledgeItemsFromUploadedFile failed:', String(e?.message || e).slice(0, 240))
-    return null
+    console.error('aiKnowledgeItemsFromUploadedFile primary vision failed:', String(e?.message || e).slice(0, 240))
   }
+  // The existing direct-file reader, prompt and validation are the primary.
+  // Only if it cannot produce acceptable items may a qualified READING-stage
+  // model inspect the SAME uploaded file; never synthesize from book metadata.
+  try {
+    const { rescueOriginalBookVisionWithReadingProfile } = await import('@/lib/book-reader')
+    const normalizeRescue = (raw: string) => normalizeDrafts(extractJsonArray(raw), [], semester).map((item) => ({
+      ...item,
+      sourceNote: appendTextProvenanceNote(item.sourceNote || 'قراءة مباشرة من ملف الكتاب المرفوع عبر الذكاء البصري', 'VISION_DESCRIPTION'),
+    }))
+    const rescued = await rescueOriginalBookVisionWithReadingProfile({
+      buffer: storedFile.buffer,
+      mimeType,
+      prompt,
+      temperature: 0.08,
+      maxOutputTokens: 12288,
+      validate: (response) => {
+        if (!hasBalancedKnowledgeShape(normalizeRescue(response))) {
+          throw new Error('BOOK_READING_PROFILE_KNOWLEDGE_UNUSABLE')
+        }
+      },
+    })
+    if (rescued) {
+      return normalizeRescue(rescued.text).map((item) => ({
+        ...item,
+        sourceNote: `${item.sourceNote || 'قراءة مباشرة من الملف'} — استكمال القراءة عبر ${rescued.provider}/${rescued.model}`,
+      }))
+    }
+  } catch (error) {
+    console.warn('Book knowledge direct-file reading rescue failed:', String(error instanceof Error ? error.message : error).slice(0,240))
+  }
+  return null
 }
 
 async function aiMetadataKnowledgeItems(
