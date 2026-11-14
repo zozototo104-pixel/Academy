@@ -555,7 +555,12 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     await sendOfficialWhatsAppTypingIndicator(message).catch(() => null)
   }
   const prepared = await prepareWhatsAppMessageForProcessing(message)
-  const inboundMessage = prepared.message
+  const inboundMessage: WhatsAppInboundMessage = {
+    ...prepared.message,
+    ...(message.rawType === 'audio'
+      ? { transcriptionStatus: prepared.requestHuman ? 'FAILED' as const : 'TRANSCRIBED' as const }
+      : {}),
+  }
   const storedInbound = await recordWhatsAppInboundMessage(inboundMessage)
 
   // If the handoff state cannot be checked, fail closed instead of letting the bot reply.
