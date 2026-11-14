@@ -137,15 +137,22 @@ export async function runNextKnowledgeAiRepairStep() {
       'AI_KNOWLEDGE_REPAIR_MODEL',
       'AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS',
       'AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN',
+      CUSTOM_AI_PROVIDERS_SETTING,
     ] } },
     select: { key: true, value: true },
   })
   const config = Object.fromEntries(repairSettings.map((item) => [item.key, item.value]))
   const repairProvider = String(config.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO').toUpperCase() as TextAiProvider
   const repairModel = String(config.AI_KNOWLEDGE_REPAIR_MODEL || '').trim()
-  const chosenModel: TextAiPreferredModel[] = repairProvider !== 'AUTO' && REPAIR_SUPPORTED_PROVIDERS.has(repairProvider) && repairModel
+  // The independent optional repair control accepts the SAME enabled custom
+  // providers shown in its admin selector; disabled/deleted IDs stay blocked.
+  const customRepairProviders = parseCustomTextAiProviders(config[CUSTOM_AI_PROVIDERS_SETTING])
+    .filter((entry) => entry.enabled)
+  const repairProviderAllowed = REPAIR_SUPPORTED_PROVIDERS.has(repairProvider)
+    || customRepairProviders.some((entry) => entry.id === repairProvider)
+  const chosenModel: TextAiPreferredModel[] = repairProvider !== 'AUTO' && repairProviderAllowed && repairModel
     ? [{ provider: repairProvider, model: repairModel }] : []
-  if (!REPAIR_SUPPORTED_PROVIDERS.has(repairProvider) || (repairProvider !== 'AUTO' && !chosenModel.length)) {
+  if (!repairProviderAllowed || (repairProvider !== 'AUTO' && !chosenModel.length)) {
     return { status: 'INVALID_REPAIR_MODEL_CONFIGURATION' }
   }
   // An administrator-set interval of zero adds no artificial restriction.
