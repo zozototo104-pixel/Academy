@@ -233,6 +233,32 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     expect(free({}, 'unknown-model')).toBe(false)
   })
 
+  test('admin test-connection redacts an exact custom API key before logging or returning errors', () => {
+    const key = 'gateway_verySensitiveCustomToken_987654321'
+    const raw = `HTTP 401 Authorization Bearer ${key}; echoed again: ${key}`
+    const safe = textAi.__testRedactCustomTextAiErrorForTests('CUSTOM_TEST1234', key, raw)
+    expect(safe).toBe('HTTP 401 Authorization Bearer [redacted]; echoed again: [redacted]')
+    expect(safe).not.toContain(key)
+    // Treat the key as a literal string, including punctuation that would
+    // have special meaning in a regular expression.
+    const punctuatedKey = 'gateway.a+b$secret?test*'
+    expect(textAi.__testRedactCustomTextAiErrorForTests(
+      'CUSTOM_TEST1234', punctuatedKey, `invalid ${punctuatedKey} ${punctuatedKey}`,
+    )).toBe('invalid [redacted] [redacted]')
+    // Built-in providers retain their existing diagnostic behaviour.
+    expect(textAi.__testRedactCustomTextAiErrorForTests('GEMINI', key, raw)).toBe(raw)
+
+    const source = readFileSync(new URL('../../src/lib/text-ai.ts', import.meta.url), 'utf8')
+    const connection = source.slice(source.indexOf('export async function textAiTestConnection()'))
+    expect(connection).toContain('const msg = __testRedactCustomTextAiErrorForTests(provider, key, String(e?.message || e)).slice(0, 260)')
+    expect(connection).toContain('__testRedactCustomTextAiErrorForTests(provider, key, rawRequestId)')
+    expect(connection.indexOf('const msg = __testRedactCustomTextAiErrorForTests')).toBeLessThan(
+      connection.indexOf('lastResult = { provider, model, ok: false'),
+    )
+    expect(connection).toContain('recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg')
+    expect(connection).toContain('errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)')
+  })
+
   test('AUTO detects enabled custom provider keys without rewriting the legacy order', async () => {
     const id = 'CUSTOM_EXTRAA'
     const rows: Record<string, string> = {
