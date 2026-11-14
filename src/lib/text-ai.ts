@@ -99,6 +99,37 @@ export function parseCustomTextAiProviders(value: unknown): CustomTextAiProvider
   })
 }
 
+// Remove only direct references to a deleted custom provider. Existing
+// built-in providers and their saved positions, tiers and model choices remain.
+export const CUSTOM_AI_PROVIDER_REFERENCE_KEYS = [
+  'AI_TEXT_PROVIDER',
+  'AI_PROVIDER_FALLBACK_ORDER',
+  'AI_PROVIDER_TIERS',
+  'AI_ACADEMIC_ALLOWLIST',
+  'AI_VERIFIER_PREFERRED',
+  'AI_KNOWLEDGE_REPAIR_PROVIDER',
+  'AI_KNOWLEDGE_REPAIR_MODEL',
+] as const
+
+export function settingsAfterCustomTextAiProviderDeletion(id: string, settings: Record<string, string>): Record<string, string> {
+  if (!isCustomTextAiProviderId(id)) throw new Error('INVALID_CUSTOM_PROVIDER_ID')
+  const next = { ...settings }
+  if (settings.AI_TEXT_PROVIDER?.trim().toUpperCase() === id) next.AI_TEXT_PROVIDER = 'AUTO'
+  if (settings.AI_KNOWLEDGE_REPAIR_PROVIDER?.trim().toUpperCase() === id) {
+    next.AI_KNOWLEDGE_REPAIR_PROVIDER = 'AUTO'
+    next.AI_KNOWLEDGE_REPAIR_MODEL = ''
+  }
+  for (const key of ['AI_PROVIDER_FALLBACK_ORDER', 'AI_PROVIDER_TIERS', 'AI_ACADEMIC_ALLOWLIST', 'AI_VERIFIER_PREFERRED'] as const) {
+    if (!(key in settings)) continue
+    next[key] = String(settings[key] || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item && item.split(':', 1)[0].toUpperCase() !== id)
+      .join(',')
+  }
+  return next
+}
+
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
 export type TextAiRouterPolicySource = 'legacy' | 'admin'
 export type TextAiPolicyRankBy = 'provider' | 'family'
