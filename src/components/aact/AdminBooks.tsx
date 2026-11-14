@@ -5650,9 +5650,10 @@ export function AdminKnowledgeAiRepairTab() {
 
   useEffect(() => {
     let active = true
-    api<{ values: Record<string, string> }>('/api/admin/system')
+    api<{ values: Record<string, string>; customProviders?: Array<{ id: string; name: string; enabled: boolean }> }>('/api/admin/system')
       .then((result) => {
         if (!active) return
+        setRepairCustomProviders(result.customProviders || [])
         setRepairProvider(result.values.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO')
         setRepairModel(result.values.AI_KNOWLEDGE_REPAIR_MODEL || '')
         setRepairInterval(result.values.AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS || '0')
