@@ -146,6 +146,17 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     __resetTextAiStateForTests()
   })
 
+  test('optional knowledge repair worker accepts only enabled dynamic providers without changing built-ins', () => {
+    const worker = readFileSync('src/lib/book-knowledge-v2-scheduler.ts', 'utf8')
+    expect(worker).toContain('CUSTOM_AI_PROVIDERS_SETTING,')
+    expect(worker).toContain('parseCustomTextAiProviders(config[CUSTOM_AI_PROVIDERS_SETTING])')
+    expect(worker).toContain('.filter((entry) => entry.enabled)')
+    expect(worker).toContain('REPAIR_SUPPORTED_PROVIDERS.has(repairProvider)')
+    expect(worker).toContain('customRepairProviders.some((entry) => entry.id === repairProvider)')
+    expect(worker).toContain("return { status: 'INVALID_REPAIR_MODEL_CONFIGURATION' }")
+    expect(worker).toContain('restrictToModels: chosenModel')
+  })
+
   test('registry is isolated, validated and cannot overwrite built-in providers', () => {
     const id = 'CUSTOM_EXTRAA'
     const registry = JSON.stringify([
