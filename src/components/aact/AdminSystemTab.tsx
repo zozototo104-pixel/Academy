@@ -1632,7 +1632,7 @@ export function AdminSystemTab() {
                 </div>
               </div>
               {textModelHealth ? (
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3 [&>div]:min-w-0">
                   <div className="rounded-lg bg-indigo-50 p-2 text-indigo-800">المتاح الآن: {textModelHealth.available?.length || 0}</div>
                   <div className="rounded-lg bg-amber-50 p-2 text-amber-700">المستبعد: {textModelHealth.excluded?.length || 0}</div>
                   <div className="rounded-lg bg-emerald-50 p-2 text-emerald-700">أفضل النماذج: {textModelHealth.top?.length || 0}</div>
