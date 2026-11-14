@@ -287,7 +287,7 @@ function testWhatsAppMinimalSafety() {
     'WhatsApp event processing must not proceed without its atomic claim')
   assert(route.includes('if (!claim.count) return'), 'WhatsApp event processing must skip when the atomic claim was not acquired')
   const asr = file('src/lib/asr.ts')
-  assert(route.includes('transcribeAudioBase64(audioBase64, {'), 'WhatsApp voice transcription must use the shared ASR path')
+  assert(route.includes('transcribeWhatsAppVoiceBase64(audioBase64, {') && route.includes("import { transcribeWhatsAppVoiceBase64 } from '@/lib/asr'"), 'WhatsApp voice transcription must use the shared ASR path')
   assert(asr.includes('transcribeWithWhisperCompatible(clean, mimeType)'), 'ASR must try Whisper-compatible transcription after Gemini')
   assert(asr.includes("throw new Error('ASR_PROVIDERS_UNAVAILABLE')"), 'ASR must fail explicitly when all providers fail')
   assert(!route.includes('allowZaiFallback') && !asr.includes('getZAI'), 'WhatsApp ASR must not depend on dead Z-AI fallback')
