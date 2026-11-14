@@ -143,7 +143,7 @@ async function mutateCustomTextAiProviders<T>(work: (tx: Prisma.TransactionClien
     try {
       return await db.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
     } catch (error: any) {
-      if (error?.code !== 'P2034' || attempt === 3) throw error
+      if (!['P2034', 'P2002'].includes(String(error?.code || '')) || attempt === 3) throw error
       await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)))
     }
   }
