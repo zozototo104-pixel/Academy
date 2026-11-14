@@ -101,6 +101,31 @@ export const KNOWN_AI_PROVIDERS = [
   'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION',
 ] as const
 
+// Use the same registered providers as the main AI router. Custom providers
+// appear in every stage selector only while enabled; no built-in list changes.
+export async function availableStageAiProviders(): Promise<string[]> {
+  const row = await db.setting.findUnique({
+    where: { key: CUSTOM_AI_PROVIDERS_SETTING },
+    select: { value: true },
+  })
+  const custom = parseCustomTextAiProviders(row?.value || '')
+    .filter((item) => item.enabled)
+    .map((item) => item.id)
+  return [...KNOWN_AI_PROVIDERS, ...custom]
+}
+
+export function validateStageProviderChoices(snapshot: StageProfileSnapshot, providers: readonly string[]): void {
+  const allowed = new Set(providers)
+  const check = (provider: string | null | undefined, field: string) => {
+    if (provider && !allowed.has(provider.trim().toUpperCase())) {
+      throw new StageProfileValidationError(`${field}: مزوّد غير معروف أو معطّل (${provider})`)
+    }
+  }
+  check(snapshot.provider, 'provider')
+  for (const item of snapshot.models) check(item.provider, 'models')
+  for (const item of snapshot.verifier?.preferred || []) check(item.provider, 'verifier.preferred')
+}
+
 export type StageRoutingOverrides =
   | { kind: 'global'; reason: 'missing' | 'disabled' | 'empty-models' }
   | { kind: 'invalid'; reason: string }
