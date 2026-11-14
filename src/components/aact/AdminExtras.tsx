@@ -2152,6 +2152,7 @@ function templateLayout(raw: any) {
 
 export function AdminCertificatesTab() {
   const { toast } = useToast()
+  const { promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [certs, setCerts] = useState<CertificateData[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<CertificateData | null>(null)
