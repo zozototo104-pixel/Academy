@@ -160,20 +160,24 @@ export function buildStageRoutingOverrides(resolution: EffectiveStageProfile): S
       preferred: original.verifier.preferred.map(normalizeRef),
     } : null,
   }
+  const availableProviders = new Set<string>([
+    ...KNOWN_AI_PROVIDERS,
+    ...(resolution.allowedCustomProviders || []),
+  ])
   if (snapshot.policy != null && !(KNOWN_ROUTER_POLICIES as readonly string[]).includes(snapshot.policy)) {
     return { kind: 'invalid', reason: `unknown policy: ${snapshot.policy}` }
   }
-  if (snapshot.provider != null && !(KNOWN_AI_PROVIDERS as readonly string[]).includes(snapshot.provider)) {
+  if (snapshot.provider != null && !availableProviders.has(snapshot.provider)) {
     return { kind: 'invalid', reason: `unknown provider: ${snapshot.provider}` }
   }
   for (const ref of snapshot.models) {
-    if (!(KNOWN_AI_PROVIDERS as readonly string[]).includes(ref.provider)) {
+    if (!availableProviders.has(ref.provider)) {
       return { kind: 'invalid', reason: `unknown provider in models: ${ref.provider}` }
     }
   }
   if (snapshot.verifier) {
     for (const ref of snapshot.verifier.preferred) {
-      if (!(KNOWN_AI_PROVIDERS as readonly string[]).includes(ref.provider)) {
+      if (!availableProviders.has(ref.provider)) {
         return { kind: 'invalid', reason: `unknown provider in verifier: ${ref.provider}` }
       }
     }
