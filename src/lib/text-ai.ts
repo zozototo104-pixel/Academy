@@ -3015,8 +3015,11 @@ function attachmentIncludesPdf(attachments?: TextAiAttachment[]) {
   return (attachments || []).some((item) => item.mimeType === 'application/pdf')
 }
 
-function providerSupportsVisionAttachments(provider: ConcreteProvider) {
+function providerSupportsVisionAttachments(provider: ConcreteProvider, capability?: ModelCapability | null) {
+  // The built-in vision allowlists are unchanged. A custom OpenAI-compatible
+  // gateway is eligible ONLY if its live /models metadata confirms image input.
   return VISION_NATIVE_PROVIDERS.has(provider) || VISION_OPENAI_COMPAT_PROVIDERS.has(provider)
+    || (isCustomTextAiProviderId(provider) && capability?.vision === true)
 }
 
 // Haris's vision queue (2026-10-30 ruling): for attachment calls, GEMINI
