@@ -3037,7 +3037,7 @@ function visionPriorityOrder(providers: ConcreteProvider[]): ConcreteProvider[] 
 
 function modelSupportsVisionAttachment(provider: ConcreteProvider, model: string, capability: ModelCapability | null, attachments: TextAiAttachment[]): boolean {
   if (!attachments.length) return true
-  if (!providerSupportsVisionAttachments(provider)) return false
+  if (!providerSupportsVisionAttachments(provider, capability)) return false
   if (provider === 'ALBORIHI' && !capability) return false
   const id = model.toLowerCase()
   const modalities = (capability?.modalities || []).join(' ').toLowerCase()
