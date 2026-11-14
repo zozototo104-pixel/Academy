@@ -202,24 +202,38 @@ describe('legacy book readers: profile rescue only after failure', () => {
     }
   })
 
-  test('failed outline OCR retries identical source pages strictly inside READING profile', async () => {
+  test('429 quota failure retries exactly the original source pages through READING profile', async () => {
     const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
     configureReadingProfile(true)
     const pdf = await PDFDocument.create()
     pdf.addPage([300, 400])
+    pdf.addPage([300, 400])
+    pdf.addPage([300, 400])
     const calls: any[] = []
     visionRouterCall = async (opts) => {
       calls.push(opts)
-      if (calls.length === 1) throw new Error('primary quota exhausted')
-      return { provider: 'OPENAI', model: 'gpt-4o', text: JSON.stringify({ pages: [{ page: 1, text: 'النص المستعاد من نفس الصفحة' }] }) }
+      if (calls.length === 1) throw Object.assign(new Error('429 quota exhausted'), { status: 429 })
+      return {
+        provider: 'OPENAI',
+        model: 'gpt-4o',
+        text: JSON.stringify({ pages: [
+          { page: 1, text: 'النص المستعاد للصفحة الثانية' },
+          { page: 2, text: 'النص المستعاد للصفحة الثالثة' },
+        ] }),
+      }
     }
     try {
-      const pages = await transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1])
-      expect(pages[0].text).toBe('النص المستعاد من نفس الصفحة')
+      const pages = await transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [2, 3])
+      expect(pages.map((page) => [page.page, page.text])).toEqual([
+        [2, 'النص المستعاد للصفحة الثانية'],
+        [3, 'النص المستعاد للصفحة الثالثة'],
+      ])
       expect(calls).toHaveLength(2)
       expect(calls[0].restrictToModels).toBeUndefined()
       expect(calls[1].restrictToModels).toEqual([{ provider: 'OPENAI', model: 'gpt-4o' }])
       expect(calls[1].attachments.map((attachment: any) => attachment.mimeType)).toEqual(['application/pdf'])
+      const sentSubset = await PDFDocument.load(Buffer.from(calls[1].attachments[0].base64, 'base64'))
+      expect(sentSubset.getPageCount()).toBe(2)
     } finally {
       __setStageProfileStoreForTests(null)
     }
