@@ -545,6 +545,21 @@ export function AdminSystemTab() {
     }
   }
 
+  const checkProviderModelsNow = async () => {
+    setTextModelHealthLoading(true)
+    try {
+      const result = await api<{ checked: number; total: number; complete: boolean }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'text-ai-check-provider', provider: catalogProviderForModels }),
+      })
+      toast({ title: result.complete ? 'اكتمل فحص نماذج المزود' : 'فحص جزئي — انتهت المهلة', description: `فُحص ${result.checked} من ${result.total} نموذج لدى ${catalogProviderForModels}.` })
+      loadTextModelHealth()
+    } catch (e: any) {
+      toast({ title: 'تعذر فحص نماذج المزود', description: e.message, variant: 'destructive' })
+      setTextModelHealthLoading(false)
+    }
+  }
+
   const checkAllTextModelsNow = async () => {
     setTextModelHealthLoading(true)
     try {
