@@ -2152,6 +2152,7 @@ function templateLayout(raw: any) {
 
 export function AdminCertificatesTab() {
   const { toast } = useToast()
+  const { promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [certs, setCerts] = useState<CertificateData[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<CertificateData | null>(null)
@@ -2245,7 +2246,7 @@ export function AdminCertificatesTab() {
   const decideGraduation = async (request: GraduationRequestItem, action: 'APPROVE' | 'REJECT') => {
     let note: string | undefined
     if (action === 'REJECT') {
-      const reason = window.prompt('سبب رفض طلب التخرج (يصل إلى الطالب):', '')
+      const reason = await promptAction({ title: 'رفض طلب التخرج', description: 'يصل سبب الرفض إلى الطالب ويُحفظ مع قرار الإدارة.', fieldLabel: 'سبب الرفض', defaultValue: '', multiline: true, confirmLabel: 'اعتماد السبب', tone: 'warning' })
       if (reason === null) return
       note = reason.trim() || undefined
     }
@@ -2398,11 +2399,11 @@ export function AdminCertificatesTab() {
   const editCertificateEnglishFields = async (certificate: CertificateData) => {
     const id = certificate.id
     if (!id) return toast({ title: 'تعذر التعديل', description: 'معرّف الشهادة غير متوفر.', variant: 'destructive' })
-    const holderNameEn = window.prompt('الاسم بالإنجليزي', certificate.holderNameEn || '')
+    const holderNameEn = await promptAction({ title: 'تعديل بيانات الشهادة', fieldLabel: 'الاسم بالإنجليزي', defaultValue: certificate.holderNameEn || '', confirmLabel: 'التالي' })
     if (holderNameEn === null) return
-    const programEn = window.prompt('البرنامج بالإنجليزي', certificate.programEn || '')
+    const programEn = await promptAction({ title: 'تعديل بيانات الشهادة', fieldLabel: 'البرنامج بالإنجليزي', defaultValue: certificate.programEn || '', confirmLabel: 'التالي' })
     if (programEn === null) return
-    const gradeEn = window.prompt('التقدير بالإنجليزي', certificate.gradeEn || '')
+    const gradeEn = await promptAction({ title: 'تعديل بيانات الشهادة', fieldLabel: 'التقدير بالإنجليزي', defaultValue: certificate.gradeEn || '', confirmLabel: 'حفظ التغييرات' })
     if (gradeEn === null) return
     setBusy(true)
     try {
@@ -2422,7 +2423,9 @@ export function AdminCertificatesTab() {
       toast({ title: 'تعذر الإلغاء', description: 'معرّف الشهادة غير متوفر في السجل الحالي.', variant: 'destructive' })
       return
     }
-    const reason = window.prompt(`اكتب سبب إلغاء الشهادة ${certificate.serial}`)?.trim() || ''
+    const reasonInput = await promptAction({ title: 'إلغاء الشهادة', description: `اكتب سبب إلغاء الشهادة ${certificate.serial}. ستبقى معلّمة كملغاة في صفحة التحقق.`, fieldLabel: 'سبب الإلغاء', defaultValue: '', multiline: true, required: true, minLength: 6, confirmLabel: 'متابعة الإلغاء', tone: 'danger' })
+    if (reasonInput === null) return
+    const reason = reasonInput.trim()
     if (reason.length < 6) {
       toast({ title: 'سبب الإلغاء إلزامي', description: 'اكتب سبباً واضحاً لا يقل عن 6 أحرف.', variant: 'destructive' })
       return
@@ -2606,6 +2609,7 @@ export function AdminCertificatesTab() {
 
   return (
     <div className="mt-4 w-full min-w-0 max-w-full space-y-4 overflow-x-hidden [overflow-wrap:anywhere]">
+      {actionDialog}
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-lg font-black text-[#0f2b46]">مركز إصدار الشهادات</h3>
