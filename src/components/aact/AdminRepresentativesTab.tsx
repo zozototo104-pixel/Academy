@@ -292,7 +292,7 @@ export default function AdminRepresentativesTab() {
 
   async function revokeOnboardingLink() {
     if (!form.id) return
-    if (!confirm('هل تريد إلغاء رابط الاستكمال الحالي؟')) return
+    if (!await confirmAction({ title: 'إلغاء رابط الاستكمال', description: 'هل تريد إلغاء رابط الاستكمال الحالي؟ لن يتمكن صاحب الرابط من استخدامه بعد الإلغاء.', confirmLabel: 'إلغاء الرابط', tone: 'danger' })) return
     setOnboardingBusy(true)
     try {
       const res = await fetch(`/api/admin/representatives/${form.id}/onboarding`, { method: 'DELETE' })
