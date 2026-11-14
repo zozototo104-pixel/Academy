@@ -172,7 +172,7 @@ async function transcribeWithGemini(audioBase64: string, options: TranscribeAudi
   throw lastError instanceof Error ? lastError : new Error('GEMINI_ASR_KEYS_EXHAUSTED')
 }
 
-async function transcribeWithWhisperCompatible(audioBase64: string, mimeType: string) {
+async function transcribeWithWhisperCompatible(audioBase64: string, mimeType: string, requestTimeoutMs = 25_000) {
   const { clean } = cleanBase64AndMime(audioBase64, mimeType)
   if (!clean) return null
   const providers = [
