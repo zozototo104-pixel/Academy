@@ -95,7 +95,7 @@ export function useAdminActionDialog() {
     const Icon = tone.icon
     return (
       <Dialog open={!!state} onOpenChange={(open) => { if (!open) close(state.kind === 'confirm' ? false : null) }}>
-        <DialogContent className={`flex max-h-[92vh] flex-col gap-0 max-w-md overflow-hidden rounded-[2rem] border border-[#0f2b46]/10 bg-gradient-to-br ${tone.shell} p-0 shadow-2xl shadow-[#0f2b46]/20`} dir="rtl">
+        <DialogContent className={`flex max-h-[calc(100dvh-1rem)] w-[calc(100%-2rem)] max-w-[calc(100%-2rem)] min-w-0 flex-col gap-0 overflow-hidden rounded-[2rem] border border-[#0f2b46]/10 bg-gradient-to-br ${tone.shell} p-0 shadow-2xl shadow-[#0f2b46]/20 sm:max-h-[92vh] sm:max-w-md`} dir="rtl">
           <div className="relative shrink-0 px-5 pb-3 pt-5">
             <div className="absolute inset-x-8 top-0 h-1 rounded-b-full bg-gradient-to-l from-[#c9a227] via-[#0f2b46] to-[#e0b83a]" />
             <DialogHeader className="items-center text-center">
