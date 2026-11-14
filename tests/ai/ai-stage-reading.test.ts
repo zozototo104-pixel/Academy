@@ -1,14 +1,18 @@
 import { describe, expect, mock, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
+import { PDFDocument } from 'pdf-lib'
 
+let visionRouterCall: (opts: any) => Promise<{ text: string; provider: string; model: string }> =
+  async () => { throw new Error('VISION_MOCK_NOT_CONFIGURED') }
 mock.module('@/lib/db', () => ({ db: { aiPipelineOperationLog: { create: async () => ({}) } } }))
 mock.module('@/lib/text-ai', () => ({
   pipelineConfigSnapshot: async () => ({ policy: 'balanced', allowedModels: ['GEMINI:g'], verifierPreferred: [] }),
   CUSTOM_AI_PROVIDERS_SETTING: 'AI_CUSTOM_PROVIDERS',
   parseCustomTextAiProviders: () => [],
+  textAiCompleteJsonWithMetadata: async (opts: any) => visionRouterCall(opts),
 }))
 
-const { buildStageRoutingOverrides, validateStageProfileSnapshot } = await import('@/lib/ai-stage-profiles')
+const { buildStageRoutingOverrides, validateStageProfileSnapshot, __setStageProfileStoreForTests } = await import('@/lib/ai-stage-profiles')
 const { __setPipelineLogDepsForTests, recordPipelineOperation } = await import('@/lib/ai-pipeline-log')
 
 function stageResolution(snapshotRaw: Record<string, unknown>, stage: 'READING' | 'REVIEW' = 'READING') {
