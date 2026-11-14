@@ -4268,9 +4268,12 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
         } catch (e: any) {
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          const msg = String(e?.message || e).slice(0, 260)
+          const msg = __testRedactCustomTextAiErrorForTests(provider, key, String(e?.message || e)).slice(0, 260)
           const status = statusFromError(e)
-          const requestId = requestIdFromError(e)
+          const rawRequestId = requestIdFromError(e)
+          const requestId = rawRequestId
+            ? __testRedactCustomTextAiErrorForTests(provider, key, rawRequestId).slice(0, 120)
+            : undefined
           lastResult = { provider, model, ok: false, error: msg, at }
           recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, ...(requestId ? { requestId } : {}), at })
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
