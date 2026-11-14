@@ -126,6 +126,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   const [attendanceSession, setAttendanceSession] = useState<SessionRow | null>(null)
   const [attendance, setAttendance] = useState<AttendanceData | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [deleteReason, setDeleteReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [statusClock, setStatusClock] = useState(() => Date.now())
