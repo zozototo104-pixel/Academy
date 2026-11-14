@@ -920,8 +920,44 @@ ${sample}
     return hasBalancedKnowledgeShape(normalized) ? normalized : null
   } catch (e: any) {
     console.error('aiKnowledgeItems all providers failed:', String(e?.message || e).slice(0, 300))
-    return null
   }
+
+  // Rescue this older text-analysis path only after BOTH its current Gemini
+  // and global-router attempts failed. An inactive profile changes nothing.
+  try {
+    const { prepareStageRun } = await import('@/lib/ai-stage-runner')
+    const plan = await prepareStageRun('ANALYSIS')
+    if (plan.routing?.preferredModels.length) {
+      const models = plan.routing.preferredModels.map((item) => ({
+        provider: item.provider as import('@/lib/text-ai').TextAiPreferredModel['provider'],
+        model: item.model,
+      }))
+      const raw = await Promise.race([
+        textAiCompleteJson({
+          system: 'أنت محلل مناهج جامعية يرجع JSON صالحاً فقط.',
+          history: [{ role: 'user', text: prompt }],
+          purpose: 'ANALYSIS',
+          taskLevel: 'ACADEMIC_DRAFT',
+          taskType: 'BOOK_KNOWLEDGE_STAGE_RESCUE',
+          temperature: 0.08,
+          maxOutputTokens: 12288,
+          preferredModels: models,
+          restrictToModels: models,
+          ...(plan.routing.preferredProviders.length ? { preferredProviders: plan.routing.preferredProviders as import('@/lib/text-ai').TextAiProvider[] } : {}),
+          ...(plan.routing.policy ? { routerPolicy: plan.routing.policy as import('@/lib/text-ai').TextAiRouterPolicy } : {}),
+          validate: (text) => {
+            if (!hasBalancedKnowledgeShape(normalizeDrafts(extractJsonArray(text), [], semester))) throw new Error('BOOK_ANALYSIS_PROFILE_UNUSABLE')
+          },
+        }),
+        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_STAGE_ROUTER_TIMEOUT')), 36000)),
+      ])
+      const normalized = normalizeDrafts(extractJsonArray(raw), [], semester)
+      if (hasBalancedKnowledgeShape(normalized)) return normalized
+    }
+  } catch (error) {
+    console.warn('Book knowledge analysis profile rescue failed:', String(error instanceof Error ? error.message : error).slice(0, 300))
+  }
+  return null
 }
 
 function bookMimeForVision(book: RawBookForHydration) {
