@@ -25,7 +25,9 @@ describe('admin mobile overflow guard', () => {
     const tab = read('src/components/aact/AdminSystemTab.tsx')
     expect(tab).toContain('<div key={k} className="min-w-0 space-y-1">')
     expect(tab).toContain('<Label className="block max-w-full break-words text-[11px] font-black text-[#0f2b46]">{label}</Label>')
-    expect(tab).toContain('<SelectTrigger className="h-9 min-w-0 w-full max-w-full bg-white text-sm" dir="ltr">')
+    expect(tab).toContain('<SelectTrigger className="h-9 min-w-0 w-full max-w-full overflow-hidden bg-white text-sm')
+    expect(tab).toContain('[&_[data-slot=select-value]]:truncate')
+    expect(tab).toContain('className="grid min-w-0 grid-cols-1 gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 sm:grid-cols-2 sm:p-4"')
   })
 
   test('book-workspace header selects shrink', () => {
