@@ -80,7 +80,7 @@ export function stageProfileModelCount(snapshot: StageProfileSnapshot): number {
 }
 
 export type EffectiveStageProfile =
-  | { kind: 'stage'; profileId: string; version: number; snapshot: StageProfileSnapshot }
+  | { kind: 'stage'; profileId: string; version: number; snapshot: StageProfileSnapshot; allowedCustomProviders?: string[] }
   | { kind: 'global'; reason: 'missing' | 'disabled' | 'empty-models' }
 
 // حسم البروفايل الفعّال لمرحلة: بروفايل المرحلة أو الرجوع للعام مع السبب.
