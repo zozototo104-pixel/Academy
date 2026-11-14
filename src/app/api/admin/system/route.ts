@@ -485,13 +485,15 @@ export async function POST(req: NextRequest) {
     }
     if (action === 'toggle-custom-ai-provider') {
       const id = String(body?.id || '')
-      const existingRow = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
-      const providers = parseCustomTextAiProviders(existingRow?.value || '')
-      if (!isCustomTextAiProviderId(id) || !providers.some((entry) => entry.id === id)) {
-        return NextResponse.json({ error: 'المزوّد غير موجود' }, { status: 404 })
-      }
-      const updated = providers.map((entry) => entry.id === id ? { ...entry, enabled: body?.enabled === true } : entry)
-      await db.setting.update({ where: { key: CUSTOM_AI_PROVIDERS_SETTING }, data: { value: JSON.stringify(updated) } })
+      const found = await mutateCustomTextAiProviders(async (tx) => {
+        const row = await tx.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+        const providers = parseCustomTextAiProviders(row?.value || '')
+        if (!isCustomTextAiProviderId(id) || !providers.some((entry) => entry.id === id)) return false
+        const updated = providers.map((entry) => entry.id === id ? { ...entry, enabled: body?.enabled === true } : entry)
+        await tx.setting.update({ where: { key: CUSTOM_AI_PROVIDERS_SETTING }, data: { value: JSON.stringify(updated) } })
+        return true
+      })
+      if (!found) return NextResponse.json({ error: 'المزوّد غير موجود' }, { status: 404 })
       await audit(admin, 'AI_CUSTOM_PROVIDER_TOGGLED', 'Setting', id, `enabled=${body?.enabled === true}`)
       return NextResponse.json({ ok: true, customProviders: await adminCustomTextAiProviders() })
     }
