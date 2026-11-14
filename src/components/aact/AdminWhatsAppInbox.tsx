@@ -18,7 +18,7 @@ type WaMessage = {
   sender: 'CUSTOMER' | 'BOT' | 'HUMAN' | 'SYSTEM'
   text: string
   rawType?: string | null
-  meta?: { kind?: string | null; isVoice?: boolean | null; mediaId?: string | null; mediaCaption?: string | null; mediaFilename?: string | null; deliveryError?: unknown; deliveryFailedAt?: string | null } | null
+  meta?: { kind?: string | null; isVoice?: boolean | null; transcriptionStatus?: 'TRANSCRIBED' | 'FAILED' | null; mediaId?: string | null; mediaCaption?: string | null; mediaFilename?: string | null; deliveryError?: unknown; deliveryFailedAt?: string | null } | null
   status?: string | null
   sentByName?: string | null
   createdAt: string
