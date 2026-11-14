@@ -2874,7 +2874,9 @@ export async function textAiModelHealthSnapshot(): Promise<Array<{ provider: str
       ensure(provider, modelParts.join(':')).status = 'ميت'
     }
   }
-  return [...models.values()].map((row) => ({ ...row, status: row.status || (recentFailedHealth(row.health || null) ? 'فشل الفحص' : 'شغّال') }))
+  return [...models.values()]
+    .filter((row) => !isCustomTextAiProviderId(row.provider) || registeredCustomIds.has(row.provider))
+    .map((row) => ({ ...row, status: row.status || (recentFailedHealth(row.health || null) ? 'فشل الفحص' : 'شغّال') }))
 }
 
 export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
