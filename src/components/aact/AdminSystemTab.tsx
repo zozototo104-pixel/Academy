@@ -1034,12 +1034,13 @@ export function AdminSystemTab() {
       <div key={k} className="min-w-0 space-y-1">
         <Label className="block max-w-full break-words text-[11px] font-black text-[#0f2b46]">{label}</Label>
         <Select value={current} onValueChange={(v) => set(k, v)}>
-          <SelectTrigger className="h-9 min-w-0 w-full max-w-full overflow-hidden bg-white text-sm [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:truncate" dir="ltr">
-            <SelectValue placeholder="اختر" />
+          <SelectTrigger className="min-h-11 h-auto min-w-0 w-full max-w-full overflow-hidden whitespace-normal bg-white py-2 text-sm" dir="rtl">
+            <SelectValue className="sr-only" placeholder="اختر" />
+            <span className="min-w-0 flex-1 break-words text-right leading-5">{normalizedOptions.find((opt) => opt.value === current)?.label || 'اختر'}</span>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[calc(100vw-1rem)]" dir="rtl">
             {normalizedOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value} dir="ltr">{opt.label}</SelectItem>
+              <SelectItem key={opt.value} value={opt.value} className="min-w-0 whitespace-normal break-words">{opt.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
