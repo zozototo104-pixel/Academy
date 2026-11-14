@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import type { PipelineStageName } from '@/lib/ai-pipeline-log'
+import { CUSTOM_AI_PROVIDERS_SETTING, parseCustomTextAiProviders } from '@/lib/text-ai'
 
 // D1 — تخزين بروفايلات المراحل مع ترقيم نسخ لا يُكتب فوقه.
 // قواعد ملزمة من تصميم المرحلة:
