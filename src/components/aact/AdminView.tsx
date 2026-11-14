@@ -1064,7 +1064,7 @@ export function AdminView() {
         return
       }
       const names = affected.map((app) => `${app.fullName} (${app.reference})`).join('\n')
-      const confirmed = window.confirm(`سيتم طلب المرفقات الناقصة من ${affected.length} طلب/طلبات لبرنامج:\n${chosenProgram}\n\nالأسماء:\n${names}\n\nمتابعة؟`)
+      const confirmed = await confirmAction({ title: 'طلب المرفقات الناقصة جماعيًا', description: `سيتم طلب المرفقات الناقصة من ${affected.length} طلب/طلبات لبرنامج:\n${chosenProgram}\n\nالأسماء:\n${names}\n\nمتابعة؟`, confirmLabel: 'إرسال الطلبات', tone: 'warning' })
       if (!confirmed) return
       let done = 0
       for (const app of affected) {
