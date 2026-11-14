@@ -1,6 +1,6 @@
 import { after, NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { transcribeAudioBase64 } from '@/lib/asr'
+import { transcribeWhatsAppVoiceBase64 } from '@/lib/asr'
 import { redactDeep } from '@/lib/secret-crypto'
 import { decryptWhatsAppPhone, encryptWhatsAppPhone, maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
 import {
