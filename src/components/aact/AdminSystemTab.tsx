@@ -1620,7 +1620,7 @@ export function AdminSystemTab() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-xs font-black text-indigo-900">صحة نماذج النصوص — {catalogProviderForModels}</p>
-                  <p className="text-[10px] text-slate-500">يعرض النماذج المكتشفة، المستبعدة مؤقتاً، وأفضل النماذج حسب سجل النجاح.</p>
+                  <p className="text-[10px] text-slate-500">يعرض النماذج المكتشفة وسجل فحوص الصحة. «فحص الكل» يفحص حتى 3 نماذج من كل مزود ضمن مهلة 40 ثانية؛ وقد لا يشمل النموذج المختار. فحص الاتصال بالمزود لا يضيف نتيجة لهذا السجل.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={loadTextModelHealth} className="border-indigo-200 text-[10px] font-black text-indigo-700">
