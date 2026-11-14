@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
     const recheckRequest = parseReviewRecheckEnqueueRequest((body as { enqueueRecheck?: unknown } | null)?.enqueueRecheck)
     if (!isStage(stage)) return NextResponse.json({ error: 'مرحلة غير صالحة' }, { status: 400 })
     const validatedSnapshot = validateStageProfileSnapshot(stage, snapshot)
-    validateStageProviderChoices(validatedSnapshot, await availableStageAiProviders())
+    if (validatedSnapshot.enabled) validateStageProviderChoices(validatedSnapshot, await availableStageAiProviders())
     const current = await getCurrentStageProfile(stage)
     const currentProfileVersion = current?.version ?? 0
     if (current && snapshotKey(current.snapshot) === snapshotKey(validatedSnapshot)) {
