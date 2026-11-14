@@ -120,6 +120,7 @@ interface ThesisReview {
 export function AIChatView() {
   const { user, navigate, activeUnitId } = useAppStore()
   const { toast } = useToast()
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
