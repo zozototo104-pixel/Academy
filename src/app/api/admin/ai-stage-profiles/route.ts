@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import {
-  KNOWN_AI_PROVIDERS,
   KNOWN_ROUTER_POLICIES,
+  availableStageAiProviders,
+  validateStageProviderChoices,
   getCurrentStageProfile,
   listStageProfileVersions,
   saveStageProfile,
