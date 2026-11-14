@@ -50,6 +50,52 @@ jobs:
       - run: bunx prisma generate
       # This database exists only as a disposable GitHub Actions service.
       - run: bunx prisma db push
+      - name: Verify concurrent custom-provider writes on isolated PostgreSQL
+        run: |
+          node <<'NODE'
+          const { PrismaClient, Prisma } = require('@prisma/client')
+          const db = new PrismaClient()
+          const key = 'AI_CUSTOM_REGISTRY_CONCURRENCY_CI'
+          const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+          async function writeProvider(id) {
+            for (let attempt = 0; attempt < 4; attempt++) {
+              try {
+                return await db.$transaction(async (tx) => {
+                  const row = await tx.setting.findUnique({ where: { key } })
+                  const providers = JSON.parse(row?.value || '[]')
+                  // Force overlapping reads so a missing serializable retry
+                  // would lose one administrator's added provider.
+                  await delay(70)
+                  await tx.setting.update({
+                    where: { key },
+                    data: { value: JSON.stringify([...providers, id]) },
+                  })
+                }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+              } catch (error) {
+                if (error?.code !== 'P2034' || attempt === 3) throw error
+                await delay(20 * (attempt + 1))
+              }
+            }
+          }
+          async function main() {
+            await db.setting.upsert({
+              where: { key }, create: { key, value: '[]' }, update: { value: '[]' },
+            })
+            try {
+              await Promise.all([writeProvider('CUSTOM_FIRST'), writeProvider('CUSTOM_SECOND')])
+              const row = await db.setting.findUnique({ where: { key } })
+              const values = JSON.parse(row?.value || '[]').sort()
+              if (JSON.stringify(values) !== JSON.stringify(['CUSTOM_FIRST', 'CUSTOM_SECOND'])) {
+                throw new Error('SERIALIZABLE_CUSTOM_PROVIDER_LOST_UPDATE:' + JSON.stringify(values))
+              }
+              console.info('Serializable custom registry update preserved both concurrent writes')
+            } finally {
+              await db.setting.deleteMany({ where: { key } })
+            }
+          }
+          main().catch((error) => { console.error(error); process.exitCode = 1 })
+            .finally(() => db.$disconnect())
+          NODE
       - name: Verify partial book analysis completion on real isolated PostgreSQL
         env:
           BOOK_READ_PG_CONTRACT: "1"
