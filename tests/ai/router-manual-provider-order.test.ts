@@ -176,6 +176,43 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     }
   })
 
+  test('custom provider socket DNS allows public addresses but rejects rebinding and private aliases', () => {
+    const check = textAi.__testCustomProviderPublicDnsForTests
+    expect(check([{ address: '8.8.8.8' }])).toBe(true)
+    expect(check([{ address: '2606:4700:4700::1111' }])).toBe(true)
+    expect(check([])).toBe(false)
+    for (const blocked of [
+      '127.0.0.1', '10.1.2.3', '169.254.169.254', '172.16.0.1',
+      '192.168.1.10', '100.64.0.1', '192.0.0.8',
+      '::1', '::ffff:127.0.0.1', '::ffff:169.254.169.254',
+      'fc00::1', 'fe80::1', '2002:c0a8:101::', '2001:db8::1',
+    ]) {
+      expect(check([{ address: blocked }])).toBe(false)
+      // A single private DNS answer invalidates the entire A/AAAA set.
+      expect(check([{ address: '8.8.8.8' }, { address: blocked }])).toBe(false)
+    }
+  })
+
+  test('only dynamically added providers use socket-pinned HTTPS, not a second unchecked fetch', () => {
+    const source = readFileSync(new URL('../../src/lib/text-ai.ts', import.meta.url), 'utf8')
+    const start = source.indexOf('async function fetchCustomTextAiWithPinnedDns(')
+    const end = source.indexOf('export async function __testFetchWithTimeout(', start)
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    const guarded = source.slice(start, end)
+    expect(guarded).toContain('httpsRequest(url, {')
+    expect(guarded).toContain('agent: false')
+    expect(guarded).toContain('lookup: (hostname, _options, callback) => {')
+    expect(guarded).toContain('lookup(hostname, { all: true })')
+    expect(guarded).toContain('__testCustomProviderPublicDnsForTests(addresses)')
+    expect(guarded).toContain('callback(null, pinned.address, pinned.family)')
+    expect(guarded).toContain('CUSTOM_PROVIDER_REDIRECT_DENIED')
+    expect(guarded).toContain('servername: new URL(url).hostname')
+    expect(guarded).toContain('clearTimeout(timeout)')
+    expect(source).toContain('if (isCustomTextAiProviderId(provider)) return fetchCustomTextAiWithPinnedDns(provider, url, init, timeoutMs, deadlineMs)')
+    expect(source).toContain('return await fetch(url, { ...init, signal })')
+  })
+
   test('free model recognition requires declared zero input AND output pricing', () => {
     const free = textAi.__testCustomProviderFreeMetadataForTests
     expect(free({ pricing: { prompt: '0', completion: '0' } }, 'open-free-model')).toBe(true)
