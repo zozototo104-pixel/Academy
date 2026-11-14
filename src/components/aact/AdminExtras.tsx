@@ -2607,6 +2607,7 @@ export function AdminCertificatesTab() {
 
   return (
     <div className="mt-4 w-full min-w-0 max-w-full space-y-4 overflow-x-hidden [overflow-wrap:anywhere]">
+      {actionDialog}
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-lg font-black text-[#0f2b46]">مركز إصدار الشهادات</h3>
