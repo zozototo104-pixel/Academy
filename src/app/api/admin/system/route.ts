@@ -488,6 +488,7 @@ export async function POST(req: NextRequest) {
         )
       })
       if (!cleanedSettings) return NextResponse.json({ error: 'المزوّد المطلوب حذفه غير موجود' }, { status: 404 })
+      forgetCustomTextAiProviderRuntimeState(id)
       clearSecretCache()
       return NextResponse.json({
         ok: true,
