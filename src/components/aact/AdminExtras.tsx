@@ -2246,7 +2246,7 @@ export function AdminCertificatesTab() {
   const decideGraduation = async (request: GraduationRequestItem, action: 'APPROVE' | 'REJECT') => {
     let note: string | undefined
     if (action === 'REJECT') {
-      const reason = window.prompt('سبب رفض طلب التخرج (يصل إلى الطالب):', '')
+      const reason = await promptAction({ title: 'رفض طلب التخرج', description: 'يصل سبب الرفض إلى الطالب ويُحفظ مع قرار الإدارة.', fieldLabel: 'سبب الرفض', defaultValue: '', multiline: true, confirmLabel: 'اعتماد السبب', tone: 'warning' })
       if (reason === null) return
       note = reason.trim() || undefined
     }
