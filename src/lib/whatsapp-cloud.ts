@@ -26,6 +26,7 @@ export type WhatsAppInboundMessage = {
   mediaCaption?: string
   mediaFilename?: string
   isVoice?: boolean
+  transcriptionStatus?: 'TRANSCRIBED' | 'FAILED'
   originKind?: 'TEXT' | 'VOICE'
 }
 
