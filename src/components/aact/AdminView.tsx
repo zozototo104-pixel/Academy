@@ -1953,7 +1953,8 @@ export function AdminView() {
   }
 
   return (
-    <div data-aact-admin-view="true" className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
+    <div data-aact-admin-view="true" className="aact-fade-in mx-auto w-full min-w-0 max-w-7xl px-3 py-6 sm:px-4 sm:py-10">
+      {actionDialog}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">لوحة إدارة الأكاديمية</h1>
