@@ -906,7 +906,7 @@ async function fetchCustomTextAiWithPinnedDns(provider: string, url: string, ini
   return new Promise<Response>((resolve, reject) => {
     const request = httpsRequest(url, {
       method: init.method || 'GET',
-      headers: Object.fromEntries(new Headers(init.headers).entries()),
+      headers: { 'accept-encoding': 'identity', ...Object.fromEntries(new Headers(init.headers).entries()) },
       agent: false, // New socket and guarded lookup for every custom request.
       servername: new URL(url).hostname, // Preserve hostname TLS verification.
       lookup: (hostname, _options, callback) => {
