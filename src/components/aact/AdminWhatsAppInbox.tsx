@@ -301,8 +301,8 @@ export function AdminWhatsAppInboxTab() {
                       <div key={m.id} className={`flex ${outbound ? 'justify-start' : 'justify-end'}`}>
                         <div className={`max-w-[82%] rounded-3xl px-4 py-3 shadow-sm ${outbound ? 'rounded-bl-md bg-[#dcf8c6]' : 'rounded-br-md bg-white'}`}>
                           {isVoice && (
-                            <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
-                              <Mic className="h-3 w-3" /> رسالة صوتية مفرغة
+                            <div className={`mb-1 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black ${m.meta?.transcriptionStatus === 'FAILED' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'}`}>
+                              <Mic className="h-3 w-3" /> {m.meta?.transcriptionStatus === 'TRANSCRIBED' ? 'رسالة صوتية مفرغة' : m.meta?.transcriptionStatus === 'FAILED' ? 'رسالة صوتية لم تُفرّغ — يمكن للموظف الاستماع' : 'رسالة صوتية'}
                             </div>
                           )}
                           {attachmentUrl && (attachmentType === 'image' || attachmentType === 'sticker') && (
