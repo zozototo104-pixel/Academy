@@ -3045,6 +3045,8 @@ function modelSupportsVisionAttachment(provider: ConcreteProvider, model: string
   if (!vision) return false
   if (attachmentIncludesPdf(attachments)) {
     if (provider === 'ALBORIHI') return false
+    // Never assume a model can handle documents merely from a familiar name.
+    if (isCustomTextAiProviderId(provider)) return /pdf|document|file/.test(modalities)
     return /pdf|document|file|gemini|claude|gpt-4o|gpt-5|auto/.test(`${id} ${modalities}`)
   }
   return true
