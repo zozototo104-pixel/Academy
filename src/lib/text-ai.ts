@@ -2830,7 +2830,7 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number; provider
     if (Date.now() >= deadlineMs - 1000) break
     const key = providerKeys(s, provider)[0]
     if (!key) continue
-    for (const model of selectedModel ? [selectedModel] : (await modelFallbacks(s, provider, 'GENERAL', false)).slice(0, 3)) {
+    for (const model of opts.models ? [...new Set(opts.models)] : selectedModel ? [selectedModel] : (await modelFallbacks(s, provider, 'GENERAL', false)).slice(0, 3)) {
       if (Date.now() >= deadlineMs - 1000) break
       const started = Date.now()
       try {
