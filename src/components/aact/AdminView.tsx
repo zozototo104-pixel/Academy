@@ -260,7 +260,7 @@ const STATUS_LABEL: Record<string, string> = {
   STAGED: 'طلب غير مكتمل، بانتظار المرفقات',
   AWAITING_TUITION: 'مقبول — بانتظار سداد الرسوم الدراسية',
   SUPERVISOR_ASSIGNED: 'تم تعيين مشرف',
-  THESIS: 'التسجيل النهائي — قيد إعداد بحث التخرج',
+  THESIS: 'التسجيل معتمد — قيد الدراسة',
   SCHEDULED: 'مجدول للمناقشة',
   RESULT_APPROVED: 'تم اعتماد النتيجة',
   CERTIFIED: 'تم إصدار الشهادة',
