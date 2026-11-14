@@ -59,6 +59,43 @@ describe('admin mobile overflow guard', () => {
     expect(view).toContain('<div className="min-w-0 space-y-3">')
   })
 
+  test('shared selects and platform dialogs are constrained to the mobile viewport', () => {
+    const select = read('src/components/ui/select.tsx')
+    const dialog = read('src/components/aact/AdminActionDialog.tsx')
+    expect(select).toContain('w-fit min-w-0 max-w-full')
+    expect(select).toContain('*:data-[slot=select-value]:min-w-0')
+    expect(select).toContain('*:data-[slot=select-value]:overflow-hidden')
+    expect(select).toContain('max-w-[calc(100vw-1rem)]')
+    expect(select).toContain('whitespace-normal break-words')
+    expect(dialog).toContain('max-w-[calc(100%-2rem)]')
+    expect(dialog).toContain('sm:max-w-md')
+    expect(dialog).not.toContain('gap-0 max-w-md')
+  })
+
+  test('platform screens no longer use browser-owned confirmation or prompt windows', () => {
+    const files = [
+      'src/components/aact/AdminView.tsx',
+      'src/components/aact/AdminLectures.tsx',
+      'src/components/aact/AdminAnnouncementsTab.tsx',
+      'src/components/aact/AdminStudyScheduleTab.tsx',
+      'src/components/aact/AdminRepresentativesTab.tsx',
+      'src/components/aact/AdminLegacyGraduatesTab.tsx',
+      'src/components/aact/ExamView.tsx',
+      'src/components/aact/AIChatView.tsx',
+      'src/components/aact/SupervisorContentTab.tsx',
+      'src/app/representatives/onboarding/[token]/page.tsx',
+    ]
+    for (const path of files) {
+      const source = read(path)
+      expect(source, path).not.toMatch(/\b(?:window\.)?(?:confirm|prompt|alert)\s*\(/)
+    }
+    // AdminExtras retains a local function named confirm(p), not the browser
+    // global. Its certificate prompts must still use the platform dialog.
+    const certificates = read('src/components/aact/AdminExtras.tsx')
+    expect(certificates).not.toContain('window.prompt(')
+    expect(certificates).toContain("const { promptAction, dialog: actionDialog } = useAdminActionDialog()")
+  })
+
   test('email-change close is deferred one frame on iOS Safari', () => {
     const view = read('src/components/aact/AdminView.tsx')
     // Hardening, not a proven fix: closing in the same commit as the
