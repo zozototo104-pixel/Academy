@@ -1674,8 +1674,8 @@ export function AdminSystemTab() {
           </div>
           </div>
 
-          <div id="gemini-section-providers" role="region" aria-label="مزوّدو النصوص والمفاتيح" hidden={openGeminiSection !== 'providers'}>
-          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
+          <div id="gemini-section-providers" role="region" aria-label="مزوّدو النصوص والمفاتيح" hidden={openGeminiSection !== 'providers'} className="min-w-0 max-w-full">
+          <div className="grid min-w-0 grid-cols-1 gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 sm:grid-cols-2 sm:p-4">
             <div className="sm:col-span-2 rounded-xl bg-white p-3 text-[10px] font-bold leading-relaxed text-indigo-700 ring-1 ring-indigo-100">
               مزوّد النصوص الحالي: {currentTextProvider}. عند AUTO تبقى إعدادات المزوّدات كما يعرضها الكود الحالي، وفتح هذه المساحة لا يغيّر AI_TEXT_PROVIDER.
             </div>
