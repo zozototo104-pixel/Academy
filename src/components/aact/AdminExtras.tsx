@@ -2403,7 +2403,7 @@ export function AdminCertificatesTab() {
     if (holderNameEn === null) return
     const programEn = await promptAction({ title: 'تعديل بيانات الشهادة', fieldLabel: 'البرنامج بالإنجليزي', defaultValue: certificate.programEn || '', confirmLabel: 'التالي' })
     if (programEn === null) return
-    const gradeEn = window.prompt('التقدير بالإنجليزي', certificate.gradeEn || '')
+    const gradeEn = await promptAction({ title: 'تعديل بيانات الشهادة', fieldLabel: 'التقدير بالإنجليزي', defaultValue: certificate.gradeEn || '', confirmLabel: 'حفظ التغييرات' })
     if (gradeEn === null) return
     setBusy(true)
     try {
