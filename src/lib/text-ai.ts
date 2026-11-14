@@ -3931,7 +3931,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const preferredProviders = [...new Set([...(effectiveOpts.preferredProviders || []).filter(Boolean), ...preferredModelProviders])]
   const baseOrderedProviders = providerOrder(s, taskLevel)
     .filter((provider) => !excluded.has(provider))
-    .filter((provider) => !visionCall || providerSupportsVisionAttachments(provider))
+    .filter((provider) => !visionCall || isCustomTextAiProviderId(provider) || providerSupportsVisionAttachments(provider))
   const visionOrderedProviders = visionCall ? visionPriorityOrder(baseOrderedProviders) : baseOrderedProviders
   const orderedProviders = preferredProviders.length
     ? [...visionOrderedProviders].sort((a, b) => {
