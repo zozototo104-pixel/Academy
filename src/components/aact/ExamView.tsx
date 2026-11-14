@@ -132,6 +132,7 @@ function examErrorMessage(error: ApiError) {
 export function ExamView() {
   const { activeExamId, activeExamKind, navigate, openProgram } = useAppStore()
   const { toast } = useToast()
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [data, setData] = useState<ExamData | null>(null)
   const [loading, setLoading] = useState(true)
   const [current, setCurrent] = useState(0)
