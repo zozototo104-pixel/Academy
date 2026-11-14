@@ -1724,6 +1724,7 @@ export function AdminSystemTab() {
                       <Button size="sm" variant="outline" disabled={customBusy} onClick={() => setCustomDraft({ id: entry.id, name: entry.name, baseUrl: entry.baseUrl, apiKey: '', enabled: entry.enabled })}>تعديل الرابط أو المفتاح</Button>
                       <Button size="sm" variant="outline" disabled={customBusy} onClick={() => void toggleCustomProvider(entry.id, !entry.enabled)}>{entry.enabled ? 'إيقاف' : 'تفعيل'}</Button>
                       <Button size="sm" variant="outline" disabled={customBusy || !entry.enabled} onClick={() => void refreshCustomModels(entry.id)}>تحديث النماذج المجانية</Button>
+                      <Button size="sm" variant="destructive" disabled={customBusy} onClick={() => setCustomDeleteTarget(entry)}><Trash2 className="ml-1 h-3 w-3" /> حذف المزوّد</Button>
                     </div>
                     {freeModels.length ? (
                       <div className="space-y-1">
