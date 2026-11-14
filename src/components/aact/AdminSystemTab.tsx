@@ -647,6 +647,39 @@ export function AdminSystemTab() {
     }
   }
 
+  const deleteCustomProvider = async (id: string) => {
+    setCustomBusy(true)
+    try {
+      const result = await api<{
+        ok: boolean
+        deletedProvider: string
+        clearedSettings: Record<string, string>
+        customProviders: CustomProviderSummary[]
+      }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete-custom-ai-provider', id }),
+      })
+      setData((prev) => prev ? {
+        ...prev,
+        customProviders: result.customProviders,
+        values: { ...prev.values, ...result.clearedSettings },
+      } : prev)
+      setForm((prev) => ({ ...prev, ...result.clearedSettings }))
+      setTextModelCatalog((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      if (customDraft.id === id) setCustomDraft({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })
+      setCustomDeleteTarget(null)
+      toast({ title: 'تم حذف المزوّد', description: 'حُذف تعريفه ومفتاحه، وأزيل من إعدادات الترتيب والاختيار دون تغيير المزوّدين الأساسيين.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر حذف المزوّد', description: e.message, variant: 'destructive' })
+    } finally {
+      setCustomBusy(false)
+    }
+  }
+
   const toggleCustomProvider = async (id: string, enabled: boolean) => {
     setCustomBusy(true)
     try {
