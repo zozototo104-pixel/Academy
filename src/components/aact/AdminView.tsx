@@ -939,7 +939,7 @@ export function AdminView() {
   }
 
   const editAdmissionEnglishName = async (app: AdmissionApp) => {
-    const fullNameEn = window.prompt('الاسم بالإنجليزي كما سيظهر على الشهادة', app.fullNameEn || '')
+    const fullNameEn = await promptAction({ title: 'تعديل الاسم الإنجليزي', description: 'سيظهر الاسم على شهادة الطالب كما تكتبه هنا.', fieldLabel: 'الاسم بالإنجليزي', defaultValue: app.fullNameEn || '', confirmLabel: 'حفظ الاسم' })
     if (fullNameEn === null) return
     try {
       const d = await api<{ application: AdmissionApp }>('/api/admin/admissions', { method: 'PATCH', body: JSON.stringify({ id: app.id, fullNameEn }) })
