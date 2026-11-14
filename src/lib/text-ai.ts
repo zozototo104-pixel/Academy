@@ -1622,11 +1622,19 @@ function zeroish(value: unknown): boolean {
 
 function strictlyFreeCustomModel(row: any, id: string): boolean {
   if (!id) return false
-  if (id.endsWith(':free') || /(^|[-_/:])free($|[-_/:])/.test(id) || row?.is_free === true || row?.free === true) return true
-  const price = row?.pricing || row?.price || row?.cost || {}
-  const input = price.prompt ?? price.input ?? price.prompt_tokens ?? price.input_tokens
-  const output = price.completion ?? price.output ?? price.completion_tokens ?? price.output_tokens
-  return input !== undefined && output !== undefined && zeroish(input) && zeroish(output)
+  // Explicit pricing always outranks free labels and model-name suffixes.
+  // Reject unknown/partial prices: only declared zero input AND output is free.
+  const publishedPrice = row?.pricing ?? row?.price ?? row?.cost
+  if (publishedPrice !== undefined && publishedPrice !== null) {
+    if (typeof publishedPrice !== 'object' || Array.isArray(publishedPrice)) return false
+    const input = publishedPrice.prompt ?? publishedPrice.input ?? publishedPrice.prompt_tokens ?? publishedPrice.input_tokens
+    const output = publishedPrice.completion ?? publishedPrice.output ?? publishedPrice.completion_tokens ?? publishedPrice.output_tokens
+    const explicitlyZero = (value: unknown) => typeof value === 'number'
+      ? Number.isFinite(value) && value === 0
+      : typeof value === 'string' && /^(?:0+(?:\.0+)?|\.0+)(?:e[+-]?\d+)?$/i.test(value.trim())
+    return explicitlyZero(input) && explicitlyZero(output)
+  }
+  return id.endsWith(':free') || /(^|[-_/:])free($|[-_/:])/.test(id) || row?.is_free === true || row?.free === true
 }
 
 function isFreeModel(row: any, id: string): boolean {
