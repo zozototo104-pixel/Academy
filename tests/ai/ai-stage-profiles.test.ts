@@ -15,6 +15,9 @@ mock.module('@/lib/text-ai', () => ({
 const {
   __setStageProfileStoreForTests,
   StageProfileValidationError,
+  availableStageAiProviders,
+  buildStageRoutingOverrides,
+  validateStageProviderChoices,
   getCurrentStageProfile,
   listStageProfileVersions,
   resolveEffectiveStageProfile,
