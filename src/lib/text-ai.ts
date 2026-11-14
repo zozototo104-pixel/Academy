@@ -895,7 +895,74 @@ function remainingTimeoutMs(deadlineMs?: number, defaultTimeoutMs = aiProviderTi
   return Math.max(1, Math.min(defaultTimeoutMs, remaining))
 }
 
+// Only admin-configured gateways use this request path. Node HTTPS resolves
+// inside its socket lookup; we validate every returned address there and pass
+// the validated address directly to the socket. Ordinary fetch would resolve
+// DNS again after a preflight check (DNS rebinding / SSRF).
+async function fetchCustomTextAiWithPinnedDns(provider: string, url: string, init: RequestInit, timeoutMs: number, deadlineMs?: number): Promise<Response> {
+  normalizeCustomTextAiUrl(url) // HTTPS, public DNS name, no userinfo or nonstandard port.
+  if (init.body != null && typeof init.body !== 'string') throw new Error('CUSTOM_PROVIDER_INVALID_BODY')
+  const effectiveTimeoutMs = remainingTimeoutMs(deadlineMs, timeoutMs)
+  return new Promise<Response>((resolve, reject) => {
+    const request = httpsRequest(url, {
+      method: init.method || 'GET',
+      headers: Object.fromEntries(new Headers(init.headers).entries()),
+      agent: false, // New socket and guarded lookup for every custom request.
+      servername: new URL(url).hostname, // Preserve hostname TLS verification.
+      lookup: (hostname, _options, callback) => {
+        lookup(hostname, { all: true }).then((addresses) => {
+          if (!__testCustomProviderPublicDnsForTests(addresses)) {
+            callback(new Error('CUSTOM_PROVIDER_ADDRESS_UNSAFE'), '')
+            return
+          }
+          const pinned = addresses.find((entry) => entry.family === 4) || addresses[0]
+          callback(null, pinned.address, pinned.family)
+        }, (error) => callback(error as Error, ''))
+      },
+    }, (response) => {
+      const status = response.statusCode || 502
+      if (status >= 300 && status < 400) {
+        response.resume() // Never follow redirects to an unchecked destination.
+        request.destroy(new Error('CUSTOM_PROVIDER_REDIRECT_DENIED'))
+        return
+      }
+      const chunks: Buffer[] = []
+      let size = 0
+      response.on('data', (chunk: Buffer) => {
+        const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+        size += data.length
+        if (size > 8 * 1024 * 1024) {
+          request.destroy(new Error('CUSTOM_PROVIDER_RESPONSE_TOO_LARGE'))
+          return
+        }
+        chunks.push(data)
+      })
+      response.on('error', reject)
+      response.on('aborted', () => reject(new Error('CUSTOM_PROVIDER_RESPONSE_ABORTED')))
+      response.on('end', () => {
+        const headers = new Headers()
+        for (const [name, value] of Object.entries(response.headers)) {
+          if (Array.isArray(value)) value.forEach((item) => headers.append(name, item))
+          else if (typeof value === 'string') headers.set(name, value)
+        }
+        resolve(new Response(status === 204 || status === 205 ? null : Buffer.concat(chunks).toString('utf8'), { status, headers }))
+      })
+    })
+    const timeout = setTimeout(() => {
+      const error: any = new Error(`${provider}_PROVIDER_TIMEOUT_${effectiveTimeoutMs}ms`)
+      error.code = 'AI_PROVIDER_TIMEOUT'
+      error.status = 504
+      request.destroy(error)
+    }, effectiveTimeoutMs)
+    // The total deadline covers DNS resolution, TLS, headers and full body.
+    request.on('error', (error) => { clearTimeout(timeout); reject(error) })
+    request.on('close', () => clearTimeout(timeout))
+    request.end(init.body as string | undefined)
+  })
+}
+
 export async function __testFetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs(), deadlineMs?: number): Promise<Response> {
+  if (isCustomTextAiProviderId(provider)) return fetchCustomTextAiWithPinnedDns(provider, url, init, timeoutMs, deadlineMs)
   const effectiveTimeoutMs = remainingTimeoutMs(deadlineMs, timeoutMs)
   let timer: ReturnType<typeof setTimeout> | null = null
   const fallbackController = new AbortController()
