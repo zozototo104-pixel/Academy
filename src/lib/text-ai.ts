@@ -56,28 +56,44 @@ export function normalizeCustomTextAiUrl(value: string): string {
     || url.pathname.includes('..') || url.pathname.includes('//')) throw new Error('CUSTOM_PROVIDER_URL_UNSAFE')
   return url.toString().replace(/\/+$/, '')
 }
-// Resolve before every dynamic provider request, not only when saving.
-// Reject local/private destinations and disable redirect following; a saved
-// endpoint must never be able to make server-to-server requests to metadata.
-export async function assertPublicCustomTextAiUrl(value: string): Promise<string> {
-  const url = normalizeCustomTextAiUrl(value)
-  const host = new URL(url).hostname
-  const records = await lookup(host, { all: true })
-  if (!records.length || records.some(({ address }) => {
-    if (isIP(address) === 4) {
-      const [a, b, c] = address.split('.').map(Number)
-      return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127)
-        || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
-        || (a === 192 && (b === 168 || b === 0 || (b === 0 && c === 2)))
-        || (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100)))
-        || (a === 203 && b === 0 && c === 113)
-    }
-    if (isIP(address) === 6) {
-      const lowered = address.toLowerCase()
-      return !/^[23]/.test(lowered) || lowered.startsWith('2001:db8:') || lowered.startsWith('2001:10:')
+// Use the SAME public-address policy both for saving an endpoint and for
+// the socket lookup that immediately connects to it. Only public addresses
+// are allowed; IPv4-mapped/translated IPv6 and address-embedding tunnels are
+// rejected instead of bypassing the private-IPv4 checks.
+function publicCustomTextAiAddress(address: string): boolean {
+  const family = isIP(address)
+  if (family === 4) {
+    const [a, b, c] = address.split('.').map(Number)
+    return !(a === 0 || a === 10 || a === 127 || a >= 224
+      || (a === 100 && b >= 64 && b <= 127)
+      || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && (b === 0 || b === 168 || (b === 88 && c === 99)))
+      || (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100)))
+      || (a === 203 && b === 0 && c === 113))
+  }
+  if (family === 6) {
+    const normalized = address.toLowerCase()
+    if (!/^[23]/.test(normalized) || normalized.startsWith('2002:')) return false
+    if (normalized.startsWith('2001:')) {
+      const block = parseInt(normalized.split(':')[1] || '0', 16)
+      if (block === 0 || block === 0x10 || block === 0x20 || block === 0xdb8) return false
     }
     return true
-  })) throw new Error('CUSTOM_PROVIDER_ADDRESS_UNSAFE')
+  }
+  return false
+}
+
+export function __testCustomProviderPublicDnsForTests(records: Array<{ address: string }>): boolean {
+  return records.length > 0 && records.every(({ address }) => publicCustomTextAiAddress(address))
+}
+
+// DNS checked when registering the endpoint and again at socket connection.
+// Never pass a user-configured URL to ordinary fetch after only a preflight.
+export async function assertPublicCustomTextAiUrl(value: string): Promise<string> {
+  const url = normalizeCustomTextAiUrl(value)
+  const records = await lookup(new URL(url).hostname, { all: true })
+  if (!__testCustomProviderPublicDnsForTests(records)) throw new Error('CUSTOM_PROVIDER_ADDRESS_UNSAFE')
   return url
 }
 export function parseCustomTextAiProviders(value: unknown): CustomTextAiProvider[] {
