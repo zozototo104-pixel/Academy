@@ -4099,7 +4099,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           const rawError = String(e?.message || e)
           const msg = redactSecrets(isCustomTextAiProviderId(provider) && currentKey ? rawError.split(currentKey).join('[redacted]') : rawError).slice(0, 240)
           const status = statusFromError(e)
-          const requestId = requestIdFromError(e)
+          const rawRequestId = requestIdFromError(e)
+          const requestId = rawRequestId
+            ? __testRedactCustomTextAiErrorForTests(provider, currentKey, rawRequestId).slice(0, 120)
+            : undefined
           lastResult = { provider, model, ok: false, error: msg, at }
           const attempt = { provider, model, keyIndex, ok: false, ms, status, error: msg, ...(requestId ? { requestId } : {}), at }
           attempts.push(attempt)
