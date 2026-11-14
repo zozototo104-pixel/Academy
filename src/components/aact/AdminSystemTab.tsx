@@ -1654,6 +1654,11 @@ export function AdminSystemTab() {
                   </Button>
                 </div>
               </div>
+              <div className="mt-3 min-w-0 space-y-1">
+                <label htmlFor="health-selected-model" className="block text-[10px] font-bold text-indigo-900">النموذج المطلوب فحصه — {catalogProviderForModels}</label>
+                <input id="health-selected-model" list="health-model-options" value={healthSelectedModel} onChange={(e) => setHealthSelectedModel(e.target.value)} placeholder="اختر أو اكتب اسم النموذج بدقة" dir="ltr" className="w-full min-w-0 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs text-slate-800" />
+                <datalist id="health-model-options">{(textModelCatalog[catalogProviderForModels]?.models || []).map((model) => <option key={model} value={model} />)}</datalist>
+              </div>
               {textModelHealth ? (
                 <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3 [&>div]:min-w-0">
                   <div className="rounded-lg bg-indigo-50 p-2 text-indigo-800">المتاح الآن: {textModelHealth.available?.length || 0}</div>
