@@ -523,6 +523,27 @@ export function AdminSystemTab() {
     }
   }
 
+  const checkSelectedTextModelNow = async () => {
+    const model = healthSelectedModel.trim()
+    if (!model) {
+      toast({ title: 'اختر نموذجاً أولاً', variant: 'destructive' })
+      return
+    }
+    setTextModelHealthLoading(true)
+    try {
+      const result = await api<{ checked: number; results: Array<{ ok: boolean; error?: string }> }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'text-ai-check-selected', provider: catalogProviderForModels, model }),
+      })
+      const checked = result.results?.[0]
+      toast({ title: checked?.ok ? 'النموذج يعمل' : 'فشل فحص النموذج', description: `${catalogProviderForModels}/${model}${checked?.error ? ` — ${checked.error}` : ''}`, variant: checked?.ok ? 'default' : 'destructive' })
+      loadTextModelHealth()
+    } catch (e: any) {
+      toast({ title: 'تعذر فحص النموذج', description: e.message, variant: 'destructive' })
+      setTextModelHealthLoading(false)
+    }
+  }
+
   const checkAllTextModelsNow = async () => {
     setTextModelHealthLoading(true)
     try {
