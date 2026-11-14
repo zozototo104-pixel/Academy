@@ -71,7 +71,10 @@ export async function GET(req: NextRequest) {
       chunks.push(value)
     }
     const content = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), total)
-    const sourceType = info.mimeType.toLowerCase()
+    // Meta sends voice MIME as `audio/ogg; codecs=opus`. Match its media type
+    // separately from parameters, otherwise the admin player gets a binary
+    // download response instead of a playable audio/ogg response.
+    const sourceType = info.mimeType.toLowerCase().split(';', 1)[0].trim()
     const allowedType = /^(image\/(jpeg|png|webp|gif)|video\/(mp4|webm|3gpp)|audio\/(ogg|mpeg|mp4|aac|amr|webm)|application\/pdf|text\/plain)$/.test(sourceType)
     const contentType = allowedType ? sourceType : 'application/octet-stream'
     return new NextResponse(new Uint8Array(content), {
