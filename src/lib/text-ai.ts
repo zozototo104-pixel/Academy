@@ -2713,6 +2713,27 @@ function cooldownList() {
     .map(([id, v]) => ({ provider: id.split(':')[0], key: id.split(':')[1], until: new Date(v.until).toISOString(), reason: v.reason }))
 }
 
+// Evict only runtime state of the deleted custom provider. Usage history and
+// existing provider caches remain untouched.
+export function forgetCustomTextAiProviderRuntimeState(providerId: string): void {
+  if (!isCustomTextAiProviderId(providerId)) throw new Error('INVALID_CUSTOM_PROVIDER_ID')
+  for (const key of freeModelsCache.keys()) {
+    if (key.startsWith(`${providerId}:`)) freeModelsCache.delete(key)
+  }
+  for (const key of cooldowns.keys()) {
+    if (key.startsWith(`${providerId}:`)) cooldowns.delete(key)
+  }
+  for (const [scope, sticky] of stickyModels) {
+    if (sticky.provider === providerId) stickyModels.delete(scope)
+  }
+  for (const key of modelRateLimitHits.keys()) {
+    if (key.startsWith(`${providerId}:`)) modelRateLimitHits.delete(key)
+  }
+  persistentCooldownCache = null
+  if (lastResult?.provider === providerId) lastResult = null
+  recentAttempts = recentAttempts.filter((entry) => entry.provider !== providerId)
+}
+
 export async function refreshCustomTextAiFreeModels(providerId: string): Promise<{ provider: string; models: string[]; discoveredCount: number; staticCount: number; message: string }> {
   if (!isCustomTextAiProviderId(providerId)) throw new Error('INVALID_CUSTOM_PROVIDER_ID')
   const s = await settings()
