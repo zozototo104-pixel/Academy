@@ -697,6 +697,16 @@ export async function POST(req: NextRequest) {
     if (action === 'text-ai-check-all') {
       return NextResponse.json({ ok: true, ...(await textAiCheckAllModelHealth({ maxMs: 40_000 })) })
     }
+    if (action === 'text-ai-check-selected') {
+      const provider = String(modelProvider || '').trim().toUpperCase()
+      const model = String(selectedLiveModel || '').trim()
+      if (!provider || !model) return NextResponse.json({ error: 'اختر المزود والنموذج أولاً' }, { status: 400 })
+      try {
+        return NextResponse.json({ ok: true, ...(await textAiCheckAllModelHealth({ maxMs: 35_000, provider, model })) })
+      } catch (error: any) {
+        return NextResponse.json({ error: String(error?.message || 'تعذر فحص النموذج') }, { status: 400 })
+      }
+    }
     if (action === 'toggle-ai-model-dead') {
       const provider = String(modelProvider || '').trim().toUpperCase()
       const model = String(selectedLiveModel || body?.modelName || '').trim()
