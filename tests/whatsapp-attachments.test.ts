@@ -66,7 +66,7 @@ describe('ASR fallback for WhatsApp voice and ordinary audio', () => {
     expect(end).toBeGreaterThan(start)
     const inlineAsr = source.slice(start, end)
     expect(inlineAsr).toContain('httpOptions: { timeout: 8_000 }')
-    expect(inlineAsr).not.toMatch(/\\btemperature\\s*:/)
+    expect(inlineAsr).not.toMatch(/\btemperature\s*:/)
   })
 
   test('all ASR providers failing produces explicit error instead of empty transcript', async () => {
