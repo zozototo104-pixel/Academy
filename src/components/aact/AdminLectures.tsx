@@ -427,10 +427,9 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                       size="sm"
                       disabled={busy || s.status === 'CANCELLED'}
                       className="text-red-600"
-                      onClick={() => {
-                        if (window.confirm(`إلغاء محاضرة «${s.title}»؟ سيُشعر الطلاب فورًا.`)) {
-                          void act(() => api(`/api/admin/lectures/sessions/${s.id}/cancel`, { method: 'POST' }), 'أُلغيت المحاضرة وأُشعر الطلاب')
-                        }
+                      onClick={async () => {
+                        const accepted = await confirmAction({ title: 'إلغاء المحاضرة', description: `إلغاء محاضرة «${s.title}»؟ سيُشعر الطلاب فورًا.`, confirmLabel: 'إلغاء المحاضرة', tone: 'warning' })
+                        if (accepted) await act(() => api(`/api/admin/lectures/sessions/${s.id}/cancel`, { method: 'POST' }), 'أُلغيت المحاضرة وأُشعر الطلاب')
                       }}
                     >
                       <XCircle className="ml-1 h-4 w-4" /> إلغاء
