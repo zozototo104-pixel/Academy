@@ -106,14 +106,15 @@ async function stagePayload(stage: PipelineStageName) {
 export async function GET() {
   try {
     await requireAdmin()
-    const [stages, advisorReadiness, advisorAdvice] = await Promise.all([
+    const [stages, advisorReadiness, advisorAdvice, providers] = await Promise.all([
       Promise.all(STAGES.map(stagePayload)),
       getAiAdvisorReadiness(),
       listAdvisorAdvice('OPEN'),
+      availableStageAiProviders(),
     ])
     return NextResponse.json({
       stages,
-      providers: KNOWN_AI_PROVIDERS,
+      providers,
       policies: KNOWN_ROUTER_POLICIES,
       advisorReadiness,
       advisorAdvice,
