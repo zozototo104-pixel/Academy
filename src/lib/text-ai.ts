@@ -2813,7 +2813,7 @@ export function __testHealthCheckMaxOutputTokensForTests(provider: Exclude<TextA
   return healthCheckMaxOutputTokens(provider, model)
 }
 
-export async function textAiCheckAllModelHealth(opts: { maxMs?: number; provider?: string; model?: string } = {}): Promise<{ checked: number; results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> }> {
+export async function textAiCheckAllModelHealth(opts: { maxMs?: number; provider?: string; model?: string; models?: string[] } = {}): Promise<{ checked: number; results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> }> {
   const s = await settings()
   const deadlineMs = Date.now() + Math.max(5_000, Math.min(120_000, opts.maxMs || 120_000))
   const results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> = []
