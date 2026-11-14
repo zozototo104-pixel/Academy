@@ -314,6 +314,34 @@ async function readBufferContent(buffer: Buffer, mimeType: string, fileName: str
     if (isUsableBookText(visual.text, MIN_USABLE_TEXT)) {
       return { text: repairExtractedAcademicText(visual.text, MAX_BOOK_CONTEXT_CHARS), note: appendTextProvenanceNote(visual.note, 'VISION_DESCRIPTION'), quality: 'GEMINI_DOCUMENT' }
     }
+    // Both historical Gemini attempts failed to produce usable source text.
+    // Leave their order, prompts and successful outputs unchanged; only now
+    // try the administrator's enabled READING profile on the original file.
+    try {
+      const { rescueOriginalBookVisionWithReadingProfile } = await import('@/lib/book-reader')
+      const rescued = await rescueOriginalBookVisionWithReadingProfile({
+        buffer,
+        mimeType: effectiveMime,
+        prompt: 'انسخ النص المرئي من ملف الكتاب المرفق حرفياً، صفحة بصفحة قدر الإمكان. لا تلخّص ولا تؤلف ولا تصحح الكلمات ولا تخترع صفحات. ضع [غير مقروء] عند التعذر. أجب JSON فقط: {"textContent":"[صفحة 1]\\nالنص الحرفي","note":"نطاق الصفحات المقروءة وأي نقص","pagesTranscribed":null,"pagesTotal":null}.',
+        temperature: 0,
+        maxOutputTokens: 12288,
+        validate: (response) => {
+          if (!isUsableBookText(parseScannedTranscriptionJson(response).text, MIN_USABLE_TEXT)) {
+            throw new Error('BOOK_READING_PROFILE_OCR_UNUSABLE')
+          }
+        },
+      })
+      if (rescued) {
+        const recovered = parseScannedTranscriptionJson(rescued.text)
+        return {
+          text: repairExtractedAcademicText(recovered.text, MAX_BOOK_CONTEXT_CHARS),
+          note: appendTextProvenanceNote(`${recovered.note} — استكمال القراءة عبر ${rescued.provider}/${rescued.model}`, 'VISION_OCR'),
+          quality: 'UPLOADED_FILE',
+        }
+      }
+    } catch (error) {
+      console.warn('Book original-file reading profile rescue failed:', String(error instanceof Error ? error.message : error).slice(0,230))
+    }
     return { text: '', note: visionExtractionFailedNote(ocr.note, visual.note, extracted.note), quality: 'GEMINI_DOCUMENT' }
   }
 

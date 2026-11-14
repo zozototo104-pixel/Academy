@@ -1,5 +1,6 @@
 /// <reference types="bun-types" />
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 
 // «ترتيب المزودات الاحتياطية» (2026-10-30): Haris's manual provider order is
 // literal law — routing policies must NOT reshuffle it. These tests pin the
@@ -136,5 +137,287 @@ describe('manual provider fallback order', () => {
   test('no saved manual order keeps the legacy coded behavior bit-for-bit', () => {
     expect(__testB2ProviderOrderForTests({ policy: 'primary_first' })).toEqual(__testPrimaryProviderOrder())
     expect(__testB2ProviderOrderForTests({ policy: 'primary_first', manualOrder: '' })).toEqual(__testPrimaryProviderOrder())
+  })
+})
+
+describe('administrator-registered OpenAI-compatible providers', () => {
+  afterEach(() => {
+    textAi.__setTextAiSettingStoreForTests(null)
+    __resetTextAiStateForTests()
+  })
+
+  test('optional knowledge repair worker accepts only enabled dynamic providers without changing built-ins', () => {
+    const worker = readFileSync('src/lib/book-knowledge-v2-scheduler.ts', 'utf8')
+    expect(worker).toContain('CUSTOM_AI_PROVIDERS_SETTING,')
+    expect(worker).toContain('parseCustomTextAiProviders(config[CUSTOM_AI_PROVIDERS_SETTING])')
+    expect(worker).toContain('.filter((entry) => entry.enabled)')
+    expect(worker).toContain('REPAIR_SUPPORTED_PROVIDERS.has(repairProvider)')
+    expect(worker).toContain('customRepairProviders.some((entry) => entry.id === repairProvider)')
+    expect(worker).toContain("return { status: 'INVALID_REPAIR_MODEL_CONFIGURATION' }")
+    expect(worker).toContain('restrictToModels: chosenModel')
+  })
+
+  test('registry is isolated, validated and cannot overwrite built-in providers', () => {
+    const id = 'CUSTOM_EXTRAA'
+    const registry = JSON.stringify([
+      { id, name: 'My Gateway', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true, selectedModel: 'sample-model:free' },
+      { id, name: 'Duplicate', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true },
+      { id: 'GEMINI', name: 'Built-in collision', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true },
+      { id: 'CUSTOM_LOCAL', name: 'Unsafe', baseUrl: 'http://127.0.0.1/v1', enabled: true },
+    ])
+    expect(textAi.parseCustomTextAiProviders(registry)).toEqual([{
+      id, name: 'My Gateway', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true, selectedModel: 'sample-model:free',
+    }])
+    expect(textAi.customTextAiKeySetting(id)).toBe('AI_CUSTOM_KEY_CUSTOM_EXTRAA')
+    expect(textAi.isCustomTextAiProviderId('OPENAI')).toBe(false)
+    expect(textAi.isCustomTextAiProviderId(id)).toBe(true)
+  })
+
+  test('custom URL validator blocks internal targets, HTTP and token-in-URL forms', () => {
+    expect(textAi.normalizeCustomTextAiUrl('https://api.real-gateway.ai/v1/models')).toBe('https://api.real-gateway.ai/v1')
+    for (const bad of [
+      'http://api.real-gateway.ai/v1',
+      'https://localhost/v1',
+      'https://169.254.169.254/latest/meta-data',
+      'https://user:password@api.real-gateway.ai/v1',
+      'https://api.real-gateway.ai/v1?token=secret',
+      'https://api.real-gateway.ai:8080/v1',
+    ]) {
+      expect(() => textAi.normalizeCustomTextAiUrl(bad)).toThrow()
+    }
+  })
+
+  test('custom provider socket DNS allows public addresses but rejects rebinding and private aliases', () => {
+    const check = textAi.__testCustomProviderPublicDnsForTests
+    expect(check([{ address: '8.8.8.8' }])).toBe(true)
+    expect(check([{ address: '2606:4700:4700::1111' }])).toBe(true)
+    expect(check([])).toBe(false)
+    for (const blocked of [
+      '127.0.0.1', '10.1.2.3', '169.254.169.254', '172.16.0.1',
+      '192.168.1.10', '100.64.0.1', '192.0.0.8',
+      '::1', '::ffff:127.0.0.1', '::ffff:169.254.169.254',
+      'fc00::1', 'fe80::1', '2002:c0a8:101::', '2001:db8::1',
+    ]) {
+      expect(check([{ address: blocked }])).toBe(false)
+      // A single private DNS answer invalidates the entire A/AAAA set.
+      expect(check([{ address: '8.8.8.8' }, { address: blocked }])).toBe(false)
+    }
+  })
+
+  test('only dynamically added providers use socket-pinned HTTPS, not a second unchecked fetch', () => {
+    const source = readFileSync(new URL('../../src/lib/text-ai.ts', import.meta.url), 'utf8')
+    const start = source.indexOf('async function fetchCustomTextAiWithPinnedDns(')
+    const end = source.indexOf('export async function __testFetchWithTimeout(', start)
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    const guarded = source.slice(start, end)
+    expect(guarded).toContain('httpsRequest(url, {')
+    expect(guarded).toContain('agent: false')
+    expect(guarded).toContain('lookup: (hostname, options, callback) => {')
+    expect(guarded).toContain('lookup(hostname, { all: true })')
+    expect(guarded).toContain('__testCustomProviderPublicDnsForTests(addresses)')
+    expect(guarded).toContain("typeof options === 'object' && options.all")
+    expect(guarded).toContain('(null, [pinned])')
+    expect(guarded).toContain('callback(null, pinned.address, pinned.family)')
+    expect(guarded).toContain('CUSTOM_PROVIDER_REDIRECT_DENIED')
+    expect(guarded).toContain('servername: new URL(url).hostname')
+    expect(guarded).toContain('clearTimeout(timeout)')
+    expect(source).toContain('if (isCustomTextAiProviderId(provider)) return fetchCustomTextAiWithPinnedDns(provider, url, init, timeoutMs, deadlineMs)')
+    expect(source).toContain('return await fetch(url, { ...init, signal })')
+  })
+
+  test('free model recognition requires declared zero input AND output pricing', () => {
+    const free = textAi.__testCustomProviderFreeMetadataForTests
+    expect(free({ pricing: { prompt: '0', completion: '0' } }, 'open-free-model')).toBe(true)
+    expect(free({ is_free: true }, 'some-model')).toBe(true)
+    expect(free({}, 'some-model:free')).toBe(true)
+    expect(free({ pricing: { prompt: '0.00001', completion: '0' } }, 'paid-model')).toBe(false)
+    expect(free({ pricing: { prompt: '0' } }, 'unverified-model')).toBe(false)
+    // A misleading free suffix or provider flag MUST NOT override paid pricing.
+    expect(free({ pricing: { prompt: '0.01', completion: '0.02' } }, 'example:free')).toBe(false)
+    expect(free({ is_free: true, pricing: { prompt: '0.01', completion: '0' } }, 'example-free')).toBe(false)
+    expect(free({ free: true, pricing: { prompt: '0' } }, 'example:free')).toBe(false)
+    expect(free({ pricing: { prompt: 'free', completion: '0' } }, 'example:free')).toBe(false)
+    expect(free({ pricing: { prompt: '0', completion: 'unknown' } }, 'example:free')).toBe(false)
+    expect(free({ pricing: { prompt: 0, completion: 0 } }, 'zero-cost-model')).toBe(true)
+    expect(free({ pricing: { prompt: '0e-6', completion: '0.000' } }, 'zero-cost-model')).toBe(true)
+    expect(free({}, 'unknown-model')).toBe(false)
+  })
+
+  test('admin test-connection redacts an exact custom API key before logging or returning errors', () => {
+    const key = 'gateway_verySensitiveCustomToken_987654321'
+    const raw = `HTTP 401 Authorization Bearer ${key}; echoed again: ${key}`
+    const safe = textAi.__testRedactCustomTextAiErrorForTests('CUSTOM_TEST1234', key, raw)
+    expect(safe).toBe('HTTP 401 Authorization Bearer [redacted]; echoed again: [redacted]')
+    expect(safe).not.toContain(key)
+    // Provider-controlled request IDs are diagnostics too, not trusted data.
+    expect(textAi.__testRedactCustomTextAiErrorForTests('CUSTOM_TEST1234', key, key)).toBe('[redacted]')
+    // Treat the key as a literal string, including punctuation that would
+    // have special meaning in a regular expression.
+    const punctuatedKey = 'gateway.a+b$secret?test*'
+    expect(textAi.__testRedactCustomTextAiErrorForTests(
+      'CUSTOM_TEST1234', punctuatedKey, `invalid ${punctuatedKey} ${punctuatedKey}`,
+    )).toBe('invalid [redacted] [redacted]')
+    // Built-in providers retain their existing diagnostic behaviour.
+    expect(textAi.__testRedactCustomTextAiErrorForTests('GEMINI', key, raw)).toBe(raw)
+
+    const source = readFileSync(new URL('../../src/lib/text-ai.ts', import.meta.url), 'utf8')
+    const connection = source.slice(source.indexOf('export async function textAiTestConnection()'))
+    expect(connection).toContain('const msg = __testRedactCustomTextAiErrorForTests(provider, key, String(e?.message || e)).slice(0, 260)')
+    expect(connection).toContain('__testRedactCustomTextAiErrorForTests(provider, key, rawRequestId)')
+    expect(connection.indexOf('const msg = __testRedactCustomTextAiErrorForTests')).toBeLessThan(
+      connection.indexOf('lastResult = { provider, model, ok: false'),
+    )
+    expect(connection).toContain('recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg')
+    expect(connection).toContain('errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)')
+    const routed = source.slice(source.indexOf('const rawError = String(e?.message || e)'), source.indexOf('export async function textAiTestConnection()'))
+    expect(routed).toContain('__testRedactCustomTextAiErrorForTests(provider, currentKey, rawRequestId)')
+  })
+
+  test('AUTO detects enabled custom provider keys without rewriting the legacy order', async () => {
+    const id = 'CUSTOM_EXTRAA'
+    const rows: Record<string, string> = {
+      AI_TEXT_PROVIDER: 'AUTO',
+      AI_CUSTOM_PROVIDERS: JSON.stringify([{ id, name: 'Gateway', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true, selectedModel: 'sample:free' }]),
+      [textAi.customTextAiKeySetting(id)]: 'test-custom-secret',
+    }
+    textAi.__setTextAiSettingStoreForTests({
+      read: async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, rows[key] || ''])),
+      write: async () => {},
+      delete: async () => {},
+    })
+    const enabled = await textAi.textAiDiagnostics()
+    expect(enabled.keyCounts[id]).toBe(1)
+    expect(enabled.activeProvider).toBe(id)
+    expect(enabled.selectedProvider).toBe('AUTO')
+    rows.AI_CUSTOM_PROVIDERS = JSON.stringify([{ id, name: 'Gateway', baseUrl: 'https://api.real-gateway.ai/v1', enabled: false, selectedModel: 'sample:free' }])
+    const disabled = await textAi.textAiDiagnostics()
+    expect(disabled.activeProvider).toBeNull()
+  })
+
+  test('deleting a registered provider removes only its model lists and resets its selections', () => {
+    const id = 'CUSTOM_EXTRAA'
+    const saved = {
+      AI_TEXT_PROVIDER: id,
+      AI_KNOWLEDGE_REPAIR_PROVIDER: id,
+      AI_KNOWLEDGE_REPAIR_MODEL: 'special-free-model',
+      AI_PROVIDER_FALLBACK_ORDER: `GEMINI,${id},OPENROUTER`,
+      AI_ACADEMIC_ALLOWLIST: `GEMINI:gemini-3.8-flash,${id}:special-free-model,OPENAI:gpt-5`,
+      AI_VERIFIER_PREFERRED: `${id}:special-free-model,GEMINI:gemini-3.8-flash`,
+      AI_PROVIDER_TIERS: `GEMINI:FREE,${id}:FREE,OPENAI:PAID`,
+    }
+    const removed = textAi.settingsAfterCustomTextAiProviderDeletion(id, saved)
+    expect(removed).toEqual({
+      AI_TEXT_PROVIDER: 'AUTO',
+      AI_KNOWLEDGE_REPAIR_PROVIDER: 'AUTO',
+      AI_KNOWLEDGE_REPAIR_MODEL: '',
+      AI_PROVIDER_FALLBACK_ORDER: 'GEMINI,OPENROUTER',
+      AI_ACADEMIC_ALLOWLIST: 'GEMINI:gemini-3.8-flash,OPENAI:gpt-5',
+      AI_VERIFIER_PREFERRED: 'GEMINI:gemini-3.8-flash',
+      AI_PROVIDER_TIERS: 'GEMINI:FREE,OPENAI:PAID',
+    })
+    expect(saved.AI_TEXT_PROVIDER).toBe(id)
+    const unrelated = textAi.settingsAfterCustomTextAiProviderDeletion(id, {
+      AI_TEXT_PROVIDER: 'GEMINI',
+      AI_PROVIDER_FALLBACK_ORDER: 'GEMINI,OPENROUTER',
+      AI_KNOWLEDGE_REPAIR_PROVIDER: 'OPENAI',
+      AI_KNOWLEDGE_REPAIR_MODEL: 'gpt-5',
+      AI_PROVIDER_TIERS: 'GEMINI:FREE,OPENAI:PAID',
+    })
+    expect(unrelated).toEqual({
+      AI_TEXT_PROVIDER: 'GEMINI',
+      AI_PROVIDER_FALLBACK_ORDER: 'GEMINI,OPENROUTER',
+      AI_KNOWLEDGE_REPAIR_PROVIDER: 'OPENAI',
+      AI_KNOWLEDGE_REPAIR_MODEL: 'gpt-5',
+      AI_PROVIDER_TIERS: 'GEMINI:FREE,OPENAI:PAID',
+    })
+    expect(() => textAi.settingsAfterCustomTextAiProviderDeletion('GEMINI', saved)).toThrow('INVALID_CUSTOM_PROVIDER_ID')
+  })
+
+  test('all registry mutations use serializable retries instead of reading stale lists', () => {
+    const source = readFileSync(new URL('../../src/app/api/admin/system/route.ts', import.meta.url), 'utf8')
+    expect(source).toContain('async function mutateCustomTextAiProviders<T>')
+    expect(source).toContain('Prisma.TransactionIsolationLevel.Serializable')
+    expect(source).toContain("['P2034', 'P2002'].includes(String(error?.code || ''))")
+    expect(source).toContain('attempt < 4')
+    for (const action of [
+      'save-custom-ai-provider', 'toggle-custom-ai-provider',
+      'select-custom-ai-model', 'delete-custom-ai-provider',
+    ]) {
+      const start = source.indexOf(`if (action === '${action}')`)
+      expect(start).toBeGreaterThan(-1)
+      const end = source.indexOf("    if (action === '", start + 1)
+      const body = source.slice(start, end < 0 ? undefined : end)
+      expect(body).toContain('await mutateCustomTextAiProviders(async (tx) => {')
+      expect(body).toContain('await tx.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })')
+    }
+  })
+
+  test('custom image and PDF routing requires declared capabilities, not just a model name', () => {
+    const supports = textAi.__testVisionSupportForTests
+    const custom = { provider: 'CUSTOM_EXTRAA', model: 'gpt-4o-vision' }
+    expect(supports({ ...custom, vision: true, modalities: ['text', 'image'] })).toBe(true)
+    expect(supports({ ...custom, vision: true, modalities: [] })).toBe(false)
+    expect(supports({ ...custom, vision: false, modalities: ['text'] })).toBe(false)
+    expect(supports({ ...custom, vision: true, modalities: ['text', 'image'], pdf: true })).toBe(false)
+    expect(supports({ ...custom, vision: true, modalities: ['text', 'image', 'document'], pdf: true })).toBe(true)
+    // Existing provider handling remains unchanged.
+    expect(supports({ provider: 'OPENAI', model: 'gpt-4o', vision: true, modalities: ['text', 'image'] })).toBe(true)
+  })
+
+  test('deleted custom provider stats stay stored but disappear from live health diagnostics', async () => {
+    const existing = 'CUSTOM_EXISTING'
+    const deleted = 'CUSTOM_DELETED'
+    const store: Record<string, string> = {
+      AI_CUSTOM_PROVIDERS: JSON.stringify([{ id: existing, name: 'Active', baseUrl: 'https://api.gateway.test-provider.ai/v1', enabled: true }]),
+      [`AI_MODEL_STATS:${existing}:free-model`]: '{"success":1,"fail":{},"avgMs":20}',
+      [`AI_MODEL_STATS:${deleted}:old-model`]: '{"success":1,"fail":{},"avgMs":10}',
+      'AI_MODEL_STATS:GEMINI:gemini-test': '{"success":1,"fail":{},"avgMs":5}',
+    }
+    textAi.__setTextAiSettingStoreForTests({
+      read: async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, store[key] || ''])),
+      write: async () => {},
+      delete: async (key: string) => { delete store[key] },
+      scan: async (prefix: string) => Object.fromEntries(Object.entries(store).filter(([key]) => key.startsWith(prefix))),
+    })
+    const health = await textAi.textAiModelHealthSnapshot()
+    expect(health.some((row) => row.provider === existing)).toBe(true)
+    expect(health.some((row) => row.provider === deleted)).toBe(false)
+    expect(health.some((row) => row.provider === 'GEMINI')).toBe(true)
+    textAi.forgetCustomTextAiProviderRuntimeState(deleted)
+    expect(store[`AI_MODEL_STATS:${deleted}:old-model`]).toBeTruthy()
+  })
+
+  test('deletion is admin-gated, audited and atomic; existing providers have no delete button', () => {
+    const code = readFileSync(new URL('../../src/app/api/admin/system/route.ts', import.meta.url), 'utf8')
+    const ui = readFileSync(new URL('../../src/components/aact/AdminSystemTab.tsx', import.meta.url), 'utf8')
+    expect(code).toContain("if (action === 'delete-custom-ai-provider')")
+    expect(code).toContain('const admin = await requireAdmin()')
+    expect(code).toContain('if (!isCustomTextAiProviderId(id))')
+    expect(code).toContain('const cleanedSettings = await mutateCustomTextAiProviders(async (tx) => {')
+    expect(code).toContain('await tx.setting.deleteMany({ where: { key: customTextAiKeySetting(id) } })')
+    expect(code).toContain('settingsAfterCustomTextAiProviderDeletion(id, before)')
+    expect(code).toContain('AI_CUSTOM_PROVIDER_DELETED')
+    expect(code).toContain('Prisma.TransactionIsolationLevel.Serializable')
+    expect(ui).toContain('setCustomDeleteTarget(entry)')
+    expect(ui).toContain('تأكيد حذف المزوّد')
+    expect(ui).toContain('action: \'delete-custom-ai-provider\'')
+    expect(ui).toContain('setTextModelCatalog((prev) => {')
+    expect(ui).toContain('setForm((prev) => ({ ...prev, ...result.clearedSettings }))')
+  })
+
+  test('admin API uses encrypted storage and exposes only metadata; UI includes manual ordering', () => {
+    const apiRoute = readFileSync(new URL('../../src/app/api/admin/system/route.ts', import.meta.url), 'utf8')
+    const ui = readFileSync(new URL('../../src/components/aact/AdminSystemTab.tsx', import.meta.url), 'utf8')
+    expect(apiRoute).toContain("if (action === 'save-custom-ai-provider')")
+    expect(apiRoute).toContain('await assertPublicCustomTextAiUrl(')
+    expect(apiRoute).toContain('const value = encryptSecret(key)')
+    expect(apiRoute).toContain('customProviders: await adminCustomTextAiProviders()')
+    expect(apiRoute).toContain("if (action === 'refresh-custom-ai-models')")
+    expect(apiRoute).toContain("if (action === 'select-custom-ai-model')")
+    expect(ui).toContain('allTextProviderChoices')
+    expect(ui).toContain('...(data.customProviders || []).map((entry) => entry.id)')
+    expect(ui).toContain('إضافة مزوّد ذكاء اصطناعي جديد')
+    expect(ui).toContain('تحديث النماذج المجانية')
   })
 })

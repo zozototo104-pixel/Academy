@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import {
-  KNOWN_AI_PROVIDERS,
   KNOWN_ROUTER_POLICIES,
+  availableStageAiProviders,
+  validateStageProviderChoices,
   getCurrentStageProfile,
   listStageProfileVersions,
   saveStageProfile,
@@ -105,14 +106,15 @@ async function stagePayload(stage: PipelineStageName) {
 export async function GET() {
   try {
     await requireAdmin()
-    const [stages, advisorReadiness, advisorAdvice] = await Promise.all([
+    const [stages, advisorReadiness, advisorAdvice, providers] = await Promise.all([
       Promise.all(STAGES.map(stagePayload)),
       getAiAdvisorReadiness(),
       listAdvisorAdvice('OPEN'),
+      availableStageAiProviders(),
     ])
     return NextResponse.json({
       stages,
-      providers: KNOWN_AI_PROVIDERS,
+      providers,
       policies: KNOWN_ROUTER_POLICIES,
       advisorReadiness,
       advisorAdvice,
@@ -133,6 +135,7 @@ export async function POST(req: NextRequest) {
     const recheckRequest = parseReviewRecheckEnqueueRequest((body as { enqueueRecheck?: unknown } | null)?.enqueueRecheck)
     if (!isStage(stage)) return NextResponse.json({ error: 'مرحلة غير صالحة' }, { status: 400 })
     const validatedSnapshot = validateStageProfileSnapshot(stage, snapshot)
+    if (validatedSnapshot.enabled) validateStageProviderChoices(validatedSnapshot, await availableStageAiProviders())
     const current = await getCurrentStageProfile(stage)
     const currentProfileVersion = current?.version ?? 0
     if (current && snapshotKey(current.snapshot) === snapshotKey(validatedSnapshot)) {

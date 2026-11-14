@@ -10,10 +10,11 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import {
   Loader2, Mail, CreditCard, Network, SendHorizonal, ShieldCheck, Save,
   CheckCircle2, XCircle, Clock3, Info, Bot, Radio, Upload,
-  ChevronUp, ChevronDown,
+  ChevronUp, ChevronDown, Trash2,
 } from 'lucide-react'
 
 interface EmailLog {
@@ -145,7 +146,17 @@ interface PrivateFilesReport {
 
 const PRIVATE_FILE_TYPE_ORDER: PrivateFilesSource[] = ['AdmissionDocument', 'PaymentProof', 'AssignmentSubmission', 'ThesisSubmission', 'ServiceDeliverable']
 
+type CustomProviderSummary = {
+  id: string
+  name: string
+  baseUrl: string
+  enabled: boolean
+  selectedModel: string
+  hasKey: boolean
+}
+
 interface SystemData {
+  customProviders?: CustomProviderSummary[]
   values: Record<string, string>
   secretsSet: Record<string, boolean>
   secretsEncryption?: { configured: boolean; unencryptedKeys: string[] }
@@ -162,8 +173,8 @@ interface SystemData {
     activeMask: string
   }
   textAi?: {
-    selectedProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'APINEX' | 'OXION' | 'AUTO'
-    activeProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | null
+    selectedProvider: string
+    activeProvider: string | null
     policy?: 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
     externalConfigured: boolean
     keyCounts?: Record<string, number>
@@ -387,6 +398,9 @@ export function AdminSystemTab() {
   const [testing, setTesting] = useState(false)
   const [paymentQrUploading, setPaymentQrUploading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
+  const [customDraft, setCustomDraft] = useState({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })
+  const [customBusy, setCustomBusy] = useState(false)
+  const [customDeleteTarget, setCustomDeleteTarget] = useState<CustomProviderSummary | null>(null)
   const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests' | null>('core')
   const toggleGeminiSection = (section: 'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests') => {
     const y = typeof window !== 'undefined' ? window.scrollY : 0
@@ -600,6 +614,114 @@ export function AdminSystemTab() {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Custom gateways use their own admin actions. They never modify any of
+  // the legacy fields in form, even if some system settings remain unsaved.
+  const saveCustomProvider = async () => {
+    setCustomBusy(true)
+    try {
+      const result = await api<{ ok: boolean; id: string; customProviders: CustomProviderSummary[] }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'save-custom-ai-provider', ...customDraft }),
+      })
+      setData((prev) => prev ? { ...prev, customProviders: result.customProviders } : prev)
+      setCustomDraft({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })
+      toast({ title: 'تم حفظ المزوّد الجديد', description: 'تم تشفير مفتاحه. يمكن اختياره من القائمة والترتيب اليدوي.' })
+      if (customDraft.enabled) {
+        try {
+          const catalog = await api<{ provider: string; models: string[]; message: string; discoveredCount: number; staticCount: number }>('/api/admin/system', {
+            method: 'POST', body: JSON.stringify({ action: 'refresh-custom-ai-models', id: result.id }),
+          })
+          setTextModelCatalog((prev) => ({ ...prev, [catalog.provider]: catalog }))
+          toast({ title: 'تحديث نماذج المزوّد', description: catalog.message })
+        } catch {
+          toast({ title: 'المزوّد محفوظ، لكن تعذر اكتشاف نماذج مجانية مؤكدة', description: 'تأكد من دعم /models، ثم جرّب تحديث النماذج.', variant: 'destructive' })
+        }
+      }
+    } catch (e: any) {
+      toast({ title: 'تعذّر إضافة المزوّد', description: e.message, variant: 'destructive' })
+    } finally {
+      setCustomBusy(false)
+    }
+  }
+
+  const deleteCustomProvider = async (id: string) => {
+    setCustomBusy(true)
+    try {
+      const result = await api<{
+        ok: boolean
+        deletedProvider: string
+        clearedSettings: Record<string, string>
+        customProviders: CustomProviderSummary[]
+      }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete-custom-ai-provider', id }),
+      })
+      setData((prev) => prev ? {
+        ...prev,
+        customProviders: result.customProviders,
+        values: { ...prev.values, ...result.clearedSettings },
+      } : prev)
+      setForm((prev) => ({ ...prev, ...result.clearedSettings }))
+      setTextModelCatalog((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      if (customDraft.id === id) setCustomDraft({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })
+      setCustomDeleteTarget(null)
+      toast({ title: 'تم حذف المزوّد', description: 'حُذف تعريفه ومفتاحه، وأزيل من إعدادات الترتيب والاختيار دون تغيير المزوّدين الأساسيين.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر حذف المزوّد', description: e.message, variant: 'destructive' })
+    } finally {
+      setCustomBusy(false)
+    }
+  }
+
+  const toggleCustomProvider = async (id: string, enabled: boolean) => {
+    setCustomBusy(true)
+    try {
+      const r = await api<{ customProviders: CustomProviderSummary[] }>('/api/admin/system', {
+        method: 'POST', body: JSON.stringify({ action: 'toggle-custom-ai-provider', id, enabled }),
+      })
+      setData((prev) => prev ? { ...prev, customProviders: r.customProviders } : prev)
+      toast({ title: enabled ? 'تم تفعيل المزوّد' : 'تم إيقاف المزوّد' })
+    } catch (e: any) {
+      toast({ title: 'تعذّر تغيير حالة المزوّد', description: e.message, variant: 'destructive' })
+    } finally {
+      setCustomBusy(false)
+    }
+  }
+
+  const refreshCustomModels = async (id: string) => {
+    setCustomBusy(true)
+    try {
+      const catalog = await api<{ provider: string; models: string[]; message: string; discoveredCount: number; staticCount: number }>('/api/admin/system', {
+        method: 'POST', body: JSON.stringify({ action: 'refresh-custom-ai-models', id }),
+      })
+      setTextModelCatalog((prev) => ({ ...prev, [catalog.provider]: catalog }))
+      toast({ title: 'نتيجة تحديث النماذج', description: catalog.message })
+    } catch (e: any) {
+      toast({ title: 'تعذّر تحديث النماذج', description: e.message, variant: 'destructive' })
+    } finally {
+      setCustomBusy(false)
+    }
+  }
+
+  const selectCustomModel = async (id: string, model: string) => {
+    setCustomBusy(true)
+    try {
+      const r = await api<{ customProviders: CustomProviderSummary[] }>('/api/admin/system', {
+        method: 'POST', body: JSON.stringify({ action: 'select-custom-ai-model', id, model }),
+      })
+      setData((prev) => prev ? { ...prev, customProviders: r.customProviders } : prev)
+      toast({ title: 'تم اعتماد النموذج المجاني', description: model })
+    } catch (e: any) {
+      toast({ title: 'تعذّر اختيار النموذج', description: e.message, variant: 'destructive' })
+    } finally {
+      setCustomBusy(false)
     }
   }
 
@@ -952,11 +1074,13 @@ export function AdminSystemTab() {
       ? 'مفتاح Vercel الافتراضي'
       : 'لا يوجد مفتاح فعّال'
   const textAiDiag = data.textAi
-  const currentTextProvider = (form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI') as 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'APINEX' | 'OXION' | 'AUTO'
+  const currentTextProvider = form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI'
+  const customChoices = (data.customProviders || []).map((entry) => ({ value: entry.id, label: `${entry.name} — مزوّد مضاف من الإدارة` }))
+  const allTextProviderChoices = [...TEXT_PROVIDER_CHOICES, ...customChoices]
   // «ترتيب المزودات الاحتياطية» (2026-10-30): القائمة المعروضة = ترتيب الأدمن
   // المحفوظ أولاً ثم بقية المزودين بالترتيب الافتراضي المكتوب، حتى يرى كل
   // المزودين دائماً ويحرّك من يشاء. الحفظ يتم عبر حقل AI_PROVIDER_FALLBACK_ORDER.
-  const FALLBACK_ORDER_DEFAULT = ['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION']
+  const FALLBACK_ORDER_DEFAULT = ['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION', ...(data.customProviders || []).map((entry) => entry.id)]
   const savedFallbackOrder = String(form.AI_PROVIDER_FALLBACK_ORDER || '').split(',').map((x) => x.trim().toUpperCase()).filter((x) => FALLBACK_ORDER_DEFAULT.includes(x))
   const displayFallbackOrder = [...savedFallbackOrder, ...FALLBACK_ORDER_DEFAULT.filter((p) => !savedFallbackOrder.includes(p))]
   const moveInFallbackOrder = (idx: number, dir: -1 | 1) => {
@@ -968,7 +1092,7 @@ export function AdminSystemTab() {
     next[j] = tmp
     set('AI_PROVIDER_FALLBACK_ORDER', next.join(','))
   }
-  const fallbackProviderLabel = (p: string) => TEXT_PROVIDER_CHOICES.find((c) => c.value === p)?.label.split('—')[0].trim() || p
+  const fallbackProviderLabel = (p: string) => allTextProviderChoices.find((c) => c.value === p)?.label.split('—')[0].trim() || p
   // مفتاح إطفاء الترتيب اليدوي: غير المضبوط = مفعّل (الترتيب المحفوظ يعمل فور
   // حفظه)؛ الإطفاء الصريح يركن الترتيب ويرجع السياسات والعائلات والمدفوع أولاً.
   const fallbackOrderEnabled = form.AI_PROVIDER_FALLBACK_ORDER_ENABLED !== 'false' && form.AI_PROVIDER_FALLBACK_ORDER_ENABLED !== '0'
@@ -1292,7 +1416,7 @@ export function AdminSystemTab() {
               </div>
               <Badge className={textAiDiag?.externalConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}>{textAiDiag?.externalConfigured ? `نشط: ${textAiDiag.activeProvider}` : 'Gemini / غير خارجي'}</Badge>
             </div>
-            {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', TEXT_PROVIDER_CHOICES, textProviderHelp)}
+            {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', allTextProviderChoices, textProviderHelp)}
             {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, routerPolicyHelp)}
             {SelectF('AI_ROUTER_POLICY_SOURCE', 'مصدر سياسة الراوتر', ROUTER_POLICY_SOURCE_CHOICES, 'افتراضي النظام يحافظ على balanced/primary_first المكتوبة في الكود. سياسة لوحة الإدارة تجعل المسارات تستخدم AI_ROUTER_POLICY.')}
             {SelectF('AI_POLICY_RANK_BY', 'ترتيب الجودة والتكلفة حسب', POLICY_RANK_BY_CHOICES, 'provider يحافظ على السلوك الحالي، وfamily يرتب quality_first/cost_saver حسب عائلة النموذج.')}
@@ -1553,6 +1677,96 @@ export function AdminSystemTab() {
           <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
             <div className="sm:col-span-2 rounded-xl bg-white p-3 text-[10px] font-bold leading-relaxed text-indigo-700 ring-1 ring-indigo-100">
               مزوّد النصوص الحالي: {currentTextProvider}. عند AUTO تبقى إعدادات المزوّدات كما يعرضها الكود الحالي، وفتح هذه المساحة لا يغيّر AI_TEXT_PROVIDER.
+            </div>
+            <div className="sm:col-span-2 space-y-3 rounded-xl border border-emerald-200 bg-white p-3">
+              <div>
+                <h4 className="text-sm font-black text-emerald-900">إضافة مزوّد ذكاء اصطناعي جديد</h4>
+                <p className="mt-1 text-[11px] text-slate-600">
+                  أضف الاسم ورابط HTTPS من نوع OpenAI-compatible ومفتاح API، دون تعديل المزوّدين الموجودين.
+                  بعد الحفظ سيظهر في اختيار المزوّد والترتيب اليدوي، وتُكتشف نماذجه المجانية من /models.
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs">اسم المزوّد</Label>
+                  <Input value={customDraft.name} maxLength={80} onChange={(e) => setCustomDraft((old) => ({ ...old, name: e.target.value }))} placeholder="مثال: My AI Gateway" />
+                </div>
+                <div>
+                  <Label className="text-xs">رابط API الأساسي</Label>
+                  <Input dir="ltr" value={customDraft.baseUrl} onChange={(e) => setCustomDraft((old) => ({ ...old, baseUrl: e.target.value }))} placeholder="https://api.example-provider.com/v1" />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label className="text-xs">مفتاح API {customDraft.id ? '— اتركه فارغًا للاحتفاظ بالمفتاح المحفوظ' : '— مطلوب'}</Label>
+                  <Input dir="ltr" type="password" autoComplete="new-password" value={customDraft.apiKey} onChange={(e) => setCustomDraft((old) => ({ ...old, apiKey: e.target.value }))} placeholder={customDraft.id ? 'محفوظ — لا يظهر المفتاح القديم' : 'مفتاح مزوّدك الجديد'} />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Switch checked={customDraft.enabled} disabled={customBusy} onCheckedChange={(enabled) => setCustomDraft((old) => ({ ...old, enabled }))} />
+                <span className="text-xs">المزوّد مفعّل</span>
+                <Button type="button" size="sm" disabled={customBusy || customDraft.name.trim().length < 2 || !customDraft.baseUrl.trim() || (!customDraft.id && !customDraft.apiKey.trim())} onClick={() => void saveCustomProvider()}>
+                  {customBusy && <Loader2 className="ml-1 h-3 w-3 animate-spin" />} {customDraft.id ? 'حفظ تعديل المزوّد' : 'إضافة المزوّد'}
+                </Button>
+                {customDraft.id && <Button type="button" variant="outline" size="sm" onClick={() => setCustomDraft({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })}>إلغاء التعديل</Button>}
+              </div>
+              <p className="text-[10px] text-amber-800">تظهر قائمة «مجاني مؤكد» فقط عندما يعلن المزوّد مجانية النموذج أو سعر الإدخال والإخراج صفرًا. إذا لم يعلن ذلك، لن نخمن مجانيته أو نشغله تلقائيًا.</p>
+              {(data.customProviders || []).map((entry) => {
+                const freeModels = textModelCatalog[entry.id]?.models || []
+                return (
+                  <div key={entry.id} className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-black">{entry.name}</span>
+                      <code className="text-[10px] text-slate-500">{entry.id}</code>
+                      <Badge className={entry.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}>{entry.enabled ? 'مفعّل' : 'معطّل'}</Badge>
+                      <Badge>{entry.hasKey ? 'المفتاح محفوظ ومشفّر' : 'لا يوجد مفتاح'}</Badge>
+                    </div>
+                    <p dir="ltr" className="break-all text-[10px] text-slate-500">{entry.baseUrl}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" disabled={customBusy} onClick={() => setCustomDraft({ id: entry.id, name: entry.name, baseUrl: entry.baseUrl, apiKey: '', enabled: entry.enabled })}>تعديل الرابط أو المفتاح</Button>
+                      <Button size="sm" variant="outline" disabled={customBusy} onClick={() => void toggleCustomProvider(entry.id, !entry.enabled)}>{entry.enabled ? 'إيقاف' : 'تفعيل'}</Button>
+                      <Button size="sm" variant="outline" disabled={customBusy || !entry.enabled} onClick={() => void refreshCustomModels(entry.id)}>تحديث النماذج المجانية</Button>
+                      <Button size="sm" variant="destructive" disabled={customBusy} onClick={() => setCustomDeleteTarget(entry)}><Trash2 className="ml-1 h-3 w-3" /> حذف المزوّد</Button>
+                    </div>
+                    {freeModels.length ? (
+                      <div className="space-y-1">
+                        <Label className="text-xs">النموذج المجاني المعتمد</Label>
+                        <Select value={freeModels.includes(entry.selectedModel) ? entry.selectedModel : undefined} onValueChange={(model) => void selectCustomModel(entry.id, model)} disabled={customBusy || !entry.enabled}>
+                          <SelectTrigger className="w-full bg-white" dir="ltr"><SelectValue placeholder="اختر نموذجًا من النماذج المجانية المكتشفة" /></SelectTrigger>
+                          <SelectContent>{freeModels.map((model) => <SelectItem key={model} value={model} dir="ltr">{model}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-500">{textModelCatalog[entry.id]?.message || 'اختر هذا المزوّد من قائمة النصوص أو اضغط تحديث النماذج لتحميل كتالوجه.'}</p>
+                    )}
+                  </div>
+                )
+              })}
+              <AlertDialog open={!!customDeleteTarget} onOpenChange={(open) => { if (!open && !customBusy) setCustomDeleteTarget(null) }}>
+                <AlertDialogContent dir="rtl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>تأكيد حذف مزوّد الذكاء الاصطناعي</AlertDialogTitle>
+                    <AlertDialogDescription className="text-right leading-7">
+                      هل تريد حذف «{customDeleteTarget?.name}» نهائيًا؟
+                      سيتم حذف مفتاح API المحفوظ وتعريف المزوّد ونماذجه من قوائم الاختيار والترتيب اليدوي.
+                      إذا كان المزوّد مختارًا حاليًا فسيعود الاختيار إلى AUTO.
+                      لن تتأثر المزوّدات الأساسية أو سجلات الاستخدام التاريخية.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={customBusy}>تراجع</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-white hover:bg-destructive/90"
+                      disabled={customBusy || !customDeleteTarget}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        if (customDeleteTarget) void deleteCustomProvider(customDeleteTarget.id)
+                      }}
+                    >
+                      {customBusy && <Loader2 className="ml-2 h-3 w-3 animate-spin" />}
+                      تأكيد حذف المزوّد
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
             {currentTextProvider === 'GEMINI' || currentTextProvider === 'AUTO' ? (
               <>

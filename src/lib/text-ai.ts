@@ -1,7 +1,10 @@
 import { createHash } from 'crypto'
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
+import { request as httpsRequest } from 'node:https'
 import { db } from '@/lib/db'
 import { enforceAiUserDailyCostCap, estimateAiCostCents, estimatePromptTokens, recordAiUsage } from '@/lib/ai-usage-accounting'
-import { decryptSecret, isEncryptedSecret, isSecretKeyName, keyHashForRateLimit, redactSecrets } from '@/lib/secret-crypto'
+import { decryptSecret, isEncryptedSecret, isSecretKeyName, keyHashForRateLimit, redactSecrets, unsealSettingSecret } from '@/lib/secret-crypto'
 
 export type TextAiProvider =
   | 'GEMINI'
@@ -21,7 +24,128 @@ export type TextAiProvider =
   | 'CLOUDFLARE'
   | 'APINEX'
   | 'OXION'
+  | `CUSTOM_${string}`
   | 'AUTO'
+
+// Additional OpenAI-compatible providers live in the existing Setting table.
+// No built-in provider definition, key or routing policy is rewritten.
+export const CUSTOM_AI_PROVIDERS_SETTING = 'AI_CUSTOM_PROVIDERS'
+export interface CustomTextAiProvider {
+  id: `CUSTOM_${string}`
+  name: string
+  baseUrl: string
+  enabled: boolean
+  selectedModel: string
+}
+export function isCustomTextAiProviderId(value: unknown): value is `CUSTOM_${string}` {
+  return /^CUSTOM_[A-Z0-9_]{4,32}$/.test(String(value || ''))
+}
+export function customTextAiKeySetting(id: string): string {
+  if (!isCustomTextAiProviderId(id)) throw new Error('INVALID_CUSTOM_PROVIDER_ID')
+  return `AI_CUSTOM_KEY_${id}`
+}
+export function normalizeCustomTextAiUrl(value: string): string {
+  const raw = String(value || '').trim().replace(/\/+$/, '').replace(/\/(?:models|chat\/completions)$/i, '')
+  let url: URL
+  try { url = new URL(raw) } catch { throw new Error('CUSTOM_PROVIDER_URL_INVALID') }
+  const host = url.hostname.toLowerCase()
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash
+    || (url.port && url.port !== '443') || !host.includes('.') || isIP(host)
+    || /(^|\.)(localhost|local|internal|test|invalid|example)$/.test(host)
+    || !/^[a-z0-9.-]+$/.test(host) || host.includes('..')
+    || url.pathname.includes('..') || url.pathname.includes('//')) throw new Error('CUSTOM_PROVIDER_URL_UNSAFE')
+  return url.toString().replace(/\/+$/, '')
+}
+// Use the SAME public-address policy both for saving an endpoint and for
+// the socket lookup that immediately connects to it. Only public addresses
+// are allowed; IPv4-mapped/translated IPv6 and address-embedding tunnels are
+// rejected instead of bypassing the private-IPv4 checks.
+function publicCustomTextAiAddress(address: string): boolean {
+  const family = isIP(address)
+  if (family === 4) {
+    const [a, b, c] = address.split('.').map(Number)
+    return !(a === 0 || a === 10 || a === 127 || a >= 224
+      || (a === 100 && b >= 64 && b <= 127)
+      || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && (b === 0 || b === 168 || (b === 88 && c === 99)))
+      || (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100)))
+      || (a === 203 && b === 0 && c === 113))
+  }
+  if (family === 6) {
+    const normalized = address.toLowerCase()
+    if (!/^[23]/.test(normalized) || normalized.startsWith('2002:')) return false
+    if (normalized.startsWith('2001:')) {
+      const block = parseInt(normalized.split(':')[1] || '0', 16)
+      if (block === 0 || block === 0x10 || block === 0x20 || block === 0xdb8) return false
+    }
+    return true
+  }
+  return false
+}
+
+export function __testCustomProviderPublicDnsForTests(records: Array<{ address: string }>): boolean {
+  return records.length > 0 && records.every(({ address }) => publicCustomTextAiAddress(address))
+}
+
+// DNS checked when registering the endpoint and again at socket connection.
+// Never pass a user-configured URL to ordinary fetch after only a preflight.
+export async function assertPublicCustomTextAiUrl(value: string): Promise<string> {
+  const url = normalizeCustomTextAiUrl(value)
+  const records = await lookup(new URL(url).hostname, { all: true })
+  if (!__testCustomProviderPublicDnsForTests(records)) throw new Error('CUSTOM_PROVIDER_ADDRESS_UNSAFE')
+  return url
+}
+export function parseCustomTextAiProviders(value: unknown): CustomTextAiProvider[] {
+  let rows: unknown
+  try { rows = typeof value === 'string' ? JSON.parse(value || '[]') : value } catch { return [] }
+  if (!Array.isArray(rows)) return []
+  const seen = new Set<string>()
+  return rows.slice(0, 32).flatMap((row): CustomTextAiProvider[] => {
+    if (!row || typeof row !== 'object') return []
+    const item = row as Record<string, unknown>
+    const id = String(item.id || '')
+    const name = String(item.name || '').trim()
+    if (!isCustomTextAiProviderId(id) || seen.has(id) || !name || name.length > 80) return []
+    let baseUrl = ''
+    try { baseUrl = normalizeCustomTextAiUrl(String(item.baseUrl || '')) } catch { return [] }
+    const selectedModel = String(item.selectedModel || '').trim()
+    if (selectedModel && !/^[A-Za-z0-9][A-Za-z0-9_.\/:@-]{0,179}$/.test(selectedModel)) return []
+    seen.add(id)
+    return [{ id, name, baseUrl, enabled: item.enabled === true, selectedModel }]
+  })
+}
+
+// Remove only direct references to a deleted custom provider. Existing
+// built-in providers and their saved positions, tiers and model choices remain.
+export const CUSTOM_AI_PROVIDER_REFERENCE_KEYS = [
+  'AI_TEXT_PROVIDER',
+  'AI_PROVIDER_FALLBACK_ORDER',
+  'AI_PROVIDER_TIERS',
+  'AI_ACADEMIC_ALLOWLIST',
+  'AI_VERIFIER_PREFERRED',
+  'AI_KNOWLEDGE_REPAIR_PROVIDER',
+  'AI_KNOWLEDGE_REPAIR_MODEL',
+] as const
+
+export function settingsAfterCustomTextAiProviderDeletion(id: string, settings: Record<string, string>): Record<string, string> {
+  if (!isCustomTextAiProviderId(id)) throw new Error('INVALID_CUSTOM_PROVIDER_ID')
+  const next = { ...settings }
+  if (settings.AI_TEXT_PROVIDER?.trim().toUpperCase() === id) next.AI_TEXT_PROVIDER = 'AUTO'
+  if (settings.AI_KNOWLEDGE_REPAIR_PROVIDER?.trim().toUpperCase() === id) {
+    next.AI_KNOWLEDGE_REPAIR_PROVIDER = 'AUTO'
+    next.AI_KNOWLEDGE_REPAIR_MODEL = ''
+  }
+  for (const key of ['AI_PROVIDER_FALLBACK_ORDER', 'AI_PROVIDER_TIERS', 'AI_ACADEMIC_ALLOWLIST', 'AI_VERIFIER_PREFERRED'] as const) {
+    if (!(key in settings)) continue
+    next[key] = String(settings[key] || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item && item.split(':', 1)[0].toUpperCase() !== id)
+      .join(',')
+  }
+  return next
+}
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
 export type TextAiRouterPolicySource = 'legacy' | 'admin'
@@ -379,7 +503,7 @@ function clean(value: unknown): string {
 function normalizeProvider(value: unknown): TextAiProvider {
   const v = clean(value).toUpperCase()
   const allowed: TextAiProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION', 'AUTO']
-  return allowed.includes(v as TextAiProvider) ? (v as TextAiProvider) : 'GEMINI'
+  return isCustomTextAiProviderId(v) ? v : allowed.includes(v as TextAiProvider) ? (v as TextAiProvider) : 'GEMINI'
 }
 
 function normalizePolicy(value: unknown): TextAiRouterPolicy {
@@ -771,7 +895,81 @@ function remainingTimeoutMs(deadlineMs?: number, defaultTimeoutMs = aiProviderTi
   return Math.max(1, Math.min(defaultTimeoutMs, remaining))
 }
 
+// Only admin-configured gateways use this request path. Node HTTPS resolves
+// inside its socket lookup; we validate every returned address there and pass
+// the validated address directly to the socket. Ordinary fetch would resolve
+// DNS again after a preflight check (DNS rebinding / SSRF).
+async function fetchCustomTextAiWithPinnedDns(provider: string, url: string, init: RequestInit, timeoutMs: number, deadlineMs?: number): Promise<Response> {
+  normalizeCustomTextAiUrl(url) // HTTPS, public DNS name, no userinfo or nonstandard port.
+  if (init.body != null && typeof init.body !== 'string') throw new Error('CUSTOM_PROVIDER_INVALID_BODY')
+  const effectiveTimeoutMs = remainingTimeoutMs(deadlineMs, timeoutMs)
+  return new Promise<Response>((resolve, reject) => {
+    const request = httpsRequest(url, {
+      method: init.method || 'GET',
+      headers: { 'accept-encoding': 'identity', ...Object.fromEntries(new Headers(init.headers).entries()) },
+      agent: false, // New socket and guarded lookup for every custom request.
+      servername: new URL(url).hostname, // Preserve hostname TLS verification.
+      lookup: (hostname, options, callback) => {
+        lookup(hostname, { all: true }).then((addresses) => {
+          if (!__testCustomProviderPublicDnsForTests(addresses)) {
+            callback(new Error('CUSTOM_PROVIDER_ADDRESS_UNSAFE'), '')
+            return
+          }
+          const pinned = addresses.find((entry) => entry.family === 4) || addresses[0]
+          // Node 20+ may use autoSelectFamily and request { all: true }.
+          // Returning a single string to that callback causes
+          // ERR_INVALID_IP_ADDRESS before a connection is attempted.
+          if (typeof options === 'object' && options.all) {
+            (callback as (error: Error | null, addresses: Array<{ address: string; family: number }>) => void)(null, [pinned])
+          } else {
+            callback(null, pinned.address, pinned.family)
+          }
+        }, (error) => callback(error as Error, ''))
+      },
+    }, (response) => {
+      const status = response.statusCode || 502
+      if (status >= 300 && status < 400) {
+        response.resume() // Never follow redirects to an unchecked destination.
+        request.destroy(new Error('CUSTOM_PROVIDER_REDIRECT_DENIED'))
+        return
+      }
+      const chunks: Buffer[] = []
+      let size = 0
+      response.on('data', (chunk: Buffer) => {
+        const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+        size += data.length
+        if (size > 8 * 1024 * 1024) {
+          request.destroy(new Error('CUSTOM_PROVIDER_RESPONSE_TOO_LARGE'))
+          return
+        }
+        chunks.push(data)
+      })
+      response.on('error', (error) => { clearTimeout(timeout); reject(error) })
+      response.on('aborted', () => { clearTimeout(timeout); reject(new Error('CUSTOM_PROVIDER_RESPONSE_ABORTED')) })
+      response.on('end', () => {
+        clearTimeout(timeout)
+        const headers = new Headers()
+        for (const [name, value] of Object.entries(response.headers)) {
+          if (Array.isArray(value)) value.forEach((item) => headers.append(name, item))
+          else if (typeof value === 'string') headers.set(name, value)
+        }
+        resolve(new Response(status === 204 || status === 205 ? null : Buffer.concat(chunks).toString('utf8'), { status, headers }))
+      })
+    })
+    const timeout = setTimeout(() => {
+      const error: any = new Error(`${provider}_PROVIDER_TIMEOUT_${effectiveTimeoutMs}ms`)
+      error.code = 'AI_PROVIDER_TIMEOUT'
+      error.status = 504
+      request.destroy(error)
+    }, effectiveTimeoutMs)
+    // The total deadline covers DNS resolution, TLS, headers and full body.
+    request.on('error', (error) => { clearTimeout(timeout); reject(error) })
+    request.end(init.body as string | undefined)
+  })
+}
+
 export async function __testFetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs(), deadlineMs?: number): Promise<Response> {
+  if (isCustomTextAiProviderId(provider)) return fetchCustomTextAiWithPinnedDns(provider, url, init, timeoutMs, deadlineMs)
   const effectiveTimeoutMs = remainingTimeoutMs(deadlineMs, timeoutMs)
   let timer: ReturnType<typeof setTimeout> | null = null
   const fallbackController = new AbortController()
@@ -993,7 +1191,7 @@ async function readSettings(keys: string[]): Promise<Record<string, string>> {
 async function settings() {
   const rows = await readSettings([
     'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES', 'AI_PROVIDER_FALLBACK_ORDER', 'AI_PROVIDER_FALLBACK_ORDER_ENABLED',
-    'AI_PAID_USAGE_MODE', 'AI_PAID_MODELS', 'AI_PAID_DAILY_LIMIT_USD', 'AI_PAID_MONTHLY_LIMIT_USD', 'AI_PROVIDER_TIER_OPENAI_COMPAT',
+    'AI_PAID_USAGE_MODE', 'AI_PAID_MODELS', 'AI_PAID_DAILY_LIMIT_USD', 'AI_PAID_MONTHLY_LIMIT_USD', 'AI_PROVIDER_TIER_OPENAI_COMPAT', CUSTOM_AI_PROVIDERS_SETTING,
     'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL',
     'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
     'ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEYS', 'ANTHROPIC_TEXT_MODEL',
@@ -1012,6 +1210,11 @@ async function settings() {
     'APINEX_API_KEY', 'APINEX_API_KEYS', 'APINEX_TEXT_MODEL', 'APINEX_BASE_URL',
     'OXION_API_KEY', 'OXION_API_KEYS', 'OXION_TEXT_MODEL', 'OXION_BASE_URL',
   ])
+  const customProviders = parseCustomTextAiProviders(rows[CUSTOM_AI_PROVIDERS_SETTING])
+  const customKeyRows = await readSettings(customProviders.map((entry) => customTextAiKeySetting(entry.id)))
+  const customProviderKeys: Record<string, string[]> = Object.fromEntries(customProviders.map((entry) => [
+    entry.id, parseKeys(customKeyRows[customTextAiKeySetting(entry.id)]),
+  ]))
   const provider = normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
   const policy = normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
   const routerCooldownMinutes = __testResolveRouterCooldownMinutesForTests(rows.AI_ROUTER_COOLDOWN_MINUTES, env('AI_ROUTER_COOLDOWN_MINUTES'))
@@ -1026,6 +1229,8 @@ async function settings() {
   const openaiCompatDefaults = isNvidiaOpenAiCompatibleBaseUrl(openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   return {
     provider,
+    customProviders,
+    customProviderKeys,
     policy,
     policySource: normalizePolicySource(rows.AI_ROUTER_POLICY_SOURCE || env('AI_ROUTER_POLICY_SOURCE') || 'legacy'),
     policyRankBy: normalizePolicyRankBy(rows.AI_POLICY_RANK_BY || env('AI_POLICY_RANK_BY') || 'provider'),
@@ -1159,7 +1364,7 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
     case 'APINEX': return s.apinexKeys || []
     case 'OXION': return s.oxionKeys || []
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? (s.openaiCompatKeys || []) : []
-    default: return []
+    default: return s.customProviders?.some((entry) => entry.id === provider && entry.enabled) ? (s.customProviderKeys?.[provider] || []) : []
   }
 }
 
@@ -1210,7 +1415,7 @@ function persistentRouterStateItem(key: string, value: string): TextAiRouterStat
 
 function memoryKeyIndexLookup(s: Settings): Map<string, { provider: ConcreteProvider; keyIndex: number }> {
   const lookup = new Map<string, { provider: ConcreteProvider; keyIndex: number }>()
-  for (const provider of ROUTER_STATE_PROVIDERS) {
+  for (const provider of [...ROUTER_STATE_PROVIDERS, ...(s.customProviders || []).map((entry) => entry.id)]) {
     providerKeys(s, provider).forEach((key, index) => lookup.set(cooldownId(provider, key), { provider, keyIndex: index }))
   }
   return lookup
@@ -1355,6 +1560,7 @@ function modelFor(s: Settings, provider: ConcreteProvider): string {
     case 'APINEX': return s.apinexModel
     case 'OXION': return s.oxionModel
     case 'OPENAI_COMPAT': return s.openaiCompatModel
+    default: return s.customProviders?.find((entry) => entry.id === provider)?.selectedModel || ''
   }
 }
 
@@ -1375,7 +1581,7 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
     case 'APINEX': return s.apinexBaseUrl
     case 'OXION': return s.oxionBaseUrl
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl
-    default: return ''
+    default: return s.customProviders?.find((entry) => entry.id === provider && entry.enabled)?.baseUrl || ''
   }
 }
 
@@ -1398,6 +1604,7 @@ function staticTextModelsForProvider(provider: ConcreteProvider, s?: Settings): 
     case 'APINEX': return APINEX_TEXT_MODELS
     case 'OXION': return OXION_TEXT_MODELS
     case 'OPENAI_COMPAT': return s && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
+    default: return [] // Never invent a free-model catalog for a dynamic provider.
   }
 }
 
@@ -1504,6 +1711,23 @@ function zeroish(value: unknown): boolean {
   return Number.isFinite(n) && n === 0
 }
 
+function strictlyFreeCustomModel(row: any, id: string): boolean {
+  if (!id) return false
+  // Explicit pricing always outranks free labels and model-name suffixes.
+  // Reject unknown/partial prices: only declared zero input AND output is free.
+  const publishedPrice = row?.pricing ?? row?.price ?? row?.cost
+  if (publishedPrice !== undefined && publishedPrice !== null) {
+    if (typeof publishedPrice !== 'object' || Array.isArray(publishedPrice)) return false
+    const input = publishedPrice.prompt ?? publishedPrice.input ?? publishedPrice.prompt_tokens ?? publishedPrice.input_tokens
+    const output = publishedPrice.completion ?? publishedPrice.output ?? publishedPrice.completion_tokens ?? publishedPrice.output_tokens
+    const explicitlyZero = (value: unknown) => typeof value === 'number'
+      ? Number.isFinite(value) && value === 0
+      : typeof value === 'string' && /^(?:0+(?:\.0+)?|\.0+)(?:e[+-]?\d+)?$/i.test(value.trim())
+    return explicitlyZero(input) && explicitlyZero(output)
+  }
+  return id.endsWith(':free') || /(^|[-_/:])free($|[-_/:])/.test(id) || row?.is_free === true || row?.free === true
+}
+
 function isFreeModel(row: any, id: string): boolean {
   if (!id) return false
   if (id.endsWith(':free') || /(^|[-_/:])free($|[-_/:])/.test(id)) return true
@@ -1512,6 +1736,10 @@ function isFreeModel(row: any, id: string): boolean {
   const prompt = pricing.prompt ?? pricing.input ?? pricing.prompt_tokens ?? pricing.input_tokens
   const completion = pricing.completion ?? pricing.output ?? pricing.completion_tokens ?? pricing.output_tokens
   return (prompt !== undefined || completion !== undefined) && zeroish(prompt) && zeroish(completion)
+}
+
+export function __testCustomProviderFreeMetadataForTests(row: any, id: string): boolean {
+  return strictlyFreeCustomModel(row, id)
 }
 
 function nvidiaModelHaystack(row: any, id: string): string {
@@ -1626,8 +1854,10 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
   if (!normalizedBaseUrl) return []
   const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(normalizedBaseUrl)
   try {
+    if (isCustomTextAiProviderId(provider)) await assertPublicCustomTextAiUrl(normalizedBaseUrl)
     const response = await fetchWithTimeout(provider, `${normalizedBaseUrl}/models`, {
       cache: 'no-store',
+      ...(isCustomTextAiProviderId(provider) ? { redirect: 'error' as const } : {}),
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
     }, aiDiscoveryTimeoutMs())
     if (!response.ok) return []
@@ -1649,7 +1879,7 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
               ? isStrongTopToolsTextModel(raw, id)
               : nvidiaCompat
                 ? isNvidiaFreeTrialTextModel(raw, id)
-                : isFreeModel(raw, id)
+                : isCustomTextAiProviderId(provider) ? strictlyFreeCustomModel(raw, id) : isFreeModel(raw, id)
       ))
     const orderedRows = provider === 'TOPTOOLS'
       ? rows.sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
@@ -1896,7 +2126,7 @@ function freeModelsMemoryCacheMs(provider: ConcreteProvider): number {
 }
 
 function freeModelsPersistentCacheMs(provider: ConcreteProvider): number {
-  return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 24 * 60 * 60 * 1000
+  return isCustomTextAiProviderId(provider) ? 30 * 60 * 1000 : provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 24 * 60 * 60 * 1000
 }
 
 // Discovery is background traffic: it must never spend a request on a key the
@@ -1978,7 +2208,7 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     models = await fetchMistralTextModels(baseUrl, key)
   } else if (provider === 'APINEX') {
     models = await fetchApinexTextModels(baseUrl, key)
-  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI', 'CLOUDFLARE', 'OXION'].includes(provider)) {
+  } else if (isCustomTextAiProviderId(provider) || ['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI', 'CLOUDFLARE', 'OXION'].includes(provider)) {
     models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
   }
 
@@ -2226,7 +2456,7 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
   const alborihiDiscovered = provider === 'ALBORIHI' && freeModelDiscoveryEntry(provider, s)?.discoveryOk === true && discoveredFree.length > 0
-  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered
+  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered || isCustomTextAiProviderId(provider)
   const discoveredSet = new Set(discoveredFree.map((model) => model.toLowerCase()))
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
   const selectedPart = selected && !selectedIsAuto && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
@@ -2349,9 +2579,10 @@ function applyPaidFirst(s: Settings, order: ConcreteProvider[], taskLevel: TextA
 
 function baseOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
-  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION']
-  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION']
-  const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
+  const customTail = (s.customProviders || []).filter((entry) => entry.enabled).map((entry) => entry.id)
+  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION', ...customTail]
+  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION', ...customTail]
+  const primary: ConcreteProvider[] = [...ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER, ...customTail]
   if (s.policy === 'quality_first') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, quality, taskLevel) : quality)
   if (s.policy === 'cost_saver') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, cost, taskLevel) : cost)
   if (s.policy === 'fallback_only' && selected) return [selected]
@@ -2364,7 +2595,8 @@ function baseOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Concret
 function manualChain(s: Settings): ConcreteProvider[] {
   const saved = s.manualProviderOrder || []
   if (!saved.length) return []
-  return [...saved, ...ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER.filter((provider) => !saved.includes(provider))]
+  const available: ConcreteProvider[] = [...ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER, ...(s.customProviders || []).filter((entry) => entry.enabled).map((entry) => entry.id)]
+  return [...saved, ...available.filter((provider) => !saved.includes(provider))]
 }
 
 function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
@@ -2481,6 +2713,40 @@ function cooldownList() {
     .map(([id, v]) => ({ provider: id.split(':')[0], key: id.split(':')[1], until: new Date(v.until).toISOString(), reason: v.reason }))
 }
 
+// Evict only runtime state of the deleted custom provider. Usage history and
+// existing provider caches remain untouched.
+export function forgetCustomTextAiProviderRuntimeState(providerId: string): void {
+  if (!isCustomTextAiProviderId(providerId)) throw new Error('INVALID_CUSTOM_PROVIDER_ID')
+  for (const key of freeModelsCache.keys()) {
+    if (key.startsWith(`${providerId}:`)) freeModelsCache.delete(key)
+  }
+  for (const key of cooldowns.keys()) {
+    if (key.startsWith(`${providerId}:`)) cooldowns.delete(key)
+  }
+  for (const [scope, sticky] of stickyModels) {
+    if (sticky.provider === providerId) stickyModels.delete(scope)
+  }
+  for (const key of modelRateLimitHits.keys()) {
+    if (key.startsWith(`${providerId}:`)) modelRateLimitHits.delete(key)
+  }
+  persistentCooldownCache = null
+  if (lastResult?.provider === providerId) lastResult = null
+  recentAttempts = recentAttempts.filter((entry) => entry.provider !== providerId)
+}
+
+export async function refreshCustomTextAiFreeModels(providerId: string): Promise<{ provider: string; models: string[]; discoveredCount: number; staticCount: number; message: string }> {
+  if (!isCustomTextAiProviderId(providerId)) throw new Error('INVALID_CUSTOM_PROVIDER_ID')
+  const s = await settings()
+  const config = s.customProviders.find((entry) => entry.id === providerId)
+  if (!config) throw new Error('CUSTOM_PROVIDER_NOT_FOUND')
+  if (!config.enabled) throw new Error('CUSTOM_PROVIDER_DISABLED')
+  const key = await discoveryKey(providerId, s)
+  const cacheKey = cacheKeyForFreeModels(providerId, config.baseUrl, key)
+  freeModelsCache.delete(cacheKey)
+  await settingStore().delete?.(persistentModelsCacheKey(cacheKey))
+  return textAiFreeModelsForProvider(providerId)
+}
+
 export async function textAiFreeModelsForProvider(providerValue: unknown): Promise<{ provider: string; models: string[]; discoveredCount: number; staticCount: number; message: string }> {
   const s = await settings()
   const provider = normalizeProvider(providerValue)
@@ -2498,18 +2764,21 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
     }
   }
   const concrete = provider as ConcreteProvider
+  if (isCustomTextAiProviderId(concrete) && !s.customProviders.some((entry) => entry.id === concrete && entry.enabled)) {
+    return { provider: concrete, models: [], discoveredCount: 0, staticCount: 0, message: 'المزوّد غير مفعل أو غير موجود.' }
+  }
   const staticDefaults = staticTextModelsForProvider(concrete, s)
   const discoveredRaw = await liveFreeModels(concrete, s)
   const nvidiaCompat = concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
   const alborihiDiscovered = concrete === 'ALBORIHI' && freeModelDiscoveryEntry(concrete, s)?.discoveryOk === true && discoveredRaw.length > 0
-  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered
+  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered || isCustomTextAiProviderId(concrete)
   const discovered = discoveredRaw.filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
   const discoveredSet = new Set(discovered.map((model) => model.toLowerCase()))
   const selected = modelFor(s, concrete)
   const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
   const models = [...new Set([...selectedPart, ...discovered, ...(strictDiscovered ? [] : staticDefaults)].filter(Boolean))]
-  const catalogLabel = concrete === 'ALBORIHI'
+  const catalogLabel = isCustomTextAiProviderId(concrete) ? 'نموذج مجاني مؤكد' : concrete === 'ALBORIHI'
     ? 'نموذج مسموح للمفتاح'
     : concrete === 'TOPTOOLS'
       ? 'نموذج متاح'
@@ -2563,7 +2832,8 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): 
         await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
       } catch (e: any) {
         const status = Number(e?.status || e?.code || 0) || undefined
-        const error = redactSecrets(e?.message || e).slice(0, 240)
+        const raw = String(e?.message || e)
+        const error = redactSecrets(isCustomTextAiProviderId(provider) && key ? raw.split(key).join('[redacted]') : raw).slice(0, 240)
         console.warn('[ai-health] check failed', { provider, model, status, error: error.slice(0, 120) })
         const result = { provider, model, ok: false, latencyMs: Date.now() - started, status, error }
         results.push(result)
@@ -2575,6 +2845,10 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): 
 }
 
 export async function textAiModelHealthSnapshot(): Promise<Array<{ provider: string; model: string; status: string; health?: ModelHealth | null; stats?: ModelStats | null; purposeScores?: Record<string, number> }>> {
+  // Keep historical stats in storage, but don't list deleted custom providers
+  // as live/healthy models in the administrator's model-health view.
+  const registry = await settingStore().read([CUSTOM_AI_PROVIDERS_SETTING])
+  const registeredCustomIds = new Set(parseCustomTextAiProviders(registry[CUSTOM_AI_PROVIDERS_SETTING]).map((entry) => entry.id))
   const rows = await settingStore().scan?.('AI_MODEL_') || {}
   const models = new Map<string, { provider: string; model: string; status?: string; health?: ModelHealth | null; stats?: ModelStats | null; purposeScores?: Record<string, number> }>()
   const ensure = (provider: string, model: string) => {
@@ -2600,13 +2874,16 @@ export async function textAiModelHealthSnapshot(): Promise<Array<{ provider: str
       ensure(provider, modelParts.join(':')).status = 'ميت'
     }
   }
-  return [...models.values()].map((row) => ({ ...row, status: row.status || (recentFailedHealth(row.health || null) ? 'فشل الفحص' : 'شغّال') }))
+  return [...models.values()]
+    .filter((row) => !isCustomTextAiProviderId(row.provider) || registeredCustomIds.has(row.provider))
+    .map((row) => ({ ...row, status: row.status || (recentFailedHealth(row.health || null) ? 'فشل الفحص' : 'شغّال') }))
 }
 
 export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
   const s = await settings()
   const order = providerOrder(s)
   const counts: Record<string, number> = {
+    ...Object.fromEntries((s.customProviders || []).map((entry) => [entry.id, s.customProviderKeys?.[entry.id]?.length || 0])),
     GEMINI: s.geminiKeys.length,
     OPENAI: s.openaiKeys.length,
     ANTHROPIC: s.anthropicKeys.length,
@@ -2765,8 +3042,12 @@ function attachmentIncludesPdf(attachments?: TextAiAttachment[]) {
   return (attachments || []).some((item) => item.mimeType === 'application/pdf')
 }
 
-function providerSupportsVisionAttachments(provider: ConcreteProvider) {
+function providerSupportsVisionAttachments(provider: ConcreteProvider, capability?: ModelCapability | null) {
+  // The built-in vision allowlists are unchanged. A custom OpenAI-compatible
+  // gateway is eligible ONLY if its live /models metadata confirms image input.
   return VISION_NATIVE_PROVIDERS.has(provider) || VISION_OPENAI_COMPAT_PROVIDERS.has(provider)
+    || (isCustomTextAiProviderId(provider) && capability?.modalities?.some((modality) =>
+      /image|vision|multimodal|input_image|image_url/.test(modality)) === true)
 }
 
 // Haris's vision queue (2026-10-30 ruling): for attachment calls, GEMINI
@@ -2784,7 +3065,7 @@ function visionPriorityOrder(providers: ConcreteProvider[]): ConcreteProvider[] 
 
 function modelSupportsVisionAttachment(provider: ConcreteProvider, model: string, capability: ModelCapability | null, attachments: TextAiAttachment[]): boolean {
   if (!attachments.length) return true
-  if (!providerSupportsVisionAttachments(provider)) return false
+  if (!providerSupportsVisionAttachments(provider, capability)) return false
   if (provider === 'ALBORIHI' && !capability) return false
   const id = model.toLowerCase()
   const modalities = (capability?.modalities || []).join(' ').toLowerCase()
@@ -2792,6 +3073,8 @@ function modelSupportsVisionAttachment(provider: ConcreteProvider, model: string
   if (!vision) return false
   if (attachmentIncludesPdf(attachments)) {
     if (provider === 'ALBORIHI') return false
+    // Never assume a model can handle documents merely from a familiar name.
+    if (isCustomTextAiProviderId(provider)) return /pdf|document|file/.test(modalities)
     return /pdf|document|file|gemini|claude|gpt-4o|gpt-5|auto/.test(`${id} ${modalities}`)
   }
   return true
@@ -3162,8 +3445,10 @@ export function __testChatCompletionVisibleTextForTests(message: any): string {
 
 async function callChatCompletions(provider: string, baseUrl: string, key: string, model: string, opts: TextAiCallOpts): Promise<string> {
   const providerOpts = withNvidiaNoThinkDirective(provider, baseUrl, model, opts)
+  if (isCustomTextAiProviderId(provider)) await assertPublicCustomTextAiUrl(baseUrl)
   const response = await fetchWithTimeout(provider, `${baseUrl}/chat/completions`, {
     method: 'POST',
+    ...(isCustomTextAiProviderId(provider) ? { redirect: 'error' as const } : {}),
     headers: {
       Authorization: `Bearer ${key}`,
       'Content-Type': 'application/json',
@@ -3646,7 +3931,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const preferredProviders = [...new Set([...(effectiveOpts.preferredProviders || []).filter(Boolean), ...preferredModelProviders])]
   const baseOrderedProviders = providerOrder(s, taskLevel)
     .filter((provider) => !excluded.has(provider))
-    .filter((provider) => !visionCall || providerSupportsVisionAttachments(provider))
+    .filter((provider) => !visionCall || isCustomTextAiProviderId(provider) || providerSupportsVisionAttachments(provider))
   const visionOrderedProviders = visionCall ? visionPriorityOrder(baseOrderedProviders) : baseOrderedProviders
   const orderedProviders = preferredProviders.length
     ? [...visionOrderedProviders].sort((a, b) => {
@@ -3844,9 +4129,13 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         } catch (e: any) {
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          const msg = redactSecrets(e?.message || e).slice(0, 240)
+          const rawError = String(e?.message || e)
+          const msg = redactSecrets(isCustomTextAiProviderId(provider) && currentKey ? rawError.split(currentKey).join('[redacted]') : rawError).slice(0, 240)
           const status = statusFromError(e)
-          const requestId = requestIdFromError(e)
+          const rawRequestId = requestIdFromError(e)
+          const requestId = rawRequestId
+            ? __testRedactCustomTextAiErrorForTests(provider, currentKey, rawRequestId).slice(0, 120)
+            : undefined
           lastResult = { provider, model, ok: false, error: msg, at }
           const attempt = { provider, model, keyIndex, ok: false, ms, status, error: msg, ...(requestId ? { requestId } : {}), at }
           attempts.push(attempt)
@@ -3980,6 +4269,15 @@ export async function* textAiStreamText(opts: TextAiCallOpts): AsyncGenerator<st
   yield await textAiComplete(opts)
 }
 
+// Provider-controlled error messages may echo an API key, including keys
+// that do not match the generic secret patterns. Scrub the exact custom key
+// before truncating, recording, or returning diagnostic text.
+export function __testRedactCustomTextAiErrorForTests(provider: string, key: string, message: string): string {
+  const raw = String(message || '')
+  if (!isCustomTextAiProviderId(provider) || !key) return raw
+  return redactSecrets(raw.split(key).join('[redacted]'))
+}
+
 export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: string; model?: string; reply?: string; error?: string; nvidiaDiscovery?: { count: number; selected: string[] } }> {
   const s = await settings()
   const providers = providerOrder(s)
@@ -4006,9 +4304,12 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
         } catch (e: any) {
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          const msg = String(e?.message || e).slice(0, 260)
+          const msg = __testRedactCustomTextAiErrorForTests(provider, key, String(e?.message || e)).slice(0, 260)
           const status = statusFromError(e)
-          const requestId = requestIdFromError(e)
+          const rawRequestId = requestIdFromError(e)
+          const requestId = rawRequestId
+            ? __testRedactCustomTextAiErrorForTests(provider, key, rawRequestId).slice(0, 120)
+            : undefined
           lastResult = { provider, model, ok: false, error: msg, at }
           recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, ...(requestId ? { requestId } : {}), at })
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import type { PipelineStageName } from '@/lib/ai-pipeline-log'
+import { CUSTOM_AI_PROVIDERS_SETTING, parseCustomTextAiProviders } from '@/lib/text-ai'
 
 // D1 — تخزين بروفايلات المراحل مع ترقيم نسخ لا يُكتب فوقه.
 // قواعد ملزمة من تصميم المرحلة:
@@ -78,7 +79,7 @@ export function stageProfileModelCount(snapshot: StageProfileSnapshot): number {
 }
 
 export type EffectiveStageProfile =
-  | { kind: 'stage'; profileId: string; version: number; snapshot: StageProfileSnapshot }
+  | { kind: 'stage'; profileId: string; version: number; snapshot: StageProfileSnapshot; allowedCustomProviders?: string[] }
   | { kind: 'global'; reason: 'missing' | 'disabled' | 'empty-models' }
 
 // حسم البروفايل الفعّال لمرحلة: بروفايل المرحلة أو الرجوع للعام مع السبب.
@@ -99,6 +100,31 @@ export const KNOWN_AI_PROVIDERS = [
   'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI',
   'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION',
 ] as const
+
+// Use the same registered providers as the main AI router. Custom providers
+// appear in every stage selector only while enabled; no built-in list changes.
+export async function availableStageAiProviders(): Promise<string[]> {
+  const row = await db.setting.findUnique({
+    where: { key: CUSTOM_AI_PROVIDERS_SETTING },
+    select: { value: true },
+  })
+  const custom = parseCustomTextAiProviders(row?.value || '')
+    .filter((item) => item.enabled)
+    .map((item) => item.id)
+  return [...KNOWN_AI_PROVIDERS, ...custom]
+}
+
+export function validateStageProviderChoices(snapshot: StageProfileSnapshot, providers: readonly string[]): void {
+  const allowed = new Set(providers)
+  const check = (provider: string | null | undefined, field: string) => {
+    if (provider && !allowed.has(provider.trim().toUpperCase())) {
+      throw new StageProfileValidationError(`${field}: مزوّد غير معروف أو معطّل (${provider})`)
+    }
+  }
+  check(snapshot.provider, 'provider')
+  for (const item of snapshot.models) check(item.provider, 'models')
+  for (const item of snapshot.verifier?.preferred || []) check(item.provider, 'verifier.preferred')
+}
 
 export type StageRoutingOverrides =
   | { kind: 'global'; reason: 'missing' | 'disabled' | 'empty-models' }
@@ -134,20 +160,24 @@ export function buildStageRoutingOverrides(resolution: EffectiveStageProfile): S
       preferred: original.verifier.preferred.map(normalizeRef),
     } : null,
   }
+  const availableProviders = new Set<string>([
+    ...KNOWN_AI_PROVIDERS,
+    ...(resolution.allowedCustomProviders || []),
+  ])
   if (snapshot.policy != null && !(KNOWN_ROUTER_POLICIES as readonly string[]).includes(snapshot.policy)) {
     return { kind: 'invalid', reason: `unknown policy: ${snapshot.policy}` }
   }
-  if (snapshot.provider != null && !(KNOWN_AI_PROVIDERS as readonly string[]).includes(snapshot.provider)) {
+  if (snapshot.provider != null && !availableProviders.has(snapshot.provider)) {
     return { kind: 'invalid', reason: `unknown provider: ${snapshot.provider}` }
   }
   for (const ref of snapshot.models) {
-    if (!(KNOWN_AI_PROVIDERS as readonly string[]).includes(ref.provider)) {
+    if (!availableProviders.has(ref.provider)) {
       return { kind: 'invalid', reason: `unknown provider in models: ${ref.provider}` }
     }
   }
   if (snapshot.verifier) {
     for (const ref of snapshot.verifier.preferred) {
-      if (!(KNOWN_AI_PROVIDERS as readonly string[]).includes(ref.provider)) {
+      if (!availableProviders.has(ref.provider)) {
         return { kind: 'invalid', reason: `unknown provider in verifier: ${ref.provider}` }
       }
     }
@@ -217,7 +247,21 @@ export async function getCurrentStageProfile(stage: PipelineStageName) {
 }
 
 export async function resolveEffectiveStageProfile(stage: PipelineStageName): Promise<EffectiveStageProfile> {
-  return resolveEffectiveFromSnapshot(await store.loadCurrent(stage))
+  const resolution = resolveEffectiveFromSnapshot(await store.loadCurrent(stage))
+  if (resolution.kind !== 'stage') return resolution
+  const snapshot = resolution.snapshot
+  const configuredProviders = [
+    snapshot.provider,
+    ...snapshot.models.map((ref) => ref.provider),
+    ...(snapshot.verifier?.preferred || []).map((ref) => ref.provider),
+  ]
+  // No additional query or routing change for existing built-in profiles.
+  if (!configuredProviders.some((provider) => /^CUSTOM_/i.test(provider || ''))) return resolution
+  const activeProviders = await availableStageAiProviders()
+  return {
+    ...resolution,
+    allowedCustomProviders: activeProviders.filter((provider) => provider.startsWith('CUSTOM_')),
+  }
 }
 
 // حفظ بروفايل مرحلة = إنشاء نسخة جديدة وإزاحة المؤشر إليها. لا يُلمس أي

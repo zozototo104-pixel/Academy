@@ -221,7 +221,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
     setDeleteReason('')
     setConfirm({
       title: 'حذف اللقاء',
-      message: `حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده ويُفصل عنه أي فيديو مرتبط، ولن تتأثر الفيديوهات نفسها. لا يمكن استعادة اللقاء بعد الحذف.`,
+      message: `حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده وسجلات حضوره المرتبطة، ويُفصل عنه أي فيديو مرتبط دون حذف الفيديو نفسه. سيُسجّل سبب الحذف ونسخة من بيانات الحضور في سجل التدقيق. لا يمكن استعادة اللقاء بعد الحذف.`,
       attendanceCount: s._count.attendances,
       run: async (reason: string) => {
         await act(async () => {
@@ -435,7 +435,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                     {surface === 'admin' && (
                       <Button variant="ghost" size="sm" className="text-red-700"
                         disabled={busy}
-                        title={s._count.attendances > 0 ? 'عرض سبب منع الحذف عند وجود سجل حضور' : 'حذف اللقاء بعد كتابة السبب وتأكيده'}
+                        title={s._count.attendances > 0 ? 'حذف اللقاء وسجلات حضوره بعد تأكيد الإدارة وكتابة السبب' : 'حذف اللقاء بعد كتابة السبب وتأكيده'}
                         onClick={() => askDeleteSession(s)}>
                         <Trash2 className="ml-1 h-4 w-4" /> حذف
                       </Button>
@@ -794,24 +794,23 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
               <DialogTitle>{confirm.title}</DialogTitle>
             </DialogHeader>
             <p className="text-sm leading-6 text-slate-600">{confirm.message}</p>
-            {confirm.attendanceCount > 0 ? (
+            {confirm.attendanceCount > 0 && (
               <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
-                لا يمكن حذف هذا اللقاء لأن فيه {confirm.attendanceCount} سجل حضور. حفاظًا على السجل الأكاديمي، يمكن للإدارة إلغاء اللقاء بدل حذفه.
+                تنبيه: سيتم حذف {confirm.attendanceCount} سجل حضور مرتبط بهذا اللقاء من سجلات الحضور. ستبقى نسخة موثقة من تفاصيل الحضور وسبب الحذف في سجل تدقيق الإدارة، لكن اللقاء وسجلات حضوره لن تعود ظاهرة بعد الحذف.
               </p>
-            ) : (
-              <div className="space-y-1">
-                <label htmlFor="lecture-delete-reason" className={labelClass}>سبب حذف اللقاء (إجباري، 10 أحرف على الأقل)</label>
-                <Textarea id="lecture-delete-reason" value={deleteReason} maxLength={500}
-                  onChange={(e) => setDeleteReason(e.target.value)}
-                  placeholder="اكتب سبب الحذف لتوثيقه في سجل التدقيق" />
-              </div>
             )}
+            <div className="space-y-1">
+              <label htmlFor="lecture-delete-reason" className={labelClass}>سبب حذف اللقاء (إجباري، 10 أحرف على الأقل)</label>
+              <Textarea id="lecture-delete-reason" value={deleteReason} maxLength={500}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                placeholder="اكتب سبب الحذف لتوثيقه في سجل التدقيق" />
+            </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setConfirm(null); setDeleteReason('') }}>
                 تراجع
               </Button>
               <Button variant="destructive"
-                disabled={busy || confirm.attendanceCount > 0 || deleteReason.trim().length < 10}
+                disabled={busy || deleteReason.trim().length < 10}
                 onClick={() => {
                   const run = confirm.run
                   const reason = deleteReason.trim()

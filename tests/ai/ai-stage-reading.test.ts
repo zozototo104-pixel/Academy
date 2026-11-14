@@ -1,12 +1,18 @@
 import { describe, expect, mock, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
+import { PDFDocument } from 'pdf-lib'
 
+let visionRouterCall: (opts: any) => Promise<{ text: string; provider: string; model: string }> =
+  async () => { throw new Error('VISION_MOCK_NOT_CONFIGURED') }
 mock.module('@/lib/db', () => ({ db: { aiPipelineOperationLog: { create: async () => ({}) } } }))
 mock.module('@/lib/text-ai', () => ({
   pipelineConfigSnapshot: async () => ({ policy: 'balanced', allowedModels: ['GEMINI:g'], verifierPreferred: [] }),
+  CUSTOM_AI_PROVIDERS_SETTING: 'AI_CUSTOM_PROVIDERS',
+  parseCustomTextAiProviders: () => [],
+  textAiCompleteJsonWithMetadata: async (opts: any) => visionRouterCall(opts),
 }))
 
-const { buildStageRoutingOverrides, validateStageProfileSnapshot } = await import('@/lib/ai-stage-profiles')
+const { buildStageRoutingOverrides, validateStageProfileSnapshot, __setStageProfileStoreForTests } = await import('@/lib/ai-stage-profiles')
 const { __setPipelineLogDepsForTests, recordPipelineOperation } = await import('@/lib/ai-pipeline-log')
 
 function stageResolution(snapshotRaw: Record<string, unknown>, stage: 'READING' | 'REVIEW' = 'READING') {
@@ -154,5 +160,196 @@ describe('D2.1 reading wiring: scope guards', () => {
     expect(router).toContain('restrictToModels?: TextAiPreferredModel[]')
     expect(router).toContain('applyModelRestriction(')
     expect(router).toContain('restrictSet.has(provider)')
+  })
+})
+
+describe('legacy book readers: profile rescue only after failure', () => {
+  function configureReadingProfile(enabled: boolean) {
+    __setStageProfileStoreForTests({
+      loadCurrent: async () => ({
+        profileId: 'reader-rescue',
+        version: 6,
+        snapshot: validateStageProfileSnapshot('READING', {
+          enabled,
+          provider: 'OPENAI',
+          policy: 'primary_first',
+          models: [{ provider: 'OPENAI', model: 'gpt-4o' }],
+          allowGlobalFallback: true,
+        }),
+      }),
+      saveVersion: async () => { throw new Error('NOT_USED') },
+      loadVersions: async () => [],
+    })
+  }
+
+  test('outline OCR keeps a successful original router call, without consulting stage models', async () => {
+    const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
+    configureReadingProfile(true)
+    const pdf = await PDFDocument.create()
+    pdf.addPage([300, 400])
+    const calls: any[] = []
+    visionRouterCall = async (opts) => {
+      calls.push(opts)
+      return { provider: 'GEMINI', model: 'original', text: JSON.stringify({ pages: [{ page: 1, text: 'النص الأصلي المقروء' }] }) }
+    }
+    try {
+      const pages = await transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1])
+      expect(pages[0].text).toBe('النص الأصلي المقروء')
+      expect(calls).toHaveLength(1)
+      expect(calls[0].restrictToModels).toBeUndefined()
+    } finally {
+      __setStageProfileStoreForTests(null)
+    }
+  })
+
+  test('429 quota failure retries exactly the original source pages through READING profile', async () => {
+    const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
+    configureReadingProfile(true)
+    const pdf = await PDFDocument.create()
+    pdf.addPage([300, 400])
+    pdf.addPage([300, 400])
+    pdf.addPage([300, 400])
+    const calls: any[] = []
+    visionRouterCall = async (opts) => {
+      calls.push(opts)
+      if (calls.length === 1) throw Object.assign(new Error('429 quota exhausted'), { status: 429 })
+      return {
+        provider: 'OPENAI',
+        model: 'gpt-4o',
+        text: JSON.stringify({ pages: [
+          { page: 1, text: 'النص المستعاد للصفحة الثانية' },
+          { page: 2, text: 'النص المستعاد للصفحة الثالثة' },
+        ] }),
+      }
+    }
+    try {
+      const pages = await transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [2, 3])
+      expect(pages.map((page) => [page.page, page.text])).toEqual([
+        [2, 'النص المستعاد للصفحة الثانية'],
+        [3, 'النص المستعاد للصفحة الثالثة'],
+      ])
+      expect(calls).toHaveLength(2)
+      expect(calls[0].restrictToModels).toBeUndefined()
+      expect(calls[1].restrictToModels).toEqual([{ provider: 'OPENAI', model: 'gpt-4o' }])
+      expect(calls[1].attachments.map((attachment: any) => attachment.mimeType)).toEqual(['application/pdf'])
+      const sentSubset = await PDFDocument.load(Buffer.from(calls[1].attachments[0].base64, 'base64'))
+      expect(sentSubset.getPageCount()).toBe(2)
+    } finally {
+      __setStageProfileStoreForTests(null)
+    }
+  })
+
+  test('empty original OCR activates the configured READING rescue on the same PDF page', async () => {
+    const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
+    configureReadingProfile(true)
+    const pdf = await PDFDocument.create()
+    pdf.addPage([300, 400])
+    const calls: any[] = []
+    visionRouterCall = async (opts) => {
+      calls.push(opts)
+      return calls.length === 1
+        ? { provider: 'GEMINI', model: 'original', text: JSON.stringify({ pages: [{ page: 1, text: '   ' }] }) }
+        : { provider: 'OPENAI', model: 'gpt-4o', text: JSON.stringify({ pages: [{ page: 1, text: 'نص الصفحة المقروءة من الإنقاذ' }] }) }
+    }
+    try {
+      const pages = await transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1])
+      expect(pages.map((page) => [page.page, page.text])).toEqual([
+        [1, 'نص الصفحة المقروءة من الإنقاذ'],
+      ])
+      expect(calls).toHaveLength(2)
+      expect(calls[0].restrictToModels).toBeUndefined()
+      expect(calls[1].restrictToModels).toEqual([{ provider: 'OPENAI', model: 'gpt-4o' }])
+    } finally {
+      __setStageProfileStoreForTests(null)
+    }
+  })
+
+  test('empty rescue OCR is rejected and never reported as a successful read', async () => {
+    const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
+    configureReadingProfile(true)
+    const pdf = await PDFDocument.create()
+    pdf.addPage([300, 400])
+    const calls: any[] = []
+    visionRouterCall = async (opts) => {
+      calls.push(opts)
+      if (calls.length === 1) throw Object.assign(new Error('429 primary quota exhausted'), { status: 429 })
+      return { provider: 'OPENAI', model: 'gpt-4o', text: JSON.stringify({ pages: [{ page: 1, text: '  ' }] }) }
+    }
+    try {
+      await expect(transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1]))
+        .rejects.toThrow('429 primary quota exhausted')
+      expect(calls).toHaveLength(2)
+      expect(calls[1].restrictToModels).toEqual([{ provider: 'OPENAI', model: 'gpt-4o' }])
+    } finally {
+      __setStageProfileStoreForTests(null)
+    }
+  })
+
+  test('two empty OCR attempts retain the original explicit unreadable error', async () => {
+    const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
+    configureReadingProfile(true)
+    const pdf = await PDFDocument.create()
+    pdf.addPage([300, 400])
+    let calls = 0
+    visionRouterCall = async () => {
+      calls++
+      return { provider: 'GEMINI', model: 'empty', text: JSON.stringify({ pages: [{ page: 1, text: '' }] }) }
+    }
+    try {
+      await expect(transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1]))
+        .rejects.toThrow('BOOK_OUTLINE_OCR_EMPTY_RESPONSE')
+      expect(calls).toBe(2)
+    } finally {
+      __setStageProfileStoreForTests(null)
+    }
+  })
+
+  test('disabled READING profile preserves the historical failure, without retry', async () => {
+    const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
+    configureReadingProfile(false)
+    const pdf = await PDFDocument.create()
+    pdf.addPage([300, 400])
+    let calls = 0
+    visionRouterCall = async () => { calls++; throw new Error('primary quota exhausted') }
+    try {
+      await expect(transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1])).rejects.toThrow('primary quota exhausted')
+      expect(calls).toBe(1)
+    } finally {
+      __setStageProfileStoreForTests(null)
+    }
+  })
+
+  test('original document vision rescue is a restricted, opt-in model call', async () => {
+    const { rescueOriginalBookVisionWithReadingProfile } = await import('@/lib/book-reader')
+    configureReadingProfile(true)
+    const calls: any[] = []
+    visionRouterCall = async (opts) => {
+      calls.push(opts)
+      const text = '{"textContent":"محتوى الكتاب"}'
+      opts.validate?.(text)
+      return { provider: 'OPENAI', model: 'gpt-4o', text }
+    }
+    try {
+      const rescued = await rescueOriginalBookVisionWithReadingProfile({
+        buffer: Buffer.from('image-bytes'), mimeType: 'image/png', prompt: 'انسخ النص', maxOutputTokens: 1024,
+      })
+      expect(rescued?.provider).toBe('OPENAI')
+      expect(calls).toHaveLength(1)
+      expect(calls[0].attachments[0].mimeType).toBe('image/png')
+      expect(calls[0].restrictToModels).toEqual([{ provider: 'OPENAI', model: 'gpt-4o' }])
+    } finally {
+      __setStageProfileStoreForTests(null)
+    }
+  })
+
+  test('knowledge rebuild only accesses the reading/analysis profiles on legacy failures', () => {
+    const content = readFileSync('src/lib/book-content.ts', 'utf8')
+    const knowledge = readFileSync('src/lib/knowledge-bank.ts', 'utf8')
+    const reader = readFileSync('src/lib/book-reader.ts', 'utf8')
+    expect(content.indexOf('const visual = await readVisualDocumentWithGemini')).toBeLessThan(content.indexOf('rescueOriginalBookVisionWithReadingProfile'))
+    expect(knowledge.indexOf('geminiVisionJson({', knowledge.indexOf('async function aiKnowledgeItemsFromUploadedFile'))).toBeLessThan(knowledge.indexOf('rescueOriginalBookVisionWithReadingProfile', knowledge.indexOf('async function aiKnowledgeItemsFromUploadedFile')))
+    expect(knowledge).toContain("await prepareStageRun('ANALYSIS')")
+    expect(knowledge).toContain('restrictToModels: models')
+    expect(reader).toContain('allowGlobalFallback: false')
   })
 })

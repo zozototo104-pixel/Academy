@@ -917,11 +917,47 @@ ${sample}
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_ROUTER_TIMEOUT')), 36000)),
     ])
     const normalized = normalizeDrafts(extractJsonArray(raw), [], semester)
-    return hasBalancedKnowledgeShape(normalized) ? normalized : null
+    if (hasBalancedKnowledgeShape(normalized)) return normalized
   } catch (e: any) {
     console.error('aiKnowledgeItems all providers failed:', String(e?.message || e).slice(0, 300))
-    return null
   }
+
+  // Rescue this older text-analysis path only after BOTH its current Gemini
+  // and global-router attempts failed. An inactive profile changes nothing.
+  try {
+    const { prepareStageRun } = await import('@/lib/ai-stage-runner')
+    const plan = await prepareStageRun('ANALYSIS')
+    if (plan.routing?.preferredModels.length) {
+      const models = plan.routing.preferredModels.map((item) => ({
+        provider: item.provider as import('@/lib/text-ai').TextAiPreferredModel['provider'],
+        model: item.model,
+      }))
+      const raw = await Promise.race([
+        textAiCompleteJson({
+          system: 'أنت محلل مناهج جامعية يرجع JSON صالحاً فقط.',
+          history: [{ role: 'user', text: prompt }],
+          purpose: 'ANALYSIS',
+          taskLevel: 'ACADEMIC_DRAFT',
+          taskType: 'BOOK_KNOWLEDGE_STAGE_RESCUE',
+          temperature: 0.08,
+          maxOutputTokens: 12288,
+          preferredModels: models,
+          restrictToModels: models,
+          ...(plan.routing.preferredProviders.length ? { preferredProviders: plan.routing.preferredProviders as import('@/lib/text-ai').TextAiProvider[] } : {}),
+          ...(plan.routing.policy ? { routerPolicy: plan.routing.policy as import('@/lib/text-ai').TextAiRouterPolicy } : {}),
+          validate: (text) => {
+            if (!hasBalancedKnowledgeShape(normalizeDrafts(extractJsonArray(text), [], semester))) throw new Error('BOOK_ANALYSIS_PROFILE_UNUSABLE')
+          },
+        }),
+        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_STAGE_ROUTER_TIMEOUT')), 36000)),
+      ])
+      const normalized = normalizeDrafts(extractJsonArray(raw), [], semester)
+      if (hasBalancedKnowledgeShape(normalized)) return normalized
+    }
+  } catch (error) {
+    console.warn('Book knowledge analysis profile rescue failed:', String(error instanceof Error ? error.message : error).slice(0, 300))
+  }
+  return null
 }
 
 function bookMimeForVision(book: RawBookForHydration) {
@@ -1011,11 +1047,41 @@ async function aiKnowledgeItemsFromUploadedFile(
       ...item,
       sourceNote: appendTextProvenanceNote(item.sourceNote || 'قراءة مباشرة من ملف الكتاب المرفوع عبر الذكاء البصري', 'VISION_DESCRIPTION'),
     }))
-    return hasBalancedKnowledgeShape(normalized) ? normalized : null
+    if (hasBalancedKnowledgeShape(normalized)) return normalized
   } catch (e: any) {
-    console.error('aiKnowledgeItemsFromUploadedFile failed:', String(e?.message || e).slice(0, 240))
-    return null
+    console.error('aiKnowledgeItemsFromUploadedFile primary vision failed:', String(e?.message || e).slice(0, 240))
   }
+  // The existing direct-file reader, prompt and validation are the primary.
+  // Only if it cannot produce acceptable items may a qualified READING-stage
+  // model inspect the SAME uploaded file; never synthesize from book metadata.
+  try {
+    const { rescueOriginalBookVisionWithReadingProfile } = await import('@/lib/book-reader')
+    const normalizeRescue = (raw: string) => normalizeDrafts(extractJsonArray(raw), [], semester).map((item) => ({
+      ...item,
+      sourceNote: appendTextProvenanceNote(item.sourceNote || 'قراءة مباشرة من ملف الكتاب المرفوع عبر الذكاء البصري', 'VISION_DESCRIPTION'),
+    }))
+    const rescued = await rescueOriginalBookVisionWithReadingProfile({
+      buffer: storedFile.buffer,
+      mimeType,
+      prompt,
+      temperature: 0.08,
+      maxOutputTokens: 12288,
+      validate: (response) => {
+        if (!hasBalancedKnowledgeShape(normalizeRescue(response))) {
+          throw new Error('BOOK_READING_PROFILE_KNOWLEDGE_UNUSABLE')
+        }
+      },
+    })
+    if (rescued) {
+      return normalizeRescue(rescued.text).map((item) => ({
+        ...item,
+        sourceNote: `${item.sourceNote || 'قراءة مباشرة من الملف'} — استكمال القراءة عبر ${rescued.provider}/${rescued.model}`,
+      }))
+    }
+  } catch (error) {
+    console.warn('Book knowledge direct-file reading rescue failed:', String(error instanceof Error ? error.message : error).slice(0,240))
+  }
+  return null
 }
 
 async function aiMetadataKnowledgeItems(
@@ -1508,6 +1574,45 @@ ${unitText}
     return normalized
   } catch (e: any) {
     console.error(`knowledge unit ${unit.index + 1} provider router failed:`, String(e?.message || e).slice(0, 420))
+    // Keep the historical academic router primary. A failed unit analysis
+    // may use the enabled ANALYSIS profile, but never restart reading, skip
+    // evidence validation or change already-saved successful units.
+    try {
+      const { prepareStageRun } = await import('@/lib/ai-stage-runner')
+      const plan = await prepareStageRun('ANALYSIS')
+      if (plan.routing?.preferredModels.length) {
+        const models = plan.routing.preferredModels.map((item) => ({
+          provider: item.provider as import('@/lib/text-ai').TextAiPreferredModel['provider'],
+          model: item.model,
+        }))
+        const raw = await Promise.race([
+          textAiCompleteJson({
+            system: 'أنت محلل كتب جامعية. أرجع JSON صالحاً فقط، ولا تؤلف أي عنصر غير موجود في نص الوحدة. إذا كان جزء داخل الوحدة غير مفهوم فتجاوزه وأكمل بقية الوحدة.',
+            history: [{ role: 'user', text: prompt }],
+            temperature: 0.05,
+            maxOutputTokens: 8192,
+            taskLevel: 'ACADEMIC_CRITICAL',
+            purpose: 'ANALYSIS',
+            preferredModels: models,
+            restrictToModels: models,
+            ...(plan.routing.preferredProviders.length ? { preferredProviders: plan.routing.preferredProviders as import('@/lib/text-ai').TextAiProvider[] } : {}),
+            ...(plan.routing.policy ? { routerPolicy: plan.routing.policy as import('@/lib/text-ai').TextAiRouterPolicy } : {}),
+            validate: (text) => {
+              if (!normalizeUnitItems(text).length) {
+                const error: any = new Error('AI_KNOWLEDGE_EMPTY_OUTPUT')
+                error.code = 'VALIDATION_REJECTED'
+                throw error
+              }
+            },
+          }),
+          new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_UNIT_STAGE_TIMEOUT')), UNIT_ANALYSIS_TIMEOUT_MS)),
+        ])
+        const items = normalizeUnitItems(raw)
+        if (items.length) return items
+      }
+    } catch (stageError) {
+      console.error(`knowledge unit ${unit.index + 1} analysis-profile rescue failed:`, String(stageError instanceof Error ? stageError.message : stageError).slice(0, 300))
+    }
     if (e?.code === 'AI_ACADEMIC_PROVIDER_UNAVAILABLE') throw e
     const err: any = new Error('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
     err.code = 'AI_ACADEMIC_PROVIDER_UNAVAILABLE'

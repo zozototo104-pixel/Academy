@@ -5636,6 +5636,7 @@ export function AdminKnowledgeAiRepairTab() {
   const [busy, setBusy] = useState(false)
   const [repairConfigLoaded, setRepairConfigLoaded] = useState(false)
   const [repairProvider, setRepairProvider] = useState('AUTO')
+  const [repairCustomProviders, setRepairCustomProviders] = useState<Array<{ id: string; name: string; enabled: boolean }>>([])
   const [repairModel, setRepairModel] = useState('')
   const [repairInterval, setRepairInterval] = useState('0')
   const [repairCallsPerRun, setRepairCallsPerRun] = useState('1')
@@ -5649,9 +5650,10 @@ export function AdminKnowledgeAiRepairTab() {
 
   useEffect(() => {
     let active = true
-    api<{ values: Record<string, string> }>('/api/admin/system')
+    api<{ values: Record<string, string>; customProviders?: Array<{ id: string; name: string; enabled: boolean }> }>('/api/admin/system')
       .then((result) => {
         if (!active) return
+        setRepairCustomProviders(result.customProviders || [])
         setRepairProvider(result.values.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO')
         setRepairModel(result.values.AI_KNOWLEDGE_REPAIR_MODEL || '')
         setRepairInterval(result.values.AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS || '0')
@@ -5746,7 +5748,11 @@ export function AdminKnowledgeAiRepairTab() {
               <Select value={repairProvider} onValueChange={(v) => { setRepairProvider(v); setRepairModel(''); setRepairModels([]) }}>
                 <SelectTrigger className="w-full min-w-0 bg-white" dir="ltr"><SelectValue placeholder="اختر المزوّد" /></SelectTrigger>
                 <SelectContent>
-                  {[...TEXT_PROVIDER_CHOICES.filter((p) => p.value === 'AUTO'), ...TEXT_PROVIDER_CHOICES.filter((p) => p.value !== 'AUTO')].map((p) => (
+                  {[
+                    ...TEXT_PROVIDER_CHOICES.filter((p) => p.value === 'AUTO'),
+                    ...TEXT_PROVIDER_CHOICES.filter((p) => p.value !== 'AUTO'),
+                    ...repairCustomProviders.filter((p) => p.enabled).map((p) => ({ value: p.id, label: `${p.name} — مزوّد مضاف من الإدارة` })),
+                  ].map((p) => (
                     <SelectItem key={p.value} value={p.value} dir="ltr">{p.label}</SelectItem>
                   ))}
                 </SelectContent>

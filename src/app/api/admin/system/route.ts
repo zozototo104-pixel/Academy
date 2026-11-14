@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse as UnsafeNextResponse } from 'next/server'
+import { randomUUID } from 'node:crypto'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
@@ -6,7 +8,7 @@ import { sendEmail, getSmtpConfig, emailTemplate } from '@/lib/mailer'
 import { ensureGeminiKey, hasGemini, invalidateGeminiKeyCache, normalizeGeminiModelName, geminiActiveLiveModel, isValidGeminiLiveModel, geminiApiKey, isQuotaError, isAuthError, isModelUnavailableError, isInvalidArgumentError, geminiKeyDiagnostics, geminiTestConnection } from '@/lib/gemini'
 import { localAgentDiagnostics, testLocalAgentConnection } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
-import { clearTextAiRouterState, textAiCheckAllModelHealth, textAiDiagnostics, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiRouterStateSnapshot, textAiTestConnection } from '@/lib/text-ai'
+import { assertPublicCustomTextAiUrl, forgetCustomTextAiProviderRuntimeState, CUSTOM_AI_PROVIDERS_SETTING, CUSTOM_AI_PROVIDER_REFERENCE_KEYS, customTextAiKeySetting, isCustomTextAiProviderId, parseCustomTextAiProviders, settingsAfterCustomTextAiProviderDeletion, refreshCustomTextAiFreeModels, clearTextAiRouterState, textAiCheckAllModelHealth, textAiDiagnostics, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiRouterStateSnapshot, textAiTestConnection } from '@/lib/text-ai'
 import { clearSecretCache, decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret, isMaskedSecret, isSecretKeyName, redactDeep, redactSecrets, secretLast4 } from '@/lib/secret-crypto'
 
 const NextResponse = {
@@ -87,18 +89,18 @@ function shouldEncryptSystemKey(key: string) {
 
 const TEXT_AI_MODEL_SETTING_PROVIDERS = new Set(['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'ALBORIHI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT'])
 
-function isValidTextAiProviderModelSettingItem(item: string): boolean {
+function isValidTextAiProviderModelSettingItem(item: string, addedIds: string[] = []): boolean {
   const [provider, model] = item.split(/:(.+)/).filter(Boolean)
-  return !!(provider && model && TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider.toUpperCase()) && /^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item))
+  return !!(provider && model && (TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider.toUpperCase()) || addedIds.includes(provider.toUpperCase())) && /^[A-Z0-9_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item))
 }
 
-function sanitizeTextAiProviderTiers(value: string): string | null {
+function sanitizeTextAiProviderTiers(value: string, addedIds: string[] = []): string | null {
   const items = value.split(',').map((item) => item.trim()).filter(Boolean)
   for (const item of items) {
     const parts = item.split(':')
     const provider = (parts[0] || '').trim().toUpperCase()
     const tier = (parts[1] || '').trim().toUpperCase()
-    if (parts.length !== 2 || !TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider) || (tier !== 'PAID' && tier !== 'FREE')) return null
+    if (parts.length !== 2 || !(TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider) || addedIds.includes(provider)) || (tier !== 'PAID' && tier !== 'FREE')) return null
   }
   return items.map((item) => {
     const [provider, tier] = item.split(':')
@@ -121,8 +123,8 @@ function sanitizeFamilyOrder(value: string): string {
 
 // «ترتيب المزودات الاحتياطية» (2026-10-30): قائمة يدوية بترتيب المزودين كما
 // رتّبها الأدمن؛ تُحفظ كما هي بعد إسقاط الأسماء غير المعروفة والمكررات.
-function sanitizeProviderOrder(value: string): string {
-  const allowed = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION'])
+function sanitizeProviderOrder(value: string, addedIds: string[] = []): string {
+  const allowed = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION', ...addedIds])
   const seen = new Set<string>()
   const items: string[] = []
   for (const raw of value.split(',')) {
@@ -132,6 +134,30 @@ function sanitizeProviderOrder(value: string): string {
     items.push(item)
   }
   return items.join(',')
+}
+
+// Read and write the registry together so simultaneous admin requests cannot
+// silently replace each other's provider changes.
+async function mutateCustomTextAiProviders<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      return await db.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+    } catch (error: any) {
+      if (!['P2034', 'P2002'].includes(String(error?.code || '')) || attempt === 3) throw error
+      await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)))
+    }
+  }
+  throw new Error('CUSTOM_PROVIDER_RETRY_EXHAUSTED')
+}
+
+async function adminCustomTextAiProviders() {
+  const row = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+  const providers = parseCustomTextAiProviders(row?.value || '')
+  const secrets = providers.length
+    ? await db.setting.findMany({ where: { key: { in: providers.map((item) => customTextAiKeySetting(item.id)) } }, select: { key: true } })
+    : []
+  const secretKeys = new Set(secrets.map((item) => item.key))
+  return providers.map((item) => ({ ...item, hasKey: secretKeys.has(customTextAiKeySetting(item.id)) }))
 }
 
 // GET /api/admin/system — إعدادات النظام: البريد + الدفع + TURN (الأسرار مقنعة) + سجل البريد
@@ -145,6 +171,7 @@ export async function GET() {
     for (const r of rows) values[r.key] = shouldEncryptSystemKey(r.key) ? mask(r.value) : r.value
     const secretMeta = Object.fromEntries(SYSTEM_KEYS.filter(shouldEncryptSystemKey).map((key) => [key, settingSecretMeta(key, rowMap[key], process.env[key] || '')]))
     const unencryptedSecretKeys = SYSTEM_KEYS.filter((key) => shouldEncryptSystemKey(key) && rowMap[key] && !isEncryptedSecret(rowMap[key]))
+    const customProviders = await adminCustomTextAiProviders()
     const smtp = await getSmtpConfig()
     const emails = await db.emailLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 })
     const gemini = await geminiKeyDiagnostics()
@@ -227,6 +254,7 @@ export async function GET() {
       turnConfigured: !!(values.TURN_URL && (values.TURN_USERNAME || process.env.TURN_USERNAME)),
       gemini,
       textAi,
+      customProviders,
       agent,
       emails,
     })
@@ -241,9 +269,10 @@ export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json()
+    const addedIds = (await adminCustomTextAiProviders()).map((entry) => entry.id)
     // Independent model choice for knowledge repair. Never alter global routing
     // for students, books, exams or other AI consumers.
-    const repairProviderNames = new Set(['AUTO', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION'])
+    const repairProviderNames = new Set(['AUTO', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION', ...addedIds])
     const repairProvider = String(body.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO').trim().toUpperCase()
     const repairModel = String(body.AI_KNOWLEDGE_REPAIR_MODEL || '').trim()
     if (!repairProviderNames.has(repairProvider)) return NextResponse.json({ error: 'مزوّد التصحيح غير معروف' }, { status: 400 })
@@ -287,10 +316,10 @@ export async function PATCH(req: NextRequest) {
         value = sanitizeFamilyOrder(value)
       }
       if (key === 'AI_PROVIDER_FALLBACK_ORDER') {
-        value = sanitizeProviderOrder(value)
+        value = sanitizeProviderOrder(value, addedIds)
       }
       if (key === 'AI_PROVIDER_TIERS') {
-        const cleaned = sanitizeTextAiProviderTiers(value)
+        const cleaned = sanitizeTextAiProviderTiers(value, addedIds)
         if (cleaned == null) return NextResponse.json({ error: 'مستويات المزودين يجب أن تكون بصيغة PROVIDER:PAID أو PROVIDER:FREE مثل ALBORIHI:PAID,GROQ:FREE' }, { status: 400 })
         value = cleaned
       }
@@ -300,7 +329,7 @@ export async function PATCH(req: NextRequest) {
       }
       if (key === 'AI_ACADEMIC_ALLOWLIST' || key === 'AI_VERIFIER_PREFERRED') {
         const items = value.split(',').map((item) => item.trim()).filter(Boolean)
-        const ok = items.every(isValidTextAiProviderModelSettingItem)
+        const ok = items.every((item) => isValidTextAiProviderModelSettingItem(item, addedIds))
         if (!ok) return NextResponse.json({ error: key === 'AI_ACADEMIC_ALLOWLIST' ? 'قائمة المهام الحساسة يجب أن تحتوي provider:model فقط وبدون auto' : 'نماذج مدقق الأسئلة يجب أن تحتوي provider:model فقط وبدون auto' }, { status: 400 })
         value = items.join(',')
       }
@@ -339,6 +368,179 @@ export async function POST(req: NextRequest) {
     const admin = await requireAdmin()
     const body = await req.json()
     const { action, model: selectedLiveModel, purpose: livePurpose, provider: modelProvider, allowlistItem } = body || {}
+    if (action === 'save-custom-ai-provider') {
+      const incomingId = String(body?.id || '').trim()
+      const name = String(body?.name || '').trim()
+      const key = String(body?.apiKey || '').trim()
+      const enabled = body?.enabled !== false
+      if (name.length < 2 || name.length > 80 || /[<>\r\n]/.test(name)) {
+        return NextResponse.json({ error: 'اسم المزوّد يجب أن يكون من 2 إلى 80 حرفًا' }, { status: 400 })
+      }
+      let baseUrl: string
+      try {
+        baseUrl = await assertPublicCustomTextAiUrl(String(body?.baseUrl || ''))
+      } catch {
+        return NextResponse.json({ error: 'رابط API يجب أن يكون HTTPS عامًا وقابلًا للوصول، وليس عنوانًا داخليًا' }, { status: 400 })
+      }
+      const hasNewKey = !!key && !isMaskedSecret(key)
+      if (incomingId && !isCustomTextAiProviderId(incomingId)) {
+        return NextResponse.json({ error: 'المزوّد المطلوب تعديله غير موجود' }, { status: 404 })
+      }
+      if (!incomingId && !hasNewKey) return NextResponse.json({ error: 'مفتاح API مطلوب لإضافة مزوّد جديد' }, { status: 400 })
+      if (hasNewKey && (key.length > 2048 || /[\r\n]/.test(key))) {
+        return NextResponse.json({ error: 'تنسيق مفتاح API غير صالح' }, { status: 400 })
+      }
+      if (hasNewKey && !hasSecretEncryptionKey()) {
+        return NextResponse.json({ error: 'مفتاح تشفير إعدادات النظام غير متوفر' }, { status: 400 })
+      }
+      const saved = await mutateCustomTextAiProviders(async (tx) => {
+        const row = await tx.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+        const providers = parseCustomTextAiProviders(row?.value || '')
+        const existing = incomingId ? providers.find((entry) => entry.id === incomingId) : null
+        if (incomingId && !existing) return { error: 'NOT_FOUND' } as const
+        if (!incomingId && providers.length >= 32) return { error: 'LIMIT' } as const
+        const id = existing?.id || (`CUSTOM_${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}` as `CUSTOM_${string}`)
+        const updated = { id, name, baseUrl, enabled, selectedModel: existing?.selectedModel || '' }
+        const registry = existing ? providers.map((item) => item.id === id ? updated : item) : [...providers, updated]
+        await tx.setting.upsert({
+          where: { key: CUSTOM_AI_PROVIDERS_SETTING },
+          create: { key: CUSTOM_AI_PROVIDERS_SETTING, value: JSON.stringify(registry) },
+          update: { value: JSON.stringify(registry) },
+        })
+        if (hasNewKey) {
+          const secretName = customTextAiKeySetting(id)
+          const value = encryptSecret(key)
+          await tx.setting.upsert({
+            where: { key: secretName },
+            create: { key: secretName, value },
+            update: { value },
+          })
+        }
+        return { id, updatedExisting: !!existing } as const
+      })
+      if ('error' in saved) {
+        return saved.error === 'LIMIT'
+          ? NextResponse.json({ error: 'الحد الأقصى 32 مزوّدًا إضافيًا' }, { status: 400 })
+          : NextResponse.json({ error: 'المزوّد المطلوب تعديله غير موجود' }, { status: 404 })
+      }
+      clearSecretCache()
+      await audit(admin, saved.updatedExisting ? 'AI_CUSTOM_PROVIDER_UPDATED' : 'AI_CUSTOM_PROVIDER_CREATED', 'Setting', saved.id, `Custom AI provider: ${saved.id}`)
+      return NextResponse.json({ ok: true, id: saved.id, customProviders: await adminCustomTextAiProviders() })
+    }
+    if (action === 'delete-custom-ai-provider') {
+      const id = String(body?.id || '').trim()
+      if (!isCustomTextAiProviderId(id)) {
+        return NextResponse.json({ error: 'يمكن حذف المزوّدين الذين أُضيفوا من الإدارة فقط' }, { status: 400 })
+      }
+      // Delete the custom registration, its encrypted credential and any saved
+      // router selections in one transaction. Built-in providers are untouched.
+      // Audit is in the same transaction so a failed write rolls everything back.
+      const cleanedSettings = await mutateCustomTextAiProviders(async (tx) => {
+        const row = await tx.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+        const providers = parseCustomTextAiProviders(row?.value || '')
+        if (!providers.some((entry) => entry.id === id)) return null
+        const savedRows = await tx.setting.findMany({
+          where: { key: { in: [...CUSTOM_AI_PROVIDER_REFERENCE_KEYS] } },
+          select: { key: true, value: true },
+        })
+        const before = Object.fromEntries(savedRows.map((entry) => [entry.key, entry.value]))
+        const after = settingsAfterCustomTextAiProviderDeletion(id, before)
+        for (const entry of savedRows) {
+          if (after[entry.key] !== entry.value) {
+            await tx.setting.update({
+              where: { key: entry.key },
+              data: { value: after[entry.key] },
+            })
+          }
+        }
+        await tx.setting.update({
+          where: { key: CUSTOM_AI_PROVIDERS_SETTING },
+          data: { value: JSON.stringify(providers.filter((entry) => entry.id !== id)) },
+        })
+        await tx.setting.deleteMany({ where: { key: customTextAiKeySetting(id) } })
+        // Discovery results are transient cache, not historical AI usage data.
+        // Remove transient model discovery, health and cooldown records.
+        // Historical model usage stats and audit trails are preserved.
+        await tx.setting.deleteMany({
+          where: {
+            OR: [
+              { key: { startsWith: `AI_MODELS_AVAILABLE:${id}:` } },
+              { key: { startsWith: `AI_COOLDOWN:${id}:` } },
+              { key: { startsWith: `AI_NO_BALANCE:${id}:` } },
+              { key: { startsWith: `AI_MODEL_DEAD:${id}:` } },
+              { key: { startsWith: `AI_MODEL_HEALTH:${id}:` } },
+              { key: `AI_KEY_LIMIT:${id}` },
+            ],
+          },
+        })
+        await tx.auditLog.create({
+          data: {
+            actorId: admin.id,
+            actorName: admin.name,
+            action: 'AI_CUSTOM_PROVIDER_DELETED',
+            entity: 'Setting',
+            entityId: id,
+            details: JSON.stringify({ providerId: id, removedCredential: true, affectedSettings: Object.keys(after).filter((key) => after[key] !== before[key]) }),
+          },
+        })
+        return Object.fromEntries(
+          Object.entries(after).filter(([key, value]) => value !== before[key]),
+        )
+      })
+      if (!cleanedSettings) return NextResponse.json({ error: 'المزوّد المطلوب حذفه غير موجود' }, { status: 404 })
+      forgetCustomTextAiProviderRuntimeState(id)
+      clearSecretCache()
+      return NextResponse.json({
+        ok: true,
+        deletedProvider: id,
+        clearedSettings: cleanedSettings,
+        customProviders: await adminCustomTextAiProviders(),
+      })
+    }
+    if (action === 'toggle-custom-ai-provider') {
+      const id = String(body?.id || '')
+      const found = await mutateCustomTextAiProviders(async (tx) => {
+        const row = await tx.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+        const providers = parseCustomTextAiProviders(row?.value || '')
+        if (!isCustomTextAiProviderId(id) || !providers.some((entry) => entry.id === id)) return false
+        const updated = providers.map((entry) => entry.id === id ? { ...entry, enabled: body?.enabled === true } : entry)
+        await tx.setting.update({ where: { key: CUSTOM_AI_PROVIDERS_SETTING }, data: { value: JSON.stringify(updated) } })
+        return true
+      })
+      if (!found) return NextResponse.json({ error: 'المزوّد غير موجود' }, { status: 404 })
+      await audit(admin, 'AI_CUSTOM_PROVIDER_TOGGLED', 'Setting', id, `enabled=${body?.enabled === true}`)
+      return NextResponse.json({ ok: true, customProviders: await adminCustomTextAiProviders() })
+    }
+    if (action === 'refresh-custom-ai-models') {
+      const id = String(body?.id || '')
+      if (!isCustomTextAiProviderId(id)) return NextResponse.json({ error: 'المزوّد غير صالح' }, { status: 400 })
+      try {
+        const catalog = await refreshCustomTextAiFreeModels(id)
+        return NextResponse.json({ ok: true, ...catalog })
+      } catch {
+        return NextResponse.json({ error: 'تعذر تحديث نماذج المزوّد. راجع الرابط والمفتاح وتفعيل المزوّد.' }, { status: 400 })
+      }
+    }
+    if (action === 'select-custom-ai-model') {
+      const id = String(body?.id || '')
+      const model = String(body?.model || '').trim()
+      if (!isCustomTextAiProviderId(id) || !model || model.length > 180) {
+        return NextResponse.json({ error: 'المزوّد أو النموذج غير صالح' }, { status: 400 })
+      }
+      const catalog = await textAiFreeModelsForProvider(id)
+      if (!catalog.models.includes(model)) return NextResponse.json({ error: 'النموذج غير مثبت كمجاني في كتالوج المزوّد' }, { status: 400 })
+      const found = await mutateCustomTextAiProviders(async (tx) => {
+        const row = await tx.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+        const providers = parseCustomTextAiProviders(row?.value || '')
+        if (!providers.some((entry) => entry.id === id && entry.enabled)) return false
+        const updated = providers.map((entry) => entry.id === id ? { ...entry, selectedModel: model } : entry)
+        await tx.setting.update({ where: { key: CUSTOM_AI_PROVIDERS_SETTING }, data: { value: JSON.stringify(updated) } })
+        return true
+      })
+      if (!found) return NextResponse.json({ error: 'المزوّد غير مفعّل أو غير موجود' }, { status: 400 })
+      await audit(admin, 'AI_CUSTOM_MODEL_SELECTED', 'Setting', id, `model=${model}`)
+      return NextResponse.json({ ok: true, customProviders: await adminCustomTextAiProviders() })
+    }
     if (action === 'encrypt-legacy-secrets') {
       if (!hasSecretEncryptionKey()) return NextResponse.json({ ok: false, error: 'أضف AACT_SECRETS_KEY في Vercel أولاً' }, { status: 400 })
       const rows = await db.setting.findMany({ where: { key: { in: SYSTEM_KEYS.filter(shouldEncryptSystemKey) } } })
@@ -356,7 +558,7 @@ export async function POST(req: NextRequest) {
     }
     if (action === 'add-academic-allowlist') {
       const item = String(allowlistItem || '').trim()
-      if (!isValidTextAiProviderModelSettingItem(item)) return NextResponse.json({ error: 'صيغة النموذج غير صالحة' }, { status: 400 })
+      if (!isValidTextAiProviderModelSettingItem(item, (await adminCustomTextAiProviders()).map((entry) => entry.id))) return NextResponse.json({ error: 'صيغة النموذج غير صالحة' }, { status: 400 })
       const row = await db.setting.findUnique({ where: { key: 'AI_ACADEMIC_ALLOWLIST' } })
       const current = String(row?.value || 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash').split(',').map((x) => x.trim()).filter(Boolean)
       if (!current.includes(item)) current.push(item)

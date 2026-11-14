@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { randomUUID } from 'node:crypto'
 import { planKnowledgeItemCleanup, validateGroundedKnowledgeRepair, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
 import { looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt } from '@/lib/knowledge-bank'
-import { textAiCompleteJson, type TextAiProvider, type TextAiPreferredModel } from '@/lib/text-ai'
+import { textAiCompleteJson, CUSTOM_AI_PROVIDERS_SETTING, parseCustomTextAiProviders, type TextAiProvider, type TextAiPreferredModel } from '@/lib/text-ai'
 
 /** Preserve the existing program/semester scope. Never invokes the legacy v1 builder. */
 export async function scheduleProgramKnowledgeV2(programId: string, semester?: number | null) {
@@ -137,15 +137,22 @@ export async function runNextKnowledgeAiRepairStep() {
       'AI_KNOWLEDGE_REPAIR_MODEL',
       'AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS',
       'AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN',
+      CUSTOM_AI_PROVIDERS_SETTING,
     ] } },
     select: { key: true, value: true },
   })
   const config = Object.fromEntries(repairSettings.map((item) => [item.key, item.value]))
   const repairProvider = String(config.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO').toUpperCase() as TextAiProvider
   const repairModel = String(config.AI_KNOWLEDGE_REPAIR_MODEL || '').trim()
-  const chosenModel: TextAiPreferredModel[] = repairProvider !== 'AUTO' && REPAIR_SUPPORTED_PROVIDERS.has(repairProvider) && repairModel
+  // The independent optional repair control accepts the SAME enabled custom
+  // providers shown in its admin selector; disabled/deleted IDs stay blocked.
+  const customRepairProviders = parseCustomTextAiProviders(config[CUSTOM_AI_PROVIDERS_SETTING])
+    .filter((entry) => entry.enabled)
+  const repairProviderAllowed = REPAIR_SUPPORTED_PROVIDERS.has(repairProvider)
+    || customRepairProviders.some((entry) => entry.id === repairProvider)
+  const chosenModel: TextAiPreferredModel[] = repairProvider !== 'AUTO' && repairProviderAllowed && repairModel
     ? [{ provider: repairProvider, model: repairModel }] : []
-  if (!REPAIR_SUPPORTED_PROVIDERS.has(repairProvider) || (repairProvider !== 'AUTO' && !chosenModel.length)) {
+  if (!repairProviderAllowed || (repairProvider !== 'AUTO' && !chosenModel.length)) {
     return { status: 'INVALID_REPAIR_MODEL_CONFIGURATION' }
   }
   // An administrator-set interval of zero adds no artificial restriction.
