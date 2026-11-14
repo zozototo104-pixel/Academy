@@ -2020,8 +2020,8 @@ export function DashboardView() {
                           <p className="text-xs font-black text-[#0f2b46]">اختبارات الوحدات</p>
                           {active.units.filter((u) => u.examId).map((u) => (
                             <button key={u.id} type="button" onClick={() => openExam(u.examId!)} className="flex w-full items-center justify-between rounded-2xl border border-slate-100 bg-white p-3 text-right hover:border-[#c9a227]/60">
-                              <span className="text-xs font-black text-[#0f2b46]">{u.title}</span>
-                              <span className="text-[11px] font-bold text-[#a8841a]">فتح الاختبار</span>
+                              <span className="min-w-0 flex-1 break-words text-xs font-black text-[#0f2b46]">{u.title}</span>
+                              <span className="shrink-0 text-[11px] font-bold text-[#a8841a]">فتح الاختبار</span>
                             </button>
                           ))}
                         </div>
@@ -2245,9 +2245,9 @@ export function DashboardView() {
                     {notifItems.length ? notifItems.map((n) => (
                       <div key={n.id} onClick={() => openNotificationItem(n)} className={`cursor-pointer rounded-2xl border p-4 ${n.read ? 'border-slate-100 bg-slate-50' : 'border-[#c9a227]/40 bg-[#fffaf0]'} hover:bg-[#fff3d6]`}>
                         <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="text-sm font-black text-[#0f2b46]">{n.title}</p>
-                            <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{n.body}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="break-words text-sm font-black text-[#0f2b46]">{n.title}</p>
+                            <p className="mt-1 break-words text-xs font-bold leading-6 text-slate-600">{n.body}</p>
                             <p className="mt-1 text-[11px] font-bold text-slate-400">{new Date(n.createdAt).toLocaleString('ar-EG')}</p>
                           </div>
                           {!n.read ? <Badge className="bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">جديد</Badge> : null}
@@ -2387,7 +2387,7 @@ export function DashboardView() {
                     <div key={mc.id} className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3">
                       <p className="text-xs font-black leading-5 text-[#0f2b46]">{mc.titleAr}</p>
                       <p className="mt-1 text-[10px] font-bold leading-4 text-emerald-700">{mc.learningOutcome}</p>
-                      <p className="mt-1 font-mono text-[9px] font-bold text-slate-400" dir="ltr">{mc.badgeCode}</p>
+                      <p className="mt-1 break-all font-mono text-[9px] font-bold text-slate-400" dir="ltr">{mc.badgeCode}</p>
                     </div>
                   ))}
                 </div>

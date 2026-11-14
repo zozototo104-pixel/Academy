@@ -123,8 +123,8 @@ export function StudentAdminMessages({ initialAdmissionId }: { initialAdmissionI
             <div className="divide-y rounded-xl border">
               {conversations.map((c) => (
                 <button key={c.admission.id} type="button" onClick={() => openConversation(c.admission.id)} className="flex w-full items-center justify-between gap-3 px-3 py-3 text-right hover:bg-muted/50">
-                  <span>
-                    <span className="block font-bold">طلب {c.admission.reference} — {c.admission.program || 'برنامج غير محدد'}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block break-words font-bold">طلب <span className="break-all">{c.admission.reference}</span> — {c.admission.program || 'برنامج غير محدد'}</span>
                     {c.lastMessage && <span className="block truncate text-sm">{c.lastMessage.senderRole === 'ADMIN' ? 'الإدارة: ' : 'أنت: '}{c.lastMessage.content}</span>}
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
@@ -142,8 +142,8 @@ export function StudentAdminMessages({ initialAdmissionId }: { initialAdmissionI
         <Card>
           <CardContent className="space-y-3 p-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold">محادثة: طلب {active?.admission.reference || ''}</h3>
-              <Button variant="outline" onClick={() => setActiveId(null)}>إغلاق</Button>
+              <h3 className="min-w-0 break-words font-bold">محادثة: طلب {active?.admission.reference || ''}</h3>
+              <Button variant="outline" className="shrink-0" onClick={() => setActiveId(null)}>إغلاق</Button>
             </div>
             {messagesLoading ? (
               <p className="text-sm text-muted-foreground">جارٍ تحميل الرسائل…</p>
@@ -154,7 +154,7 @@ export function StudentAdminMessages({ initialAdmissionId }: { initialAdmissionI
                 {messages.map((m) => (
                   <div key={m.id} className={`rounded-xl border p-3 ${m.senderRole === 'ADMIN' ? 'bg-muted/40' : 'bg-primary/5'}`}>
                     <p className="mb-1 text-[11px] opacity-70">{m.senderRole === 'ADMIN' ? 'الإدارة' : 'أنت'} — {dateAr(m.createdAt)}</p>
-                    <p className="whitespace-pre-wrap text-sm">{m.content}</p>
+                    <p className="whitespace-pre-wrap break-words text-sm">{m.content}</p>
                   </div>
                 ))}
               </div>

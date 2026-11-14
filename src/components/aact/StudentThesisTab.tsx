@@ -331,8 +331,8 @@ export function StudentThesisTab() {
         <Card className="border-[#0f2b46]/10 bg-white">
           <CardContent className="space-y-3 p-5">
             <h4 className="text-base font-black text-[#0f2b46]">{thesis.title}</h4>
-            <p className="whitespace-pre-wrap text-xs font-semibold leading-relaxed text-slate-600">{thesis.abstract}</p>
-            {thesis.fileNote && <p className="text-[11px] font-bold text-slate-400">ملاحظتك عند التسليم: {thesis.fileNote}</p>}
+            <p className="whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-slate-600">{thesis.abstract}</p>
+            {thesis.fileNote && <p className="break-words text-[11px] font-bold text-slate-400">ملاحظتك عند التسليم: {thesis.fileNote}</p>}
             <p className="text-[11px] font-bold text-slate-400">آخر تحديث: {fmtDate(thesis.updatedAt, true)}</p>
 
             {/* ملاحظات المراجعة */}
@@ -341,7 +341,7 @@ export function StudentThesisTab() {
                 <p className="text-xs font-black text-[#0f2b46]">ملاحظات الإدارة والمشرف</p>
                 {(thesis.reviewNotes || []).map((n) => (
                   <div key={n.id} className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
-                    <p className="whitespace-pre-wrap text-xs font-semibold leading-relaxed text-slate-700">{n.note}</p>
+                    <p className="whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-slate-700">{n.note}</p>
                     <p className="mt-1 text-[10px] font-bold text-slate-400">
                       {n.authorName || 'الإدارة'} · {fmtDate(n.createdAt, true)}
                     </p>
@@ -349,7 +349,7 @@ export function StudentThesisTab() {
                 ))}
                 {!thesis.reviewNotes?.length && thesis.reviewNote && (
                   <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
-                    <p className="whitespace-pre-wrap text-xs font-semibold leading-relaxed text-slate-700">{thesis.reviewNote}</p>
+                    <p className="whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-slate-700">{thesis.reviewNote}</p>
                   </div>
                 )}
               </div>
@@ -493,13 +493,13 @@ export function StudentThesisTab() {
                 <p className="flex items-center gap-1.5 font-black text-[#e0b83a]">
                   <Sparkles className="h-4 w-4" /> تقييم خبير الذكاء الاصطناعي{thesis.aiScore != null ? `: ${thesis.aiScore}/100` : ''}
                 </p>
-                {thesis.aiRecommendation && <p className="mt-1 whitespace-pre-wrap text-white/85">{thesis.aiRecommendation}</p>}
+                {thesis.aiRecommendation && <p className="mt-1 whitespace-pre-wrap break-words text-white/85">{thesis.aiRecommendation}</p>}
               </div>
             )}
             {thesis.defenseMinutes && (
               <details className="rounded-xl bg-white/10 p-3">
                 <summary className="cursor-pointer text-xs font-black text-[#e0b83a]">محضر جلسة المناقشة</summary>
-                <p className="mt-2 whitespace-pre-wrap text-xs font-semibold leading-relaxed text-white/85">{thesis.defenseMinutes}</p>
+                <p className="mt-2 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-white/85">{thesis.defenseMinutes}</p>
               </details>
             )}
             {thesis.status === 'RESULT_APPROVED' && thesis.resultScore != null && (

@@ -208,7 +208,7 @@ export function SupervisorContentTab() {
               <div className="flex flex-wrap gap-2">
                 {detail.books.map((b: any) => (
                   <span key={b.id} className="inline-flex items-center gap-1.5">
-                    <Badge variant="outline" className="text-[11px]">{b.title} — فصل {b.semester}</Badge>
+                    <Badge variant="outline" className="whitespace-normal break-words text-[11px]">{b.title} — فصل {b.semester}</Badge>
                     <a href={`/api/books/${b.id}/download`} target="_blank" rel="noreferrer" className="text-[11px] font-black text-[#a8841a] underline">فتح/تحميل</a>
                   </span>
                 ))}

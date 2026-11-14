@@ -154,6 +154,7 @@ export function ExamView() {
   const [proctorConsent, setProctorConsent] = useState(false)
   const [proctorEnabled, setProctorEnabled] = useState(false)
   const [proctorActive, setProctorActive] = useState(false)
+  const [proctorPipCollapsed, setProctorPipCollapsed] = useState(false)
   const [examStarted, setExamStarted] = useState(activeExamKind !== 'final') // امتحانات الوحدات تبدأ مباشرة
   const [violationCount, setViolationCount] = useState(0)
   const violationsRef = useRef<{ t: number; type: string }[]>([])
@@ -939,36 +940,36 @@ export function ExamView() {
                     )}
                   </div>
                 </div>
-                <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+                <div className="mt-3 break-words rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
                   <strong className="text-[#0f2b46]">إجابتك: </strong>
                   {r.studentAnswer === '(لم يجب)' ? (
                     <em className="text-slate-400">لم يجب</em>
                   ) : (
-                    <span className="whitespace-pre-wrap">{r.studentAnswer}</span>
+                    <span className="whitespace-pre-wrap break-words">{r.studentAnswer}</span>
                   )}
                 </div>
                 {r.correctAnswerText && (
-                  <div className="mt-2 rounded-lg bg-emerald-50 p-3 text-xs leading-relaxed text-emerald-800">
+                  <div className="mt-2 break-words rounded-lg bg-emerald-50 p-3 text-xs leading-relaxed text-emerald-800">
                     <strong>الإجابة الصحيحة: </strong>{r.correctAnswerText}
                   </div>
                 )}
                 {(r.sourceBookTitle || r.sourceLocator || r.sourceChapter) && (
-                  <div className="mt-2 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+                  <div className="mt-2 break-words rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
                     {r.sourceBookTitle && <p><strong className="text-[#0f2b46]">المصدر: </strong>{r.sourceBookTitle}</p>}
                     {r.sourceChapter && <p><strong className="text-[#0f2b46]">الفصل/المحور: </strong>{r.sourceChapter}</p>}
                     {r.sourceLocator && <p><strong className="text-[#0f2b46]">موضع الدليل: </strong>{r.sourceLocator}</p>}
                   </div>
                 )}
                 {r.wrongOptionRationale && (
-                  <div className="mt-2 rounded-lg bg-red-50 p-3 text-xs leading-relaxed text-red-700">
+                  <div className="mt-2 break-words rounded-lg bg-red-50 p-3 text-xs leading-relaxed text-red-700">
                     <strong>سبب خطأ اختيارك: </strong>{r.wrongOptionRationale}
                   </div>
                 )}
-                <div className="mt-2 rounded-lg bg-[#f7edd0]/60 p-3 text-xs leading-relaxed text-[#5c4d1a]">
+                <div className="mt-2 break-words rounded-lg bg-[#f7edd0]/60 p-3 text-xs leading-relaxed text-[#5c4d1a]">
                   <strong className="flex items-center gap-1.5">
                     <Bot className="h-3.5 w-3.5" /> تقييم المشرف الذكي:
                   </strong>
-                  <span className="mt-1 block">{r.pendingReview ? 'إجابتك محفوظة — تصحيح هذا السؤال بانتظار تأكيد المشرف البشري، وستُعتمد نتيجتك النهائية بعد المراجعة.' : r.aiFeedback}</span>
+                  <span className="mt-1 block break-words">{r.pendingReview ? 'إجابتك محفوظة — تصحيح هذا السؤال بانتظار تأكيد المشرف البشري، وستُعتمد نتيجتك النهائية بعد المراجعة.' : r.aiFeedback}</span>
                 </div>
               </CardContent>
             </Card>
@@ -1214,11 +1215,18 @@ export function ExamView() {
         </CardContent>
       </Card>
 
-      {/* نافذة كاميرا المراقبة (PIP) */}
+      {/* نافذة كاميرا المراقبة (PIP) — قابلة للطي حتى لا تغطي أزرار التنقل؛ عنصر الفيديو نفسه يبقى متصلاً في الحالتين فالالتقاط يستمر */}
       {proctorEnabled && proctorActive && !result && (
-        <div className="fixed bottom-24 left-4 z-40 overflow-hidden rounded-xl border-2 border-[#b22234]/60 shadow-2xl lg:bottom-8">
-          <video ref={proctorVideoRef} muted playsInline className="h-28 w-20 object-cover sm:h-36 sm:w-28 [transform:scaleX(-1)]" />
-          <span className="absolute inset-x-0 bottom-0 bg-black/60 py-0.5 text-center text-[8px] font-black text-white">مراقبة إلكترونية</span>
+        <div className={`fixed bottom-24 left-4 z-40 flex items-center overflow-hidden border-2 border-[#b22234]/60 shadow-2xl lg:bottom-8 ${proctorPipCollapsed ? 'rounded-full bg-white' : 'rounded-xl'}`}>
+          <video ref={proctorVideoRef} muted playsInline className={proctorPipCollapsed ? 'h-9 w-12 shrink-0 object-cover [transform:scaleX(-1)]' : 'h-28 w-20 object-cover sm:h-36 sm:w-28 [transform:scaleX(-1)]'} />
+          {proctorPipCollapsed ? (
+            <button type="button" onClick={() => setProctorPipCollapsed(false)} aria-label="إظهار نافذة المراقبة" className="px-2 text-[10px] font-black text-[#b22234]">مراقبة</button>
+          ) : (
+            <>
+              <span className="absolute inset-x-0 bottom-0 bg-black/60 py-0.5 text-center text-[8px] font-black text-white">مراقبة إلكترونية</span>
+              <button type="button" onClick={() => setProctorPipCollapsed(true)} aria-label="طي نافذة المراقبة" className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[11px] font-black leading-none text-white">×</button>
+            </>
+          )}
         </div>
       )}
 

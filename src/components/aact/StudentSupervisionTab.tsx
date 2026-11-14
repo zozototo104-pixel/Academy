@@ -250,7 +250,7 @@ export function StudentSupervisionTab() {
               const mine = m.senderRole === 'STUDENT'
               return (
                 <div key={m.id} className={`flex ${mine ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[85%] rounded-2xl p-3 text-xs font-bold leading-6 shadow-sm ${mine ? 'bg-[#0f2b46] text-[#f5f0e1]' : 'bg-white text-[#0f2b46]'}`}>
+                  <div className={`max-w-[85%] break-words rounded-2xl p-3 text-xs font-bold leading-6 shadow-sm ${mine ? 'bg-[#0f2b46] text-[#f5f0e1]' : 'bg-white text-[#0f2b46]'}`}>
                     <p className="mb-1 text-[10px] opacity-70">{mine ? 'أنت' : m.senderRole === 'AI' ? 'المشرف الذكي' : 'المشرف'}{mine ? ` — إلى: ${m.audience === 'AI' ? 'المشرف الذكي' : m.audience === 'HUMAN' ? 'المشرف البشري' : 'الاثنين'}` : ''} — {dateAr(m.createdAt)}</p>
                     <p>{m.content}</p>
                     {m.audioData && <audio className="mt-2 w-full" controls src={audioSrc(m)} />}

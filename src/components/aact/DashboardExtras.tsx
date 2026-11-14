@@ -827,8 +827,8 @@ export function PaymentsTab() {
                   <div className='rounded-2xl border border-blue-100 bg-white p-3'>
                     <p className='text-[10px] text-slate-500'>أرسل USDT من Binance Pay إلى هذا المستخدم:</p>
                     <div className='mt-2 flex items-center justify-between gap-2 rounded-xl bg-slate-50 p-3'>
-                      <span className='font-mono text-base font-black text-[#0f2b46]' dir='ltr'>{payConfig.usdt.binancePayUserId || 'غير مضبوط'}</span>
-                      {payConfig.usdt.binancePayUserId && <Button type='button' size='sm' variant='outline' onClick={() => copyText(payConfig.usdt?.binancePayUserId || '', 'Binance Pay User ID')} className='border-blue-200 text-blue-700'>نسخ</Button>}
+                      <span className='min-w-0 break-all font-mono text-base font-black text-[#0f2b46]' dir='ltr'>{payConfig.usdt.binancePayUserId || 'غير مضبوط'}</span>
+                      {payConfig.usdt.binancePayUserId && <Button type='button' size='sm' variant='outline' onClick={() => copyText(payConfig.usdt?.binancePayUserId || '', 'Binance Pay User ID')} className='shrink-0 border-blue-200 text-blue-700'>نسخ</Button>}
                     </div>
                     <p className='mt-2 text-[10px] text-slate-500'>يمكن الدفع من التطبيق أو من موقع Binance عبر Pay/Send ثم إدخال Binance ID إذا كان الخيار متاحاً لحسابك وبلدك.</p>
                   </div>
