@@ -400,6 +400,7 @@ export function AdminSystemTab() {
   const [form, setForm] = useState<Record<string, string>>({})
   const [customDraft, setCustomDraft] = useState({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })
   const [customBusy, setCustomBusy] = useState(false)
+  const [customDeleteTarget, setCustomDeleteTarget] = useState<CustomProviderSummary | null>(null)
   const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests' | null>('core')
   const toggleGeminiSection = (section: 'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests') => {
     const y = typeof window !== 'undefined' ? window.scrollY : 0
