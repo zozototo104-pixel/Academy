@@ -329,7 +329,7 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     expect(code).toContain("if (action === 'delete-custom-ai-provider')")
     expect(code).toContain('const admin = await requireAdmin()')
     expect(code).toContain('if (!isCustomTextAiProviderId(id))')
-    expect(code).toContain('const cleanedSettings = await db.$transaction(async (tx) => {')
+    expect(code).toContain('const cleanedSettings = await mutateCustomTextAiProviders(async (tx) => {')
     expect(code).toContain('await tx.setting.deleteMany({ where: { key: customTextAiKeySetting(id) } })')
     expect(code).toContain('settingsAfterCustomTextAiProviderDeletion(id, before)')
     expect(code).toContain('AI_CUSTOM_PROVIDER_DELETED')
