@@ -50,6 +50,10 @@ jobs:
       - run: bunx prisma generate
       # This database exists only as a disposable GitHub Actions service.
       - run: bunx prisma db push
+      - name: Verify attended-lecture delete and atomic audit on disposable PostgreSQL
+        env:
+          LECTURE_DELETE_PG_CONTRACT: "1"
+        run: bun test --isolate tests/admin/lecture-session-delete-dialog.test.ts
       - name: Verify concurrent custom-provider writes on isolated PostgreSQL
         run: |
           node <<'NODE'
