@@ -140,6 +140,62 @@ describe('D1 stage profiles: effective resolution falls back to global', () => {
   })
 })
 
+describe('custom providers in optional stage profiles', () => {
+  test('an enabled registered gateway is selectable independently for reading, analysis, generation and review', async () => {
+    const id = 'CUSTOM_PROVIDER123'
+    customProviderRegistry = JSON.stringify([{ id, name: 'Admin gateway', enabled: true, baseUrl: 'https://gateway.example.ai/v1', selectedModel: 'text-model:free' }])
+    try {
+      const choices = await availableStageAiProviders()
+      expect(choices).toContain(id)
+      expect(choices).toContain('GEMINI')
+      for (const stage of ['READING', 'ANALYSIS', 'GENERATION', 'REVIEW'] as const) {
+        __setStageProfileStoreForTests(memoryStore() as never)
+        const snapshot = validateStageProfileSnapshot(stage, {
+          enabled: true,
+          provider: id,
+          models: [{ provider: id, model: 'text-model:free' }],
+          ...(stage === 'REVIEW' ? { verifier: { preferred: [{ provider: id, model: 'verifier-model:free' }], strict: true } } : {}),
+        })
+        expect(() => validateStageProviderChoices(snapshot, choices)).not.toThrow()
+        await saveStageProfile(stage, snapshot)
+        const routed = buildStageRoutingOverrides(await resolveEffectiveStageProfile(stage))
+        expect(routed.kind).toBe('stage')
+        if (routed.kind === 'stage') {
+          expect(routed.preferredProviders).toEqual([id])
+          expect(routed.preferredModels).toEqual([{ provider: id, model: 'text-model:free' }])
+          expect(routed.snapshot.verifier?.preferred[0]?.provider ?? id).toBe(id)
+        }
+      }
+    } finally {
+      customProviderRegistry = '[]'
+    }
+  })
+
+  test('disabled stage stays on global router; disabling or deleting a gateway prevents selection', async () => {
+    const id = 'CUSTOM_PROVIDER123'
+    customProviderRegistry = JSON.stringify([{ id, name: 'Admin gateway', enabled: true, baseUrl: 'https://gateway.example.ai/v1' }])
+    try {
+      __setStageProfileStoreForTests(memoryStore() as never)
+      const selected = { ...GEN_V1, provider: id, models: [{ provider: id, model: 'm1' }] }
+      await saveStageProfile('READING', { ...selected, enabled: false })
+      expect(buildStageRoutingOverrides(await resolveEffectiveStageProfile('READING'))).toEqual({ kind: 'global', reason: 'disabled' })
+      await saveStageProfile('READING', { ...selected, enabled: true })
+      expect(buildStageRoutingOverrides(await resolveEffectiveStageProfile('READING')).kind).toBe('stage')
+      customProviderRegistry = JSON.stringify([{ id, name: 'Admin gateway', enabled: false, baseUrl: 'https://gateway.example.ai/v1' }])
+      expect(await availableStageAiProviders()).not.toContain(id)
+      expect(() => validateStageProviderChoices(validateStageProfileSnapshot('READING', selected), ['GEMINI'])).toThrow(StageProfileValidationError)
+      expect(buildStageRoutingOverrides(await resolveEffectiveStageProfile('READING')).kind).toBe('invalid')
+      customProviderRegistry = '[]'
+      expect(buildStageRoutingOverrides(await resolveEffectiveStageProfile('READING')).kind).toBe('invalid')
+      // Built-in providers retain their existing routing behavior.
+      await saveStageProfile('READING', GEN_V1)
+      expect(buildStageRoutingOverrides(await resolveEffectiveStageProfile('READING')).kind).toBe('stage')
+    } finally {
+      customProviderRegistry = '[]'
+    }
+  })
+})
+
 describe('D1 acceptance guard: storage cannot change model selection yet', () => {
   test('no routing or pipeline file imports the profile store', () => {
     // D2.1/D2.2 update: book-reader.ts (reading) and
