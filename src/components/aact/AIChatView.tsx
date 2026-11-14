@@ -745,7 +745,7 @@ export function AIChatView() {
   }
 
   const clearChat = async () => {
-    if (!confirm('هل تريد مسح المحادثة بالكامل؟')) return
+    if (!(await confirmAction({ title: 'مسح المحادثة', description: 'هل تريد مسح محادثتك مع المشرف الذكي بالكامل؟ لا يمكن استرجاع رسائلها بعد الحذف.', confirmLabel: 'مسح المحادثة', tone: 'danger' }))) return
     try {
       await api('/api/chat', { method: 'DELETE' })
       setMessages([])
