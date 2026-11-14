@@ -220,7 +220,7 @@ describe('Gemini / AI workspace organization', () => {
       'textAiDiag?.lastResult',
       'textAiDiag?.keyCounts',
       'textAiDiag?.cooldowns',
-      'loadTextModelHealth',
+      'refreshTextModelHealthNow',
       'checkAllTextModelsNow',
       'toggleAiModel',
       'addAcademicAllowlistModel',
@@ -331,7 +331,7 @@ describe('Gemini / AI workspace organization', () => {
 
     requireAll(functionBody('checkAllTextModelsNow'), [
       "setTextModelHealthLoading(true)",
-      "api<{ ok: boolean; checked: number }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'text-ai-check-all' }) })",
+      "api<{ ok: boolean; checked: number; results: Array<HealthCheckResultRow> }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'text-ai-check-all' }) })",
       "loadTextModelHealth()",
       "setTextModelHealthLoading(false)",
     ])
