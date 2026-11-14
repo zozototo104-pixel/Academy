@@ -1640,7 +1640,7 @@ export function AdminSystemTab() {
                     <div className="rounded-lg border border-amber-100 bg-amber-50 p-2 text-amber-800 sm:col-span-3">
                       <p className="mb-1 font-black">المستبعد حالياً</p>
                       {textModelHealth.excluded.slice(0, 5).map((item) => (
-                        <div key={item.key} dir="ltr" className="truncate text-[10px]">{item.kind}: {item.key} — {item.reason} — until {new Date(item.until).toLocaleString('ar')}</div>
+                        <div key={item.key} dir="ltr" className="min-w-0 whitespace-normal break-all text-[10px] leading-relaxed">{item.kind}: {item.key} — {item.reason} — until {new Date(item.until).toLocaleString('ar')}</div>
                       ))}
                     </div>
                   )}
