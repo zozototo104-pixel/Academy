@@ -191,7 +191,7 @@ async function transcribeWithWhisperCompatible(audioBase64: string, mimeType: st
         method: 'POST',
         headers: { Authorization: `Bearer ${provider.key}` },
         body: form,
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(requestTimeoutMs),
       } as any)
       const data: any = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data?.error?.message || `${provider.name} ASR HTTP ${response.status}`)
