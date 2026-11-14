@@ -93,6 +93,27 @@ async function assertNoPageHorizontalOverflow(page: Page, label: string) {
   expect(width.offenders, `${label} has visible non-fixed elements outside viewport: ${JSON.stringify(width)}`).toHaveLength(0)
 }
 
+async function assertMobileFormControlsFit(page: Page, selector: string, label: string) {
+  const summary = await page.locator(selector).evaluate((root) => {
+    const viewport = window.innerWidth
+    const controls = Array.from(root.querySelectorAll<HTMLElement>('input, textarea, select, [data-slot="select-trigger"]'))
+      .filter((node) => {
+        const style = getComputedStyle(node)
+        return node.getClientRects().length > 0 && style.display !== 'none' && style.visibility !== 'hidden'
+      })
+      .map((node) => {
+        const rect = node.getBoundingClientRect()
+        return {
+          label: node.getAttribute('aria-label') || node.getAttribute('data-slot') || node.tagName.toLowerCase(),
+          left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width),
+        }
+      })
+    return { viewport, count: controls.length, outside: controls.filter((c) => c.left < -3 || c.right > viewport + 3 || c.width > viewport + 3) }
+  })
+  expect(summary.count, label + ' has no visible controls to validate').toBeGreaterThan(0)
+  expect(summary.outside, label + ' has controls outside the phone: ' + JSON.stringify(summary)).toHaveLength(0)
+}
+
 async function collectMobileMetric(page: Page, path: string) {
   await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 45_000 })
   await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
