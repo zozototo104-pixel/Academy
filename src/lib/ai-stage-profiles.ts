@@ -247,7 +247,21 @@ export async function getCurrentStageProfile(stage: PipelineStageName) {
 }
 
 export async function resolveEffectiveStageProfile(stage: PipelineStageName): Promise<EffectiveStageProfile> {
-  return resolveEffectiveFromSnapshot(await store.loadCurrent(stage))
+  const resolution = resolveEffectiveFromSnapshot(await store.loadCurrent(stage))
+  if (resolution.kind !== 'stage') return resolution
+  const snapshot = resolution.snapshot
+  const configuredProviders = [
+    snapshot.provider,
+    ...snapshot.models.map((ref) => ref.provider),
+    ...(snapshot.verifier?.preferred || []).map((ref) => ref.provider),
+  ]
+  // No additional query or routing change for existing built-in profiles.
+  if (!configuredProviders.some((provider) => /^CUSTOM_/i.test(provider || ''))) return resolution
+  const activeProviders = await availableStageAiProviders()
+  return {
+    ...resolution,
+    allowedCustomProviders: activeProviders.filter((provider) => provider.startsWith('CUSTOM_')),
+  }
 }
 
 // حفظ بروفايل مرحلة = إنشاء نسخة جديدة وإزاحة المؤشر إليها. لا يُلمس أي
