@@ -590,13 +590,12 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                       variant="ghost"
                       disabled={busy}
                       className="text-red-600"
-                      onClick={() => {
-                        if (window.confirm(`حذف فيديو «${v.title}» نهائيًا؟ سيختفي عن الطلاب، وسيُحذف سجل تقدم مشاهدته، وسيُحذف ملفه من التخزين إذا كان مرفوعًا عندنا. هذا الإجراء لا يمكن التراجع عنه.`)) {
-                          void act(
-                            () => api(`/api/admin/lectures/videos/${v.id}`, { method: 'DELETE' }),
-                            'حُذف الفيديو نهائيًا',
-                          )
-                        }
+                      onClick={async () => {
+                        const accepted = await confirmAction({ title: 'حذف الفيديو نهائيًا', description: `حذف فيديو «${v.title}» نهائيًا؟ سيختفي عن الطلاب، وسيُحذف سجل تقدم مشاهدته وملفه المرفوع من التخزين. هذا الإجراء لا يمكن التراجع عنه.`, confirmLabel: 'حذف الفيديو', tone: 'danger' })
+                        if (accepted) await act(
+                          () => api(`/api/admin/lectures/videos/${v.id}`, { method: 'DELETE' }),
+                          'حُذف الفيديو نهائيًا',
+                        )
                       }}
                     >
                       <Trash2 className="ml-1 h-4 w-4" /> حذف
