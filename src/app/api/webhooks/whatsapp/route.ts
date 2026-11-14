@@ -301,7 +301,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
     const audioBase64 = await downloadOfficialWhatsAppMediaBase64(mediaInfo, message.phoneNumberId)
     const startedAt = Date.now()
     const transcript = await withTimeout(
-      transcribeAudioBase64(audioBase64, {
+      transcribeWhatsAppVoiceBase64(audioBase64, {
         mimeType: mediaInfo.mimeType || message.mediaMimeType || 'audio/ogg',
       }),
       38_000,
