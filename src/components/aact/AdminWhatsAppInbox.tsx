@@ -314,7 +314,10 @@ export function AdminWhatsAppInboxTab() {
                             <video src={attachmentUrl} controls preload="none" className="mb-2 max-h-72 w-full max-w-[320px] rounded-xl" aria-label="فيديو مرسل عبر واتساب" />
                           )}
                           {attachmentUrl && attachmentType === 'audio' && (
-                            <audio src={attachmentUrl} controls preload="none" className="mb-2 w-full max-w-[320px]" aria-label="تسجيل صوتي مرسل عبر واتساب" />
+                            <div className="mb-2 w-full min-w-0 max-w-full space-y-1">
+                              <audio src={attachmentUrl} controls preload="metadata" className="block w-full min-w-0 max-w-full" aria-label="تسجيل صوتي مرسل عبر واتساب" />
+                              <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" className="inline-block break-words text-[11px] font-bold text-emerald-800 underline">فتح التسجيل الصوتي إذا تعذر تشغيله هنا</a>
+                            </div>
                           )}
                           {attachmentUrl && attachmentType === 'document' && (
                             <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" className="mb-2 block rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 underline">
