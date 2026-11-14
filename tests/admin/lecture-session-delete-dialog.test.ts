@@ -34,7 +34,8 @@ describe('administrator lecture deletion confirmation and reason', () => {
     expect(ui).toContain("body: JSON.stringify({ reason })")
     expect(ui).toContain('تراجع')
     expect(ui).not.toContain("window.confirm(`حذف لقاء")
-    expect(count(ui, 'window.confirm(')).toBe(2)
+    expect(count(ui, 'window.confirm(')).toBe(0)
+    expect(count(ui, 'await confirmAction({')).toBe(2)
   })
 
   test('server validates the admin reason and records it with the audit actor', () => {
