@@ -2399,7 +2399,7 @@ export function AdminCertificatesTab() {
   const editCertificateEnglishFields = async (certificate: CertificateData) => {
     const id = certificate.id
     if (!id) return toast({ title: 'تعذر التعديل', description: 'معرّف الشهادة غير متوفر.', variant: 'destructive' })
-    const holderNameEn = window.prompt('الاسم بالإنجليزي', certificate.holderNameEn || '')
+    const holderNameEn = await promptAction({ title: 'تعديل بيانات الشهادة', fieldLabel: 'الاسم بالإنجليزي', defaultValue: certificate.holderNameEn || '', confirmLabel: 'التالي' })
     if (holderNameEn === null) return
     const programEn = window.prompt('البرنامج بالإنجليزي', certificate.programEn || '')
     if (programEn === null) return
