@@ -2817,11 +2817,18 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number; provider
   const s = await settings()
   const deadlineMs = Date.now() + Math.max(5_000, Math.min(120_000, opts.maxMs || 120_000))
   const results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> = []
-  for (const provider of providerOrder(s)) {
+  const selectedProvider = opts.provider?.trim().toUpperCase()
+  const selectedModel = opts.model?.trim()
+  if (Boolean(selectedProvider) !== Boolean(selectedModel)) throw new Error('المزود والنموذج مطلوبان معاً')
+  if (selectedModel && (selectedModel.length > 200 || /[\r\n]/.test(selectedModel))) throw new Error('اسم النموذج غير صالح')
+  const providers = providerOrder(s)
+  if (selectedProvider && !providers.includes(selectedProvider as ConcreteProvider)) throw new Error('المزود غير متاح')
+  for (const provider of providers) {
+    if (selectedProvider && provider !== selectedProvider) continue
     if (Date.now() >= deadlineMs - 1000) break
     const key = providerKeys(s, provider)[0]
     if (!key) continue
-    for (const model of (await modelFallbacks(s, provider, 'GENERAL', false)).slice(0, 3)) {
+    for (const model of selectedModel ? [selectedModel] : (await modelFallbacks(s, provider, 'GENERAL', false)).slice(0, 3)) {
       if (Date.now() >= deadlineMs - 1000) break
       const started = Date.now()
       try {
