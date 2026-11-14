@@ -536,6 +536,7 @@ export function AdminSystemTab() {
         body: JSON.stringify({ action: 'text-ai-check-selected', provider: catalogProviderForModels, model }),
       })
       const checked = result.results?.[0]
+      if (!checked) throw new Error('لم يُنفّذ الفحص؛ تأكد من وجود مفتاح صالح للمزود المختار')
       toast({ title: checked?.ok ? 'النموذج يعمل' : 'فشل فحص النموذج', description: `${catalogProviderForModels}/${model}${checked?.error ? ` — ${checked.error}` : ''}`, variant: checked?.ok ? 'default' : 'destructive' })
       loadTextModelHealth()
     } catch (e: any) {
