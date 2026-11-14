@@ -259,6 +259,8 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     )
     expect(connection).toContain('recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg')
     expect(connection).toContain('errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)')
+    const routed = source.slice(source.indexOf('const rawError = String(e?.message || e)'), source.indexOf('export async function textAiTestConnection()'))
+    expect(routed).toContain('__testRedactCustomTextAiErrorForTests(provider, currentKey, rawRequestId)')
   })
 
   test('AUTO detects enabled custom provider keys without rewriting the legacy order', async () => {
