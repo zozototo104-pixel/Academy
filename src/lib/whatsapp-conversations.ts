@@ -98,6 +98,7 @@ export async function recordWhatsAppInboundMessage(message: WhatsAppInboundMessa
         mediaCaption: message.mediaCaption || null,
         mediaFilename: message.mediaFilename || null,
         isVoice: Boolean(message.isVoice),
+        transcriptionStatus: message.transcriptionStatus || null,
         fromHash: safeConversationSenderFields(message.from).waIdHash,
         fromMasked: maskWhatsAppId(message.from),
       },

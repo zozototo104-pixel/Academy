@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import { zonedTimeToUtc } from '@/lib/lectures/recurrence'
 import { deriveEffectiveStatus } from '@/lib/lectures/student'
 import { parseVideoUrl } from '@/lib/lectures/video-embed'
@@ -125,6 +126,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   const [attendanceSession, setAttendanceSession] = useState<SessionRow | null>(null)
   const [attendance, setAttendance] = useState<AttendanceData | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [deleteReason, setDeleteReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [statusClock, setStatusClock] = useState(() => Date.now())
@@ -307,7 +309,8 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 space-y-6">
+      {actionDialog}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-black text-slate-800">
@@ -424,10 +427,9 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                       size="sm"
                       disabled={busy || s.status === 'CANCELLED'}
                       className="text-red-600"
-                      onClick={() => {
-                        if (window.confirm(`إلغاء محاضرة «${s.title}»؟ سيُشعر الطلاب فورًا.`)) {
-                          void act(() => api(`/api/admin/lectures/sessions/${s.id}/cancel`, { method: 'POST' }), 'أُلغيت المحاضرة وأُشعر الطلاب')
-                        }
+                      onClick={async () => {
+                        const accepted = await confirmAction({ title: 'إلغاء المحاضرة', description: `إلغاء محاضرة «${s.title}»؟ سيُشعر الطلاب فورًا.`, confirmLabel: 'إلغاء المحاضرة', tone: 'warning' })
+                        if (accepted) await act(() => api(`/api/admin/lectures/sessions/${s.id}/cancel`, { method: 'POST' }), 'أُلغيت المحاضرة وأُشعر الطلاب')
                       }}
                     >
                       <XCircle className="ml-1 h-4 w-4" /> إلغاء
@@ -588,13 +590,12 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                       variant="ghost"
                       disabled={busy}
                       className="text-red-600"
-                      onClick={() => {
-                        if (window.confirm(`حذف فيديو «${v.title}» نهائيًا؟ سيختفي عن الطلاب، وسيُحذف سجل تقدم مشاهدته، وسيُحذف ملفه من التخزين إذا كان مرفوعًا عندنا. هذا الإجراء لا يمكن التراجع عنه.`)) {
-                          void act(
-                            () => api(`/api/admin/lectures/videos/${v.id}`, { method: 'DELETE' }),
-                            'حُذف الفيديو نهائيًا',
-                          )
-                        }
+                      onClick={async () => {
+                        const accepted = await confirmAction({ title: 'حذف الفيديو نهائيًا', description: `حذف فيديو «${v.title}» نهائيًا؟ سيختفي عن الطلاب، وسيُحذف سجل تقدم مشاهدته وملفه المرفوع من التخزين. هذا الإجراء لا يمكن التراجع عنه.`, confirmLabel: 'حذف الفيديو', tone: 'danger' })
+                        if (accepted) await act(
+                          () => api(`/api/admin/lectures/videos/${v.id}`, { method: 'DELETE' }),
+                          'حُذف الفيديو نهائيًا',
+                        )
                       }}
                     >
                       <Trash2 className="ml-1 h-4 w-4" /> حذف

@@ -73,7 +73,7 @@ const db: any = {
 }
 
 mock.module('@/lib/db', () => ({ db }))
-mock.module('@/lib/asr', () => ({ transcribeAudioBase64: async () => '' }))
+mock.module('@/lib/asr', () => ({ transcribeAudioBase64: async () => '', transcribeWhatsAppVoiceBase64: async () => '' }))
 mock.module('@/lib/human-handoff', () => ({
   analyzeHumanHandoffIntent: async () => ({ isHandoffDetails: false, wantsHumanSupport: false, confidence: 0 }),
   createHumanHandoffRequest: async () => ({ id: 'handoff-1' }),

@@ -25,7 +25,11 @@ describe('admin mobile overflow guard', () => {
     const tab = read('src/components/aact/AdminSystemTab.tsx')
     expect(tab).toContain('<div key={k} className="min-w-0 space-y-1">')
     expect(tab).toContain('<Label className="block max-w-full break-words text-[11px] font-black text-[#0f2b46]">{label}</Label>')
-    expect(tab).toContain('<SelectTrigger className="h-9 min-w-0 w-full max-w-full bg-white text-sm" dir="ltr">')
+    expect(tab).toContain('<SelectTrigger className="min-h-11 h-auto min-w-0 w-full max-w-full overflow-hidden whitespace-normal bg-white py-2 text-sm" dir="rtl">')
+    expect(tab).toContain('<SelectValue className="sr-only" placeholder="اختر" />')
+    expect(tab).toContain("normalizedOptions.find((opt) => opt.value === current)?.label || 'اختر'")
+    expect(tab).toContain('className="min-w-0 whitespace-normal break-words"')
+    expect(tab).toContain('className="grid min-w-0 grid-cols-1 gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 sm:grid-cols-2 sm:p-4"')
   })
 
   test('book-workspace header selects shrink', () => {
@@ -55,6 +59,43 @@ describe('admin mobile overflow guard', () => {
     // sized by the trigger's nowrap min-content and everything still spills
     // left (proven by the 390px render: 613px track without it, 308px with it).
     expect(view).toContain('<div className="min-w-0 space-y-3">')
+  })
+
+  test('shared selects and platform dialogs are constrained to the mobile viewport', () => {
+    const select = read('src/components/ui/select.tsx')
+    const dialog = read('src/components/aact/AdminActionDialog.tsx')
+    expect(select).toContain('w-fit min-w-0 max-w-full')
+    expect(select).toContain('*:data-[slot=select-value]:min-w-0')
+    expect(select).toContain('*:data-[slot=select-value]:overflow-hidden')
+    expect(select).toContain('max-w-[calc(100vw-1rem)]')
+    expect(select).toContain('whitespace-normal break-words')
+    expect(dialog).toContain('max-w-[calc(100%-2rem)]')
+    expect(dialog).toContain('sm:max-w-md')
+    expect(dialog).not.toContain('gap-0 max-w-md')
+  })
+
+  test('platform screens no longer use browser-owned confirmation or prompt windows', () => {
+    const files = [
+      'src/components/aact/AdminView.tsx',
+      'src/components/aact/AdminLectures.tsx',
+      'src/components/aact/AdminAnnouncementsTab.tsx',
+      'src/components/aact/AdminStudyScheduleTab.tsx',
+      'src/components/aact/AdminRepresentativesTab.tsx',
+      'src/components/aact/AdminLegacyGraduatesTab.tsx',
+      'src/components/aact/ExamView.tsx',
+      'src/components/aact/AIChatView.tsx',
+      'src/components/aact/SupervisorContentTab.tsx',
+      'src/app/representatives/onboarding/[token]/page.tsx',
+    ]
+    for (const path of files) {
+      const source = read(path)
+      expect(source, path).not.toMatch(/\b(?:window\.)?(?:confirm|prompt|alert)\s*\(/)
+    }
+    // AdminExtras retains a local function named confirm(p), not the browser
+    // global. Its certificate prompts must still use the platform dialog.
+    const certificates = read('src/components/aact/AdminExtras.tsx')
+    expect(certificates).not.toContain('window.prompt(')
+    expect(certificates).toContain("const { promptAction, dialog: actionDialog } = useAdminActionDialog()")
   })
 
   test('email-change close is deferred one frame on iOS Safari', () => {

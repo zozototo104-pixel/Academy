@@ -18,7 +18,7 @@ type WaMessage = {
   sender: 'CUSTOMER' | 'BOT' | 'HUMAN' | 'SYSTEM'
   text: string
   rawType?: string | null
-  meta?: { kind?: string | null; isVoice?: boolean | null; mediaId?: string | null; mediaCaption?: string | null; mediaFilename?: string | null; deliveryError?: unknown; deliveryFailedAt?: string | null } | null
+  meta?: { kind?: string | null; isVoice?: boolean | null; transcriptionStatus?: 'TRANSCRIBED' | 'FAILED' | null; mediaId?: string | null; mediaCaption?: string | null; mediaFilename?: string | null; deliveryError?: unknown; deliveryFailedAt?: string | null } | null
   status?: string | null
   sentByName?: string | null
   createdAt: string
@@ -301,8 +301,8 @@ export function AdminWhatsAppInboxTab() {
                       <div key={m.id} className={`flex ${outbound ? 'justify-start' : 'justify-end'}`}>
                         <div className={`max-w-[82%] rounded-3xl px-4 py-3 shadow-sm ${outbound ? 'rounded-bl-md bg-[#dcf8c6]' : 'rounded-br-md bg-white'}`}>
                           {isVoice && (
-                            <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
-                              <Mic className="h-3 w-3" /> رسالة صوتية مفرغة
+                            <div className={`mb-1 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black ${m.meta?.transcriptionStatus === 'FAILED' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'}`}>
+                              <Mic className="h-3 w-3" /> {m.meta?.transcriptionStatus === 'TRANSCRIBED' ? 'رسالة صوتية مفرغة' : m.meta?.transcriptionStatus === 'FAILED' ? 'رسالة صوتية لم تُفرّغ — يمكن للموظف الاستماع' : 'رسالة صوتية'}
                             </div>
                           )}
                           {attachmentUrl && (attachmentType === 'image' || attachmentType === 'sticker') && (
@@ -314,7 +314,10 @@ export function AdminWhatsAppInboxTab() {
                             <video src={attachmentUrl} controls preload="none" className="mb-2 max-h-72 w-full max-w-[320px] rounded-xl" aria-label="فيديو مرسل عبر واتساب" />
                           )}
                           {attachmentUrl && attachmentType === 'audio' && (
-                            <audio src={attachmentUrl} controls preload="none" className="mb-2 w-full max-w-[320px]" aria-label="تسجيل صوتي مرسل عبر واتساب" />
+                            <div className="mb-2 w-full min-w-0 max-w-full space-y-1">
+                              <audio src={attachmentUrl} controls preload="metadata" className="block w-full min-w-0 max-w-full" aria-label="تسجيل صوتي مرسل عبر واتساب" />
+                              <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" className="inline-block break-words text-[11px] font-bold text-emerald-800 underline">فتح التسجيل الصوتي إذا تعذر تشغيله هنا</a>
+                            </div>
                           )}
                           {attachmentUrl && attachmentType === 'document' && (
                             <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" className="mb-2 block rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 underline">

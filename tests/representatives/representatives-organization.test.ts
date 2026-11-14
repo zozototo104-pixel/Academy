@@ -20,7 +20,7 @@ const ORIGINAL_HANDLER_HASHES: Record<string, string> = {
   upload: '8b7d0fce4ba82644af91d57a829060d50f70a9d1b52199954d61d7b0500a8e89',
   deleteFile: '0eae3b73496589fe6b63cb800fff83d5a1b63c47ebacc08a03c02067d9f638f7',
   createOnboardingLink: 'b2b4f91530a823a60d8be17508e9a0b7e16cc7d77e664c153e7eee720ebb1ce0',
-  revokeOnboardingLink: 'b9240195f2db1fe3ecb622954616075c5cf81a5f64506b59ff603a13c7e4d8a7',
+  revokeOnboardingLink: '6f0e02e3ba5ccba5774c8c59258cf40241e7eb623643d6c9a4d81bd3b6f01a00',
   copyOnboardingLink: 'c37a12147abefa3b041fd9386e0240b69fdf424ef15d3a54a55efc6f56910d2a',
   reviewFile: '4b55193280d8262eaf0690384b9ef8020c8f50b979bd87704c0a54027aa7790e',
   rewrite: '25538958352b30975ec03bb6d341248a62425e3aeb0c0264c3ca2fcbf3c9e0e0',

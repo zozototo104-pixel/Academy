@@ -409,6 +409,7 @@ export function AdminSystemTab() {
   }
   const [textModelCatalog, setTextModelCatalog] = useState<Record<string, { models: string[]; message: string; discoveredCount: number; staticCount: number }>>({})
   const [textModelHealth, setTextModelHealth] = useState<TextAiModelHealth | null>(null)
+  const [healthSelectedModel, setHealthSelectedModel] = useState('')
   const [textModelHealthLoading, setTextModelHealthLoading] = useState(false)
   const [routerState, setRouterState] = useState<TextAiRouterStateItem[]>([])
   const [routerStateLoading, setRouterStateLoading] = useState(false)
@@ -519,6 +520,43 @@ export function AdminSystemTab() {
       toast({ title: 'تعذر مسح تبريدات المزوّد', description: e.message, variant: 'destructive' })
     } finally {
       setRouterStateClearing(null)
+    }
+  }
+
+  const checkSelectedTextModelNow = async () => {
+    const model = healthSelectedModel.trim()
+    if (!model) {
+      toast({ title: 'اختر نموذجاً أولاً', variant: 'destructive' })
+      return
+    }
+    setTextModelHealthLoading(true)
+    try {
+      const result = await api<{ checked: number; results: Array<{ ok: boolean; error?: string }> }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'text-ai-check-selected', provider: catalogProviderForModels, model }),
+      })
+      const checked = result.results?.[0]
+      if (!checked) throw new Error('لم يُنفّذ الفحص؛ تأكد من وجود مفتاح صالح للمزود المختار')
+      toast({ title: checked?.ok ? 'النموذج يعمل' : 'فشل فحص النموذج', description: `${catalogProviderForModels}/${model}${checked?.error ? ` — ${checked.error}` : ''}`, variant: checked?.ok ? 'default' : 'destructive' })
+      loadTextModelHealth()
+    } catch (e: any) {
+      toast({ title: 'تعذر فحص النموذج', description: e.message, variant: 'destructive' })
+      setTextModelHealthLoading(false)
+    }
+  }
+
+  const checkProviderModelsNow = async () => {
+    setTextModelHealthLoading(true)
+    try {
+      const result = await api<{ checked: number; total: number; complete: boolean }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'text-ai-check-provider', provider: catalogProviderForModels }),
+      })
+      toast({ title: result.complete ? 'اكتمل فحص نماذج المزود' : 'فحص جزئي — انتهت المهلة', description: `فُحص ${result.checked} من ${result.total} نموذج لدى ${catalogProviderForModels}.` })
+      loadTextModelHealth()
+    } catch (e: any) {
+      toast({ title: 'تعذر فحص نماذج المزود', description: e.message, variant: 'destructive' })
+      setTextModelHealthLoading(false)
     }
   }
 
@@ -1034,12 +1072,13 @@ export function AdminSystemTab() {
       <div key={k} className="min-w-0 space-y-1">
         <Label className="block max-w-full break-words text-[11px] font-black text-[#0f2b46]">{label}</Label>
         <Select value={current} onValueChange={(v) => set(k, v)}>
-          <SelectTrigger className="h-9 min-w-0 w-full max-w-full bg-white text-sm" dir="ltr">
-            <SelectValue placeholder="اختر" />
+          <SelectTrigger className="min-h-11 h-auto min-w-0 w-full max-w-full overflow-hidden whitespace-normal bg-white py-2 text-sm" dir="rtl">
+            <SelectValue className="sr-only" placeholder="اختر" />
+            <span className="min-w-0 flex-1 break-words text-right leading-5">{normalizedOptions.find((opt) => opt.value === current)?.label || 'اختر'}</span>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[calc(100vw-1rem)]" dir="rtl">
             {normalizedOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value} dir="ltr">{opt.label}</SelectItem>
+              <SelectItem key={opt.value} value={opt.value} className="min-w-0 whitespace-normal break-words">{opt.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -1105,7 +1144,7 @@ export function AdminSystemTab() {
   const currentPaymentMode = (form.PAYMENT_MODE || data.paymentMode || 'SANDBOX') as 'SANDBOX' | 'LIVE'
 
   return (
-    <div className="space-y-4">
+    <div className="w-full min-w-0 max-w-full space-y-4">
       <div className="rounded-xl border border-[#0f2b46]/10 bg-white p-3 text-[11px] font-bold leading-relaxed text-slate-600">
         <ShieldCheck className="ml-1 inline h-4 w-4 text-[#a8841a]" />
         إدارة الأسرار: القيم المقنّعة مثل •••••• محفوظة ولا تتغير عند الحفظ. لتغيير أي سر اكتب قيمة جديدة، ولا تُرسل مفاتيح Stripe/Gemini/Resend خارج لوحة الإدارة أو Vercel.
@@ -1407,8 +1446,8 @@ export function AdminSystemTab() {
           </div>
           </div>
 
-          <div id="gemini-section-routing" role="region" aria-label="سياسات توجيه الذكاء" hidden={openGeminiSection !== 'routing'}>
-          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
+          <div id="gemini-section-routing" role="region" aria-label="سياسات توجيه الذكاء" hidden={openGeminiSection !== 'routing'} className="min-w-0 max-w-full">
+          <div className="grid min-w-0 grid-cols-1 gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 sm:grid-cols-2 sm:p-4">
             <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h4 className="text-[11px] font-black text-indigo-900">مزود النصوص الخارجي — للامتحانات والتحليل والتصحيح والقراءة النصية</h4>
@@ -1619,19 +1658,26 @@ export function AdminSystemTab() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-xs font-black text-indigo-900">صحة نماذج النصوص — {catalogProviderForModels}</p>
-                  <p className="text-[10px] text-slate-500">يعرض النماذج المكتشفة، المستبعدة مؤقتاً، وأفضل النماذج حسب سجل النجاح.</p>
+                  <p className="text-[10px] text-slate-500">يعرض النماذج المكتشفة وسجل فحوص الصحة. «فحص الكل» يفحص حتى 3 نماذج من كل مزود ضمن مهلة 40 ثانية؛ وقد لا يشمل النموذج المختار. فحص الاتصال بالمزود لا يضيف نتيجة لهذا السجل.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={loadTextModelHealth} className="border-indigo-200 text-[10px] font-black text-indigo-700">
                     {textModelHealthLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Bot className="ml-1 h-3 w-3" />} تحديث صحة النماذج
                   </Button>
+                  <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading || !healthSelectedModel.trim()} onClick={checkSelectedTextModelNow} className="border-indigo-200 text-[10px] font-black text-indigo-700">فحص النموذج المحدد</Button>
+                  <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={checkProviderModelsNow} className="border-indigo-200 text-[10px] font-black text-indigo-700">فحص كل نماذج المزود</Button>
                   <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={checkAllTextModelsNow} className="border-emerald-200 text-[10px] font-black text-emerald-700">
                     فحص الكل هلأ
                   </Button>
                 </div>
               </div>
+              <div className="mt-3 min-w-0 space-y-1">
+                <label htmlFor="health-selected-model" className="block text-[10px] font-bold text-indigo-900">النموذج المطلوب فحصه — {catalogProviderForModels}</label>
+                <input id="health-selected-model" list="health-model-options" value={healthSelectedModel} onChange={(e) => setHealthSelectedModel(e.target.value)} placeholder="اختر أو اكتب اسم النموذج بدقة" dir="ltr" className="w-full min-w-0 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs text-slate-800" />
+                <datalist id="health-model-options">{(textModelCatalog[catalogProviderForModels]?.models || []).map((model) => <option key={model} value={model} />)}</datalist>
+              </div>
               {textModelHealth ? (
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3 [&>div]:min-w-0">
                   <div className="rounded-lg bg-indigo-50 p-2 text-indigo-800">المتاح الآن: {textModelHealth.available?.length || 0}</div>
                   <div className="rounded-lg bg-amber-50 p-2 text-amber-700">المستبعد: {textModelHealth.excluded?.length || 0}</div>
                   <div className="rounded-lg bg-emerald-50 p-2 text-emerald-700">أفضل النماذج: {textModelHealth.top?.length || 0}</div>
@@ -1639,7 +1685,7 @@ export function AdminSystemTab() {
                     <div className="rounded-lg border border-amber-100 bg-amber-50 p-2 text-amber-800 sm:col-span-3">
                       <p className="mb-1 font-black">المستبعد حالياً</p>
                       {textModelHealth.excluded.slice(0, 5).map((item) => (
-                        <div key={item.key} dir="ltr" className="truncate text-[10px]">{item.kind}: {item.key} — {item.reason} — until {new Date(item.until).toLocaleString('ar')}</div>
+                        <div key={item.key} dir="ltr" className="min-w-0 whitespace-normal break-all text-[10px] leading-relaxed">{item.kind}: {item.key} — {item.reason} — until {new Date(item.until).toLocaleString('ar')}</div>
                       ))}
                     </div>
                   )}
@@ -1647,17 +1693,17 @@ export function AdminSystemTab() {
                     <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-emerald-800 sm:col-span-3">
                       <p className="mb-1 font-black">أفضل 5 حسب health score</p>
                       {textModelHealth.top.map((item) => (
-                        <div key={`${item.provider}:${item.model}`} dir="ltr" className="truncate text-[10px]">{item.provider}/{item.model} — score {item.score.toFixed(2)} — ok {item.success} / fail {item.failCount} — avg {Math.round(item.avgMs || 0)}ms</div>
+                        <div key={`${item.provider}:${item.model}`} dir="ltr" className="min-w-0 whitespace-normal break-all text-[10px] leading-relaxed">{item.provider}/{item.model} — score {item.score.toFixed(2)} — ok {item.success} / fail {item.failCount} — avg {Math.round(item.avgMs || 0)}ms</div>
                       ))}
                     </div>
                   )}
                   {!!textModelHealth.health?.length && (
                     <div className="rounded-lg border border-slate-100 bg-slate-50 p-2 text-slate-700 sm:col-span-3">
                       <p className="mb-1 font-black">فحوص الصحة والغرض</p>
-                      {textModelHealth.health.slice(0, 40).map((item) => (
-                        <div key={`${item.provider}:${item.model}`} className="flex items-center justify-between gap-2 text-[10px]">
-                          <span dir="ltr" className="truncate">{item.provider}/{item.model} — {item.status} — {item.health?.latencyMs ? `${Math.round(item.health.latencyMs)}ms` : 'no-check'} — {Object.entries(item.purposeScores || {}).map(([p, s]) => `${p}:${Number(s).toFixed(2)}`).join(' ')}{item.health && item.health.ok === false ? ` — ${item.health.status || 'ERR'} ${String(item.health.error || '').slice(0, 120)}` : ''}</span>
-                          <div className="flex shrink-0 gap-1">
+                      {textModelHealth.health.filter((item) => item.provider === catalogProviderForModels).map((item) => (
+                        <div key={`${item.provider}:${item.model}`} className="flex min-w-0 flex-col gap-2 border-b border-slate-200/70 py-2 text-[10px] last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
+                          <span dir="ltr" className="block min-w-0 w-full whitespace-normal break-all leading-relaxed sm:flex-1">{item.provider}/{item.model} — {item.status} — {item.health?.latencyMs ? `${Math.round(item.health.latencyMs)}ms` : 'no-check'} — {Object.entries(item.purposeScores || {}).map(([p, s]) => `${p}:${Number(s).toFixed(2)}`).join(' ')}{item.health && item.health.ok === false ? ` — ${item.health.status || 'ERR'} ${String(item.health.error || '').slice(0, 120)}` : ''}</span>
+                          <div className="flex min-w-0 flex-wrap gap-1 sm:shrink-0">
                             <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={() => addAcademicAllowlistModel(item.provider, item.model)} className="h-6 px-2 text-[10px]">أضف للمهام الحساسة</Button>
                             <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={() => toggleAiModel(item.provider, item.model)} className="h-6 px-2 text-[10px]">{item.status === 'ميت' ? 'تفعيل' : 'تعطيل'}</Button>
                           </div>
@@ -1673,8 +1719,8 @@ export function AdminSystemTab() {
           </div>
           </div>
 
-          <div id="gemini-section-providers" role="region" aria-label="مزوّدو النصوص والمفاتيح" hidden={openGeminiSection !== 'providers'}>
-          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
+          <div id="gemini-section-providers" role="region" aria-label="مزوّدو النصوص والمفاتيح" hidden={openGeminiSection !== 'providers'} className="min-w-0 max-w-full">
+          <div className="grid min-w-0 grid-cols-1 gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 sm:grid-cols-2 sm:p-4">
             <div className="sm:col-span-2 rounded-xl bg-white p-3 text-[10px] font-bold leading-relaxed text-indigo-700 ring-1 ring-indigo-100">
               مزوّد النصوص الحالي: {currentTextProvider}. عند AUTO تبقى إعدادات المزوّدات كما يعرضها الكود الحالي، وفتح هذه المساحة لا يغيّر AI_TEXT_PROVIDER.
             </div>

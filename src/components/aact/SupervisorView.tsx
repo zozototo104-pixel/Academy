@@ -530,7 +530,7 @@ export function SupervisorView() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h2 className="text-xl font-black text-[#0f2b46]">{selected.fullName}</h2>
-                    <p className="mt-1 text-xs font-bold text-slate-500">{selected.programTitle} — <span dir="ltr">{selected.reference}</span></p>
+                    <p className="mt-1 min-w-0 break-words text-xs font-bold text-slate-500">{selected.programTitle} — <span dir="ltr" className="inline-block max-w-full break-all align-top">{selected.reference}</span></p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{supervisionModeLabel[selected.supervisionMode || 'AI'] || selected.supervisionMode}</Badge>
                       <Badge variant="outline">{selected.statusLabel}</Badge>

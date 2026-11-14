@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { toast } from '@/hooks/use-toast'
 import { Loader2, Upload, Sparkles, ExternalLink } from 'lucide-react'
 
 export default function RepresentativeOnboardingPage() {
@@ -62,7 +63,7 @@ export default function RepresentativeOnboardingPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message || 'تعذر حفظ البيانات.')
       setRep(data.representative)
-      if (submit) alert('تم إرسال ملفك للمراجعة. ستقوم الإدارة بمراجعته قبل ظهوره للعامة.')
+      if (submit) toast({ title: 'تم إرسال ملفك للمراجعة', description: 'ستقوم الإدارة بمراجعته قبل ظهوره للعامة.' })
     } catch (e: any) {
       setError(String(e?.message || e))
     } finally {
@@ -93,7 +94,7 @@ export default function RepresentativeOnboardingPage() {
   if (error && !rep) return <main dir="rtl" className="min-h-screen bg-slate-50 p-8 text-center text-red-700"><h1 className="text-2xl font-black">{error}</h1></main>
 
   return (
-    <main dir="rtl" className="min-h-screen bg-[#f4f7fb] px-4 py-8 text-[#0f2b46]">
+    <main dir="rtl" className="min-h-screen min-w-0 bg-[#f4f7fb] px-3 py-6 text-[#0f2b46] sm:px-4 sm:py-8">
       <section className="mx-auto max-w-6xl overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-slate-200/70">
         <div className="bg-[#0a1f36] p-7 text-white">
           <p className="text-xs font-black text-[#d2ad5a]">استكمال ملف ممثل الأكاديمية</p>
@@ -101,7 +102,7 @@ export default function RepresentativeOnboardingPage() {
           <p className="mt-2 text-sm font-bold text-white/75">{rep?.displayTitle} — {rep?.country}</p>
         </div>
 
-        <div className="grid gap-6 p-6 lg:grid-cols-[1fr_320px]">
+        <div className="grid min-w-0 grid-cols-1 gap-6 p-3 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-5">
             {error && <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
             <div className="grid gap-4 md:grid-cols-2">

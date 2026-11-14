@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import { ReopenAppeal } from '@/components/aact/ReopenAppeal'
 import {
   ArrowLeft, ArrowRight, Loader2, ClipboardCheck, Bot, Sparkles,
@@ -131,6 +132,7 @@ function examErrorMessage(error: ApiError) {
 export function ExamView() {
   const { activeExamId, activeExamKind, navigate, openProgram } = useAppStore()
   const { toast } = useToast()
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [data, setData] = useState<ExamData | null>(null)
   const [loading, setLoading] = useState(true)
   const [current, setCurrent] = useState(0)
@@ -391,8 +393,9 @@ export function ExamView() {
       if (!data || submittedRef.current) return
       const unanswered = data.questions.length - answeredCount
       if (unanswered > 0 && !auto) {
-        const ok = confirm(`لديك ${unanswered} سؤال بدون إجابة. هل تريد التسليم على أي حال؟`)
-        if (!ok) return
+        const ok = await confirmAction({ title: 'تسليم الامتحان بأسئلة غير مجابة', description: `لديك ${unanswered} سؤال بدون إجابة. هل تريد التسليم على أي حال؟`, confirmLabel: 'تسليم الإجابات', tone: 'warning' })
+        // The exam timer may auto-submit while this nonblocking dialog is open.
+        if (!ok || submittedRef.current) return
       }
       submittedRef.current = true
       setSubmitting(true)
@@ -490,7 +493,7 @@ export function ExamView() {
         setSubmitting(false)
       }
     },
-    [data, answeredCount, mcqAnswers, essayAnswers, startedAt, activeExamKind, proctorEnabled, navigate]
+    [data, answeredCount, mcqAnswers, essayAnswers, startedAt, activeExamKind, proctorEnabled, navigate, confirmAction]
   )
 
   // المؤقت التنازلي للاختبارات الشاملة — تسليم تلقائي عند انتهاء الوقت
@@ -1042,7 +1045,8 @@ export function ExamView() {
 
   // ===== Exam taking screen =====
   return (
-    <div className="aact-fade-in mx-auto max-w-3xl px-4 py-8">
+    <div className="aact-fade-in mx-auto w-full min-w-0 max-w-3xl px-3 py-6 sm:px-4 sm:py-8">
+      {actionDialog}
       {/* Header */}
       <div className="mb-6">
         <div className="flex flex-wrap items-center gap-2">

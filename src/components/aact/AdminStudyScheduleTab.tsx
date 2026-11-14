@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '@/lib/store'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import { toast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -90,6 +91,7 @@ export default function AdminStudyScheduleTab() {
   const [importing, setImporting] = useState(false)
   const [csvText, setCsvText] = useState('')
   const [form, setForm] = useState<FormState>(emptyForm)
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
 
   const sortedItems = useMemo(() => [...items].sort((a, b) => a.semester - b.semester || a.week - b.week || (a.dayOffset || 0) - (b.dayOffset || 0) || a.order - b.order), [items])
   const weeks = useMemo(() => Object.entries(groupByWeek(sortedItems)).map(([week, weekItems]) => ({ week: Number(week), items: weekItems })).sort((a, b) => a.week - b.week), [sortedItems])
@@ -168,7 +170,7 @@ export default function AdminStudyScheduleTab() {
   }
 
   async function deleteItem(id: string) {
-    if (!confirm('حذف عنصر جدول الدراسة؟')) return
+    if (!(await confirmAction({ title: 'حذف عنصر جدول الدراسة', description: 'هل تريد حذف هذا العنصر من جدول الدراسة؟', confirmLabel: 'حذف العنصر', tone: 'danger' }))) return
     try {
       await api(`/api/admin/study-schedule?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
       await loadItems()
@@ -238,7 +240,8 @@ export default function AdminStudyScheduleTab() {
   }
 
   return (
-    <div className="mt-4 space-y-4" dir="rtl">
+    <div className="mt-4 w-full min-w-0 space-y-4" dir="rtl">
+      {actionDialog}
       <Card className="border-[#0f2b46]/10">
         <CardContent className="space-y-4 p-4 sm:p-5">
           <div className="grid gap-3 sm:grid-cols-[1fr_160px]">

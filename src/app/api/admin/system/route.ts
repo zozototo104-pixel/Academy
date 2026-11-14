@@ -697,6 +697,29 @@ export async function POST(req: NextRequest) {
     if (action === 'text-ai-check-all') {
       return NextResponse.json({ ok: true, ...(await textAiCheckAllModelHealth({ maxMs: 40_000 })) })
     }
+    if (action === 'text-ai-check-selected') {
+      const provider = String(modelProvider || '').trim().toUpperCase()
+      const model = String(selectedLiveModel || '').trim()
+      if (!provider || !model) return NextResponse.json({ error: 'اختر المزود والنموذج أولاً' }, { status: 400 })
+      try {
+        return NextResponse.json({ ok: true, ...(await textAiCheckAllModelHealth({ maxMs: 35_000, provider, model })) })
+      } catch (error: any) {
+        return NextResponse.json({ error: String(error?.message || 'تعذر فحص النموذج') }, { status: 400 })
+      }
+    }
+    if (action === 'text-ai-check-provider') {
+      const provider = String(modelProvider || '').trim().toUpperCase()
+      if (!provider || provider === 'AUTO') return NextResponse.json({ error: 'اختر مزوداً محدداً أولاً' }, { status: 400 })
+      try {
+        const catalog = await textAiFreeModelsForProvider(provider)
+        const models = catalog.models || []
+        if (!models.length) return NextResponse.json({ error: 'لا توجد نماذج مكتشفة لهذا المزود' }, { status: 400 })
+        const result = await textAiCheckAllModelHealth({ maxMs: 110_000, provider, models })
+        return NextResponse.json({ ok: true, total: models.length, complete: result.checked === new Set(models).size, ...result })
+      } catch (error: any) {
+        return NextResponse.json({ error: String(error?.message || 'تعذر فحص المزود') }, { status: 400 })
+      }
+    }
     if (action === 'toggle-ai-model-dead') {
       const provider = String(modelProvider || '').trim().toUpperCase()
       const model = String(selectedLiveModel || body?.modelName || '').trim()

@@ -996,13 +996,13 @@ export function DashboardView() {
     <div className="aact-fade-in mx-auto max-w-[1600px] px-3 py-5 sm:px-4 sm:py-8">
       <div className="mb-5 rounded-[2rem] border border-white/80 bg-white/90 p-3 shadow-sm backdrop-blur">
         <div className="grid gap-3 lg:grid-cols-[1fr_520px_auto] lg:items-center">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0f2b46] via-[#1f4f86] to-[#2f6df6] text-lg font-black text-white shadow-sm">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0f2b46] via-[#1f4f86] to-[#2f6df6] text-lg font-black text-white shadow-sm">
               {(user.name || 'ط')[0]}
             </div>
-            <div>
-              <h1 className="text-xl font-black text-[#0f2b46] sm:text-2xl">أهلاً {user.name}</h1>
-              <p className="mt-0.5 text-xs font-bold text-slate-500">{hasStudyIdentity ? (hasProgramDashboard ? `${active?.program.titleAr || 'رحلتك التدريبية'} في مكان واحد` : 'طلبك الدراسي قيد المتابعة حتى تفعيل التسجيل') : 'طلباتك وخدماتك ومخرجاتك في مكان واحد'}</p>
+            <div className="min-w-0 flex-1">
+              <h1 className="break-words text-xl font-black text-[#0f2b46] sm:text-2xl">أهلاً {user.name}</h1>
+              <p className="mt-0.5 break-words text-xs font-bold text-slate-500">{hasStudyIdentity ? (hasProgramDashboard ? `${active?.program.titleAr || 'رحلتك التدريبية'} في مكان واحد` : 'طلبك الدراسي قيد المتابعة حتى تفعيل التسجيل') : 'طلباتك وخدماتك ومخرجاتك في مكان واحد'}</p>
             </div>
           </div>
           <div className="hidden rounded-2xl border border-[#0f2b46]/10 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-400 lg:flex lg:items-center lg:justify-between">

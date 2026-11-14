@@ -200,7 +200,7 @@ function parseStampLayout(positionValue?: string | null, sizeValue?: string | nu
 }
 
 export default function AdminLegacyGraduatesTab() {
-  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const openStudentPreview = useAppStore((s) => s.openStudentPreview)
   const [profileFor, setProfileFor] = useState<LegacyGraduateCertificate | null>(null)
   const [items, setItems] = useState<LegacyGraduateCertificate[]>([])
@@ -660,7 +660,7 @@ export default function AdminLegacyGraduatesTab() {
   }
 
   async function revoke(cert: LegacyGraduateCertificate) {
-    const reason = window.prompt('سبب إلغاء الشهادة؟', 'إلغاء إداري')
+    const reason = await promptAction({ title: 'إلغاء شهادة خريج', description: `الشهادة: ${cert.serial}`, fieldLabel: 'سبب الإلغاء', defaultValue: 'إلغاء إداري', required: true, confirmLabel: 'إلغاء الشهادة', tone: 'danger' })
     if (reason == null) return
     setBusy(`revoke:${cert.id}`)
     try {

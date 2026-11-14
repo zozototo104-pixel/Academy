@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import { AdminListToolbar, AdminPager, matchesAdminSearch, pageItems, safePage } from '@/components/aact/AdminListTools'
 import AdminExtensionRequests from '@/components/aact/AdminExtensionRequests'
 import {
@@ -259,7 +260,7 @@ const STATUS_LABEL: Record<string, string> = {
   STAGED: 'طلب غير مكتمل، بانتظار المرفقات',
   AWAITING_TUITION: 'مقبول — بانتظار سداد الرسوم الدراسية',
   SUPERVISOR_ASSIGNED: 'تم تعيين مشرف',
-  THESIS: 'التسجيل النهائي — قيد إعداد بحث التخرج',
+  THESIS: 'التسجيل معتمد — قيد الدراسة',
   SCHEDULED: 'مجدول للمناقشة',
   RESULT_APPROVED: 'تم اعتماد النتيجة',
   CERTIFIED: 'تم إصدار الشهادة',
@@ -417,6 +418,7 @@ function normalizeStudentRow(raw: any): StudentRow {
 export function AdminView() {
   const { user, navigate, openStudentPreview, openAgentPreview } = useAppStore()
   const { toast } = useToast()
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [data, setData] = useState<Stats | null>(null)
   const [apps, setApps] = useState<AgentApp[]>([])
   const [admissions, setAdmissions] = useState<AdmissionApp[]>([])
@@ -937,7 +939,7 @@ export function AdminView() {
   }
 
   const editAdmissionEnglishName = async (app: AdmissionApp) => {
-    const fullNameEn = window.prompt('الاسم بالإنجليزي كما سيظهر على الشهادة', app.fullNameEn || '')
+    const fullNameEn = await promptAction({ title: 'تعديل الاسم الإنجليزي', description: 'سيظهر الاسم على شهادة الطالب كما تكتبه هنا.', fieldLabel: 'الاسم بالإنجليزي', defaultValue: app.fullNameEn || '', confirmLabel: 'حفظ الاسم' })
     if (fullNameEn === null) return
     try {
       const d = await api<{ application: AdmissionApp }>('/api/admin/admissions', { method: 'PATCH', body: JSON.stringify({ id: app.id, fullNameEn }) })
@@ -1054,7 +1056,7 @@ export function AdminView() {
       const programNames = Array.from(new Set(candidates.map((app) => app.program).filter(Boolean)))
       const chosenProgram = programNames.length === 1
         ? programNames[0]
-        : window.prompt(`اكتب اسم البرنامج/الخدمة المطلوب كما هو:\n${programNames.map((name) => `- ${name}`).join('\n')}`, programNames[0] || '')?.trim()
+        : (await promptAction({ title: 'اختيار البرنامج للمرفقات الناقصة', description: `اكتب اسم البرنامج/الخدمة كما هو:\n${programNames.map((name) => `- ${name}`).join('\n')}`, fieldLabel: 'اسم البرنامج', defaultValue: programNames[0] || '', confirmLabel: 'متابعة' }))?.trim()
       if (!chosenProgram) return
       const affected = candidates.filter((app) => app.program === chosenProgram).slice(0, 100)
       if (!affected.length) {
@@ -1062,7 +1064,7 @@ export function AdminView() {
         return
       }
       const names = affected.map((app) => `${app.fullName} (${app.reference})`).join('\n')
-      const confirmed = window.confirm(`سيتم طلب المرفقات الناقصة من ${affected.length} طلب/طلبات لبرنامج:\n${chosenProgram}\n\nالأسماء:\n${names}\n\nمتابعة؟`)
+      const confirmed = await confirmAction({ title: 'طلب المرفقات الناقصة جماعيًا', description: `سيتم طلب المرفقات الناقصة من ${affected.length} طلب/طلبات لبرنامج:\n${chosenProgram}\n\nالأسماء:\n${names}\n\nمتابعة؟`, confirmLabel: 'إرسال الطلبات', tone: 'warning' })
       if (!confirmed) return
       let done = 0
       for (const app of affected) {
@@ -1951,7 +1953,8 @@ export function AdminView() {
   }
 
   return (
-    <div data-aact-admin-view="true" className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
+    <div data-aact-admin-view="true" className="aact-fade-in mx-auto w-full min-w-0 max-w-7xl px-3 py-6 sm:px-4 sm:py-10">
+      {actionDialog}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">لوحة إدارة الأكاديمية</h1>

@@ -1,6 +1,6 @@
 import { after, NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { transcribeAudioBase64 } from '@/lib/asr'
+import { transcribeWhatsAppVoiceBase64 } from '@/lib/asr'
 import { redactDeep } from '@/lib/secret-crypto'
 import { decryptWhatsAppPhone, encryptWhatsAppPhone, maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
 import {
@@ -301,7 +301,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
     const audioBase64 = await downloadOfficialWhatsAppMediaBase64(mediaInfo, message.phoneNumberId)
     const startedAt = Date.now()
     const transcript = await withTimeout(
-      transcribeAudioBase64(audioBase64, {
+      transcribeWhatsAppVoiceBase64(audioBase64, {
         mimeType: mediaInfo.mimeType || message.mediaMimeType || 'audio/ogg',
       }),
       38_000,
@@ -555,7 +555,12 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     await sendOfficialWhatsAppTypingIndicator(message).catch(() => null)
   }
   const prepared = await prepareWhatsAppMessageForProcessing(message)
-  const inboundMessage = prepared.message
+  const inboundMessage: WhatsAppInboundMessage = {
+    ...prepared.message,
+    ...(message.rawType === 'audio'
+      ? { transcriptionStatus: prepared.requestHuman ? 'FAILED' as const : 'TRANSCRIBED' as const }
+      : {}),
+  }
   const storedInbound = await recordWhatsAppInboundMessage(inboundMessage)
 
   // If the handoff state cannot be checked, fail closed instead of letting the bot reply.

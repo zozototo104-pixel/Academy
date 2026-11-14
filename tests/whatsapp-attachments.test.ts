@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { extractWhatsAppInboundMessages } from '../src/lib/whatsapp-cloud'
 
 // Keep provider fallback assertions alongside WhatsApp voice attachment coverage.
@@ -42,6 +43,30 @@ describe('ASR fallback for WhatsApp voice and ordinary audio', () => {
       expect(calls[0].url).toContain('/audio/transcriptions')
       expect(calls[0].mime).toBe('audio/webm')
     })
+  })
+
+  test('WhatsApp ASR accepts Meta OGG/Opus MIME and reaches Whisper before a slow Gemini upload', async () => {
+    await withWhisperMock({ ok: true, body: { text: 'هذه الرسالة الصوتية وصلت وتم تفريغها' } }, async (calls) => {
+      const { transcribeWhatsAppVoiceBase64 } = await import('../src/lib/asr')
+      const transcript = await transcribeWhatsAppVoiceBase64(Buffer.from('test-ogg-opus').toString('base64'), {
+        mimeType: 'audio/ogg; codecs=opus',
+      })
+      expect(transcript).toBe('هذه الرسالة الصوتية وصلت وتم تفريغها')
+      expect(calls).toHaveLength(1)
+      expect(calls[0].url).toContain('/audio/transcriptions')
+      expect(calls[0].mime).toBe('audio/ogg')
+    })
+  })
+
+  test('WhatsApp Gemini 3.8 inline ASR does not send unsupported sampling settings', () => {
+    const source = readFileSync(new URL('../src/lib/asr.ts', import.meta.url), 'utf8')
+    const start = source.indexOf('export async function transcribeWhatsAppVoiceBase64')
+    const end = source.indexOf('export async function transcribeAudioBase64', start)
+    expect(start).toBeGreaterThanOrEqual(0)
+    expect(end).toBeGreaterThan(start)
+    const inlineAsr = source.slice(start, end)
+    expect(inlineAsr).toContain('httpOptions: { timeout: 8_000 }')
+    expect(inlineAsr).not.toMatch(/\btemperature\s*:/)
   })
 
   test('all ASR providers failing produces explicit error instead of empty transcript', async () => {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import type { SiteAnnouncement, SiteAnnouncementDisplay } from '@/lib/site-announcements'
 import { api } from '@/lib/store'
 import { toast } from '@/hooks/use-toast'
@@ -60,6 +61,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
   const [form, setForm] = useState<AnnouncementForm | null>(null)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
 
   const updateForm = (patch: Partial<AnnouncementForm>) => setForm((current) => ({ ...(current || emptyForm()), ...patch }))
 
@@ -99,7 +101,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
   }
 
   const remove = async (item: SiteAnnouncement) => {
-    if (!window.confirm(`حذف الإعلان نهائياً؟\n${item.title}`)) return
+    if (!(await confirmAction({ title: 'حذف الإعلان', description: `هل تريد حذف الإعلان «${item.title}» نهائيًا؟`, confirmLabel: 'حذف الإعلان', tone: 'danger' }))) return
     try {
       setDeletingId(item.id)
       await api(`/api/admin/announcements?id=${encodeURIComponent(item.id)}`, { method: 'DELETE' })
@@ -113,7 +115,8 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
   }
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="mt-4 w-full min-w-0 space-y-4">
+      {actionDialog}
       <Card className="border-[#0f2b46]/10">
         <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -127,7 +130,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
       {form && (
         <Card className="border-[#c9a227]/40 bg-[#fffaf0]">
           <CardContent className="space-y-4 p-5">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-xs font-black text-[#0f2b46]">العنوان ({form.title.length}/120)</Label>
                 <Input value={form.title} maxLength={120} onChange={(e) => updateForm({ title: e.currentTarget.value })} className="bg-white font-bold" />
@@ -151,7 +154,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
               <Label className="text-xs font-black text-[#0f2b46]">التفاصيل ({form.body.length}/5000)</Label>
               <Textarea value={form.body} maxLength={5000} onChange={(e) => updateForm({ body: e.currentTarget.value })} className="min-h-[150px] bg-white font-bold" />
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
               <label className="flex items-center gap-2 rounded-xl border border-[#0f2b46]/10 bg-white px-3 py-2 text-xs font-black text-[#0f2b46]">
                 <input type="checkbox" checked={form.active} onChange={(e) => updateForm({ active: e.currentTarget.checked })} /> فعال
               </label>

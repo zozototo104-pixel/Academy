@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -119,6 +120,7 @@ interface ThesisReview {
 export function AIChatView() {
   const { user, navigate, activeUnitId } = useAppStore()
   const { toast } = useToast()
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -743,7 +745,7 @@ export function AIChatView() {
   }
 
   const clearChat = async () => {
-    if (!confirm('هل تريد مسح المحادثة بالكامل؟')) return
+    if (!(await confirmAction({ title: 'مسح المحادثة', description: 'هل تريد مسح محادثتك مع المشرف الذكي بالكامل؟ لا يمكن استرجاع رسائلها بعد الحذف.', confirmLabel: 'مسح المحادثة', tone: 'danger' }))) return
     try {
       await api('/api/chat', { method: 'DELETE' })
       setMessages([])
@@ -820,6 +822,7 @@ export function AIChatView() {
 
   return (
     <>
+      {actionDialog}
       {voiceMode && (
         <div className="aact-live-voice-screen fixed inset-0 z-[100] flex h-dvh flex-col overflow-hidden bg-gradient-to-b from-[#06182c] via-[#0f2b46] to-[#12365c]" dir="rtl">
           <div className="shrink-0 flex items-center justify-between gap-3 px-5 py-4">

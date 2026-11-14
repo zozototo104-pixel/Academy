@@ -93,6 +93,27 @@ async function assertNoPageHorizontalOverflow(page: Page, label: string) {
   expect(width.offenders, `${label} has visible non-fixed elements outside viewport: ${JSON.stringify(width)}`).toHaveLength(0)
 }
 
+async function assertMobileFormControlsFit(page: Page, selector: string, label: string) {
+  const summary = await page.locator(selector).evaluate((root) => {
+    const viewport = window.innerWidth
+    const controls = Array.from(root.querySelectorAll<HTMLElement>('input, textarea, select, [data-slot="select-trigger"]'))
+      .filter((node) => {
+        const style = getComputedStyle(node)
+        return node.getClientRects().length > 0 && style.display !== 'none' && style.visibility !== 'hidden'
+      })
+      .map((node) => {
+        const rect = node.getBoundingClientRect()
+        return {
+          label: node.getAttribute('aria-label') || node.getAttribute('data-slot') || node.tagName.toLowerCase(),
+          left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width),
+        }
+      })
+    return { viewport, count: controls.length, outside: controls.filter((c) => c.left < -3 || c.right > viewport + 3 || c.width > viewport + 3) }
+  })
+  expect(summary.count, label + ' has no visible controls to validate').toBeGreaterThan(0)
+  expect(summary.outside, label + ' has controls outside the phone: ' + JSON.stringify(summary)).toHaveLength(0)
+}
+
 async function collectMobileMetric(page: Page, path: string) {
   await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 45_000 })
   await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
@@ -187,9 +208,33 @@ test.describe('AACT mobile UX guardrails suite', () => {
     await assertNoPageHorizontalOverflow(page, 'admin-books')
     checks.push({ name: 'تبويب الكتب لا يسبب تمدداً أفقياً على الهاتف', ok: true })
     await page.getByRole('tab', { name: /البريد والدفع والفيديو/ }).click()
-    await expect(page.getByText('مستويات المزودين')).toBeVisible({ timeout: 30_000 })
-    await assertNoPageHorizontalOverflow(page, 'admin-system')
-    checks.push({ name: 'تبويب النظام لا يسبب تمدداً أفقياً على الهاتف', ok: true })
+    await page.getByRole('tab', { name: /Gemini \/ AI/ }).click()
+    await page.getByRole('button', { name: /سياسات توجيه الذكاء/ }).click()
+    const routingPanel = '#gemini-section-routing'
+    await expect(page.locator(routingPanel)).toBeVisible({ timeout: 30_000 })
+    for (const width of [320, 375, 390, 430]) {
+      await page.setViewportSize({ width, height: 844 })
+      await assertNoPageHorizontalOverflow(page, 'admin-system-routing-' + width)
+      await assertMobileFormControlsFit(page, routingPanel, 'admin-system-routing-' + width)
+      const firstSelect = page.locator(routingPanel + ' [data-slot="select-trigger"]').first()
+      // The selected AI model must be readable (wrapped), not clipped off-screen.
+      const visibleLabel = firstSelect.locator('span.min-w-0.flex-1')
+      await expect(visibleLabel).toBeVisible()
+      await expect(visibleLabel).toHaveCSS('white-space', 'normal')
+      await firstSelect.click()
+      const dropdown = page.locator('[data-slot="select-content"]').last()
+      await expect(dropdown).toBeVisible()
+      const rect = await dropdown.boundingBox()
+      expect(rect, 'Open AI-provider menu must have a bounding box').toBeTruthy()
+      expect(rect!.x, 'AI-provider menu starts before the viewport').toBeGreaterThanOrEqual(-3)
+      expect(rect!.x + rect!.width, 'AI-provider menu extends past the viewport').toBeLessThanOrEqual(width + 3)
+      await page.keyboard.press('Escape')
+    }
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.getByRole('button', { name: /مزوّدو النصوص والمفاتيح/ }).click()
+    await assertMobileFormControlsFit(page, '#gemini-section-providers', 'admin-system-providers')
+    await assertNoPageHorizontalOverflow(page, 'admin-system-providers')
+    checks.push({ name: 'حقول النظام واختيارات المزوّدين لا تخرج عن 320/375/390/430px', ok: true })
 
     const report = { generatedAt: new Date().toISOString(), checks }
     await mkdir('test-results/mobile-ux', { recursive: true }).catch(() => {})
