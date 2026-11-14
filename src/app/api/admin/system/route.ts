@@ -459,7 +459,20 @@ export async function POST(req: NextRequest) {
         })
         await tx.setting.deleteMany({ where: { key: customTextAiKeySetting(id) } })
         // Discovery results are transient cache, not historical AI usage data.
-        await tx.setting.deleteMany({ where: { key: { startsWith: `AI_MODELS_AVAILABLE:${id}:` } } })
+        // Remove transient model discovery, health and cooldown records.
+        // Historical model usage stats and audit trails are preserved.
+        await tx.setting.deleteMany({
+          where: {
+            OR: [
+              { key: { startsWith: `AI_MODELS_AVAILABLE:${id}:` } },
+              { key: { startsWith: `AI_COOLDOWN:${id}:` } },
+              { key: { startsWith: `AI_NO_BALANCE:${id}:` } },
+              { key: { startsWith: `AI_MODEL_DEAD:${id}:` } },
+              { key: { startsWith: `AI_MODEL_HEALTH:${id}:` } },
+              { key: `AI_KEY_LIMIT:${id}` },
+            ],
+          },
+        })
         await tx.auditLog.create({
           data: {
             actorId: admin.id,
