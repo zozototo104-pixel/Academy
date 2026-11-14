@@ -233,10 +233,8 @@ describe('legacy book readers: profile rescue only after failure', () => {
     let calls = 0
     visionRouterCall = async () => { calls++; throw new Error('primary quota exhausted') }
     try {
-      expect(transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1])).rejects.toThrow('primary quota exhausted')
-      // The rejection above is checked before inspecting the attempt counter.
       await expect(transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1])).rejects.toThrow('primary quota exhausted')
-      expect(calls).toBe(2)
+      expect(calls).toBe(1)
     } finally {
       __setStageProfileStoreForTests(null)
     }
