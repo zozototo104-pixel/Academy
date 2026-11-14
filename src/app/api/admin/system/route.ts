@@ -382,27 +382,26 @@ export async function POST(req: NextRequest) {
       } catch {
         return NextResponse.json({ error: 'رابط API يجب أن يكون HTTPS عامًا وقابلًا للوصول، وليس عنوانًا داخليًا' }, { status: 400 })
       }
-      const existingRow = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
-      const providers = parseCustomTextAiProviders(existingRow?.value || '')
-      const existing = incomingId ? providers.find((entry) => entry.id === incomingId) : null
-      if (incomingId && (!isCustomTextAiProviderId(incomingId) || !existing)) {
+      const hasNewKey = !!key && !isMaskedSecret(key)
+      if (incomingId && !isCustomTextAiProviderId(incomingId)) {
         return NextResponse.json({ error: 'المزوّد المطلوب تعديله غير موجود' }, { status: 404 })
       }
-      if (!incomingId && providers.length >= 32) {
-        return NextResponse.json({ error: 'الحد الأقصى 32 مزوّدًا إضافيًا' }, { status: 400 })
-      }
-      const id = existing?.id || (`CUSTOM_${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}` as `CUSTOM_${string}`)
-      const hasNewKey = !!key && !isMaskedSecret(key)
-      if (!existing && !hasNewKey) return NextResponse.json({ error: 'مفتاح API مطلوب لإضافة مزوّد جديد' }, { status: 400 })
+      if (!incomingId && !hasNewKey) return NextResponse.json({ error: 'مفتاح API مطلوب لإضافة مزوّد جديد' }, { status: 400 })
       if (hasNewKey && (key.length > 2048 || /[\r\n]/.test(key))) {
         return NextResponse.json({ error: 'تنسيق مفتاح API غير صالح' }, { status: 400 })
       }
       if (hasNewKey && !hasSecretEncryptionKey()) {
         return NextResponse.json({ error: 'مفتاح تشفير إعدادات النظام غير متوفر' }, { status: 400 })
       }
-      const updated = { id, name, baseUrl, enabled, selectedModel: existing?.selectedModel || '' }
-      const registry = existing ? providers.map((item) => item.id === id ? updated : item) : [...providers, updated]
-      await db.$transaction(async (tx) => {
+      const saved = await mutateCustomTextAiProviders(async (tx) => {
+        const row = await tx.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+        const providers = parseCustomTextAiProviders(row?.value || '')
+        const existing = incomingId ? providers.find((entry) => entry.id === incomingId) : null
+        if (incomingId && !existing) return { error: 'NOT_FOUND' } as const
+        if (!incomingId && providers.length >= 32) return { error: 'LIMIT' } as const
+        const id = existing?.id || (`CUSTOM_${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}` as `CUSTOM_${string}`)
+        const updated = { id, name, baseUrl, enabled, selectedModel: existing?.selectedModel || '' }
+        const registry = existing ? providers.map((item) => item.id === id ? updated : item) : [...providers, updated]
         await tx.setting.upsert({
           where: { key: CUSTOM_AI_PROVIDERS_SETTING },
           create: { key: CUSTOM_AI_PROVIDERS_SETTING, value: JSON.stringify(registry) },
@@ -417,10 +416,16 @@ export async function POST(req: NextRequest) {
             update: { value },
           })
         }
+        return { id, updatedExisting: !!existing } as const
       })
+      if ('error' in saved) {
+        return saved.error === 'LIMIT'
+          ? NextResponse.json({ error: 'الحد الأقصى 32 مزوّدًا إضافيًا' }, { status: 400 })
+          : NextResponse.json({ error: 'المزوّد المطلوب تعديله غير موجود' }, { status: 404 })
+      }
       clearSecretCache()
-      await audit(admin, existing ? 'AI_CUSTOM_PROVIDER_UPDATED' : 'AI_CUSTOM_PROVIDER_CREATED', 'Setting', id, `Custom AI provider: ${id}`)
-      return NextResponse.json({ ok: true, id, customProviders: await adminCustomTextAiProviders() })
+      await audit(admin, saved.updatedExisting ? 'AI_CUSTOM_PROVIDER_UPDATED' : 'AI_CUSTOM_PROVIDER_CREATED', 'Setting', saved.id, `Custom AI provider: ${saved.id}`)
+      return NextResponse.json({ ok: true, id: saved.id, customProviders: await adminCustomTextAiProviders() })
     }
     if (action === 'delete-custom-ai-provider') {
       const id = String(body?.id || '').trim()
