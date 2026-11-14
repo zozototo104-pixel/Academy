@@ -393,8 +393,9 @@ export function ExamView() {
       if (!data || submittedRef.current) return
       const unanswered = data.questions.length - answeredCount
       if (unanswered > 0 && !auto) {
-        const ok = confirm(`لديك ${unanswered} سؤال بدون إجابة. هل تريد التسليم على أي حال؟`)
-        if (!ok) return
+        const ok = await confirmAction({ title: 'تسليم الامتحان بأسئلة غير مجابة', description: `لديك ${unanswered} سؤال بدون إجابة. هل تريد التسليم على أي حال؟`, confirmLabel: 'تسليم الإجابات', tone: 'warning' })
+        // The exam timer may auto-submit while this nonblocking dialog is open.
+        if (!ok || submittedRef.current) return
       }
       submittedRef.current = true
       setSubmitting(true)
