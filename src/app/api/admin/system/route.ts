@@ -136,6 +136,20 @@ function sanitizeProviderOrder(value: string, addedIds: string[] = []): string {
   return items.join(',')
 }
 
+// Read and write the registry together so simultaneous admin requests cannot
+// silently replace each other's provider changes.
+async function mutateCustomTextAiProviders<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      return await db.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+    } catch (error: any) {
+      if (error?.code !== 'P2034' || attempt === 3) throw error
+      await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)))
+    }
+  }
+  throw new Error('CUSTOM_PROVIDER_RETRY_EXHAUSTED')
+}
+
 async function adminCustomTextAiProviders() {
   const row = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
   const providers = parseCustomTextAiProviders(row?.value || '')
