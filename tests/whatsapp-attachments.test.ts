@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { extractWhatsAppInboundMessages } from '../src/lib/whatsapp-cloud'
 
 // Keep provider fallback assertions alongside WhatsApp voice attachment coverage.
