@@ -5636,6 +5636,7 @@ export function AdminKnowledgeAiRepairTab() {
   const [busy, setBusy] = useState(false)
   const [repairConfigLoaded, setRepairConfigLoaded] = useState(false)
   const [repairProvider, setRepairProvider] = useState('AUTO')
+  const [repairCustomProviders, setRepairCustomProviders] = useState<Array<{ id: string; name: string; enabled: boolean }>>([])
   const [repairModel, setRepairModel] = useState('')
   const [repairInterval, setRepairInterval] = useState('0')
   const [repairCallsPerRun, setRepairCallsPerRun] = useState('1')
