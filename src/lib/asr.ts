@@ -227,7 +227,7 @@ export async function transcribeWhatsAppVoiceBase64(audioBase64: string, options
           { inlineData: { mimeType, data: clean } },
         ])],
         config: {
-          temperature: 0,
+          // Gemini 3.8 Flash rejects legacy sampling options such as temperature.
           maxOutputTokens: 4096,
           httpOptions: { timeout: 8_000 },
         },
