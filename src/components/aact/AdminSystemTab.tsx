@@ -1740,6 +1740,33 @@ export function AdminSystemTab() {
                   </div>
                 )
               })}
+              <AlertDialog open={!!customDeleteTarget} onOpenChange={(open) => { if (!open && !customBusy) setCustomDeleteTarget(null) }}>
+                <AlertDialogContent dir="rtl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>تأكيد حذف مزوّد الذكاء الاصطناعي</AlertDialogTitle>
+                    <AlertDialogDescription className="text-right leading-7">
+                      هل تريد حذف «{customDeleteTarget?.name}» نهائيًا؟
+                      سيتم حذف مفتاح API المحفوظ وتعريف المزوّد ونماذجه من قوائم الاختيار والترتيب اليدوي.
+                      إذا كان المزوّد مختارًا حاليًا فسيعود الاختيار إلى AUTO.
+                      لن تتأثر المزوّدات الأساسية أو سجلات الاستخدام التاريخية.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={customBusy}>تراجع</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-white hover:bg-destructive/90"
+                      disabled={customBusy || !customDeleteTarget}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        if (customDeleteTarget) void deleteCustomProvider(customDeleteTarget.id)
+                      }}
+                    >
+                      {customBusy && <Loader2 className="ml-2 h-3 w-3 animate-spin" />}
+                      تأكيد حذف المزوّد
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
             {currentTextProvider === 'GEMINI' || currentTextProvider === 'AUTO' ? (
               <>
