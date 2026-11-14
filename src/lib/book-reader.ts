@@ -175,12 +175,14 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
       // A missing/invalid profile must not replace the original failure.
     }
     if (overrides?.kind !== 'stage') throw originalError
-    return (await transcribeWithMeta(buffer, pageNumbers, deadlineMs, {
+    const rescued = (await transcribeWithMeta(buffer, pageNumbers, deadlineMs, {
       preferredModels: overrides.preferredModels,
       preferredProviders: overrides.preferredProviders,
       policy: overrides.policy,
       allowGlobalFallback: false,
     })).pages
+    if (rescued.every((page) => !page.text.trim())) throw originalError
+    return rescued
   }
 }
 
