@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import {
   Loader2, Mail, CreditCard, Network, SendHorizonal, ShieldCheck, Save,
   CheckCircle2, XCircle, Clock3, Info, Bot, Radio, Upload,
-  ChevronUp, ChevronDown,
+  ChevronUp, ChevronDown, Trash2,
 } from 'lucide-react'
 
 interface EmailLog {
