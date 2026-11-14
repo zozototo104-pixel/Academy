@@ -486,7 +486,7 @@ export async function POST(req: NextRequest) {
         return Object.fromEntries(
           Object.entries(after).filter(([key, value]) => value !== before[key]),
         )
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+      })
       if (!cleanedSettings) return NextResponse.json({ error: 'المزوّد المطلوب حذفه غير موجود' }, { status: 404 })
       clearSecretCache()
       return NextResponse.json({
