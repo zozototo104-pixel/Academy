@@ -418,6 +418,7 @@ function normalizeStudentRow(raw: any): StudentRow {
 export function AdminView() {
   const { user, navigate, openStudentPreview, openAgentPreview } = useAppStore()
   const { toast } = useToast()
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [data, setData] = useState<Stats | null>(null)
   const [apps, setApps] = useState<AgentApp[]>([])
   const [admissions, setAdmissions] = useState<AdmissionApp[]>([])
