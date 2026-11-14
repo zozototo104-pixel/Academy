@@ -1648,7 +1648,7 @@ export function AdminSystemTab() {
                     <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-emerald-800 sm:col-span-3">
                       <p className="mb-1 font-black">أفضل 5 حسب health score</p>
                       {textModelHealth.top.map((item) => (
-                        <div key={`${item.provider}:${item.model}`} dir="ltr" className="truncate text-[10px]">{item.provider}/{item.model} — score {item.score.toFixed(2)} — ok {item.success} / fail {item.failCount} — avg {Math.round(item.avgMs || 0)}ms</div>
+                        <div key={`${item.provider}:${item.model}`} dir="ltr" className="min-w-0 whitespace-normal break-all text-[10px] leading-relaxed">{item.provider}/{item.model} — score {item.score.toFixed(2)} — ok {item.success} / fail {item.failCount} — avg {Math.round(item.avgMs || 0)}ms</div>
                       ))}
                     </div>
                   )}
