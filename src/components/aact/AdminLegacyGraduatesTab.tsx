@@ -200,7 +200,7 @@ function parseStampLayout(positionValue?: string | null, sizeValue?: string | nu
 }
 
 export default function AdminLegacyGraduatesTab() {
-  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const openStudentPreview = useAppStore((s) => s.openStudentPreview)
   const [profileFor, setProfileFor] = useState<LegacyGraduateCertificate | null>(null)
   const [items, setItems] = useState<LegacyGraduateCertificate[]>([])
