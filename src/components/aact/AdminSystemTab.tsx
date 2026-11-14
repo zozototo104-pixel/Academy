@@ -409,6 +409,8 @@ export function AdminSystemTab() {
   }
   const [textModelCatalog, setTextModelCatalog] = useState<Record<string, { models: string[]; message: string; discoveredCount: number; staticCount: number }>>({})
   const [textModelHealth, setTextModelHealth] = useState<TextAiModelHealth | null>(null)
+  type HealthCheckResultRow = { provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }
+  const [lastHealthCheck, setLastHealthCheck] = useState<{ label: string; at: string; results: HealthCheckResultRow[] } | null>(null)
   const [healthSelectedModel, setHealthSelectedModel] = useState('')
   const [textModelHealthLoading, setTextModelHealthLoading] = useState(false)
   const [routerState, setRouterState] = useState<TextAiRouterStateItem[]>([])
@@ -465,16 +467,27 @@ export function AdminSystemTab() {
     ? (data?.textAi?.activeProvider || 'GEMINI')
     : activeTextProviderForModels
 
-  const loadTextModelHealth = () => {
+  const loadTextModelHealth = (opts?: { notify?: boolean }) => {
     if (!catalogProviderForModels) return
     setTextModelHealthLoading(true)
     api<TextAiModelHealth>('/api/admin/system', {
       method: 'POST',
       body: JSON.stringify({ action: 'text-ai-model-health', provider: catalogProviderForModels }),
     })
-      .then((r) => setTextModelHealth(r))
-      .catch(() => setTextModelHealth(null))
+      .then((r) => {
+        setTextModelHealth(r)
+        if (opts?.notify) toast({ title: 'تم تحديث صحة النماذج', description: `${r.available?.length || 0} نموذج متاح لدى ${catalogProviderForModels}.` })
+      })
+      .catch(() => {
+        setTextModelHealth(null)
+        if (opts?.notify) toast({ title: 'تعذر تحديث صحة النماذج', variant: 'destructive' })
+      })
       .finally(() => setTextModelHealthLoading(false))
+  }
+
+  const refreshTextModelHealthNow = () => {
+    setLastHealthCheck(null)
+    loadTextModelHealth({ notify: true })
   }
 
   const loadRouterState = async () => {
@@ -531,13 +544,14 @@ export function AdminSystemTab() {
     }
     setTextModelHealthLoading(true)
     try {
-      const result = await api<{ checked: number; results: Array<{ ok: boolean; error?: string }> }>('/api/admin/system', {
+      const result = await api<{ checked: number; results: Array<HealthCheckResultRow> }>('/api/admin/system', {
         method: 'POST',
         body: JSON.stringify({ action: 'text-ai-check-selected', provider: catalogProviderForModels, model }),
       })
       const checked = result.results?.[0]
       if (!checked) throw new Error('لم يُنفّذ الفحص؛ تأكد من وجود مفتاح صالح للمزود المختار')
       toast({ title: checked?.ok ? 'النموذج يعمل' : 'فشل فحص النموذج', description: `${catalogProviderForModels}/${model}${checked?.error ? ` — ${checked.error}` : ''}`, variant: checked?.ok ? 'default' : 'destructive' })
+      setLastHealthCheck({ label: `فحص النموذج المحدد — ${catalogProviderForModels}/${model}`, at: new Date().toISOString(), results: result.results || [] })
       loadTextModelHealth()
     } catch (e: any) {
       toast({ title: 'تعذر فحص النموذج', description: e.message, variant: 'destructive' })
@@ -548,11 +562,12 @@ export function AdminSystemTab() {
   const checkProviderModelsNow = async () => {
     setTextModelHealthLoading(true)
     try {
-      const result = await api<{ checked: number; total: number; complete: boolean }>('/api/admin/system', {
+      const result = await api<{ checked: number; total: number; complete: boolean; results: Array<HealthCheckResultRow> }>('/api/admin/system', {
         method: 'POST',
         body: JSON.stringify({ action: 'text-ai-check-provider', provider: catalogProviderForModels }),
       })
       toast({ title: result.complete ? 'اكتمل فحص نماذج المزود' : 'فحص جزئي — انتهت المهلة', description: `فُحص ${result.checked} من ${result.total} نموذج لدى ${catalogProviderForModels}.` })
+      setLastHealthCheck({ label: `فحص كل نماذج المزود — ${catalogProviderForModels}`, at: new Date().toISOString(), results: result.results || [] })
       loadTextModelHealth()
     } catch (e: any) {
       toast({ title: 'تعذر فحص نماذج المزود', description: e.message, variant: 'destructive' })
@@ -563,8 +578,9 @@ export function AdminSystemTab() {
   const checkAllTextModelsNow = async () => {
     setTextModelHealthLoading(true)
     try {
-      const result = await api<{ ok: boolean; checked: number }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'text-ai-check-all' }) })
+      const result = await api<{ ok: boolean; checked: number; results: Array<HealthCheckResultRow> }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'text-ai-check-all' }) })
       toast({ title: 'تم فحص صحة المزودين', description: `تم فحص ${result.checked || 0} نموذج.` })
+      setLastHealthCheck({ label: 'فحص الكل', at: new Date().toISOString(), results: result.results || [] })
       loadTextModelHealth()
     } catch (e: any) {
       toast({ title: 'تعذر فحص المزودين', description: e.message, variant: 'destructive' })
@@ -613,6 +629,7 @@ export function AdminSystemTab() {
 
   useEffect(() => {
     setTextModelHealth(null)
+    setLastHealthCheck(null)
   }, [catalogProviderForModels])
 
   useEffect(() => {
@@ -1660,7 +1677,7 @@ export function AdminSystemTab() {
                   <p className="text-[10px] text-slate-500">يعرض النماذج المكتشفة، المستبعدة مؤقتاً، وأفضل النماذج حسب سجل النجاح.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={loadTextModelHealth} className="border-indigo-200 text-[10px] font-black text-indigo-700">
+                  <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={refreshTextModelHealthNow} className="border-indigo-200 text-[10px] font-black text-indigo-700">
                     {textModelHealthLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Bot className="ml-1 h-3 w-3" />} تحديث صحة النماذج
                   </Button>
                   <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading || !healthSelectedModel.trim()} onClick={checkSelectedTextModelNow} className="border-indigo-200 text-[10px] font-black text-indigo-700">فحص النموذج المحدد</Button>
@@ -1675,6 +1692,21 @@ export function AdminSystemTab() {
                 <input id="health-selected-model" list="health-model-options" value={healthSelectedModel} onChange={(e) => setHealthSelectedModel(e.target.value)} placeholder="اختر أو اكتب اسم النموذج بدقة" dir="ltr" className="w-full min-w-0 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs text-slate-800" />
                 <datalist id="health-model-options">{(textModelCatalog[catalogProviderForModels]?.models || []).map((model) => <option key={model} value={model} />)}</datalist>
               </div>
+              {lastHealthCheck && (
+                <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-emerald-800">
+                  <p className="mb-1 font-black">نتائج آخر فحص — {lastHealthCheck.label}</p>
+                  <p className="mb-1 text-[10px]">{new Date(lastHealthCheck.at).toLocaleString('ar')} — {lastHealthCheck.results.filter((r) => r.ok).length} ناجح من {lastHealthCheck.results.length}</p>
+                  {!lastHealthCheck.results.length && (
+                    <p className="text-[10px]">لم يُفحص أي نموذج في هذه المحاولة.</p>
+                  )}
+                  {lastHealthCheck.results.slice(0, 100).map((item) => (
+                    <div key={`${item.provider}:${item.model}`} dir="ltr" className="min-w-0 whitespace-normal break-all border-b border-emerald-200/70 py-1 text-[10px] leading-relaxed last:border-b-0">{item.provider}/{item.model} — {item.ok ? 'يعمل' : 'فشل'} — {item.latencyMs != null ? `${Math.round(item.latencyMs)}ms` : 'no-check'}{item.ok ? '' : ` — ${String(item.error || '').slice(0, 120)}`}</div>
+                  ))}
+                  {lastHealthCheck.results.length > 100 && (
+                    <p className="mt-1 text-[10px]">يعرض أول 100 من {lastHealthCheck.results.length} نموذجاً.</p>
+                  )}
+                </div>
+              )}
               {textModelHealth ? (
                 <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3 [&>div]:min-w-0">
                   <div className="rounded-lg bg-indigo-50 p-2 text-indigo-800">المتاح الآن: {textModelHealth.available?.length || 0}</div>
