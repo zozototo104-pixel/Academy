@@ -159,8 +159,62 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
   }
 }
 
+// Legacy outline OCR remains the first and unchanged attempt. Only after it
+// fails do we rescue the SAME original PDF pages through an enabled READING
+// profile; this does not restart indexing or relax source-page validation.
 export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNumbers: readonly number[], deadlineMs = Date.now() + 120_000): Promise<ExtractedBookPage[]> {
-  return (await transcribeWithMeta(buffer, pageNumbers, deadlineMs, null)).pages
+  try {
+    return (await transcribeWithMeta(buffer, pageNumbers, deadlineMs, null)).pages
+  } catch (originalError) {
+    let overrides: StageRoutingOverrides | null = null
+    try {
+      overrides = buildStageRoutingOverrides(await resolveEffectiveStageProfile('READING'))
+    } catch {
+      // A missing/invalid profile must not replace the original failure.
+    }
+    if (overrides?.kind !== 'stage') throw originalError
+    return (await transcribeWithMeta(buffer, pageNumbers, deadlineMs, {
+      preferredModels: overrides.preferredModels,
+      preferredProviders: overrides.preferredProviders,
+      policy: overrides.policy,
+      allowGlobalFallback: false,
+    })).pages
+  }
+}
+
+// Used only after the existing direct Gemini file reader has failed. The
+// READING profile is a hard model allowlist, with no implicit global retry.
+// text-ai verifies vision/PDF capabilities before sending the attachment.
+export async function rescueOriginalBookVisionWithReadingProfile(input: {
+  buffer: Buffer
+  mimeType: string
+  prompt: string
+  maxOutputTokens: number
+  temperature?: number
+  deadlineMs?: number
+  validate?: (text: string) => void
+}): Promise<{ text: string; provider: string; model: string } | null> {
+  let overrides: StageRoutingOverrides | null = null
+  try {
+    overrides = buildStageRoutingOverrides(await resolveEffectiveStageProfile('READING'))
+  } catch {
+    return null
+  }
+  if (overrides.kind !== 'stage' || !overrides.preferredModels.length) return null
+  return textAiCompleteJsonWithMetadata({
+    system: 'اقرأ الملف الأصلي المرفق بدقة، ولا تختلق محتوى أو صفحات. أجب بصيغة JSON المطلوبة فقط.',
+    history: [{ role: 'user', text: input.prompt }],
+    purpose: 'VISION',
+    temperature: input.temperature ?? 0,
+    maxOutputTokens: input.maxOutputTokens,
+    ...(input.deadlineMs ? { deadlineMs: input.deadlineMs } : {}),
+    attachments: [{ mimeType: input.mimeType, base64: input.buffer.toString('base64') }],
+    preferredModels: overrides.preferredModels.map((item) => ({ provider: item.provider as TextAiPreferredModel['provider'], model: item.model })),
+    restrictToModels: overrides.preferredModels.map((item) => ({ provider: item.provider as TextAiPreferredModel['provider'], model: item.model })),
+    ...(overrides.preferredProviders.length ? { preferredProviders: overrides.preferredProviders as TextAiProvider[] } : {}),
+    routerPolicy: (overrides.policy || 'primary_first') as TextAiRouterPolicy,
+    validate: input.validate,
+  })
 }
 
 export type ExtractStepStore = {
