@@ -1106,7 +1106,7 @@ export function AdminSystemTab() {
   const currentPaymentMode = (form.PAYMENT_MODE || data.paymentMode || 'SANDBOX') as 'SANDBOX' | 'LIVE'
 
   return (
-    <div className="space-y-4">
+    <div className="w-full min-w-0 max-w-full space-y-4">
       <div className="rounded-xl border border-[#0f2b46]/10 bg-white p-3 text-[11px] font-bold leading-relaxed text-slate-600">
         <ShieldCheck className="ml-1 inline h-4 w-4 text-[#a8841a]" />
         إدارة الأسرار: القيم المقنّعة مثل •••••• محفوظة ولا تتغير عند الحفظ. لتغيير أي سر اكتب قيمة جديدة، ولا تُرسل مفاتيح Stripe/Gemini/Resend خارج لوحة الإدارة أو Vercel.
