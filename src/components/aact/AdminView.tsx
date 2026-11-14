@@ -1056,7 +1056,7 @@ export function AdminView() {
       const programNames = Array.from(new Set(candidates.map((app) => app.program).filter(Boolean)))
       const chosenProgram = programNames.length === 1
         ? programNames[0]
-        : window.prompt(`اكتب اسم البرنامج/الخدمة المطلوب كما هو:\n${programNames.map((name) => `- ${name}`).join('\n')}`, programNames[0] || '')?.trim()
+        : (await promptAction({ title: 'اختيار البرنامج للمرفقات الناقصة', description: `اكتب اسم البرنامج/الخدمة كما هو:\n${programNames.map((name) => `- ${name}`).join('\n')}`, fieldLabel: 'اسم البرنامج', defaultValue: programNames[0] || '', confirmLabel: 'متابعة' }))?.trim()
       if (!chosenProgram) return
       const affected = candidates.filter((app) => app.program === chosenProgram).slice(0, 100)
       if (!affected.length) {
