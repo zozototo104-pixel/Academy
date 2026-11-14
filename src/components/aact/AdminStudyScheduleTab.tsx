@@ -240,7 +240,8 @@ export default function AdminStudyScheduleTab() {
   }
 
   return (
-    <div className="mt-4 space-y-4" dir="rtl">
+    <div className="mt-4 w-full min-w-0 space-y-4" dir="rtl">
+      {actionDialog}
       <Card className="border-[#0f2b46]/10">
         <CardContent className="space-y-4 p-4 sm:p-5">
           <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
