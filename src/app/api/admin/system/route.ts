@@ -8,7 +8,7 @@ import { sendEmail, getSmtpConfig, emailTemplate } from '@/lib/mailer'
 import { ensureGeminiKey, hasGemini, invalidateGeminiKeyCache, normalizeGeminiModelName, geminiActiveLiveModel, isValidGeminiLiveModel, geminiApiKey, isQuotaError, isAuthError, isModelUnavailableError, isInvalidArgumentError, geminiKeyDiagnostics, geminiTestConnection } from '@/lib/gemini'
 import { localAgentDiagnostics, testLocalAgentConnection } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
-import { assertPublicCustomTextAiUrl, forgetCustomTextAiProviderRuntimeState, CUSTOM_AI_PROVIDERS_SETTING, CUSTOM_AI_PROVIDER_REFERENCE_KEYS, customTextAiKeySetting, isCustomTextAiProviderId, parseCustomTextAiProviders, settingsAfterCustomTextAiProviderDeletion, refreshCustomTextAiFreeModels, clearTextAiRouterState, textAiCheckAllModelHealth, textAiDiagnostics, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiRouterStateSnapshot, textAiTestConnection } from '@/lib/text-ai'
+import { assertPublicCustomTextAiUrl, forgetCustomTextAiProviderRuntimeState, CUSTOM_AI_PROVIDERS_SETTING, CUSTOM_AI_PROVIDER_REFERENCE_KEYS, customTextAiKeySetting, isCustomTextAiProviderId, parseCustomTextAiProviders, settingsAfterCustomTextAiProviderDeletion, refreshCustomTextAiFreeModels, clearTextAiRouterState, textAiCheckAllModelHealth, textAiDiagnostics, textAiDiscoveredModelsForProvider, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiRouterStateSnapshot, textAiTestConnection } from '@/lib/text-ai'
 import { clearSecretCache, decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret, isMaskedSecret, isSecretKeyName, redactDeep, redactSecrets, secretLast4 } from '@/lib/secret-crypto'
 
 const NextResponse = {
@@ -712,10 +712,22 @@ export async function POST(req: NextRequest) {
       if (!provider || provider === 'AUTO') return NextResponse.json({ error: 'اختر مزوداً محدداً أولاً' }, { status: 400 })
       try {
         const catalog = await textAiFreeModelsForProvider(provider)
-        const models = catalog.models || []
-        if (!models.length) return NextResponse.json({ error: 'لا توجد نماذج مكتشفة لهذا المزود' }, { status: 400 })
+        let models = catalog.models || []
+        let source: 'free' | 'discovered' = 'free'
+        if (!models.length) {
+          // The free catalog can be empty while the provider still lists
+          // models (no free marking, or a stale cache + a failed live
+          // discovery). A health check must probe what the provider
+          // actually offers, so fall back to the full discovered catalog
+          // before refusing. Routing is untouched: it still uses only the
+          // free catalog.
+          const discovered = await textAiDiscoveredModelsForProvider(provider)
+          models = discovered.models || []
+          source = 'discovered'
+        }
+        if (!models.length) return NextResponse.json({ error: 'تعذّر الوصول إلى قائمة نماذج المزود — تحقق من المفتاح أو من أن المزود يستجيب حالياً' }, { status: 400 })
         const result = await textAiCheckAllModelHealth({ maxMs: 110_000, provider, models })
-        return NextResponse.json({ ok: true, total: models.length, complete: result.checked === new Set(models).size, ...result })
+        return NextResponse.json({ ok: true, total: models.length, source, complete: result.checked === new Set(models).size, ...result })
       } catch (error: any) {
         return NextResponse.json({ error: String(error?.message || 'تعذر فحص المزود') }, { status: 400 })
       }

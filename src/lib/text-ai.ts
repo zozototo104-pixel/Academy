@@ -1847,12 +1847,17 @@ function normalizeFreeModelName(provider: ConcreteProvider, name: string): strin
   return name
 }
 
-async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string): Promise<string[]> {
+// Shared /models fetch for the OpenAI-compatible family: returns the raw
+// text-like catalog rows WITHOUT any free filter. The free catalog
+// (fetchOpenAiCompatibleFreeModels) and the full discovered catalog used by
+// the provider health check (textAiDiscoveredModelsForProvider) both read
+// from here, so a provider whose models carry no free marking is still
+// discoverable for diagnostics — the free filter only ever narrows routing.
+async function fetchOpenAiCompatibleModelRows(provider: ConcreteProvider, baseUrl: string, key?: string): Promise<{ rows: Array<{ raw: any; id: string }>; sourceCount: number }> {
   const normalizedBaseUrl = provider === 'OPENAI_COMPAT'
     ? normalizeOpenAiCompatibleBaseUrl(baseUrl)
     : (baseUrl || '').replace(/\/$/, '')
-  if (!normalizedBaseUrl) return []
-  const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(normalizedBaseUrl)
+  if (!normalizedBaseUrl) return { rows: [], sourceCount: 0 }
   try {
     if (isCustomTextAiProviderId(provider)) await assertPublicCustomTextAiUrl(normalizedBaseUrl)
     const response = await fetchWithTimeout(provider, `${normalizedBaseUrl}/models`, {
@@ -1860,14 +1865,32 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
       ...(isCustomTextAiProviderId(provider) ? { redirect: 'error' as const } : {}),
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
     }, aiDiscoveryTimeoutMs())
-    if (!response.ok) return []
+    if (!response.ok) return { rows: [], sourceCount: 0 }
     const data = await response.json().catch(() => ({}))
     const sourceRows = rowsFromModelPayload(data)
+    return {
+      sourceCount: sourceRows.length,
+      rows: sourceRows
+        .filter((m) => m?.online !== false)
+        .filter((m) => provider === 'ALBORIHI' ? isAlborihiChatCapableModel(m) : isTextLikeModel(m))
+        .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
+        .filter(({ id }) => validModelName(id)),
+    }
+  } catch {
+    return { rows: [], sourceCount: 0 }
+  }
+}
+
+async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string): Promise<string[]> {
+  const normalizedBaseUrl = provider === 'OPENAI_COMPAT'
+    ? normalizeOpenAiCompatibleBaseUrl(baseUrl)
+    : (baseUrl || '').replace(/\/$/, '')
+  if (!normalizedBaseUrl) return []
+  const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(normalizedBaseUrl)
+  try {
+    const { rows: sourceRows, sourceCount } = await fetchOpenAiCompatibleModelRows(provider, baseUrl, key)
     const rows = sourceRows
-      .filter((m) => m?.online !== false)
-      .filter((m) => provider === 'ALBORIHI' ? isAlborihiChatCapableModel(m) : isTextLikeModel(m))
-      .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
-      .filter(({ raw, id }) => validModelName(id) && (
+      .filter(({ raw, id }) => (
         provider === 'ALBORIHI'
           ? true
           : provider === 'OXION'
@@ -1888,7 +1911,7 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
         : rows
     const models = orderedRows.map(({ id }) => id)
     const capabilities = Object.fromEntries(orderedRows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
-    freeModelsCache.set(cacheKeyForFreeModels(provider, normalizedBaseUrl, key), { at: Date.now(), models, capabilities, discoveryOk: true, sourceCount: nvidiaCompat ? sourceRows.length : undefined })
+    freeModelsCache.set(cacheKeyForFreeModels(provider, normalizedBaseUrl, key), { at: Date.now(), models, capabilities, discoveryOk: true, sourceCount: nvidiaCompat ? sourceCount : undefined })
     return models
   } catch {
     return []
@@ -2798,6 +2821,34 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
           ? 'لم يعرض Top Tools AI نماذج عبر /models، لذلك يظهر النموذج الاحتياطي فقط.'
           : 'لم يعرض المزود نماذج مجانية عبر API، لذلك تظهر القائمة الاحتياطية الثابتة فقط.',
   }
+}
+
+// Full discovered catalog for the OpenAI-compatible family: every text-like
+// model the provider lists on /models, with NO free filter. This is a
+// DIAGNOSTIC source only — the provider health check uses it when the free
+// catalog is empty, so "check all models of the provider" can still probe
+// the models the admin actually sees. It must never feed routing: routing
+// stays on the free catalog (textAiFreeModelsForProvider / modelFallbacks),
+// so no paid model is ever attempted automatically.
+export async function textAiDiscoveredModelsForProvider(providerValue: unknown): Promise<{ provider: string; models: string[]; discoveredCount: number }> {
+  const s = await settings()
+  const provider = normalizeProvider(providerValue)
+  if (provider === 'AUTO') return { provider: 'AUTO', models: [], discoveredCount: 0 }
+  const concrete = provider as ConcreteProvider
+  const compatFamily = ['OPENAI_COMPAT', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ALBORIHI', 'OXION']
+  if (!compatFamily.includes(concrete) && !isCustomTextAiProviderId(concrete)) {
+    return { provider: concrete, models: [], discoveredCount: 0 }
+  }
+  if (isCustomTextAiProviderId(concrete) && !s.customProviders.some((entry) => entry.id === concrete && entry.enabled)) {
+    return { provider: concrete, models: [], discoveredCount: 0 }
+  }
+  const baseUrl = baseFor(s, concrete)
+  const key = await discoveryKey(concrete, s)
+  const { rows } = await fetchOpenAiCompatibleModelRows(concrete, baseUrl, key)
+  const selected = modelFor(s, concrete)
+  const selectedFirst = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && rows.some(({ id }) => id.toLowerCase() === selected.toLowerCase()) ? [selected] : []
+  const models = [...new Set([...selectedFirst, ...rows.map(({ id }) => id)].filter(Boolean))]
+  return { provider: concrete, models, discoveredCount: rows.length }
 }
 
 function isReasoningHealthModel(model: string): boolean {

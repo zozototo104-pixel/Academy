@@ -662,7 +662,7 @@ export function ApplyView() {
             </div>
             <div className="rounded-xl bg-[#0f2b46] px-4 py-3 text-center text-[#f5f0e1]">
               <p className="text-[10px] font-bold opacity-70">كود الطلب</p>
-              <p className="font-mono text-lg font-black text-[#e0b83a]" dir="ltr">{app.reference}</p>
+              <p className="break-all font-mono text-sm font-black text-[#e0b83a] sm:text-lg" dir="ltr">{app.reference}</p>
             </div>
           </div>
 
@@ -855,9 +855,9 @@ export function ApplyView() {
               <CardContent className="p-8 text-center">
                 <Banknote className="mx-auto mb-4 h-14 w-14 text-amber-500" />
                 <h2 className="text-xl font-black text-[#0f2b46]">{isServiceRequest ? 'تم استلام طلب الخدمة' : 'تم استلام طلب الالتحاق'}</h2>
-                <div className="mx-auto mt-4 w-fit rounded-xl border border-emerald-200 bg-white px-6 py-4">
+                <div className="mx-auto mt-4 w-fit max-w-full rounded-xl border border-emerald-200 bg-white px-6 py-4">
                   <div className="text-xs font-bold text-slate-500">كود تتبع حالة طلبك</div>
-                  <div className="mt-1 font-mono text-2xl font-black tracking-wider text-[#0f2b46]" dir="ltr">{done.reference}</div>
+                  <div className="mt-1 break-all font-mono text-lg font-black text-[#0f2b46] sm:text-2xl" dir="ltr">{done.reference}</div>
                 </div>
                 <p className="mx-auto mt-4 max-w-md rounded-lg bg-white px-3 py-2 text-[11px] font-bold leading-relaxed text-[#0f2b46]">
                   تم إرسال رسالة إلى بريدك {form.email} تتضمن كود التتبع {done.reference}{done.invoice ? ` وفاتورة رسوم التقديم ${done.invoice.invoiceNo} بمبلغ ${done.invoice.amount}$ ورابط الدفع` : ''} — تفقد بريدك (حتى صندوق الرسائل غير المرغوبة).
@@ -1170,8 +1170,8 @@ export function ApplyView() {
                 <div className="mt-6 space-y-4">
                   <div className="rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/40 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="font-mono text-xs font-bold text-slate-500" dir="ltr">{tracked.reference}</div>
+                      <div className="min-w-0">
+                        <div className="break-all font-mono text-xs font-bold text-slate-500" dir="ltr">{tracked.reference}</div>
                         <div className="mt-1 text-base font-black text-[#0f2b46]">{tracked.fullName}</div>
                         <div className="text-xs font-semibold text-slate-600">{tracked.program}</div>
                       </div>

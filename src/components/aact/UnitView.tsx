@@ -210,7 +210,7 @@ export function UnitView() {
                 </span>
                 {section.heading}
               </h2>
-              <p className="text-sm leading-loose text-slate-700">{section.body}</p>
+              <p className="break-words text-sm leading-loose text-slate-700">{section.body}</p>
             </CardContent>
           </Card>
         ))}

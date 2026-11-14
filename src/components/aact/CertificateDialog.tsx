@@ -194,9 +194,9 @@ export function CertificateDialog({
                 <p className="text-[10px] font-black text-[#0f2b46]">رئيس مجلس الإدارة</p>
                 <p className="text-[9px] text-slate-400">Chairman of the Board</p>
               </div>
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex min-w-0 flex-col items-center gap-1.5">
                 {qr && <img src={qr} alt="رمز التحقق QR" className="h-24 w-24 rounded border border-slate-200 bg-white p-1" />}
-                <p className="font-mono text-[10px] font-bold text-[#0f2b46]" dir="ltr">{certificate.serial}</p>
+                <p className="break-all font-mono text-[10px] font-bold text-[#0f2b46]" dir="ltr">{certificate.serial}</p>
               </div>
               <div className="text-center">
                 <div className="mx-auto mb-1 h-10 w-28 border-b-2 border-[#0f2b46]/50" />
