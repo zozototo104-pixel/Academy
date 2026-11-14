@@ -183,6 +183,14 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     expect(free({}, 'some-model:free')).toBe(true)
     expect(free({ pricing: { prompt: '0.00001', completion: '0' } }, 'paid-model')).toBe(false)
     expect(free({ pricing: { prompt: '0' } }, 'unverified-model')).toBe(false)
+    // A misleading free suffix or provider flag MUST NOT override paid pricing.
+    expect(free({ pricing: { prompt: '0.01', completion: '0.02' } }, 'example:free')).toBe(false)
+    expect(free({ is_free: true, pricing: { prompt: '0.01', completion: '0' } }, 'example-free')).toBe(false)
+    expect(free({ free: true, pricing: { prompt: '0' } }, 'example:free')).toBe(false)
+    expect(free({ pricing: { prompt: 'free', completion: '0' } }, 'example:free')).toBe(false)
+    expect(free({ pricing: { prompt: '0', completion: 'unknown' } }, 'example:free')).toBe(false)
+    expect(free({ pricing: { prompt: 0, completion: 0 } }, 'zero-cost-model')).toBe(true)
+    expect(free({ pricing: { prompt: '0e-6', completion: '0.000' } }, 'zero-cost-model')).toBe(true)
     expect(free({}, 'unknown-model')).toBe(false)
   })
 
