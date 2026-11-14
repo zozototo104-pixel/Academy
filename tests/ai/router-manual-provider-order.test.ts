@@ -207,6 +207,63 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     expect(disabled.activeProvider).toBeNull()
   })
 
+  test('deleting a registered provider removes only its model lists and resets its selections', () => {
+    const id = 'CUSTOM_EXTRAA'
+    const saved = {
+      AI_TEXT_PROVIDER: id,
+      AI_KNOWLEDGE_REPAIR_PROVIDER: id,
+      AI_KNOWLEDGE_REPAIR_MODEL: 'special-free-model',
+      AI_PROVIDER_FALLBACK_ORDER: `GEMINI,${id},OPENROUTER`,
+      AI_ACADEMIC_ALLOWLIST: `GEMINI:gemini-3.8-flash,${id}:special-free-model,OPENAI:gpt-5`,
+      AI_VERIFIER_PREFERRED: `${id}:special-free-model,GEMINI:gemini-3.8-flash`,
+      AI_PROVIDER_TIERS: `GEMINI:FREE,${id}:FREE,OPENAI:PAID`,
+    }
+    const removed = textAi.settingsAfterCustomTextAiProviderDeletion(id, saved)
+    expect(removed).toEqual({
+      AI_TEXT_PROVIDER: 'AUTO',
+      AI_KNOWLEDGE_REPAIR_PROVIDER: 'AUTO',
+      AI_KNOWLEDGE_REPAIR_MODEL: '',
+      AI_PROVIDER_FALLBACK_ORDER: 'GEMINI,OPENROUTER',
+      AI_ACADEMIC_ALLOWLIST: 'GEMINI:gemini-3.8-flash,OPENAI:gpt-5',
+      AI_VERIFIER_PREFERRED: 'GEMINI:gemini-3.8-flash',
+      AI_PROVIDER_TIERS: 'GEMINI:FREE,OPENAI:PAID',
+    })
+    expect(saved.AI_TEXT_PROVIDER).toBe(id)
+    const unrelated = textAi.settingsAfterCustomTextAiProviderDeletion(id, {
+      AI_TEXT_PROVIDER: 'GEMINI',
+      AI_PROVIDER_FALLBACK_ORDER: 'GEMINI,OPENROUTER',
+      AI_KNOWLEDGE_REPAIR_PROVIDER: 'OPENAI',
+      AI_KNOWLEDGE_REPAIR_MODEL: 'gpt-5',
+      AI_PROVIDER_TIERS: 'GEMINI:FREE,OPENAI:PAID',
+    })
+    expect(unrelated).toEqual({
+      AI_TEXT_PROVIDER: 'GEMINI',
+      AI_PROVIDER_FALLBACK_ORDER: 'GEMINI,OPENROUTER',
+      AI_KNOWLEDGE_REPAIR_PROVIDER: 'OPENAI',
+      AI_KNOWLEDGE_REPAIR_MODEL: 'gpt-5',
+      AI_PROVIDER_TIERS: 'GEMINI:FREE,OPENAI:PAID',
+    })
+    expect(() => textAi.settingsAfterCustomTextAiProviderDeletion('GEMINI', saved)).toThrow('INVALID_CUSTOM_PROVIDER_ID')
+  })
+
+  test('deletion is admin-gated, audited and atomic; existing providers have no delete button', () => {
+    const code = readFileSync(new URL('../../src/app/api/admin/system/route.ts', import.meta.url), 'utf8')
+    const ui = readFileSync(new URL('../../src/components/aact/AdminSystemTab.tsx', import.meta.url), 'utf8')
+    expect(code).toContain("if (action === 'delete-custom-ai-provider')")
+    expect(code).toContain('const admin = await requireAdmin()')
+    expect(code).toContain('if (!isCustomTextAiProviderId(id))')
+    expect(code).toContain('const cleanedSettings = await db.$transaction(async (tx) => {')
+    expect(code).toContain('await tx.setting.deleteMany({ where: { key: customTextAiKeySetting(id) } })')
+    expect(code).toContain('settingsAfterCustomTextAiProviderDeletion(id, before)')
+    expect(code).toContain('AI_CUSTOM_PROVIDER_DELETED')
+    expect(code).toContain('Prisma.TransactionIsolationLevel.Serializable')
+    expect(ui).toContain('setCustomDeleteTarget(entry)')
+    expect(ui).toContain('تأكيد حذف المزوّد')
+    expect(ui).toContain('action: \'delete-custom-ai-provider\'')
+    expect(ui).toContain('setTextModelCatalog((prev) => {')
+    expect(ui).toContain('setForm((prev) => ({ ...prev, ...result.clearedSettings }))')
+  })
+
   test('admin API uses encrypted storage and exposes only metadata; UI includes manual ordering', () => {
     const apiRoute = readFileSync(new URL('../../src/app/api/admin/system/route.ts', import.meta.url), 'utf8')
     const ui = readFileSync(new URL('../../src/components/aact/AdminSystemTab.tsx', import.meta.url), 'utf8')
