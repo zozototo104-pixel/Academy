@@ -94,6 +94,7 @@ mock.module('@/lib/storage', () => ({
   storageErrorMessage: () => 'storage error',
   storeFileBuffer: async () => { const key = `k${storedKeys.length + 1}`; storedKeys.push(key); return { provider: 'LOCAL', key, url: '/f1', mimeType: 'image/png', size: 100 } },
   deleteStoredFile: async (key: string) => { deletedKeys.push(key); return true },
+  getStorageDownloadPathForKey: (key: string) => `/api/files/${key}`,
 }))
 
 mock.module('@/lib/academy-representatives', () => ({
@@ -111,7 +112,7 @@ function stagedDoc(userId: string, docType: string) {
   return {
     docType,
     storageKey,
-    uploadToken: createAgentUploadToken({ userId, docType, storageKey }),
+    uploadToken: createAgentUploadToken({ userId, docType, storageKey, storageProvider: 's3', fileName: `${docType}.png`, mimeType: 'image/png', size: 100 }),
     fileUrl: `/api/files?key=${encodeURIComponent(storageKey)}`,
     fileName: `${docType}.png`,
     mimeType: 'image/png',
@@ -249,6 +250,24 @@ describe('application-submission reorganization', () => {
     expect(storedKeys).toEqual([])
     expect(deletedKeys).toEqual([])
     expect(agentApp.documents.map((d: any) => d.storageKey).sort()).toEqual(docs.map((d) => d.storageKey).sort())
+    expect(agentApp.documents.every((d: any) => d.storageProvider === 's3')).toBe(true)
+    expect(agentApp.documents.every((d: any) => d.fileUrl.startsWith('/api/files/'))).toBe(true)
+  })
+
+  test('agent-apply ignores forged client metadata and uses signed upload metadata', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    const docs = ['LICENSE', 'ID', 'PHOTO', 'CV', 'CUSTOM_A1B2C3'].map((t) => stagedDoc('u1', t))
+    docs[0].fileUrl = 'https://evil.example/identity.png'
+    docs[0].mimeType = 'text/html'
+    docs[0].size = 1
+    ;(docs[0] as any).storageProvider = 'external-url'
+    const { POST } = await import('@/app/api/agent-apply/route')
+    const res = await POST(agentJson('AGENCY', docs))
+    expect(res.status).toBe(200)
+    expect(agentApp.documents[0]).toMatchObject({
+      mimeType: 'image/png', size: 100, storageProvider: 's3',
+      fileUrl: `/api/files/${docs[0].storageKey}`,
+    })
   })
 
   test('agent-apply rejects staged docs whose token belongs to another user', async () => {
@@ -265,7 +284,7 @@ describe('application-submission reorganization', () => {
     currentUser = { id: 'u1', role: 'STUDENT' }
     const doc = stagedDoc('u1', 'LICENSE')
     doc.storageKey = 'admissions/x/license.png'
-    doc.uploadToken = createAgentUploadToken({ userId: 'u1', docType: 'LICENSE', storageKey: doc.storageKey })
+    doc.uploadToken = createAgentUploadToken({ userId: 'u1', docType: 'LICENSE', storageKey: doc.storageKey, storageProvider: 's3', fileName: 'LICENSE.png', mimeType: 'image/png', size: 100 })
     const docs = ['ID', 'PHOTO', 'CV', 'CUSTOM_A1B2C3'].map((t) => stagedDoc('u1', t))
     docs.unshift(doc)
     const { POST } = await import('@/app/api/agent-apply/route')
