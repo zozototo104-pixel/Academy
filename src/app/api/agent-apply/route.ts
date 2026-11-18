@@ -46,7 +46,7 @@ type UploadedAgentFile = {
   size: number
   data: string | null
   storageProvider: string | null
-  storageKey: string | null
+  storageKey: string
   fileUrl: string | null
 }
 
@@ -207,32 +207,41 @@ export async function POST(req: NextRequest) {
       files.push(...uniqueFiles)
     }
 
-    const application = await db.agentApplication.create({
-      data: {
-        userId: owner.id,
-        kind: isAccreditation ? 'ACCREDITATION' : 'AGENCY',
-        accreditationType: isAccreditation ? String(accreditationType) : null,
-        orgName: orgName.trim(),
-        repName: repName.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone?.trim() || '',
-        country: country.trim(),
-        territory: territory?.trim() || null,
-        experience: experience?.trim() || null,
-        documents: {
-          create: files.map((f) => ({
-            docType: f.docType,
-            fileName: f.fileName,
-            mimeType: f.mimeType,
-            size: f.size,
-            data: f.data,
-            storageProvider: f.storageProvider,
-            storageKey: f.storageKey,
-            fileUrl: f.fileUrl,
-          })),
+    const application = await db.$transaction(async (tx) => {
+      if (stagedDocs.length) {
+        const storageKeys = files.map((file) => file.storageKey)
+        const claim = await tx.agentPendingUpload.deleteMany({
+          where: { storageKey: { in: storageKeys }, cancelled: false },
+        })
+        if (claim.count !== storageKeys.length) throw new Error('AGENT_UPLOAD_UNAVAILABLE')
+      }
+      return tx.agentApplication.create({
+        data: {
+          userId: owner.id,
+          kind: isAccreditation ? 'ACCREDITATION' : 'AGENCY',
+          accreditationType: isAccreditation ? String(accreditationType) : null,
+          orgName: orgName.trim(),
+          repName: repName.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone?.trim() || '',
+          country: country.trim(),
+          territory: territory?.trim() || null,
+          experience: experience?.trim() || null,
+          documents: {
+            create: files.map((f) => ({
+              docType: f.docType,
+              fileName: f.fileName,
+              mimeType: f.mimeType,
+              size: f.size,
+              data: f.data,
+              storageProvider: f.storageProvider,
+              storageKey: f.storageKey,
+              fileUrl: f.fileUrl,
+            })),
+          },
         },
-      },
-      include: { documents: { select: { id: true, docType: true, fileName: true, size: true } } },
+        include: { documents: { select: { id: true, docType: true, fileName: true, size: true } } },
+      })
     })
 
     // نقطة الحفظ: من هنا الطلب ووثائقه محفوظان في قاعدة البيانات —
@@ -300,6 +309,9 @@ export async function POST(req: NextRequest) {
     // (فاتورة/إشعار) فلا يمسّ الملفات — الطلب محفوظ ويُعاد معرّفه ليتصرف
     // المستخدم/الدعم على أساسه بدل إعادة التقديم.
     if (!savedApplicationId) await cleanupStoredFiles()
+    if (e instanceof Error && e.message === 'AGENT_UPLOAD_UNAVAILABLE') {
+      return NextResponse.json({ error: 'تغيّرت حالة أحد المرفقات. أعد اختيار الملف ورفعه قبل التقديم.' }, { status: 409 })
+    }
     console.error('Agent apply error:', e)
     return NextResponse.json(
       savedApplicationId
