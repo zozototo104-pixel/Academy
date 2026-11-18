@@ -112,3 +112,48 @@ export function readAgentUploadToken(
 export function verifyAgentUploadToken(token: string | null | undefined, input: TokenIdentity) {
   return readAgentUploadToken(token, input) !== null
 }
+
+// Expired, unclaimed uploads are temporary objects, not application documents.
+// The cancellation claim races safely against submit's one-time row deletion:
+// whichever commits first wins. Never delete a key linked to a saved document.
+export async function cleanupExpiredAgentUploads(now = new Date(), limit = 100) {
+  const { db } = await import('@/lib/db')
+  const { deleteStoredFile } = await import('@/lib/storage')
+  const expiredBefore = new Date(now.getTime() - TOKEN_TTL_MS)
+  const candidates = await db.agentPendingUpload.findMany({
+    where: { createdAt: { lt: expiredBefore } },
+    orderBy: { createdAt: 'asc' },
+    take: Math.min(Math.max(limit, 1), 200),
+    select: { storageKey: true, cancelled: true },
+  })
+  let removed = 0
+  let failed = 0
+  let linked = 0
+  for (const candidate of candidates) {
+    try {
+      if (!candidate.cancelled) {
+        const claim = await db.agentPendingUpload.updateMany({
+          where: { storageKey: candidate.storageKey, cancelled: false, createdAt: { lt: expiredBefore } },
+          data: { cancelled: true },
+        })
+        if (!claim.count) continue // A submission or explicit cancellation won.
+      }
+      const linkedDoc = await db.agentDocument.findFirst({
+        where: { storageKey: candidate.storageKey }, select: { id: true },
+      })
+      if (linkedDoc) {
+        linked++
+      } else if (await deleteStoredFile(candidate.storageKey)) {
+        removed++
+      } else {
+        failed++
+        continue // Keep the cancelled row for a later retry.
+      }
+      await db.agentPendingUpload.deleteMany({ where: { storageKey: candidate.storageKey, cancelled: true } })
+    } catch (error) {
+      failed++
+      console.error('[agent-upload] expired upload cleanup failed', error)
+    }
+  }
+  return { checked: candidates.length, removed, linked, failed }
+}
