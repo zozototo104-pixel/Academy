@@ -104,7 +104,7 @@ describe('توصيلات واجهة المرحلة الثانية', () => {
     const client = readFileSync('src/app/agent/AgentStandaloneClient.tsx', 'utf8')
     expect(client).toContain("effectiveView === 'auth'")
     expect(client).toContain('<AuthView />')
-    expect(client).toContain('<AgentView />')
+    expect(client).toContain('<AgentView key={userId || \'guest\'} />')
     expect(client).toContain('window.location.assign(pathForView')
     const page = readFileSync('src/app/agent/page.tsx', 'utf8')
     expect(page).toContain('AgentStandaloneClient')
@@ -142,5 +142,71 @@ describe('توصيلات واجهة المرحلة الثانية', () => {
     const filesRoute = readFileSync('src/app/api/agent-apply/files/route.ts', 'utf8')
     expect(filesRoute).toContain('createAgentUploadToken')
     expect(filesRoute).toContain('LOGIN_REQUIRED')
+  })
+})
+
+describe('عزل مسودة الوكالة بين الحسابات', () => {
+  test('الملفات والنصوص المرحّلة من الضيف تصل إلى حساب الدخول المقصود فقط', async () => {
+    const { useAppStore } = await import('@/lib/store')
+    useAppStore.getState().setUser(null)
+    clearAgentDraft()
+    clearAgentStagedDocs()
+    clearPendingAgentFiles()
+    setPendingReturnView('agent')
+    const identity = new File(['id'], 'private-id.png', { type: 'image/png' })
+    saveAgentDraft({ form: { repName: 'حساب أ' } })
+    setPendingAgentFile('ID', identity)
+    useAppStore.getState().setUser({ id: 'user-A', name: 'A', email: 'a@example.com', role: 'STUDENT' })
+    expect(readAgentDraft('user-A')?.form?.repName).toBe('حساب أ')
+    expect(getPendingAgentFiles('user-A').ID?.name).toBe('private-id.png')
+    expect(readAgentDraft()).toBeNull()
+    clearPendingReturnView()
+
+    useAppStore.getState().setUser(null) // intentional logout clears old account
+    expect(readAgentDraft('user-A')).toBeNull()
+    expect(getPendingAgentFiles('user-A')).toEqual({})
+    useAppStore.getState().setUser({ id: 'user-B', name: 'B', email: 'b@example.com', role: 'STUDENT' })
+    expect(readAgentDraft('user-B')).toBeNull()
+    expect(getPendingAgentFiles('user-B')).toEqual({})
+    useAppStore.getState().setUser(null)
+  })
+
+  test('مفاتيح الحساب لا تُقرأ من جلسة الضيف أو حساب آخر، والمفاتيح العامة القديمة تُمحى', () => {
+    const doc = { docType: 'ID', storageKey: 'agent-documents/id/private', uploadToken: 'test-token', fileUrl: '/files/id', fileName: 'identity.png', mimeType: 'image/png', size: 1 }
+    saveAgentStagedDocs([doc], 'user-A')
+    expect(readAgentStagedDocs('user-B')).toEqual([])
+    expect(readAgentStagedDocs()).toEqual([])
+    expect(readAgentStagedDocs('user-A')).toEqual([doc])
+    lsStore.set('aact-agent-draft', '{"form":{"repName":"legacy account"}}')
+    lsStore.set('aact-agent-staged', JSON.stringify([doc]))
+    expect(readAgentDraft()).toBeNull()
+    expect(lsStore.has('aact-agent-draft')).toBe(false)
+    expect(lsStore.has('aact-agent-staged')).toBe(false)
+    clearAgentStagedDocs('user-A')
+  })
+
+  test('تبديل حسابين دون صفحة خروج لا يورث المسودة، وتجديد جلسة الحساب نفسه يحفظها', async () => {
+    const { useAppStore } = await import('@/lib/store')
+    const sessionA = { id: 'user-A', name: 'A', email: 'a@example.com', role: 'STUDENT' }
+    const sessionB = { id: 'user-B', name: 'B', email: 'b@example.com', role: 'STUDENT' }
+    useAppStore.getState().setUser(sessionA)
+    saveAgentDraft({ form: { orgName: 'ملف أ' } }, sessionA.id)
+    setPendingAgentFile('ID', new File(['x'], 'a-id.png'), sessionA.id)
+    useAppStore.getState().setUser({ ...sessionA, name: 'A Updated' })
+    expect(readAgentDraft(sessionA.id)?.form?.orgName).toBe('ملف أ')
+    useAppStore.getState().setUser(sessionB)
+    expect(readAgentDraft(sessionA.id)).toBeNull()
+    expect(getPendingAgentFiles(sessionA.id)).toEqual({})
+    expect(readAgentDraft(sessionB.id)).toBeNull()
+    useAppStore.getState().setUser(null)
+  })
+
+  test('الواجهة تعرض رقم الطلب المحفوظ بعد فشل الفاتورة ولا تطلب إعادة الإرسال', () => {
+    const agentView = readFileSync('src/components/aact/AgentView.tsx', 'utf8')
+    expect(agentView).toContain('d.applicationId')
+    expect(agentView).toContain('setSavedWithoutInvoice(d.applicationId)')
+    expect(agentView).toContain('لا تُعد إرسال الطلب')
+    expect(agentView).toContain('savedWithoutInvoice ? savedApplicationNotice')
+    expect(agentView).toContain('replacement !== f')
   })
 })
