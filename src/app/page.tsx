@@ -380,7 +380,7 @@ export default function Home() {
             {effectiveView === 'unit' && <UnitView />}
             {effectiveView === 'exam' && <ExamView />}
             {effectiveView === 'chat' && <AIChatView />}
-            {effectiveView === 'agent' && <AgentView />}
+            {effectiveView === 'agent' && <AgentView key={user?.id || 'guest'} />}
             {effectiveView === 'admin' && <AdminView />}
             {effectiveView === 'supervisor' && <SupervisorView />}
             {effectiveView === 'student-preview' && <AdminStudentPreview />}
