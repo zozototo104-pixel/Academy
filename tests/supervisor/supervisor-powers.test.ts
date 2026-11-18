@@ -321,6 +321,23 @@ describe('appeals', () => {
     expect(body.code).toBe('NO_HUMAN_SUPERVISOR')
   })
 
+  test('appeals list is scoped to the assigned student and program together', async () => {
+    const own = S.unitAttempts.find((attempt: any) => attempt.id === 'AT1')
+    own.appealStatus = 'PENDING'
+    const otherStudent = S.unitAttempts.find((attempt: any) => attempt.id === 'AT2')
+    otherStudent.appealStatus = 'PENDING'
+    S.unitAttempts.push({
+      ...own, id: 'AT-foreign-program',
+      exam: { ...own.exam, unit: { ...own.exam.unit, programId: 'P2' } },
+    })
+
+    asSupervisor()
+    const response = await supervisorAppealsRoute.GET()
+    expect(response.status).toBe(200)
+    const { appeals } = await response.json()
+    expect(appeals.filter((item: any) => item.type === 'UNIT').map((item: any) => item.id)).toEqual(['AT1'])
+  })
+
   test('unit appeal files to the assigned supervisor, who resolves it', async () => {
     asStudent('stu-1')
     const filed = await unitAppealRoute.POST(req('/api/unit-exam/appeal', 'POST', { attemptId: 'AT1', reason: 'المقالي انظلمت فيه' }))
