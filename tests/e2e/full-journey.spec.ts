@@ -21,8 +21,14 @@ async function prepareExpiredUnitAppeals(prisma: PrismaClient, setup: any) {
     throw new Error('Refusing to modify a non-QA student, program, or enrollment')
   }
 
-  // Master's semester 1 lasts 90 days. With two semester-1 units, each
-  // receives 45 days. Day 60 closes only the first unit, not the semester.
+  // Master's semester 1 lasts 90 days. Three semester-1 units get 30 days
+  // each. Day 70 closes two units while the semester and last unit stay open.
+  const otherEndedUnit = await prisma.unit.create({
+    data: {
+      programId: program.id, semester: 1, order: -1, status: 'APPROVED',
+      title: `QA وحدة ثانية منتهية ${stamp}`, content: '[]',
+    },
+  })
   const endedUnit = await prisma.unit.create({
     data: {
       programId: program.id, semester: 1, order: 0, status: 'APPROVED',
@@ -41,7 +47,7 @@ async function prepareExpiredUnitAppeals(prisma: PrismaClient, setup: any) {
     },
     include: { exam: { include: { questions: { select: { id: true } } } } },
   })
-  const [semesterAssignment, unitAssignment] = await Promise.all([
+  const [semesterAssignment, unitAssignment, otherUnitAssignment] = await Promise.all([
     prisma.programAssignment.create({
       data: {
         programId: program.id, semester: 1, title: `QA واجب فصلي متأخر ${stamp}`,
@@ -57,10 +63,18 @@ async function prepareExpiredUnitAppeals(prisma: PrismaClient, setup: any) {
         type: 'REPORT', points: 10, weight: 0, status: 'PUBLISHED',
       },
     }),
+    prisma.programAssignment.create({
+      data: {
+        programId: program.id, unitId: otherEndedUnit.id, semester: 1,
+        title: `QA واجب وحدة ثانية منتهية ${stamp}`,
+        description: 'واجب تجريبي مرتبط بوحدة أخرى منتهية لا ينبغي أن تفتحها منحة الوحدة الأولى.',
+        type: 'REPORT', points: 10, weight: 0, status: 'PUBLISHED',
+      },
+    }),
   ])
   await prisma.enrollment.update({
     where: { id: enrollment.id },
-    data: { createdAt: new Date(Date.now() - 60 * DAY_MS) },
+    data: { createdAt: new Date(Date.now() - 70 * DAY_MS) },
   })
   if (!endedUnit.exam?.questions[0]) throw new Error('QA expired exam is missing its question')
   return {
@@ -69,6 +83,7 @@ async function prepareExpiredUnitAppeals(prisma: PrismaClient, setup: any) {
     questionId: endedUnit.exam.questions[0].id,
     semesterAssignmentId: semesterAssignment.id,
     unitAssignmentId: unitAssignment.id,
+    otherUnitAssignmentId: otherUnitAssignment.id,
   }
 }
 
@@ -198,7 +213,7 @@ async function verifyReopenAppealJourney(page: Page, prisma: PrismaClient, setup
   await page.getByRole('button', { name: 'المحتوى والواجبات' }).click()
   await page.getByRole('tab', { name: /الواجبات/ }).click()
   await expect(page.getByText(/الوحدات التي انتهت مدتها ما زالت مغلقة/)).toBeVisible()
-  await expect(page.getByRole('button', { name: 'التماس إعادة فتح الوحدة' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'التماس إعادة فتح الوحدة' }).first()).toBeVisible()
 
   // The exam page must show an actionable appeal and submit it as a student.
   await page.goto(`/exam/${encodeURIComponent(fixture.examId)}`, { waitUntil: 'domcontentloaded' })
@@ -224,6 +239,8 @@ async function verifyReopenAppealJourney(page: Page, prisma: PrismaClient, setup
   const unitSubmissionBody = await unitSubmission.json().catch(() => ({}))
   expect(unitSubmission.ok(), `Approved unit grant must permit its assignment: ${JSON.stringify(unitSubmissionBody)}`).toBeTruthy()
   expect(unitSubmissionBody.submission.status).toBe('SUBMITTED')
+  const otherUnitStillBlocked = await submit(fixture.otherUnitAssignmentId)
+  expect(otherUnitStillBlocked.status(), 'A unit grant must NOT reopen a different expired unit').toBe(400)
 
   const reopenedExam = await examDetail()
   const reopenedExamBody = await reopenedExam.json().catch(() => ({}))
@@ -244,6 +261,7 @@ async function verifyReopenAppealJourney(page: Page, prisma: PrismaClient, setup
     unlinkedAssignmentSubmitted: semesterSubmissionBody.submission.status === 'SUBMITTED',
     unitProtectedBySemesterGrant: stillBlockedUnit.status() === 400 && stillBlockedExamBody.code === 'UNIT_WINDOW_ENDED',
     unitAppealRequestedFromExamScreen: Boolean(unitAppeal.id),
+    otherUnitProtectedByFirstUnitGrant: otherUnitStillBlocked.status() === 400,
     unitAssignmentSubmitted: unitSubmissionBody.submission.status === 'SUBMITTED',
     unitExamSubmitted: persistedAttempt?.status === 'GRADED',
   }
@@ -412,7 +430,7 @@ test.describe('AACT full platform journey suite', () => {
     await mkdir('test-results/full-journey', { recursive: true }).catch(() => {})
     const jsonPath = 'test-results/full-journey/report.json'
     const mdPath = 'test-results/full-journey/report.md'
-    const reopenMarkdown = `\n\n## Expired assignment and unit appeal journey\n\n- Semester grant allowed an unlinked assignment: **${reopenAppeals.unlinkedAssignmentSubmitted ? 'PASS' : 'FAIL'}**\n- Semester grant kept the expired unit closed: **${reopenAppeals.unitProtectedBySemesterGrant ? 'PASS' : 'FAIL'}**\n- Student filed the unit appeal from the exam screen: **${reopenAppeals.unitAppealRequestedFromExamScreen ? 'PASS' : 'FAIL'}**\n- Unit approval allowed assignment submission: **${reopenAppeals.unitAssignmentSubmitted ? 'PASS' : 'FAIL'}**\n- Unit approval allowed exam submission and grading: **${reopenAppeals.unitExamSubmitted ? 'PASS' : 'FAIL'}**\n`
+    const reopenMarkdown = `\n\n## Expired assignment and unit appeal journey\n\n- Semester grant allowed an unlinked assignment: **${reopenAppeals.unlinkedAssignmentSubmitted ? 'PASS' : 'FAIL'}**\n- Semester grant kept the expired unit closed: **${reopenAppeals.unitProtectedBySemesterGrant ? 'PASS' : 'FAIL'}**\n- Student filed the unit appeal from the exam screen: **${reopenAppeals.unitAppealRequestedFromExamScreen ? 'PASS' : 'FAIL'}**\n- Unit approval allowed assignment submission: **${reopenAppeals.unitAssignmentSubmitted ? 'PASS' : 'FAIL'}**\n- Unit approval did not reopen a second expired unit: **${reopenAppeals.otherUnitProtectedByFirstUnitGrant ? 'PASS' : 'FAIL'}**\n- Unit approval allowed exam submission and grading: **${reopenAppeals.unitExamSubmitted ? 'PASS' : 'FAIL'}**\n`
     await writeFile(jsonPath, JSON.stringify(report, null, 2), 'utf8')
     await writeFile(mdPath, md(report) + reopenMarkdown, 'utf8')
     await testInfo.attach('full-journey-report-json', { path: jsonPath, contentType: 'application/json' })
