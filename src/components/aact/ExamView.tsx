@@ -317,8 +317,8 @@ export function ExamView() {
         }
         const message = examErrorMessage(e)
         toast({ title: 'تنبيه الاختبار', description: message, variant: 'destructive' })
-        if (e.code === 'UNIT_WINDOW_ENDED' && e.data?.unitId) {
-          setWindowEnded({ programId: String(e.data.programId || ''), semester: Number(e.data.semester), unitId: String(e.data.unitId) })
+        if (e.code === 'UNIT_WINDOW_ENDED' && e.data?.data?.unitId) {
+          setWindowEnded({ programId: String(e.data.data.programId || ''), semester: Number(e.data.data.semester), unitId: String(e.data.data.unitId) })
         }
         if (e.status === 402 || e.code === 'PENDING_PAYMENT' || e.code === 'ENROLLMENT_NOT_ACTIVE') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'payments' })
         else if ((e.status === 403 || e.status === 409) && ['ALREADY_PASSED', 'PASSED_ALREADY', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'MAX_ATTEMPTS_REACHED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(e.code || ''))) {
