@@ -59,6 +59,9 @@ jobs:
       - name: Run quality checks
         run: bun run quality
 
+      - name: Test agent document privacy and staged-upload lifecycle
+        run: bun test --isolate tests/agents/agent-apply-files.test.ts tests/agents/agent-return-view.test.ts tests/agents/agent-application-reorg.test.ts tests/agents/agent-documents-view.test.ts tests/security/agent-documents-access.test.ts
+
       - name: Run lint
         run: bun run lint
 
