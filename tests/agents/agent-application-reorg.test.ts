@@ -15,6 +15,7 @@ const { createAgentUploadToken } = await import('@/lib/agent-upload-token')
 // (4) login is required at submit for all four types (program, agency,
 //     accreditation, service) — guests get 401 LOGIN_REQUIRED.
 
+const pendingUploads = new Set<string>()
 let currentUser: any = null
 let agentApp: any = null
 let paidPurposes: string[] = []
@@ -50,6 +51,12 @@ mock.module('@/lib/settings', () => ({
 
 mock.module('@/lib/db', () => ({
   db: {
+    async $transaction(run: (tx: any) => Promise<any>) { return run(this) },
+    agentPendingUpload: {
+      deleteMany: async ({ where }: any) => ({
+        count: where.storageKey.in.filter((key: string) => pendingUploads.delete(key)).length,
+      }),
+    },
     agentApplication: {
       create: async (args: any) => {
         if (failCreate) throw new Error('DB down')
@@ -109,6 +116,7 @@ mock.module('@/lib/money', () => ({ paymentAmountDollars: (p: any) => Number(p?.
 
 function stagedDoc(userId: string, docType: string) {
   const storageKey = `agent-documents/${docType.toLowerCase()}/2026-11-18/uuid-${docType.toLowerCase()}-${docType}.png`
+  pendingUploads.add(storageKey)
   return {
     docType,
     storageKey,
@@ -151,6 +159,17 @@ function agentForm(kind: string, docs: string[], extra: Record<string, string> =
 }
 
 describe('application-submission reorganization', () => {
+  test('a cancelled staged upload cannot be attached to a new application', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    const docs = AGENT_RULES.requiredDocuments.map(type => stagedDoc('u1', type))
+    pendingUploads.delete(docs[0].storageKey)
+    agentApp = null
+    const { POST } = await import('@/app/api/agent-apply/route')
+    const result = await POST(agentJson('AGENCY', docs))
+    expect(result.status).toBe(409)
+    expect(agentApp).toBeNull()
+  })
+
   test('settings carry the agency fee (100) and the quality fee (0)', () => {
     const settings = readFileSync('src/lib/settings.ts', 'utf8')
     expect(settings).toContain("FEE_AGENCY_APPLICATION', value: '100'")
