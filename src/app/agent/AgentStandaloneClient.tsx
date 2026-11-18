@@ -26,6 +26,7 @@ const AuthView = dynamic(() => import('@/components/aact/AuthView').then((m) => 
 
 export function AgentStandaloneClient() {
   const view = useAppStore((s) => s.view)
+  const userId = useAppStore((s) => s.user?.id)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -54,5 +55,5 @@ export function AgentStandaloneClient() {
 
   if (effectiveView === 'auth') return <AuthView />
   if (effectiveView !== 'agent') return null
-  return <AgentView />
+  return <AgentView key={userId || 'guest'} />
 }
