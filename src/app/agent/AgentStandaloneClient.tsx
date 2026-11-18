@@ -28,7 +28,20 @@ export function AgentStandaloneClient() {
   const view = useAppStore((s) => s.view)
 
   useEffect(() => {
+    const controller = new AbortController()
     useAppStore.setState({ view: 'agent', mobileMenuOpen: false })
+    if (!useAppStore.getState().user) {
+      void fetch('/api/auth/me', { cache: 'no-store', signal: controller.signal })
+        .then(async (response) => response.ok ? response.json() : null)
+        .then((data) => {
+          const state = useAppStore.getState()
+          if (!controller.signal.aborted && data?.user && !state.user && state.view === 'agent') {
+            state.setUser(data.user)
+          }
+        })
+        .catch(() => { /* The public form remains available offline. */ })
+    }
+    return () => controller.abort()
   }, [])
 
   const effectiveView = view === 'home' ? 'agent' : view
