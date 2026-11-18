@@ -62,26 +62,6 @@ mock.module('@/lib/payments', () => ({
   getGatewayConfig: async () => ({}),
   paymentDiagnostics: () => ({ mode: 'LIVE', trueGatewayCount: 0, usdtConfigured: false, usdtNetwork: '', errors: [] }),
 }))
-mock.module('@/lib/text-ai', () => ({
-  textAiCheckAllModelHealth: async () => ({ checked: 0, results: [] }),
-  textAiDiagnostics: async () => ({ message: 'ok', externalConfigured: false }),
-  textAiFreeModelsForProvider: async (provider: string) => ({ provider, models: [], discoveredCount: 0, staticCount: 0, message: '' }),
-  textAiModelHealthSnapshot: async () => [],
-  textAiTestConnection: async () => ({ ok: true, provider: 'ALBORIHI', model: 'claude-sonnet-5', reply: 'ok' }),
-}))
-mock.module('@/lib/secret-crypto', () => ({
-  clearSecretCache: () => {},
-  decryptSecret: (value: string) => value,
-  encryptSecret: (value: string) => `enc:${value}`,
-  hasSecretEncryptionKey: () => true,
-  isEncryptedSecret: (value: string) => value.startsWith('enc:'),
-  isMaskedSecret: (value: string) => /^••••/.test(value),
-  isSecretKeyName: (key: string) => /KEY|SECRET|TOKEN|CREDENTIAL|PASSWORD/i.test(key),
-  redactDeep: (body: unknown) => body,
-  redactSecrets: (value: string) => value,
-  secretLast4: (value: string) => String(value || '').slice(-4),
-}))
-
 const { PATCH, POST } = await import('../../src/app/api/admin/system/route')
 
 function request(body: Record<string, unknown>, method: 'PATCH' | 'POST' = 'PATCH') {
