@@ -842,6 +842,29 @@ async function cleanupFullJourneyByStamp(stamp: string) {
   }))
   remember('thesisReviewNotes', await db.thesisReviewNote.deleteMany({ where: thesisIds.length ? { thesisId: { in: thesisIds } } : { id: '__none__' } }))
   remember('theses', await db.thesisSubmission.deleteMany({ where: { id: { in: thesisIds } } }))
+  // Reopen appeals, semester states, and exam drafts have no Prisma foreign
+  // keys to the QA student/enrollment. Remove only this journey's rows before
+  // deleting its enrollment; never leave grant records in the QA database.
+  const reopenAppeals = await db.reopenAppeal.findMany({
+    where: enrollmentIds.length ? { enrollmentId: { in: enrollmentIds } } : { id: '__none__' },
+    select: { id: true },
+  })
+  const appealIds = reopenAppeals.map((a) => a.id)
+  const appealOutboxKeys = appealIds.flatMap((id) => [
+    `reopen-appeal-created:${id}`, `reopen-appeal-created-sup:${id}`,
+    `reopen-appeal-decided:${id}:APPROVED`, `reopen-appeal-decided:${id}:REJECTED`,
+    `reopen-appeal-escalated:${id}`,
+  ])
+  remember('reopenAppealOutbox', await db.notificationOutbox.deleteMany({
+    where: { idempotencyKey: { in: appealOutboxKeys } },
+  }))
+  remember('reopenAppeals', await db.reopenAppeal.deleteMany({ where: { id: { in: appealIds } } }))
+  remember('semesterStates', await db.enrollmentSemesterState.deleteMany({
+    where: { enrollmentId: { in: enrollmentIds } },
+  }))
+  remember('examDrafts', await db.examDraft.deleteMany({
+    where: student ? { userId: student.id } : { userId: '__none__' },
+  }))
   remember('studentAcademicMemory', await db.studentAcademicMemory.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
   remember('notifications', await db.notification.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
   // Exam attempts reference the student with onDelete: Restrict, so they
