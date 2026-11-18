@@ -8,6 +8,7 @@ process.env.AACT_UPLOAD_TOKEN_SECRET = 'agent-files-test-secret'
 let currentUser: any = null
 let storedKeys: string[] = []
 let deletedKeys: string[] = []
+let linkedKey: string | null = null
 
 mock.module('@/lib/auth', () => ({
   getCurrentUser: async () => currentUser,
@@ -15,12 +16,21 @@ mock.module('@/lib/auth', () => ({
 
 mock.module('@/lib/storage', () => ({
   storageErrorMessage: () => 'storage error',
+  getStorageDownloadPathForKey: (key: string) => `/api/files/${key}`,
   storeFileBuffer: async (input: any) => {
     const key = `${String(input.namespace || 'uploads')}/2026-11-18/uuid-1-${input.fileName}`
     storedKeys.push(key)
-    return { provider: 'LOCAL', key, url: `/api/files?key=${encodeURIComponent(key)}`, mimeType: input.mimeType, size: input.buffer.byteLength }
+    return { provider: 'local', key, url: `/api/files/${key}`, mimeType: input.mimeType, size: input.buffer.byteLength }
   },
   deleteStoredFile: async (key: string) => { deletedKeys.push(key); return true },
+}))
+
+mock.module('@/lib/db', () => ({
+  db: {
+    agentDocument: {
+      findFirst: async (args: any) => args.where.storageKey === linkedKey ? { id: 'saved-doc' } : null,
+    },
+  },
 }))
 
 const { createAgentUploadToken, verifyAgentUploadToken } = await import('@/lib/agent-upload-token')
@@ -124,7 +134,8 @@ describe('حذف مفتاح مرحّل', () => {
     currentUser = { id: 'u1', role: 'STUDENT' }
     deletedKeys = []
     const key = 'agent-documents/license/2026-11-18/uuid-1-license.png'
-    const token = createAgentUploadToken({ userId: 'u1', docType: 'LICENSE', storageKey: key })
+    linkedKey = null
+    const token = createAgentUploadToken({ userId: 'u1', docType: 'LICENSE', storageKey: key, storageProvider: 'local', fileName: 'license.png', mimeType: 'image/png', size: 100 })
     const { DELETE } = await import('@/app/api/agent-apply/files/route')
     const res = await DELETE(new NextRequest('http://localhost/api/agent-apply/files', {
       method: 'DELETE',
@@ -133,5 +144,21 @@ describe('حذف مفتاح مرحّل', () => {
     }))
     expect(res.status).toBe(200)
     expect(deletedKeys).toEqual([key])
+  })
+
+  test('رمز الرفع لا يسمح بحذف وثيقة أصبحت مرتبطة بطلب محفوظ', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    deletedKeys = []
+    const key = 'agent-documents/license/2026-11-18/uuid-1-license.png'
+    linkedKey = key
+    const token = createAgentUploadToken({ userId: 'u1', docType: 'LICENSE', storageKey: key, storageProvider: 'local', fileName: 'license.png', mimeType: 'image/png', size: 100 })
+    const { DELETE } = await import('@/app/api/agent-apply/files/route')
+    const res = await DELETE(new NextRequest('http://localhost/api/agent-apply/files', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storageKey: key, uploadToken: token }),
+    }))
+    expect(res.status).toBe(409)
+    expect(deletedKeys).toEqual([])
+    linkedKey = null
   })
 })
