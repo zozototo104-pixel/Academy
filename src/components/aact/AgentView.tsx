@@ -649,7 +649,7 @@ export function AgentView() {
                   <li>• رسوم تقديم طلب الاعتماد: <strong>{agentRules?.accreditationFee ?? ACCREDITATION_GUIDE.applicationFee}$ غير مستردة</strong></li>
                   <li>• المستشارون (إداري ومالي، تربوي، قانوني، نفسي، هندسي، ذكاء اصطناعي): <strong>{agentRules?.categoryFees?.CONSULTANT ?? 350}$</strong></li>
                   <li>• المدرب الدولي المعتمد: <strong>{agentRules?.categoryFees?.TRAINER ?? 200}$</strong></li>
-                  <li>• اعتماد الجودة: <strong>{agentRules?.categoryFees?.QUALITY ? `${agentRules.categoryFees.QUALITY} : 'حسب طبيعة الاعتماد'}</strong></li>
+                  <li>• اعتماد الجودة: <strong>{agentRules?.categoryFees?.QUALITY ? `${agentRules.categoryFees.QUALITY}$` : 'حسب طبيعة الاعتماد'}</strong></li>
                 </ul>
               </CardContent>
             </Card>
