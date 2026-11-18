@@ -61,6 +61,7 @@ function makeMockDb() {
     assignmentSubmission: emptyModel,
     thesisSubmission: emptyModel,
     serviceDeliverable: emptyModel,
+    agentDocument: emptyModel,
   }
   return { db, admissions, auditLogs, settings }
 }
