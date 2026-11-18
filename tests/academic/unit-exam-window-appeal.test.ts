@@ -63,6 +63,7 @@ mock.module('@/lib/exam-attempt-policy', () => ({
 mock.module('@/lib/exam-attempt-notifications', () => ({ notifyAttemptNeedsReview: async () => {} }))
 
 const { GET } = await import('../../src/app/api/exam/detail/route')
+const { api } = await import('../../src/lib/store')
 
 function getDetail() {
   return GET(new NextRequest('http://localhost/api/exam/detail?examId=ex1'))
