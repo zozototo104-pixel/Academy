@@ -31,8 +31,12 @@ describe('hasApprovedReopenGrant', () => {
   test('منحة وحدة أخرى لا ترفع واجبًا لا يخصها', async () => {
     expect(await hasApprovedReopenGrant(grantWorld([unitGrant]), { enrollmentId: 'enr1', unitId: 'un9', semester: 1 })).toBe(false)
   })
-  test('المنحة الفصلية (بلا وحدة) ترفع أي واجب في فصلها فقط', async () => {
-    expect(await hasApprovedReopenGrant(grantWorld([semesterGrant]), { enrollmentId: 'enr1', unitId: 'un1', semester: 2 })).toBe(true)
+  test('منحة الوحدة لا تفتح وحدة أخرى أو الفصل غير المطابق', async () => {
+    expect(await hasApprovedReopenGrant(grantWorld([unitGrant]), { enrollmentId: 'enr1', unitId: 'un1', semester: 2 })).toBe(false)
+    expect(await hasApprovedReopenGrant(grantWorld([unitGrant]), { enrollmentId: 'enr1', unitId: 'un2', semester: 1 })).toBe(false)
+  })
+  test('المنحة الفصلية تفتح الواجبات غير المرتبطة بوحدة فقط', async () => {
+    expect(await hasApprovedReopenGrant(grantWorld([semesterGrant]), { enrollmentId: 'enr1', unitId: 'un1', semester: 2 })).toBe(false)
     expect(await hasApprovedReopenGrant(grantWorld([semesterGrant]), { enrollmentId: 'enr1', unitId: null, semester: 2 })).toBe(true)
     expect(await hasApprovedReopenGrant(grantWorld([semesterGrant]), { enrollmentId: 'enr1', unitId: null, semester: 1 })).toBe(false)
   })
