@@ -73,23 +73,25 @@ function requiredAnyEnv(names: string[]) {
   throw new Error(`Missing required environment variable. Expected one of: ${names.join(', ')}`)
 }
 
+let adminCookies: Awaited<ReturnType<ReturnType<Page['context']>['cookies']>> | undefined
+
 async function loginAsAdmin(page: Page): Promise<string> {
-  const email = requiredAnyEnv(['ADMIN_EMAIL', 'E2E_ADMIN_EMAIL'])
-  const password = requiredAnyEnv(['ADMIN_PASSWORD', 'E2E_ADMIN_PASSWORD'])
-
-  const response = await page.request.post('/api/auth/login', {
-    data: { email, password },
-    maxRedirects: 0, // لا اتباع تحويلات بصمت قبل أي كتابة
-  })
-  const body = await response.json().catch(() => ({}))
-
-  expect(response.ok(), `Admin API login failed with ${response.status()}: ${JSON.stringify(body)}`).toBeTruthy()
-  // Cookie-based login: the raw session token arrives only as the
-  // httpOnly aact_session cookie; it doubles as the bearer token.
-  const sessionCookie = response.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value).join('; ')
-  const sessionToken = decodeURIComponent(sessionCookie.match(/aact_session=([^;]+)/)?.[1] || '')
-  expect(sessionToken, 'Login must set the aact_session session cookie').toBeTruthy()
-  expect(body?.user?.role, 'Test account must have ADMIN role').toBe('ADMIN')
+  if (adminCookies) {
+    await page.context().addCookies(adminCookies)
+  } else {
+    const response = await page.request.post('/api/auth/login', {
+      data: {
+        email: requiredAnyEnv(['ADMIN_EMAIL', 'E2E_ADMIN_EMAIL']),
+        password: requiredAnyEnv(['ADMIN_PASSWORD', 'E2E_ADMIN_PASSWORD']),
+      },
+      maxRedirects: 0,
+    })
+    expect(response.ok(), `Admin API login failed with ${response.status()}`).toBe(true)
+    expect((await response.json()).user?.role).toBe('ADMIN')
+    adminCookies = (await page.context().cookies(QA_ORIGIN)).filter(cookie => cookie.name === 'aact_session')
+  }
+  const sessionToken = adminCookies[0]?.value
+  expect(sessionToken, 'Admin session cookie must be present').toBeTruthy()
 
   await page.addInitScript((arg: { token: string; origin: string }) => {
     // لا حقن للرمز خارج أصل بيئة الاختبار المقصود — سكربتات التهيئة تعمل عند كل تنقّل،
@@ -216,7 +218,8 @@ const visibleRegions = (page: Page) => page.locator('div[id^="quality-ws-"]:not(
 const overviewGrid = (page: Page) => page.locator('div[class*="xl:grid-cols-6"]')
 
 async function openWorkspace(page: Page, id: string) {
-  await page.locator(`button[id="quality-ws-${id}-header"]`).click()
+  const header = page.locator(`button[id="quality-ws-${id}-header"]`)
+  if (await header.getAttribute('aria-expanded') !== 'true') await header.click()
   await expect(page.locator(`div[id="quality-ws-${id}"]`)).toBeVisible()
   await expect(visibleRegions(page)).toHaveCount(1)
 }
