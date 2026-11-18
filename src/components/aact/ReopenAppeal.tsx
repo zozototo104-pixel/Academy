@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api } from '@/lib/store'
+import { api, useAppStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
@@ -13,22 +13,21 @@ import { DoorOpen, Loader2 } from 'lucide-react'
 // حالته: قيد البتّ، أو منحة معتمدة ترفع عنه جدار الموعد وحده.
 
 type MyAppeal = {
-  id: string
   programId: string
   semester: number
   unitId: string | null
   status: string
-  createdAt: string
 }
 
-let appealsCache: Promise<MyAppeal[]> | null = null
-function loadMyAppeals(): Promise<MyAppeal[]> {
-  if (!appealsCache) {
-    appealsCache = api<{ appeals: MyAppeal[] }>('/api/reopen-appeals')
-      .then((r) => r.appeals || [])
-      .catch(() => [])
-  }
-  return appealsCache
+const pendingReads = new Map<string, Promise<MyAppeal[]>>()
+function loadMyAppeals(userId: string): Promise<MyAppeal[]> {
+  const existing = pendingReads.get(userId)
+  if (existing) return existing
+  const pending = api<{ appeals: MyAppeal[] }>('/api/reopen-appeals?view=status')
+    .then((r) => r.appeals)
+    .finally(() => { if (pendingReads.get(userId) === pending) pendingReads.delete(userId) })
+  pendingReads.set(userId, pending)
+  return pending
 }
 
 // سياق العرض: 'assignment' = زر بطاقة الواجب (الافتراضي — نصه بلا أي
@@ -61,22 +60,34 @@ export function ReopenAppeal({
     : 'رُفض التماس سابق لهذا الواجب — يمكنك التقديم مجددًا إذا كان عندك سبب جديد.'
   const buttonText = isExam ? 'التماس إعادة فتح الامتحان' : unitId != null ? 'التماس إعادة فتح الوحدة' : 'التماس إعادة فتح التسليم'
   const { toast } = useToast()
-  const [appeals, setAppeals] = useState<MyAppeal[] | null>(null)
+  const userId = useAppStore((state) => state.user?.id)
+  const [snapshot, setSnapshot] = useState<{ userId: string; appeals: MyAppeal[] } | null>(null)
+  const appeals = snapshot?.userId === userId ? snapshot?.appeals : null
   const [formOpen, setFormOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
+    if (!userId) return
     let live = true
-    loadMyAppeals().then((list) => {
-      if (live) setAppeals(list)
-    })
+    let version = 0
+    const refresh = () => {
+      const request = ++version
+      loadMyAppeals(userId).then((list) => {
+        if (live && request === version) setSnapshot({ userId, appeals: list })
+      }).catch(() => {})
+    }
+    refresh()
+    window.addEventListener('focus', refresh)
+    window.addEventListener('aact-reopen-appeals-updated', refresh)
     return () => {
       live = false
+      window.removeEventListener('focus', refresh)
+      window.removeEventListener('aact-reopen-appeals-updated', refresh)
     }
-  }, [])
+  }, [userId])
 
-  if (appeals === null) return null
+  if (!userId || !appeals) return null
 
   const matches = (a: MyAppeal) =>
     a.programId === programId && a.semester === semester &&
@@ -115,9 +126,8 @@ export function ReopenAppeal({
           reason: reason.trim(),
         }),
       })
-      appealsCache = null
-      const list = await loadMyAppeals()
-      setAppeals(list)
+      pendingReads.delete(userId!)
+      window.dispatchEvent(new Event('aact-reopen-appeals-updated'))
       setFormOpen(false)
       setReason('')
       toast({ title: 'وصل التماسك إلى الإدارة', description: 'سيصلك القرار هنا وفي إشعاراتك.' })
