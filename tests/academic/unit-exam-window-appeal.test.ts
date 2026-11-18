@@ -79,6 +79,22 @@ describe('التماس إعادة فتح امتحان الوحدة من شاشت
     expect(body.data).toEqual({ programId: 'p1', semester: 1, unitId: 'u1a' })
   })
 
+  test('عميل API يحفظ سياق الالتماس المتداخل داخل خطأ 403', async () => {
+    state.grant = false
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = Object.assign(async () => getDetail(), { preconnect: originalFetch.preconnect })
+    try {
+      let error: any = null
+      try { await api('/api/exam/detail?examId=ex1') } catch (e) { error = e }
+      expect(error?.status).toBe(403)
+      expect(error?.code).toBe('UNIT_WINDOW_ENDED')
+      expect(error?.data?.data).toEqual({ programId: 'p1', semester: 1, unitId: 'u1a' })
+      expect(error?.data?.unitId).toBeUndefined()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test('مع منحة معتمدة: يمرّ حارس النافذة ولا يُرفق سياق التماس', async () => {
     state.grant = true
     const res = await getDetail()
