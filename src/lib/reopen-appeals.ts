@@ -175,15 +175,13 @@ export async function hasApprovedReopenGrant(
 ): Promise<boolean> {
   const store = (client as AnyClient)?.reopenAppeal
   if (!store?.findMany || !args.enrollmentId) return false
-  const grants: any[] = await store
-    .findMany({
-      where: { enrollmentId: args.enrollmentId, status: 'APPROVED' },
-      select: { unitId: true, semester: true },
-      take: 50,
-    })
-    .catch(() => [])
-  return grants.some((g) =>
-    g.semester === args.semester &&
-    (args.unitId != null ? g.unitId === args.unitId : g.unitId == null),
-  )
+  const grants = await store.findMany({
+    where: {
+      enrollmentId: args.enrollmentId, semester: args.semester,
+      unitId: args.unitId ?? null, status: 'APPROVED',
+    },
+    select: { id: true },
+    take: 1,
+  }).catch(() => [])
+  return grants.length > 0
 }
