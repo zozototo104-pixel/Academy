@@ -45,7 +45,7 @@ async function prepareExpiredUnitAppeals(prisma: PrismaClient, setup: any) {
     prisma.programAssignment.create({
       data: {
         programId: program.id, semester: 1, title: `QA واجب فصلي متأخر ${stamp}`,
-        description: 'QA unlinked assignment with an expired fixed deadline',
+        description: 'واجب تجريبي مرتبط بالفصل للتحقق من منحة إعادة الفتح بعد انتهاء الموعد.',
         type: 'REPORT', points: 10, weight: 0, status: 'PUBLISHED',
         dueAt: new Date(Date.now() - DAY_MS),
       },
@@ -53,7 +53,7 @@ async function prepareExpiredUnitAppeals(prisma: PrismaClient, setup: any) {
     prisma.programAssignment.create({
       data: {
         programId: program.id, unitId: endedUnit.id, semester: 1,
-        title: `QA واجب وحدة منتهية ${stamp}`, description: 'QA expired unit assignment',
+        title: `QA واجب وحدة منتهية ${stamp}`, description: 'واجب تجريبي مرتبط بوحدة انتهت نافذتها للتحقق من الالتماس الخاص بها.',
         type: 'REPORT', points: 10, weight: 0, status: 'PUBLISHED',
       },
     }),
