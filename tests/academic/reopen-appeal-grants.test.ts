@@ -15,8 +15,9 @@ const { hasApprovedReopenGrant } = await import('../../src/lib/reopen-appeals')
 function grantWorld(grants: any[]) {
   return {
     reopenAppeal: {
-      findMany: async ({ where }: any) =>
-        grants.filter((g) => g.enrollmentId === where.enrollmentId && g.status === where.status),
+      findMany: async ({ where, take }: any) => grants
+        .filter((grant) => Object.entries(where).every(([key, value]) => grant[key] === value))
+        .slice(0, take),
     },
   } as any
 }
@@ -27,6 +28,12 @@ describe('hasApprovedReopenGrant', () => {
 
   test('منحة الوحدة نفسها ترفع جدار واجبها', async () => {
     expect(await hasApprovedReopenGrant(grantWorld([unitGrant]), { enrollmentId: 'enr1', unitId: 'un1', semester: 1 })).toBe(true)
+  })
+  test('يجد المنحة المطابقة بعد خمسين منحة لوحدات أخرى', async () => {
+    const others = Array.from({ length: 50 }, (_, i) => ({ ...unitGrant, unitId: `other-${i}` }))
+    expect(await hasApprovedReopenGrant(grantWorld([...others, unitGrant]), {
+      enrollmentId: 'enr1', unitId: 'un1', semester: 1,
+    })).toBe(true)
   })
   test('منحة وحدة أخرى لا ترفع واجبًا لا يخصها', async () => {
     expect(await hasApprovedReopenGrant(grantWorld([unitGrant]), { enrollmentId: 'enr1', unitId: 'un9', semester: 1 })).toBe(false)
