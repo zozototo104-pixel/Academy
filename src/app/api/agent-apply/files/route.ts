@@ -11,6 +11,7 @@ import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { deleteStoredFile, getStorageDownloadPathForKey, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 import { createAgentUploadToken, verifyAgentUploadToken } from '@/lib/agent-upload-token'
+import { enforceDatabaseApiRateLimit } from '@/lib/rate-limit'
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'application/pdf']
@@ -34,6 +35,12 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       )
     }
+
+    // Account + IP limits run BEFORE reading or storing uploaded bytes.
+    const burstLimit = await enforceDatabaseApiRateLimit(req, 'agent-doc-stage-burst', 12, 15 * 60 * 1000, owner.id)
+    if (burstLimit) return burstLimit
+    const dailyLimit = await enforceDatabaseApiRateLimit(req, 'agent-doc-stage-daily', 40, 24 * 60 * 60 * 1000, owner.id)
+    if (dailyLimit) return dailyLimit
 
     const form = await req.formData()
     const docType = normalizeDocType(String(form.get('docType') || ''))
