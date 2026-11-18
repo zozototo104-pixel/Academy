@@ -79,8 +79,8 @@ export function ReopenAppeal({
   if (appeals === null) return null
 
   const matches = (a: MyAppeal) =>
-    a.programId === programId &&
-    ((unitId != null && a.unitId === unitId) || (a.unitId == null && a.semester === semester))
+    a.programId === programId && a.semester === semester &&
+    (unitId != null ? a.unitId === unitId : a.unitId == null)
   const relevant = appeals.filter(matches)
   const approved = relevant.find((a) => a.status === 'APPROVED')
   const pending = relevant.find((a) => a.status === 'PENDING')
