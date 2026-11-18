@@ -5,8 +5,8 @@ import { nextInvoiceNo, getSettingNum, getSettingJson } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailAgentInvoice } from '@/lib/mailer'
 import { resolveAgentRequiredDocuments } from '@/lib/admission-required-documents'
-import { verifyAgentUploadToken } from '@/lib/agent-upload-token'
-import { storageErrorMessage, storeFileBuffer, deleteStoredFile } from '@/lib/storage'
+import { readAgentUploadToken } from '@/lib/agent-upload-token'
+import { storageErrorMessage, storeFileBuffer, deleteStoredFile, getStorageDownloadPathForKey } from '@/lib/storage'
 
 // POST /api/agent-apply — طلب وكالة (للشركات والمؤسسات) أو طلب اعتماد (للأفراد:
 // مستشار/مدرب/جودة). المرفقات الإلزامية لا تأتي من الكود بل من قواعد
@@ -154,22 +154,23 @@ export async function POST(req: NextRequest) {
     for (const s of stagedDocs) {
       const docType = String(s?.docType || '').toUpperCase().slice(0, 40)
       const storageKey = String(s?.storageKey || '')
+      const verified = readAgentUploadToken(String(s?.uploadToken || ''), { userId: owner.id, docType, storageKey })
       if (
         !docType ||
         !storageKey.startsWith(`agent-documents/${docType.toLowerCase()}/`) ||
-        !verifyAgentUploadToken(String(s?.uploadToken || ''), { userId: owner.id, docType, storageKey })
+        !verified
       ) {
         return fail(400, { error: 'مرفق مرحّل غير صالح — أعد رفع الوثيقة' })
       }
       files.push({
         docType,
-        fileName: String(s?.fileName || docType).slice(0, 180),
-        mimeType: String(s?.mimeType || 'application/octet-stream'),
-        size: Number(s?.size || 0),
+        fileName: verified.fileName,
+        mimeType: verified.mimeType,
+        size: verified.size,
         data: null,
-        storageProvider: typeof s?.storageProvider === 'string' ? (s.storageProvider as string) : null,
+        storageProvider: verified.storageProvider,
         storageKey,
-        fileUrl: typeof s?.fileUrl === 'string' ? (s.fileUrl as string) : null,
+        fileUrl: getStorageDownloadPathForKey(storageKey),
       })
     }
 
