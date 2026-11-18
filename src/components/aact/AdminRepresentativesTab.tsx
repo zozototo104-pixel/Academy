@@ -82,7 +82,8 @@ function toDateInput(value?: string | null) {
 }
 
 function formFromRepresentative(rep: Representative): FormState {
-  return { ...EMPTY_FORM, ...rep, validFrom: toDateInput(rep.validFrom as any), validUntil: toDateInput(rep.validUntil as any), featured: !!rep.featured, sortOrder: Number(rep.sortOrder || 0) }
+  const values = Object.fromEntries(Object.entries(rep).filter(([, value]) => value != null))
+  return { ...EMPTY_FORM, ...values, validFrom: toDateInput(rep.validFrom as any), validUntil: toDateInput(rep.validUntil as any), featured: !!rep.featured, sortOrder: Number(rep.sortOrder || 0) }
 }
 
 function shouldAutoRewriteAfterUpload(assetType: string, extras?: Record<string, string>) {
