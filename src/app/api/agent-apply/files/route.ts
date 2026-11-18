@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
         mimeType: stored.mimeType || mime,
         size: stored.size || file.size,
       })
+      await db.agentPendingUpload.create({ data: { storageKey: stored.key } })
     } catch (error) {
       await deleteStoredFile(stored.key)
       throw error
@@ -128,8 +129,15 @@ export async function DELETE(req: NextRequest) {
     if (linkedDoc) {
       return NextResponse.json({ error: 'الوثيقة مرتبطة بطلب محفوظ ولا يمكن حذفها' }, { status: 409 })
     }
+    // Commit cancellation before touching the object. A simultaneous submit
+    // consumes this same row only while cancelled is false.
+    const claim = await db.agentPendingUpload.updateMany({
+      where: { storageKey }, data: { cancelled: true },
+    })
+    if (!claim.count) return NextResponse.json({ error: 'الملف غير متاح للإلغاء' }, { status: 409 })
     const deleted = await deleteStoredFile(storageKey)
     if (!deleted) return NextResponse.json({ error: 'تعذر حذف الملف من التخزين' }, { status: 500 })
+    await db.agentPendingUpload.deleteMany({ where: { storageKey, cancelled: true } })
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('Agent file delete error:', e)
