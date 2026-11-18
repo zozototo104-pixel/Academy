@@ -13,8 +13,15 @@ type TokenPayload = {
   userId: string
   docType: string
   storageKey: string
+  storageProvider: 's3' | 'local'
+  fileName: string
+  mimeType: string
+  size: number
   exp: number
 }
+
+export type AgentUploadMetadata = Pick<TokenPayload, 'storageProvider' | 'fileName' | 'mimeType' | 'size'>
+type TokenIdentity = Pick<TokenPayload, 'userId' | 'docType' | 'storageKey'>
 
 function envSecret(name: string): string | null {
   const value = process.env[name]?.trim()
@@ -55,38 +62,53 @@ function safeEqual(a: string, b: string) {
 }
 
 export function createAgentUploadToken(
-  input: { userId: string; docType: string; storageKey: string },
+  input: TokenIdentity & AgentUploadMetadata,
   ttlMs = TOKEN_TTL_MS
 ) {
   const payload: TokenPayload = {
     userId: String(input.userId),
     docType: String(input.docType).toUpperCase(),
     storageKey: String(input.storageKey),
+    storageProvider: input.storageProvider,
+    fileName: input.fileName,
+    mimeType: input.mimeType,
+    size: input.size,
     exp: Date.now() + ttlMs,
   }
   const encoded = base64Url(JSON.stringify(payload))
   return `${encoded}.${signPayload(encoded)}`
 }
 
-export function verifyAgentUploadToken(
+export function readAgentUploadToken(
   token: string | null | undefined,
-  input: { userId: string; docType: string; storageKey: string }
-) {
+  input: TokenIdentity
+): TokenPayload | null {
   const raw = String(token || '').trim()
-  if (!raw || !raw.includes('.')) return false
+  if (!raw || !raw.includes('.')) return null
   const [encoded, signature] = raw.split('.', 2)
-  if (!encoded || !signature) return false
-  if (!safeEqual(signature, signPayload(encoded))) return false
+  if (!encoded || !signature) return null
+  if (!safeEqual(signature, signPayload(encoded))) return null
   let payload: TokenPayload
   try {
     payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))
   } catch {
-    return false
+    return null
   }
-  if (!payload || payload.exp < Date.now()) return false
-  return (
+  if (
+    !payload || !Number.isFinite(payload.exp) || payload.exp <= Date.now() ||
+    !['s3', 'local'].includes(payload.storageProvider) ||
+    typeof payload.fileName !== 'string' || !payload.fileName ||
+    typeof payload.mimeType !== 'string' || !payload.mimeType ||
+    !Number.isFinite(payload.size) || payload.size <= 0 || payload.size > 4 * 1024 * 1024
+  ) return null
+  const matches = (
     payload.userId === String(input.userId) &&
     payload.docType === String(input.docType).toUpperCase() &&
     payload.storageKey === String(input.storageKey)
   )
+  return matches ? payload : null
+}
+
+export function verifyAgentUploadToken(token: string | null | undefined, input: TokenIdentity) {
+  return readAgentUploadToken(token, input) !== null
 }
