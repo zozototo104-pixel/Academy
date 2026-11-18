@@ -120,6 +120,9 @@ describe('توصيلات واجهة المرحلة الثانية', () => {
     expect(agentView).toContain('saveAgentStagedDocs')
     expect(agentView).toContain('getPendingAgentFiles')
     expect(agentView).toContain('clearAgentStagedDocs')
+    expect(agentView).toContain('notStaged')
+    expect(agentView).toContain('إعادة رفع الملف')
+    expect(agentView).not.toContain('fd.append(`doc_')
     const applyView = readFileSync('src/components/aact/ApplyView.tsx', 'utf8')
     expect(applyView).toContain("setPendingReturnView('apply')")
   })
@@ -134,7 +137,7 @@ describe('توصيلات واجهة المرحلة الثانية', () => {
   test('مسار التقديم يقبل الوثائق المرحّلة ويثبت رمزها', () => {
     const route = readFileSync('src/app/api/agent-apply/route.ts', 'utf8')
     expect(route).toContain('stagedDocs')
-    expect(route).toContain('verifyAgentUploadToken')
+    expect(route).toContain('readAgentUploadToken')
     expect(route).toContain('agent-documents/${docType.toLowerCase()}/')
     const filesRoute = readFileSync('src/app/api/agent-apply/files/route.ts', 'utf8')
     expect(filesRoute).toContain('createAgentUploadToken')
