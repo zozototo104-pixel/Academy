@@ -199,6 +199,7 @@ export function ExamView() {
   useEffect(() => {
     if (!activeExamId) return
     setLoading(true)
+    setData(null)
     setResult(null)
     setCurrent(0)
     setMcqAnswers({})
