@@ -59,7 +59,7 @@ export function ReopenAppeal({
   const rejectedText = isExam
     ? 'رُفض التماس سابق لهذا الامتحان — يمكنك التقديم مجددًا إذا كان عندك سبب جديد.'
     : 'رُفض التماس سابق لهذا الواجب — يمكنك التقديم مجددًا إذا كان عندك سبب جديد.'
-  const buttonText = isExam ? 'التماس إعادة فتح الامتحان' : 'التماس إعادة فتح التسليم'
+  const buttonText = isExam ? 'التماس إعادة فتح الامتحان' : unitId != null ? 'التماس إعادة فتح الوحدة' : 'التماس إعادة فتح التسليم'
   const { toast } = useToast()
   const [appeals, setAppeals] = useState<MyAppeal[] | null>(null)
   const [formOpen, setFormOpen] = useState(false)
