@@ -81,13 +81,14 @@ export function AgentView() {
   const [loading, setLoading] = useState(false)
   // نتيجة التقديم: فاتورة رسوم التقديم + ملخص رسالة البريد المرسلة
   const [done, setDone] = useState<{ kind: 'agency' | 'accreditation'; invoice?: { invoiceNo: string; amount: number } | null; email?: { to: string; invoiceNo: string; amount: number } | null } | null>(null)
+  const [savedWithoutInvoice, setSavedWithoutInvoice] = useState<string | null>(null)
   // الوثائق الرسمية المرفوعة (إلزامية لكلا النوعين، من قواعد الوكالة والاعتماد)
   // files: الملتقطة في هذه الجلسة (تنجو من رحلة الدخول عبر الحافظة)؛
   // staged: المرحّلة إلى التخزين بمفاتيحها (تنجو حتى من تحديث الصفحة).
-  const [files, setFiles] = useState<Record<string, File | null>>(() => getPendingAgentFiles())
+  const [files, setFiles] = useState<Record<string, File | null>>(() => getPendingAgentFiles(user?.id))
   const [staged, setStaged] = useState<Record<string, AgentStagedDoc>>(() => {
     const map: Record<string, AgentStagedDoc> = {}
-    for (const d of readAgentStagedDocs()) map[d.docType] = d
+    for (const d of readAgentStagedDocs(user?.id)) map[d.docType] = d
     return map
   })
   const [staging, setStaging] = useState<Record<string, boolean>>({})
@@ -101,14 +102,14 @@ export function AgentView() {
   // مسودة محفوظة قبل الذهاب لشاشة الدخول (نصوص فقط — الملفات تُعاد إرفاقاً).
   // تُقرأ في مُهيّئ الحالة لا في تأثير، حتى لا نستدعي setState داخل
   // التأثير (تحذير react-hooks/set-state-in-effect) ولا نكسر العرض.
-  const [kind, setKind] = useState<'AGENCY' | 'ACCREDITATION'>(() => readAgentDraft()?.kind === 'ACCREDITATION' ? 'ACCREDITATION' : 'AGENCY')
+  const [kind, setKind] = useState<'AGENCY' | 'ACCREDITATION'>(() => readAgentDraft(user?.id)?.kind === 'ACCREDITATION' ? 'ACCREDITATION' : 'AGENCY')
   const [accreditationType, setAccreditationType] = useState(() => {
-    const saved = readAgentDraft()?.accreditationType
+    const saved = readAgentDraft(user?.id)?.accreditationType
     return saved === 'CONSULTANT' || saved === 'TRAINER' || saved === 'QUALITY' ? saved : 'CONSULTANT'
   })
   const [form, setForm] = useState(() => ({
     orgName: '', repName: '', email: '', phone: '', country: '', territory: '', experience: '',
-    ...(readAgentDraft()?.form || {}),
+    ...(readAgentDraft(user?.id)?.form || {}),
   }))
   const [agentRules, setAgentRules] = useState<AgentRules | null>(null)
   const canSubmitAgentApplication = !user || !['ADMIN', 'SUPERVISOR'].includes(user.role)
@@ -149,7 +150,7 @@ export function AgentView() {
       }
       // المستخدم قد يستبدل الملف أو يزيله أثناء وجود الطلب في الشبكة.
       // استجابة الملف القديم لا يجوز أن تحل مكان الملف المختار الآن.
-      if (getPendingAgentFiles()[type] !== f) {
+      if (getPendingAgentFiles(user?.id)[type] !== f || useAppStore.getState().user?.id !== user?.id) {
         await deleteStagedKey(d.document as AgentStagedDoc)
         return
       }
@@ -159,6 +160,10 @@ export function AgentView() {
     } finally {
       stagingInFlight.current.delete(type)
       setStaging((prev) => ({ ...prev, [type]: false }))
+      const replacement = getPendingAgentFiles(user?.id)[type]
+      if (replacement && replacement !== f && useAppStore.getState().user?.id === user?.id) {
+        void stageFile(type, replacement)
+      }
     }
   }
 
@@ -182,7 +187,7 @@ export function AgentView() {
       toast({ title: 'صيغة غير مدعومة', description: 'المسموح: JPG / PNG / PDF', variant: 'destructive' })
       return
     }
-    setPendingAgentFile(type, f)
+    setPendingAgentFile(type, f, user?.id)
     setFiles((prev) => ({ ...prev, [type]: f }))
     if (staged[type]) {
       const old = staged[type]
@@ -200,8 +205,8 @@ export function AgentView() {
   // تحديث الصفحة؛ والمسودة النصية لا تُمس هنا إطلاقاً (تُحفظ عند بوابة
   // الدخول فقط، فلا يكتب ترحيل متأخر فوق نص أحدث).
   useEffect(() => {
-    saveAgentStagedDocs(Object.values(staged))
-  }, [staged])
+    saveAgentStagedDocs(Object.values(staged), user?.id)
+  }, [staged, user?.id])
 
   // بعد العودة من الدخول: الملفات الملتقطة قبل الدخول ما زالت في الحافظة
   // بلا ترحيل — رحّلها الآن تلقائياً حتى لا يعيد المستخدم إرفاقها.
@@ -255,14 +260,25 @@ export function AgentView() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('aact_token') || ''}` },
         body: JSON.stringify({ kind, ...(kind === 'ACCREDITATION' ? { accreditationType } : {}), ...form, stagedDocs: displayDocs.map((d) => staged[d.type]) }),
       })
-      const d: { message?: string; error?: string; code?: string; invoice?: { invoiceNo: string; amount: number } | null; email?: { to: string; invoiceNo: string; amount: number } | null } = await res.json().catch(() => ({}))
+      const d: { message?: string; error?: string; code?: string; applicationId?: string; invoice?: { invoiceNo: string; amount: number } | null; email?: { to: string; invoiceNo: string; amount: number } | null } = await res.json().catch(() => ({}))
       if (!res.ok) {
+        // A post-save invoice/notification error is NOT an unsuccessful application.
+        // Show the saved ID and stop retries with already-consumed upload keys.
+        if (typeof d.applicationId === 'string' && d.applicationId) {
+          clearAgentDraft(user?.id)
+          clearAgentStagedDocs(user?.id)
+          clearPendingAgentFiles(user?.id)
+          setStaged({})
+          setSavedWithoutInvoice(d.applicationId)
+          toast({ title: 'طلبك محفوظ', description: `رقم الطلب: ${d.applicationId} — يرجى التواصل مع الإدارة لاستكمال الفاتورة.` })
+          return
+        }
         if (d.code === 'LOGIN_REQUIRED') { setLoginPrompt(true); throw new Error(d.error || 'نرجو تسجيل الدخول لاستكمال الطلب') }
         throw new Error(d.error || d.message || 'تعذر إرسال الطلب')
       }
-      clearAgentDraft()
-      clearAgentStagedDocs()
-      clearPendingAgentFiles()
+      clearAgentDraft(user?.id)
+      clearAgentStagedDocs(user?.id)
+      clearPendingAgentFiles(user?.id)
       setStaged({})
       setDone({ kind: kind === 'AGENCY' ? 'agency' : 'accreditation', invoice: d.invoice || null, email: d.email || null })
       toast({ title: 'تم الإرسال', description: d.message })
@@ -419,7 +435,173 @@ export function AgentView() {
                   const fee = agentRules?.categoryFees?.[it.key]
                   return (
                     <SelectItem key={it.key} value={it.key}>
-                      {it.label} {fee ? `— ${fee}$` : fee === 0 ? '— حسب الطلب' : it.fee ? `— ${it.fee}$` : '— حسب الطلب'}
+                      {it.label} {fee ? `— ${fee}'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { api, useAppStore } from '@/lib/store'
+import { setPendingReturnView } from '@/lib/pending-return-view'
+import { readAgentDraft, saveAgentDraft, clearAgentDraft, readAgentStagedDocs, saveAgentStagedDocs, clearAgentStagedDocs, type AgentStagedDoc } from '@/lib/agent-draft'
+import { getPendingAgentFiles, setPendingAgentFile, clearPendingAgentFiles } from '@/lib/agent-pending-files'
+import { ACADEMY_INFO, ACCREDITATION_GUIDE, ADMISSION_FEES } from '@/lib/academyData'
+import { toast, useToast } from '@/hooks/use-toast'
+import { AgentPortalTab } from '@/components/aact/AgentPortalTab'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Globe2, Loader2, Send, CheckCircle2, Handshake, Percent, FileText, ListChecks,
+  ShieldCheck, Building2, Award, BadgeCheck, Banknote, UploadCloud, FileWarning, Trash2,
+  Landmark, CreditCard, ScrollText, IdCard, Camera,
+} from 'lucide-react'
+
+// الوثائق الرسمية الإلزامية لطلبات الاعتماد — خطوة «إرفاق الوثائق الرسمية» من دليل الإجراءات حرفياً
+const AGENT_DOCS = [
+  { type: 'LICENSE', label: 'شهادة الترخيص أو مزاولة المهنة', hint: 'صورة عن السجل التجاري أو الترخيص أو إثبات مزاولة المهنة', icon: ScrollText },
+  { type: 'ID', label: 'الهوية الشخصية أو جواز السفر', hint: 'صورة واضحة من الجهتين', icon: IdCard },
+  { type: 'PHOTO', label: 'صور شخصية حديثة', hint: 'للمدربين / المستشارين (خلفية بيضاء يفضل)', icon: Camera },
+  { type: 'CV', label: 'السيرة الذاتية C.V', hint: 'PDF أو صورة واضحة', icon: FileText },
+] as const
+const MAX_FILE_MB = 4
+
+const PAY_METHODS = [
+  { value: 'PAYMOB', label: 'Paymob — بطاقة / محفظة مصرية' },
+  { value: 'FAWRY', label: 'فوري — كود دفع مصر' },
+  { value: 'STRIPE', label: 'Stripe — بطاقة دولية' },
+  { value: 'PAYPAL', label: 'PayPal — حساب دولي' },
+  { value: 'BANK_TRANSFER', label: 'تحويل بنكي — مراجعة الإدارة' },
+]
+
+const BENEFITS = [
+  {
+    icon: Percent,
+    title: 'عمولة 25%',
+    desc: 'من إيرادات جميع البرامج التدريبية في منطقة تمثيلك الجغرافي الحصرية',
+  },
+  {
+    icon: FileText,
+    title: '100$ عن كل بحث',
+    desc: 'مكافأة عن كل بحث تخرج تشارك أنت ضمن لجنة المناقشة الخاصة به',
+  },
+  {
+    icon: ListChecks,
+    title: 'إدراج رسمي',
+    desc: 'اسمك ضمن قائمة الوكلاء والممثلين المعتمدين عبر الموقع الرسمي للأكاديمية',
+  },
+  {
+    icon: Handshake,
+    title: 'دعم كامل',
+    desc: 'تزويدك بالحقائب التدريبية والمناهج والمعايير الأكاديمية المعتمدة لكل برنامج',
+  },
+]
+
+const ACC_ICONS: Record<string, any> = {
+  COMPANY: Building2, CONSULTANT: ShieldCheck, TRAINER: Award, QUALITY: BadgeCheck,
+}
+
+type AgentRules = {
+  docs: { type: string; label: string }[]
+  agencyFee: number
+  accreditationFee: number
+  categoryFees: Record<string, number>
+}
+
+const DOC_ICONS: Record<string, any> = { LICENSE: ScrollText, ID: IdCard, PHOTO: Camera, CV: FileText }
+
+export function AgentView() {
+  const { toast } = useToast()
+  const { user, navigate } = useAppStore()
+  const [loading, setLoading] = useState(false)
+  // نتيجة التقديم: فاتورة رسوم التقديم + ملخص رسالة البريد المرسلة
+  const [done, setDone] = useState<{ kind: 'agency' | 'accreditation'; invoice?: { invoiceNo: string; amount: number } | null; email?: { to: string; invoiceNo: string; amount: number } | null } | null>(null)
+ : fee === 0 ? '— حسب الطلب' : it.fee ? `— ${it.fee}'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { api, useAppStore } from '@/lib/store'
+import { setPendingReturnView } from '@/lib/pending-return-view'
+import { readAgentDraft, saveAgentDraft, clearAgentDraft, readAgentStagedDocs, saveAgentStagedDocs, clearAgentStagedDocs, type AgentStagedDoc } from '@/lib/agent-draft'
+import { getPendingAgentFiles, setPendingAgentFile, clearPendingAgentFiles } from '@/lib/agent-pending-files'
+import { ACADEMY_INFO, ACCREDITATION_GUIDE, ADMISSION_FEES } from '@/lib/academyData'
+import { toast, useToast } from '@/hooks/use-toast'
+import { AgentPortalTab } from '@/components/aact/AgentPortalTab'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Globe2, Loader2, Send, CheckCircle2, Handshake, Percent, FileText, ListChecks,
+  ShieldCheck, Building2, Award, BadgeCheck, Banknote, UploadCloud, FileWarning, Trash2,
+  Landmark, CreditCard, ScrollText, IdCard, Camera,
+} from 'lucide-react'
+
+// الوثائق الرسمية الإلزامية لطلبات الاعتماد — خطوة «إرفاق الوثائق الرسمية» من دليل الإجراءات حرفياً
+const AGENT_DOCS = [
+  { type: 'LICENSE', label: 'شهادة الترخيص أو مزاولة المهنة', hint: 'صورة عن السجل التجاري أو الترخيص أو إثبات مزاولة المهنة', icon: ScrollText },
+  { type: 'ID', label: 'الهوية الشخصية أو جواز السفر', hint: 'صورة واضحة من الجهتين', icon: IdCard },
+  { type: 'PHOTO', label: 'صور شخصية حديثة', hint: 'للمدربين / المستشارين (خلفية بيضاء يفضل)', icon: Camera },
+  { type: 'CV', label: 'السيرة الذاتية C.V', hint: 'PDF أو صورة واضحة', icon: FileText },
+] as const
+const MAX_FILE_MB = 4
+
+const PAY_METHODS = [
+  { value: 'PAYMOB', label: 'Paymob — بطاقة / محفظة مصرية' },
+  { value: 'FAWRY', label: 'فوري — كود دفع مصر' },
+  { value: 'STRIPE', label: 'Stripe — بطاقة دولية' },
+  { value: 'PAYPAL', label: 'PayPal — حساب دولي' },
+  { value: 'BANK_TRANSFER', label: 'تحويل بنكي — مراجعة الإدارة' },
+]
+
+const BENEFITS = [
+  {
+    icon: Percent,
+    title: 'عمولة 25%',
+    desc: 'من إيرادات جميع البرامج التدريبية في منطقة تمثيلك الجغرافي الحصرية',
+  },
+  {
+    icon: FileText,
+    title: '100$ عن كل بحث',
+    desc: 'مكافأة عن كل بحث تخرج تشارك أنت ضمن لجنة المناقشة الخاصة به',
+  },
+  {
+    icon: ListChecks,
+    title: 'إدراج رسمي',
+    desc: 'اسمك ضمن قائمة الوكلاء والممثلين المعتمدين عبر الموقع الرسمي للأكاديمية',
+  },
+  {
+    icon: Handshake,
+    title: 'دعم كامل',
+    desc: 'تزويدك بالحقائب التدريبية والمناهج والمعايير الأكاديمية المعتمدة لكل برنامج',
+  },
+]
+
+const ACC_ICONS: Record<string, any> = {
+  COMPANY: Building2, CONSULTANT: ShieldCheck, TRAINER: Award, QUALITY: BadgeCheck,
+}
+
+type AgentRules = {
+  docs: { type: string; label: string }[]
+  agencyFee: number
+  accreditationFee: number
+  categoryFees: Record<string, number>
+}
+
+const DOC_ICONS: Record<string, any> = { LICENSE: ScrollText, ID: IdCard, PHOTO: Camera, CV: FileText }
+
+export function AgentView() {
+  const { toast } = useToast()
+  const { user, navigate } = useAppStore()
+  const [loading, setLoading] = useState(false)
+  // نتيجة التقديم: فاتورة رسوم التقديم + ملخص رسالة البريد المرسلة
+  const [done, setDone] = useState<{ kind: 'agency' | 'accreditation'; invoice?: { invoiceNo: string; amount: number } | null; email?: { to: string; invoiceNo: string; amount: number } | null } | null>(null)
+ : '— حسب الطلب'}
                     </SelectItem>
                   )
                 })}
@@ -450,6 +632,15 @@ export function AgentView() {
         {canSubmitAgentApplication ? (kind === 'AGENCY' ? 'إرسال طلب الوكالة الدولية' : 'إرسال طلب الاعتماد') : 'يتطلب حساب جهة/وكيل منفصل'}
       </Button>
     </form>
+  )
+
+  const savedApplicationNotice = savedWithoutInvoice && (
+    <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-6 text-center" dir="rtl">
+      <CheckCircle2 className="mx-auto mb-3 h-9 w-9 text-emerald-600" />
+      <h3 className="text-lg font-black text-[#0f2b46]">تم حفظ طلبك ووثائقك بنجاح</h3>
+      <p className="mt-2 text-sm font-bold text-amber-800">تعذّر إكمال الفاتورة أو الإشعار بعد حفظ الطلب. لا تُعد إرسال الطلب؛ تواصل مع إدارة الأكاديمية وأبلغها برقم الطلب التالي.</p>
+      <p className="mt-3 select-all break-all rounded-lg bg-white px-3 py-3 font-mono text-base font-black text-[#0f2b46]" dir="ltr">{savedWithoutInvoice}</p>
+    </div>
   )
 
   return (
@@ -528,7 +719,7 @@ export function AgentView() {
             </CardContent>
           </Card>
 
-          {done?.kind === 'agency' ? (
+          {savedWithoutInvoice ? savedApplicationNotice : done?.kind === 'agency' ? (
             <Card className="mx-auto max-w-2xl border-emerald-200 bg-emerald-50/50">
               <CardContent className="p-8 text-center">
                 <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-emerald-600" />
@@ -624,7 +815,90 @@ export function AgentView() {
                   <li>• رسوم تقديم طلب الاعتماد: <strong>{agentRules?.accreditationFee ?? ACCREDITATION_GUIDE.applicationFee}$ غير مستردة</strong></li>
                   <li>• المستشارون (إداري ومالي، تربوي، قانوني، نفسي، هندسي، ذكاء اصطناعي): <strong>{agentRules?.categoryFees?.CONSULTANT ?? 350}$</strong></li>
                   <li>• المدرب الدولي المعتمد: <strong>{agentRules?.categoryFees?.TRAINER ?? 200}$</strong></li>
-                  <li>• اعتماد الجودة: <strong>{agentRules?.categoryFees?.QUALITY ? `${agentRules.categoryFees.QUALITY}$` : 'حسب طبيعة الاعتماد'}</strong></li>
+                  <li>• اعتماد الجودة: <strong>{agentRules?.categoryFees?.QUALITY ? `${agentRules.categoryFees.QUALITY}'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { api, useAppStore } from '@/lib/store'
+import { setPendingReturnView } from '@/lib/pending-return-view'
+import { readAgentDraft, saveAgentDraft, clearAgentDraft, readAgentStagedDocs, saveAgentStagedDocs, clearAgentStagedDocs, type AgentStagedDoc } from '@/lib/agent-draft'
+import { getPendingAgentFiles, setPendingAgentFile, clearPendingAgentFiles } from '@/lib/agent-pending-files'
+import { ACADEMY_INFO, ACCREDITATION_GUIDE, ADMISSION_FEES } from '@/lib/academyData'
+import { toast, useToast } from '@/hooks/use-toast'
+import { AgentPortalTab } from '@/components/aact/AgentPortalTab'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Globe2, Loader2, Send, CheckCircle2, Handshake, Percent, FileText, ListChecks,
+  ShieldCheck, Building2, Award, BadgeCheck, Banknote, UploadCloud, FileWarning, Trash2,
+  Landmark, CreditCard, ScrollText, IdCard, Camera,
+} from 'lucide-react'
+
+// الوثائق الرسمية الإلزامية لطلبات الاعتماد — خطوة «إرفاق الوثائق الرسمية» من دليل الإجراءات حرفياً
+const AGENT_DOCS = [
+  { type: 'LICENSE', label: 'شهادة الترخيص أو مزاولة المهنة', hint: 'صورة عن السجل التجاري أو الترخيص أو إثبات مزاولة المهنة', icon: ScrollText },
+  { type: 'ID', label: 'الهوية الشخصية أو جواز السفر', hint: 'صورة واضحة من الجهتين', icon: IdCard },
+  { type: 'PHOTO', label: 'صور شخصية حديثة', hint: 'للمدربين / المستشارين (خلفية بيضاء يفضل)', icon: Camera },
+  { type: 'CV', label: 'السيرة الذاتية C.V', hint: 'PDF أو صورة واضحة', icon: FileText },
+] as const
+const MAX_FILE_MB = 4
+
+const PAY_METHODS = [
+  { value: 'PAYMOB', label: 'Paymob — بطاقة / محفظة مصرية' },
+  { value: 'FAWRY', label: 'فوري — كود دفع مصر' },
+  { value: 'STRIPE', label: 'Stripe — بطاقة دولية' },
+  { value: 'PAYPAL', label: 'PayPal — حساب دولي' },
+  { value: 'BANK_TRANSFER', label: 'تحويل بنكي — مراجعة الإدارة' },
+]
+
+const BENEFITS = [
+  {
+    icon: Percent,
+    title: 'عمولة 25%',
+    desc: 'من إيرادات جميع البرامج التدريبية في منطقة تمثيلك الجغرافي الحصرية',
+  },
+  {
+    icon: FileText,
+    title: '100$ عن كل بحث',
+    desc: 'مكافأة عن كل بحث تخرج تشارك أنت ضمن لجنة المناقشة الخاصة به',
+  },
+  {
+    icon: ListChecks,
+    title: 'إدراج رسمي',
+    desc: 'اسمك ضمن قائمة الوكلاء والممثلين المعتمدين عبر الموقع الرسمي للأكاديمية',
+  },
+  {
+    icon: Handshake,
+    title: 'دعم كامل',
+    desc: 'تزويدك بالحقائب التدريبية والمناهج والمعايير الأكاديمية المعتمدة لكل برنامج',
+  },
+]
+
+const ACC_ICONS: Record<string, any> = {
+  COMPANY: Building2, CONSULTANT: ShieldCheck, TRAINER: Award, QUALITY: BadgeCheck,
+}
+
+type AgentRules = {
+  docs: { type: string; label: string }[]
+  agencyFee: number
+  accreditationFee: number
+  categoryFees: Record<string, number>
+}
+
+const DOC_ICONS: Record<string, any> = { LICENSE: ScrollText, ID: IdCard, PHOTO: Camera, CV: FileText }
+
+export function AgentView() {
+  const { toast } = useToast()
+  const { user, navigate } = useAppStore()
+  const [loading, setLoading] = useState(false)
+  // نتيجة التقديم: فاتورة رسوم التقديم + ملخص رسالة البريد المرسلة
+  const [done, setDone] = useState<{ kind: 'agency' | 'accreditation'; invoice?: { invoiceNo: string; amount: number } | null; email?: { to: string; invoiceNo: string; amount: number } | null } | null>(null)
+ : 'حسب طبيعة الاعتماد'}</strong></li>
                 </ul>
               </CardContent>
             </Card>
@@ -645,7 +919,7 @@ export function AgentView() {
             </Card>
           </div>
 
-          {done?.kind === 'accreditation' ? (
+          {savedWithoutInvoice ? savedApplicationNotice : done?.kind === 'accreditation' ? (
             <Card className="mx-auto max-w-2xl border-emerald-200 bg-emerald-50/50">
               <CardContent className="p-8 text-center">
                 <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-emerald-600" />
