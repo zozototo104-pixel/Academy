@@ -22,7 +22,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 // ولا يصل أي طلب إلى أصل أجنبي، ثم يُتحقق من بقاء الصفحة على الأصل بعد الفتح.
 // حدود البوابة: هي تضبط عنوان الوجهة فقط — فصل قاعدة بيانات QA وخدمات الإرسال عن
 // الإنتاج شرط بيئي مستقل لا تستطيع هذه الدالة التحقق منه.
-// كل السيناريوهات تعمل على طلبات اختبار مخصصة معزولة تُنشأ عبر /api/agent-apply كزائر
+// كل السيناريوهات تعمل على طلبات اختبار مخصصة معزولة تُنشأ عبر /api/agent-apply بحساب طالب اختباري
 // بأسماء وبريد فريدة لكل تشغيلة (RUN_ID داخل الاسم والبريد، ونطاق example.com — لا يصل
 // أي إشعار لشخص حقيقي)، ولا تلمس أي طلب حقيقي قائم.
 // سياسة البقايا: التشغيلة الكاملة تُنشئ ١٤ طلبًا (١ فتح + ١١ تصفّح + ١ رفض + ١ خروج)
@@ -175,13 +175,32 @@ async function chooseStatusFilter(page: Page, label: string) {
 
 const RUN_ID = `QA-AGT-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`
 
-// إنشاء طلب وكالة اختبار معزول كزائر (بلا أي جلسة إدارة) عبر سياق طلب مستقل.
+// يستخدم سياق الطلب حساب المتقدم الاختباري، وتبقى جلسة الإدارة في المتصفح فقط.
 // يعيد اسم الجهة ومعرّف السجل المنشأ حتى تثبت الاختبارات أن أفعالها استهدفت سجلّها هي.
 async function createDedicatedApplication(request: APIRequestContext, orgName: string, emailTag: string) {
+  const rules = await request.get('/api/agent-apply', { maxRedirects: 0 })
+  expect(rules.ok()).toBe(true)
+  const { docs } = await rules.json()
+  const stagedDocs = []
+  for (const { type } of docs) {
+    const upload = await request.post('/api/agent-apply/files', {
+      maxRedirects: 0,
+      multipart: {
+        docType: type,
+        file: {
+          name: 'qa.png', mimeType: 'image/png',
+          buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j/lkAAAAASUVORK5CYII=', 'base64'),
+        },
+      },
+    })
+    expect(upload.ok(), `QA upload for ${type}: ${upload.status()}`).toBe(true)
+    stagedDocs.push((await upload.json()).document)
+  }
   const res = await request.post('/api/agent-apply', {
     maxRedirects: 0, // طلب كتابة: أي تحويل فشل صريح، لا اتباع صامت
     data: {
       kind: 'AGENCY',
+      stagedDocs,
       orgName,
       repName: 'ممثل اختبار آلي',
       email: `qa-agents-${RUN_ID}-${emailTag}@example.com`,
@@ -207,11 +226,41 @@ async function openDedicatedRow(page: Page, orgName: string) {
 }
 
 test.describe('agents tab — table + detail behavior (QA only, dedicated data)', () => {
-  test.beforeAll(() => {
+  let applicant: { email: string; password: string }
+  let fixtureStamp: string | undefined
+  let fixtureAdmin: APIRequestContext
+  test.beforeAll(async ({ playwright }) => {
     QA_ORIGIN = assertQaEnvironment()
+    fixtureAdmin = await playwright.request.newContext({ baseURL: QA_ORIGIN })
+    const login = await fixtureAdmin.post('/api/auth/login', {
+      maxRedirects: 0,
+      data: { email: requiredAnyEnv(['ADMIN_EMAIL', 'E2E_ADMIN_EMAIL']), password: requiredAnyEnv(['ADMIN_PASSWORD', 'E2E_ADMIN_PASSWORD']) },
+    })
+    expect(login.ok()).toBe(true)
+    const response = await fixtureAdmin.post('/api/admin/full-journey', { maxRedirects: 0, timeout: 90_000 })
+    expect(response.ok()).toBe(true)
+    const fixture = await response.json()
+    fixtureStamp = fixture.stamp
+    applicant = fixture.student
+    expect(applicant?.email).toBeTruthy()
   })
 
-  test.beforeEach(async ({ page }) => {
+  test.afterAll(async () => {
+    try {
+      if (fixtureStamp) {
+        const cleanup = await fixtureAdmin.delete('/api/admin/full-journey', { maxRedirects: 0, data: { stamp: fixtureStamp } })
+        expect(cleanup.ok()).toBe(true)
+      }
+    } finally {
+      await fixtureAdmin?.dispose()
+    }
+  })
+
+  test.beforeEach(async ({ page, request }) => {
+    const login = await request.post('/api/auth/login', {
+      maxRedirects: 0, data: { email: applicant.email, password: applicant.password },
+    })
+    expect(login.ok()).toBe(true)
     await loginAsAdmin(page)
     await openAgentsTab(page)
   })
