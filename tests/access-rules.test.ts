@@ -46,11 +46,11 @@ function isNonServiceEnrollment(row: EnrollmentRow, where: any) {
 
 const db: any = {
   enrollment: {
-    findFirst: async ({ where }: any) => enrollments.find((row) =>
+    findMany: async ({ where }: any) => enrollments.filter((row) =>
       row.userId === where?.userId
       && matchesStatus(row.status, where)
       && isNonServiceEnrollment(row, where)
-    ) || null,
+    ),
   },
   program: {
     findUnique: async ({ where, select }: any) => selectedProgram(programs.find((row) => row.id === where?.id) || null, select),
