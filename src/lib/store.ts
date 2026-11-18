@@ -2,6 +2,9 @@
 
 import { create } from 'zustand'
 import { pathForView } from './app-routes'
+import { adoptGuestAgentDraft, clearAgentDraft, clearAgentStagedDocs } from './agent-draft'
+import { adoptGuestAgentFiles, clearPendingAgentFiles } from './agent-pending-files'
+import { peekPendingReturnView } from './pending-return-view'
 
 export type View =
   | 'home'
@@ -90,7 +93,7 @@ interface AppState {
   setMobileMenuOpen: (v: boolean) => void
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   user: null,
   authChecked: false,
   view: 'home',
@@ -105,7 +108,32 @@ export const useAppStore = create<AppState>((set) => ({
   mobileMenuOpen: false,
   applyProgramTitle: null,
   applyProgramId: null,
-  setUser: (u) => set({ user: u }),
+  setUser: (u) => {
+    const previousId = get().user?.id || null
+    const nextId = u?.id || null
+    if (previousId !== nextId) {
+      if (previousId) {
+        clearAgentDraft(previousId)
+        clearAgentStagedDocs(previousId)
+        clearPendingAgentFiles(previousId)
+      }
+      if (nextId) {
+        if (!previousId && peekPendingReturnView() === 'agent') {
+          adoptGuestAgentDraft(nextId)
+          adoptGuestAgentFiles(nextId)
+        } else {
+          clearAgentDraft()
+          clearAgentStagedDocs()
+          clearPendingAgentFiles()
+        }
+      } else if (previousId) {
+        clearAgentDraft()
+        clearAgentStagedDocs()
+        clearPendingAgentFiles()
+      }
+    }
+    set({ user: u })
+  },
   setAuthChecked: (v) => set({ authChecked: v }),
   navigate: (view, params = {}) => {
     updateBrowserRoute(view, params)
