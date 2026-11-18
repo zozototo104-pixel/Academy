@@ -34,11 +34,11 @@ mock.module('@/lib/platform-agent', () => ({
 }))
 mock.module('@/lib/human-handoff', () => ({
   createHumanHandoffRequest: async () => ({}),
-  hadRecentHumanSupportPrompt: () => false,
+  hasPendingPlatformChatHandoffDetailsPrompt: () => false,
   hasRecentHumanHandoffRequest: async () => false,
   getHumanHandoffConfirmationReply: async () => '',
-  looksLikeHumanHandoffDetails: () => false,
-  wantsHumanSupport: () => false,
+  looksLikePlatformChatHandoffDetails: () => false,
+  wantsPlatformChatHumanSupport: () => false,
   withHumanHandoffActiveNote: (reply: string) => reply,
 }))
 mock.module('@/lib/student-ai-access', () => ({ requireStudentAiSupervisorAccess: async () => ({}) }))
