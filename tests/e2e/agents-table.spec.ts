@@ -181,7 +181,7 @@ async function createDedicatedApplication(request: APIRequestContext, orgName: s
   const rules = await request.get('/api/agent-apply', { maxRedirects: 0 })
   expect(rules.ok()).toBe(true)
   const { docs } = await rules.json()
-  const stagedDocs = []
+  const stagedDocs: Array<{ docType: string; storageKey: string; uploadToken: string }> = []
   for (const { type } of docs) {
     const upload = await request.post('/api/agent-apply/files', {
       maxRedirects: 0,
