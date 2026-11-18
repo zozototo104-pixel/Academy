@@ -7,8 +7,9 @@
 // وغير قابلة للتخمين، وتُنظَّف عند الاستبدال عبر DELETE أدناه.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
-import { deleteStoredFile, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
+import { deleteStoredFile, getStorageDownloadPathForKey, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 import { createAgentUploadToken, verifyAgentUploadToken } from '@/lib/agent-upload-token'
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB
@@ -64,13 +65,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: storageErrorMessage(error) }, { status: 500 })
     }
 
+    // الرمز يوقّع بيانات الملف الحقيقية أيضاً: عند تقديم الطلب لا نثق
+    // بـ MIME أو الحجم أو نوع التخزين أو رابط يرسله المتصفح.
+    let uploadToken: string
+    try {
+      if (stored.provider !== 's3' && stored.provider !== 'local') throw new Error('INVALID_AGENT_STORAGE_PROVIDER')
+      uploadToken = createAgentUploadToken({
+        userId: owner.id, docType, storageKey: stored.key,
+        storageProvider: stored.provider,
+        fileName: file.name.slice(0, 180),
+        mimeType: stored.mimeType || mime,
+        size: stored.size || file.size,
+      })
+    } catch (error) {
+      await deleteStoredFile(stored.key)
+      throw error
+    }
+
     return NextResponse.json({
       ok: true,
       document: {
         docType,
         storageKey: stored.key,
-        uploadToken: createAgentUploadToken({ userId: owner.id, docType, storageKey: stored.key }),
-        fileUrl: stored.url,
+        uploadToken,
+        fileUrl: getStorageDownloadPathForKey(stored.key),
         fileName: file.name.slice(0, 180),
         mimeType: stored.mimeType || mime,
         size: stored.size || file.size,
@@ -84,7 +102,8 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/agent-apply/files — حذف مفتاح مرحّل عند استبدال الملف أو
 // إزالته قبل التقديم، حتى لا تتراكم مفاتيح يتيمة في التخزين. الرمز هو
-// الإثبات: بلا رمز صالح للمفتاح وصاحبه ونوعه يُرفض الحذف.
+// الإثبات: بلا رمز صالح للمفتاح وصاحبه ونوعه يُرفض الحذف. والوثيقة
+// المرتبطة بطلب محفوظ لا تُحذف حتى مع الرمز نفسه.
 export async function DELETE(req: NextRequest) {
   try {
     const owner = await getCurrentUser().catch(() => null)
@@ -105,7 +124,12 @@ export async function DELETE(req: NextRequest) {
     if (!verifyAgentUploadToken(uploadToken, { userId: owner.id, docType, storageKey })) {
       return NextResponse.json({ error: 'رمز الرفع غير صالح لهذا الملف' }, { status: 403 })
     }
-    await deleteStoredFile(storageKey)
+    const linkedDoc = await db.agentDocument.findFirst({ where: { storageKey }, select: { id: true } })
+    if (linkedDoc) {
+      return NextResponse.json({ error: 'الوثيقة مرتبطة بطلب محفوظ ولا يمكن حذفها' }, { status: 409 })
+    }
+    const deleted = await deleteStoredFile(storageKey)
+    if (!deleted) return NextResponse.json({ error: 'تعذر حذف الملف من التخزين' }, { status: 500 })
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('Agent file delete error:', e)
