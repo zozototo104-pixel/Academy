@@ -182,9 +182,8 @@ export async function hasApprovedReopenGrant(
       take: 50,
     })
     .catch(() => [])
-  return grants.some(
-    (g) =>
-      (args.unitId != null && g.unitId === args.unitId) ||
-      (g.unitId == null && g.semester === args.semester),
+  return grants.some((g) =>
+    g.semester === args.semester &&
+    (args.unitId != null ? g.unitId === args.unitId : g.unitId == null),
   )
 }
