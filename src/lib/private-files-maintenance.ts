@@ -80,6 +80,7 @@ export const PRIVATE_FILES_TYPE_LABELS: Record<PrivateFilesSource, string> = {
   AssignmentSubmission: 'واجبات',
   ThesisSubmission: 'بحث',
   ServiceDeliverable: 'تسليمات خدمات',
+  AgentDocument: 'وكالة واعتماد',
 }
 
 function emptyTypeReport(source: PrivateFilesSource): PrivateFilesTypeReport {
