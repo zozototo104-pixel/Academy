@@ -176,6 +176,7 @@ function mockFileAccessClient(key: string, owner: { userId: string; email: strin
     paymentProof: empty,
     assignmentSubmission: empty,
     thesisSubmission: empty,
+    agentDocument: empty,
   }
 }
 
