@@ -2,6 +2,10 @@ import { describe, expect, test, mock } from 'bun:test'
 import { NextRequest } from 'next/server'
 import { readFileSync } from 'node:fs'
 
+process.env.AACT_UPLOAD_TOKEN_SECRET = 'agent-reorg-test-secret'
+
+const { createAgentUploadToken } = await import('@/lib/agent-upload-token')
+
 // Guard for the 2026-10-26 application-submission reorganization:
 // (1) agency pays like accreditation — application fee from settings,
 //     approval blocked until PAID; (2) accreditation certificate issues
@@ -18,6 +22,10 @@ let createdPayments: any[] = []
 let createdCertificates: any[] = []
 let emailInvoices: any[] = []
 let notifies: any[] = []
+let storedKeys: string[] = []
+let deletedKeys: string[] = []
+let failCreate = false
+let failPayment = false
 
 const AGENT_RULES = {
   requiredDocuments: ['LICENSE', 'ID', 'PHOTO', 'CV', 'CUSTOM_A1B2C3'],
@@ -44,6 +52,7 @@ mock.module('@/lib/db', () => ({
   db: {
     agentApplication: {
       create: async (args: any) => {
+        if (failCreate) throw new Error('DB down')
         const docs = Array.isArray(args.data?.documents?.create) ? args.data.documents.create.map((d: any, i: number) => ({ id: `doc-${i}`, ...d })) : []
         agentApp = { id: 'app1', ...args.data, documents: docs, certificates: [] }
         return agentApp
@@ -52,7 +61,7 @@ mock.module('@/lib/db', () => ({
       update: async (args: any) => { agentApp = { ...agentApp, ...args.data }; return agentApp },
     },
     payment: {
-      create: async (args: any) => { const p = { id: `pay-${createdPayments.length}`, ...args.data }; createdPayments.push(p); return p },
+      create: async (args: any) => { if (failPayment) throw new Error('payment DB down'); const p = { id: `pay-${createdPayments.length}`, ...args.data }; createdPayments.push(p); return p },
       findFirst: async (args: any) => (paidPurposes.includes(args.where.purpose) ? { id: 'pay-paid', status: 'PAID', purpose: args.where.purpose } : null),
       findMany: async () => [],
     },
@@ -83,7 +92,8 @@ mock.module('@/lib/mailer', () => ({
 
 mock.module('@/lib/storage', () => ({
   storageErrorMessage: () => 'storage error',
-  storeFileBuffer: async () => ({ provider: 'LOCAL', key: 'k1', url: '/f1', mimeType: 'image/png', size: 100 }),
+  storeFileBuffer: async () => { const key = `k${storedKeys.length + 1}`; storedKeys.push(key); return { provider: 'LOCAL', key, url: '/f1', mimeType: 'image/png', size: 100 } },
+  deleteStoredFile: async (key: string) => { deletedKeys.push(key); return true },
 }))
 
 mock.module('@/lib/academy-representatives', () => ({
@@ -95,6 +105,35 @@ mock.module('@/lib/academy-representatives', () => ({
 mock.module('@/lib/tuition-installments', () => ({ getAdmissionTuitionPlan: async () => null }))
 mock.module('@/lib/live-usage-guard', () => ({ grantGeminiLiveCredit: async () => ({}) }))
 mock.module('@/lib/money', () => ({ paymentAmountDollars: (p: any) => Number(p?.amount || 0) }))
+
+function stagedDoc(userId: string, docType: string) {
+  const storageKey = `agent-documents/${docType.toLowerCase()}/2026-11-18/uuid-${docType.toLowerCase()}-${docType}.png`
+  return {
+    docType,
+    storageKey,
+    uploadToken: createAgentUploadToken({ userId, docType, storageKey }),
+    fileUrl: `/api/files?key=${encodeURIComponent(storageKey)}`,
+    fileName: `${docType}.png`,
+    mimeType: 'image/png',
+    size: 100,
+  }
+}
+
+function agentJson(kind: string, stagedDocs: any[], extra: Record<string, string> = {}) {
+  const body: Record<string, unknown> = {
+    kind,
+    orgName: 'Test Org',
+    repName: 'Test Rep',
+    email: 'rep@test.com',
+    phone: '+201234567890',
+    country: 'مصر',
+    stagedDocs,
+    ...extra,
+  }
+  if (kind === 'AGENCY') body.territory = 'مصر'
+  else body.accreditationType = extra.accreditationType || 'TRAINER'
+  return new NextRequest('http://localhost/api/agent-apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+}
 
 function agentForm(kind: string, docs: string[], extra: Record<string, string> = {}) {
   const fd = new FormData()
@@ -124,6 +163,124 @@ describe('application-submission reorganization', () => {
     const body = await res.json()
     expect(res.status).toBe(401)
     expect(body.code).toBe('LOGIN_REQUIRED')
+  })
+
+  test('agent-apply never stores files for guests (auth before storage)', async () => {
+    currentUser = null
+    storedKeys = []
+    deletedKeys = []
+    const { POST } = await import('@/app/api/agent-apply/route')
+    const res = await POST(agentForm('AGENCY', ['LICENSE', 'ID', 'PHOTO', 'CV', 'CUSTOM_A1B2C3']))
+    expect(res.status).toBe(401)
+    expect(storedKeys).toEqual([])
+    expect(deletedKeys).toEqual([])
+  })
+
+  test('agent-apply deletes this attempt files when validation fails after upload', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    storedKeys = []
+    deletedKeys = []
+    const { POST } = await import('@/app/api/agent-apply/route')
+    const res = await POST(agentForm('AGENCY', ['LICENSE', 'ID', 'PHOTO', 'CV']))
+    const body = await res.json()
+    expect(res.status).toBe(400)
+    expect(body.error).toContain('رخصة مزاولة المهنة')
+    expect(storedKeys.length).toBe(4)
+    expect(deletedKeys.slice().sort()).toEqual(storedKeys.slice().sort())
+  })
+
+  test('agent-apply deletes this attempt files when saving the application fails', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    storedKeys = []
+    deletedKeys = []
+    failCreate = true
+    const { POST } = await import('@/app/api/agent-apply/route')
+    let res
+    try {
+      res = await POST(agentForm('AGENCY', ['LICENSE', 'ID', 'PHOTO', 'CV', 'CUSTOM_A1B2C3']))
+    } finally {
+      failCreate = false
+    }
+    expect(res.status).toBe(500)
+    expect(storedKeys.length).toBe(5)
+    expect(deletedKeys.slice().sort()).toEqual(storedKeys.slice().sort())
+  })
+
+  test('agent-apply keeps stored files when invoice creation fails after the application is saved', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    storedKeys = []
+    deletedKeys = []
+    failPayment = true
+    const { POST } = await import('@/app/api/agent-apply/route')
+    let res
+    try {
+      res = await POST(agentForm('AGENCY', ['LICENSE', 'ID', 'PHOTO', 'CV', 'CUSTOM_A1B2C3']))
+    } finally {
+      failPayment = false
+    }
+    const body = await res.json()
+    expect(res.status).toBe(500)
+    expect(body.applicationId).toBe('app1')
+    expect(storedKeys.length).toBe(5)
+    expect(deletedKeys).toEqual([])
+  })
+
+  test('agent-apply keeps stored files on success (no cleanup of a live application)', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    storedKeys = []
+    deletedKeys = []
+    const { POST } = await import('@/app/api/agent-apply/route')
+    const res = await POST(agentForm('AGENCY', ['LICENSE', 'ID', 'PHOTO', 'CV', 'CUSTOM_A1B2C3']))
+    expect(res.status).toBe(200)
+    expect(storedKeys.length).toBe(5)
+    expect(deletedKeys).toEqual([])
+  })
+
+  test('agent-apply accepts staged docs JSON and creates documents from their keys', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    storedKeys = []
+    deletedKeys = []
+    const docs = ['LICENSE', 'ID', 'PHOTO', 'CV', 'CUSTOM_A1B2C3'].map((t) => stagedDoc('u1', t))
+    const { POST } = await import('@/app/api/agent-apply/route')
+    const res = await POST(agentJson('AGENCY', docs))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.id).toBe('app1')
+    expect(storedKeys).toEqual([])
+    expect(deletedKeys).toEqual([])
+    expect(agentApp.documents.map((d: any) => d.storageKey).sort()).toEqual(docs.map((d) => d.storageKey).sort())
+  })
+
+  test('agent-apply rejects staged docs whose token belongs to another user', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    const docs = ['LICENSE', 'ID', 'PHOTO', 'CV', 'CUSTOM_A1B2C3'].map((t) => stagedDoc('u9', t))
+    const { POST } = await import('@/app/api/agent-apply/route')
+    const res = await POST(agentJson('AGENCY', docs))
+    const body = await res.json()
+    expect(res.status).toBe(400)
+    expect(body.error).toContain('مرفق مرحّل')
+  })
+
+  test('agent-apply rejects staged keys outside the agent-documents prefix', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    const doc = stagedDoc('u1', 'LICENSE')
+    doc.storageKey = 'admissions/x/license.png'
+    doc.uploadToken = createAgentUploadToken({ userId: 'u1', docType: 'LICENSE', storageKey: doc.storageKey })
+    const docs = ['ID', 'PHOTO', 'CV', 'CUSTOM_A1B2C3'].map((t) => stagedDoc('u1', t))
+    docs.unshift(doc)
+    const { POST } = await import('@/app/api/agent-apply/route')
+    const res = await POST(agentJson('AGENCY', docs))
+    expect(res.status).toBe(400)
+  })
+
+  test('agent-apply staged submit with a missing doc is rejected with its label', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    const docs = ['LICENSE', 'ID', 'PHOTO', 'CV'].map((t) => stagedDoc('u1', t))
+    const { POST } = await import('@/app/api/agent-apply/route')
+    const res = await POST(agentJson('AGENCY', docs))
+    const body = await res.json()
+    expect(res.status).toBe(400)
+    expect(body.error).toContain('رخصة مزاولة المهنة')
   })
 
   test('agency submit creates an AGENCY_FEE invoice from settings and emails it', async () => {
@@ -229,6 +386,10 @@ describe('application-submission reorganization', () => {
     const applyView = readFileSync('src/components/aact/ApplyView.tsx', 'utf8')
     expect(applyView).toContain('نرجو تسجيل الدخول لاستكمال الطلب')
     expect(applyView).toContain('تم إرسال رسالة إلى بريدك')
+    // مسودة التقديم تُمسح بعد نجاح الطلب من مساري النجاح معاً (فحص 2026-11-18)
+    expect(applyView).toContain('localStorage.removeItem(APPLY_DRAFT_KEY)')
+    expect(applyView).toContain("clearApplyDraft()\n        setDone({ reference: staged.reference")
+    expect(applyView).toContain("setDone({ reference: d.reference, invoice: d.invoice || null })\n      clearApplyDraft()")
     const rulesTab = readFileSync('src/components/aact/AdminRulesTab.tsx', 'utf8')
     expect(rulesTab).toContain('إضافة مرفق')
     expect(rulesTab).toContain('/api/admin/agent-rules')

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { AgentView } from '@/components/aact/AgentView'
+import { AgentStandaloneClient } from './AgentStandaloneClient'
 import { PublicBackButton } from '@/components/aact/PublicBackButton'
 
 export const metadata: Metadata = {
@@ -32,7 +32,7 @@ export default function AgentPage() {
           <PublicBackButton />
         </div>
       </header>
-      <AgentView />
+      <AgentStandaloneClient />
     </main>
   )
 }

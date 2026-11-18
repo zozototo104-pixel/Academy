@@ -2,6 +2,7 @@
 
 import { useAppStore, api, clearToken } from '@/lib/store'
 import { peekPendingMeetingInvite } from '@/lib/pending-meeting-invite'
+import { peekPendingReturnView, clearPendingReturnView } from '@/lib/pending-return-view'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '@/hooks/use-toast'
@@ -70,6 +71,14 @@ export function AuthView() {
         window.location.assign(`/meetings/${encodeURIComponent(pendingInvite)}`)
         return
       }
+      // عودة إلى نموذج بانتظار الإكمال (وكالة/التحاق): يعود المستخدم إلى
+      // نموذجه بدل لوحته — بلا مؤشر يبقى الدخول العادي إلى اللوحة كما هو.
+      const pendingReturn = peekPendingReturnView()
+      if (pendingReturn) {
+        clearPendingReturnView()
+        navigate(pendingReturn)
+        return
+      }
       navigate(d.user.role === 'ADMIN' ? 'admin' : d.user.role === 'SUPERVISOR' ? 'supervisor' : d.user.role === 'VISITOR' ? 'visitor' : 'dashboard')
     } catch (err: any) {
       toast({ title: 'خطأ في الدخول', description: err.message, variant: 'destructive' })
@@ -92,6 +101,13 @@ export function AuthView() {
       if (!d.requiresEmailVerification && d.user) {
         try { sessionStorage.setItem('aact_skip_startup', '1') } catch (error) { console.warn('Failed to persist startup skip flag after registration.', error) }
         setUser(d.user)
+        // مسجّل جديد جاء من نموذج بانتظار الإكمال: يعود إلى نموذجه بدل لوحته.
+        const pendingReturn = peekPendingReturnView()
+        if (pendingReturn) {
+          clearPendingReturnView()
+          navigate(pendingReturn)
+          return
+        }
         navigate('dashboard')
         return
       }

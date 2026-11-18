@@ -7,7 +7,7 @@ import { configuredAllowedStorageHosts, getStorageDownloadPathForKey, readStored
 
 type DbClient = PrismaClient | Prisma.TransactionClient | any
 export type PrivateFilesMode = 'dry-run' | 'execute'
-export type PrivateFilesSource = 'AdmissionDocument' | 'PaymentProof' | 'AssignmentSubmission' | 'ThesisSubmission' | 'ServiceDeliverable'
+export type PrivateFilesSource = 'AdmissionDocument' | 'PaymentProof' | 'AssignmentSubmission' | 'ThesisSubmission' | 'ServiceDeliverable' | 'AgentDocument'
 
 export type PrivateFilesCandidate = {
   source: PrivateFilesSource
@@ -322,6 +322,14 @@ export async function collectPrivateFileCandidates(db: DbClient): Promise<Privat
     const key = normalizeStorageKeyForPolicy(row.storageKey || legacyUrlToPrivateStorageKey(legacyUrl))
     pushCandidate(rows, { source: 'ServiceDeliverable', id: row.id, key, storageField: 'storageKey', legacyUrl, hasStorageKey: Boolean(row.storageKey) })
   }
+  // وثائق الوكالة والاعتماد — كانت خارج الجرد (فحص 2026-11-18)، فبقيت
+  // روابطها العامة بلا معالجة حتى بعد تصنيف البادئة خاصة.
+  const agentDocs = await db.agentDocument.findMany({ select: { id: true, storageKey: true, fileUrl: true } })
+  for (const row of agentDocs) {
+    const legacyUrl = String(row.fileUrl || '').trim()
+    const key = normalizeStorageKeyForPolicy(row.storageKey || legacyUrlToPrivateStorageKey(legacyUrl))
+    pushCandidate(rows, { source: 'AgentDocument', id: row.id, key, storageField: 'storageKey', legacyUrl, hasStorageKey: Boolean(row.storageKey) })
+  }
   return rows.sort((a, b) => cursorKey(a).localeCompare(cursorKey(b)))
 }
 
@@ -335,6 +343,8 @@ async function backfillDatabase(db: DbClient, item: PrivateFilesCandidate, downl
     await db.assignmentSubmission.update({ where: { id: item.id }, data: { fileStorageKey: item.key, fileUrl: protectedUrl } })
   } else if (item.source === 'ServiceDeliverable') {
     await db.serviceDeliverable.update({ where: { id: item.id }, data: { storageKey: item.key, fileUrl: protectedUrl } })
+  } else if (item.source === 'AgentDocument') {
+    await db.agentDocument.update({ where: { id: item.id }, data: { storageKey: item.key, fileUrl: protectedUrl } })
   } else if (item.source === 'ThesisSubmission' && item.storageField === 'fileStorageKey') {
     await db.thesisSubmission.update({ where: { id: item.id }, data: { fileStorageKey: item.key, fileUrl: protectedUrl } })
   } else if (item.source === 'ThesisSubmission' && item.storageField === 'recordingStorageKey') {

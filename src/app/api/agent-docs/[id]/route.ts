@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { sameFileAccessEmail } from '@/lib/file-access-policy'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 
 // GET /api/agent-docs/[id] — عرض مستند طلب وكالة/اعتماد (للإدارة أو صاحب الطلب فقط)
@@ -15,12 +16,15 @@ export async function GET(
 
     const doc = await db.agentDocument.findUnique({
       where: { id },
-      include: { agent: { select: { email: true, orgName: true } } },
+      include: { agent: { select: { userId: true, email: true, orgName: true } } },
     })
     if (!doc) return NextResponse.json({ error: 'المستند غير موجود' }, { status: 404 })
 
-    // AgentApplication لا يرتبط بمستخدم دائماً — نطابق بالبريد أو نسمح للإدارة
-    const isOwner = doc.agent.email === user.email
+    // الملكية بـ userId أولاً (الطلبات الجديدة)، وبالبريد للطلبات
+    // التاريخية بلا userId فقط — البريد لا يُقبل إلا إذا كان userId
+    // فارغاً: طلب جديد بـ userId مختلف لا يفتحه البريد وحده
+    // (شرط 2026-11-18). وهي نفس قاعدة سياسة الوصول للملفات الخاصة.
+    const isOwner = doc.agent.userId === user.id || (doc.agent.userId == null && sameFileAccessEmail(doc.agent.email, user.email))
     const isAdmin = user.role === 'ADMIN'
     if (!isAdmin && !isOwner) {
       return NextResponse.json({ error: 'غير مصرح لك بعرض هذا المستند' }, { status: 403 })

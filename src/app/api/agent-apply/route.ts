@@ -5,7 +5,8 @@ import { nextInvoiceNo, getSettingNum, getSettingJson } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailAgentInvoice } from '@/lib/mailer'
 import { resolveAgentRequiredDocuments } from '@/lib/admission-required-documents'
-import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
+import { verifyAgentUploadToken } from '@/lib/agent-upload-token'
+import { storageErrorMessage, storeFileBuffer, deleteStoredFile } from '@/lib/storage'
 
 // POST /api/agent-apply — طلب وكالة (للشركات والمؤسسات) أو طلب اعتماد (للأفراد:
 // مستشار/مدرب/جودة). المرفقات الإلزامية لا تأتي من الكود بل من قواعد
@@ -50,83 +51,19 @@ type UploadedAgentFile = {
 }
 
 export async function POST(req: NextRequest) {
+  // مفاتيح خُزّنت في هذه المحاولة فقط — أي فشل لاحق يحذفها هي وحدها،
+  // ولا يمسّ أبداً وثائق طلب ناجح (شرط التنفيذ 2026-11-18).
+  const storedKeys: string[] = []
+  // معرّف الطلب بعد حفظه — يبقى فارغاً حتى ينجح الحفظ، فيعرف الـ catch
+  // أن الفشل بعد الحفظ فلا يمسّ الملفات أبداً.
+  let savedApplicationId: string | null = null
+  const cleanupStoredFiles = async () => {
+    const keys = storedKeys.splice(0)
+    await Promise.allSettled(keys.map((key) => deleteStoredFile(key).catch(() => null)))
+  }
   try {
-    let fields: Record<string, string> = {}
-    const files: UploadedAgentFile[] = []
-    const ct = req.headers.get('content-type') || ''
-
-    if (ct.includes('multipart/form-data')) {
-      const form = await req.formData()
-      for (const [k, v] of form.entries()) {
-        if (typeof v === 'string') {
-          fields[k] = v
-        } else if (v && typeof v === 'object' && 'arrayBuffer' in (v as any)) {
-          const f = v as File
-          if (!f.size) continue
-          const docType = k.replace(/^doc_/, '').toUpperCase()
-          if (f.size > MAX_FILE_SIZE) {
-            return NextResponse.json(
-              { error: `حجم ملف «${f.name}» يتجاوز الحد الأقصى 4 ميجابايت — يرجى ضغطه أو تصغيره` },
-              { status: 400 }
-            )
-          }
-          const mime = f.type || 'application/octet-stream'
-          if (!ALLOWED_MIME.includes(mime)) {
-            return NextResponse.json(
-              { error: `صيغة ملف «${f.name}» غير مدعومة — المسموح: صور JPG/PNG أو PDF` },
-              { status: 400 }
-            )
-          }
-
-          const buf = Buffer.from(await f.arrayBuffer())
-          let stored
-          try {
-            stored = await storeFileBuffer({
-              buffer: buf,
-              fileName: f.name,
-              mimeType: mime,
-              namespace: `agent-documents/${docType.toLowerCase()}`,
-            })
-          } catch (error) {
-            return NextResponse.json({ error: storageErrorMessage(error) }, { status: 500 })
-          }
-
-          files.push({
-            docType,
-            fileName: f.name.slice(0, 180),
-            mimeType: stored.mimeType || mime,
-            size: stored.size || f.size,
-            data: null,
-            storageProvider: stored.provider,
-            storageKey: stored.key,
-            fileUrl: stored.url,
-          })
-        }
-      }
-    } else {
-      fields = await req.json()
-    }
-
-    const { kind, accreditationType, orgName, repName, email, phone, country, territory, experience } = fields
-    const isAccreditation = kind === 'ACCREDITATION'
-    // الاعتماد للأفراد فقط: مستشار/مدرب/جودة — الشركات تتقدم عبر مسار الوكالة.
-    const validAccTypes = ['CONSULTANT', 'TRAINER', 'QUALITY']
-    if (isAccreditation && !validAccTypes.includes(accreditationType)) {
-      return NextResponse.json({ error: 'يرجى اختيار نوع الاعتماد' }, { status: 400 })
-    }
-
-    if (!orgName?.trim() || !repName?.trim() || !email?.trim() || !country?.trim() || (!isAccreditation && !territory?.trim())) {
-      return NextResponse.json(
-        { error: 'يرجى إكمال جميع الحقول الإلزامية' },
-        { status: 400 }
-      )
-    }
-    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRe.test(email.trim())) {
-      return NextResponse.json({ error: 'صيغة البريد الإلكتروني غير صحيحة' }, { status: 400 })
-    }
-
-    // بوابة الدخول: لا تقديم من زائر — يضغط إرسال فيُطلب منه الدخول أولاً.
+    // بوابة الدخول أولاً: لا قراءة مرفقات ولا تخزين قبل التأكد من
+    // المستخدم (فحص 2026-11-18) — طلب زائر كان يخزّن ملفاته ثم يُرفض.
     const owner = await getCurrentUser().catch(() => null)
     if (!owner) {
       return NextResponse.json(
@@ -147,6 +84,111 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // أي رفض بعد التخزين يحذف ملفات هذه المحاولة قبل الرد.
+    const fail = async (status: number, body: Record<string, unknown>) => {
+      await cleanupStoredFiles()
+      return NextResponse.json(body, { status })
+    }
+
+    let fields: Record<string, string> = {}
+    const files: UploadedAgentFile[] = []
+    // وثائق مرحّلة عبر /api/agent-apply/files (JSON): مفاتيحها لا تدخل
+    // storedKeys أبداً — فشل التحقق هنا لا يحذفها، فيصلح المستخدم طلبه
+    // ويعيد الإرسال بالمفاتيح نفسها بدل إعادة الرفع.
+    let stagedDocs: Array<Record<string, unknown>> = []
+    const ct = req.headers.get('content-type') || ''
+
+    if (ct.includes('multipart/form-data')) {
+      const form = await req.formData()
+      for (const [k, v] of form.entries()) {
+        if (typeof v === 'string') {
+          fields[k] = v
+        } else if (v && typeof v === 'object' && 'arrayBuffer' in (v as any)) {
+          const f = v as File
+          if (!f.size) continue
+          const docType = k.replace(/^doc_/, '').toUpperCase()
+          if (f.size > MAX_FILE_SIZE) {
+            return fail(400, { error: `حجم ملف «${f.name}» يتجاوز الحد الأقصى 4 ميجابايت — يرجى ضغطه أو تصغيره` })
+          }
+          const mime = f.type || 'application/octet-stream'
+          if (!ALLOWED_MIME.includes(mime)) {
+            return fail(400, { error: `صيغة ملف «${f.name}» غير مدعومة — المسموح: صور JPG/PNG أو PDF` })
+          }
+
+          const buf = Buffer.from(await f.arrayBuffer())
+          let stored
+          try {
+            stored = await storeFileBuffer({
+              buffer: buf,
+              fileName: f.name,
+              mimeType: mime,
+              namespace: `agent-documents/${docType.toLowerCase()}`,
+            })
+          } catch (error) {
+            return fail(500, { error: storageErrorMessage(error) })
+          }
+          storedKeys.push(stored.key)
+
+          files.push({
+            docType,
+            fileName: f.name.slice(0, 180),
+            mimeType: stored.mimeType || mime,
+            size: stored.size || f.size,
+            data: null,
+            storageProvider: stored.provider,
+            storageKey: stored.key,
+            fileUrl: stored.url,
+          })
+        }
+      }
+    } else {
+      const body: Record<string, unknown> = await req.json().catch(() => ({}))
+      for (const [k, v] of Object.entries(body)) {
+        if (typeof v === 'string') fields[k] = v
+      }
+      if (Array.isArray(body.stagedDocs)) stagedDocs = body.stagedDocs as Array<Record<string, unknown>>
+    }
+
+    // ربط الوثائق المرحّلة: الرمز يثبت أن المفتاح رفعه صاحب الطلب نفسه
+    // لهذا النوع — بلا رمز صالح، أو مفتاح خارج بادئة النوع، يُرفض الطلب.
+    for (const s of stagedDocs) {
+      const docType = String(s?.docType || '').toUpperCase().slice(0, 40)
+      const storageKey = String(s?.storageKey || '')
+      if (
+        !docType ||
+        !storageKey.startsWith(`agent-documents/${docType.toLowerCase()}/`) ||
+        !verifyAgentUploadToken(String(s?.uploadToken || ''), { userId: owner.id, docType, storageKey })
+      ) {
+        return fail(400, { error: 'مرفق مرحّل غير صالح — أعد رفع الوثيقة' })
+      }
+      files.push({
+        docType,
+        fileName: String(s?.fileName || docType).slice(0, 180),
+        mimeType: String(s?.mimeType || 'application/octet-stream'),
+        size: Number(s?.size || 0),
+        data: null,
+        storageProvider: typeof s?.storageProvider === 'string' ? (s.storageProvider as string) : null,
+        storageKey,
+        fileUrl: typeof s?.fileUrl === 'string' ? (s.fileUrl as string) : null,
+      })
+    }
+
+    const { kind, accreditationType, orgName, repName, email, phone, country, territory, experience } = fields
+    const isAccreditation = kind === 'ACCREDITATION'
+    // الاعتماد للأفراد فقط: مستشار/مدرب/جودة — الشركات تتقدم عبر مسار الوكالة.
+    const validAccTypes = ['CONSULTANT', 'TRAINER', 'QUALITY']
+    if (isAccreditation && !validAccTypes.includes(accreditationType)) {
+      return fail(400, { error: 'يرجى اختيار نوع الاعتماد' })
+    }
+
+    if (!orgName?.trim() || !repName?.trim() || !email?.trim() || !country?.trim() || (!isAccreditation && !territory?.trim())) {
+      return fail(400, { error: 'يرجى إكمال جميع الحقول الإلزامية' })
+    }
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRe.test(email.trim())) {
+      return fail(400, { error: 'صيغة البريد الإلكتروني غير صحيحة' })
+    }
+
     // المرفقات الإلزامية من قواعد الوكالة والاعتماد (مشتركة للنوعين):
     // أي وثيقة مفعّلة هناك تصبح إجبارية هنا، وأي نقص يرفض الطلب مع ذكر الناقص.
     const agentRulesRaw = await getSettingJson('AGENT_ADMISSION_RULES', null)
@@ -155,10 +197,7 @@ export async function POST(req: NextRequest) {
       const uploaded = new Set(files.map((f) => f.docType))
       const missing = requiredDocs.filter((d) => !uploaded.has(d.type))
       if (missing.length > 0) {
-        return NextResponse.json(
-          { error: `الوثائق الرسمية غير مكتملة — يرجى رفع: ${missing.map((m) => m.label).join('، ')}`, missing: missing.map((m) => m.label) },
-          { status: 400 }
-        )
+        return fail(400, { error: `الوثائق الرسمية غير مكتملة — يرجى رفع: ${missing.map((m) => m.label).join('، ')}`, missing: missing.map((m) => m.label) })
       }
       // نوع واحد لكل وثيقة
       const seen = new Set<string>()
@@ -194,6 +233,11 @@ export async function POST(req: NextRequest) {
       },
       include: { documents: { select: { id: true, docType: true, fileName: true, size: true } } },
     })
+
+    // نقطة الحفظ: من هنا الطلب ووثائقه محفوظان في قاعدة البيانات —
+    // أي فشل بعده (فاتورة/إشعار) لا يحذف ملفاته أبداً (شرط 2026-11-18).
+    savedApplicationId = application.id
+    storedKeys.length = 0
 
     // فاتورة رسوم التقديم (غير مستردة) — تُنشأ فور التقديم لكلا النوعين،
     // والمبلغ يُقرأ من الإعدادات لا من رقم ثابت: اعتماد من
@@ -251,7 +295,16 @@ export async function POST(req: NextRequest) {
         : `تم استلام طلب الوكالة بنجاح! سدد رسوم التقديم (${invoice.amount}$) — فاتورة ${invoice.invoiceNo} — ليُحوَّل ملفكم لدراسة الإدارة.`,
     })
   } catch (e) {
+    // فشل قبل الحفظ: ملفات هذه المحاولة وحدها تُحذف. أما فشل بعد الحفظ
+    // (فاتورة/إشعار) فلا يمسّ الملفات — الطلب محفوظ ويُعاد معرّفه ليتصرف
+    // المستخدم/الدعم على أساسه بدل إعادة التقديم.
+    if (!savedApplicationId) await cleanupStoredFiles()
     console.error('Agent apply error:', e)
-    return NextResponse.json({ error: 'حدث خطأ أثناء إرسال الطلب' }, { status: 500 })
+    return NextResponse.json(
+      savedApplicationId
+        ? { error: 'تم حفظ طلبك لكن حصل خلل بعد الحفظ — تواصل مع الإدارة مع رقم الطلب', applicationId: savedApplicationId }
+        : { error: 'حدث خطأ أثناء إرسال الطلب' },
+      { status: 500 }
+    )
   }
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
+import { setPendingReturnView } from '@/lib/pending-return-view'
 import { ADMISSION_GUIDE, ACADEMY_INFO } from '@/lib/academyData'
 import { getServiceFlow } from '@/lib/service-flows'
 import { EXTRA_ADMISSION_DOCS, REQUIRED_ADMISSION_DOCS, SERVICE_REQUEST_DOCS, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
@@ -74,6 +75,17 @@ function readApplyDraft(): { form?: Record<string, string>; selectedCategory?: s
   } catch (e) {
     console.warn('Failed to read saved application draft.', e)
     return null
+  }
+}
+
+// مسح المسودة بعد تأكيد نجاح الطلب — بلا مسح تبقى بيانات شخصية
+// (اسم/هوية/تاريخ ميلاد) في المتصفح بعد انتهاء التقديم (فحص 2026-11-18).
+function clearApplyDraft() {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.removeItem(APPLY_DRAFT_KEY)
+  } catch (e) {
+    console.warn('Failed to clear application draft.', e)
   }
 }
 
@@ -550,6 +562,7 @@ export function ApplyView() {
       // ننشئ الطلب أولاً، ثم نرفع كل ملف في طلب مستقل، ثم نكمل التقديم ونصدر الفاتورة.
       const staged = await api<{ reference: string; applicationId: string; uploadToken: string | null; staged: boolean; existingOpen?: boolean; invoice?: any; message?: string }>('/api/admissions', { method: 'POST', body: fd })
       if (staged.existingOpen && !staged.staged) {
+        clearApplyDraft()
         setDone({ reference: staged.reference, invoice: staged.invoice || null })
         toast({ title: 'لديك طلب مفتوح', description: staged.message || 'أعدنا الطلب الحالي بدون إنشاء فاتورة جديدة.' })
         return
@@ -572,6 +585,7 @@ export function ApplyView() {
         body: JSON.stringify({ applicationId: staged.applicationId, reference: staged.reference, uploadToken: staged.uploadToken }),
       })
       setDone({ reference: d.reference, invoice: d.invoice || null })
+      clearApplyDraft()
       try {
         window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
         document.documentElement.scrollTop = 0
@@ -938,7 +952,7 @@ export function ApplyView() {
                     <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-center">
                       <p className="text-sm font-black text-[#0f2b46]">نرجو تسجيل الدخول لاستكمال الطلب</p>
                       <p className="mt-1 text-[11px] font-bold text-slate-500">حُفظت بيانات النموذج — سجل دخولك ثم أرسل الطلب من جديد (الملفات تُعاد إرفاقاً).</p>
-                      <Button type="button" className="mt-3 bg-[#0f2b46] font-bold text-[#f5f0e1]" onClick={() => navigate('auth')}>تسجيل الدخول</Button>
+                      <Button type="button" className="mt-3 bg-[#0f2b46] font-bold text-[#f5f0e1]" onClick={() => { setPendingReturnView('apply'); navigate('auth') }}>تسجيل الدخول</Button>
                     </div>
                   )}
                   <section className="rounded-xl border border-[#c9a227]/40 bg-white">

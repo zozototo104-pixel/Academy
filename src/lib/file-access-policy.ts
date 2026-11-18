@@ -9,6 +9,7 @@ type FileAccessClient = {
   paymentProof: { findFirst(args: any): Promise<any> }
   assignmentSubmission: { findFirst(args: any): Promise<any> }
   thesisSubmission: { findFirst(args: any): Promise<any> }
+  agentDocument: { findFirst(args: any): Promise<any> }
 }
 
 export function sameFileAccessEmail(a: unknown, b: unknown) {
@@ -68,6 +69,19 @@ export async function canAccessStorageKeyWithClient(client: FileAccessClient, ke
     select: { userId: true },
   })
   if (thesis?.userId === user.id) return true
+
+  // وثائق الوكالة والاعتماد: بدون هذا الفرع كان إضافة البادئة الخاصة
+  // وحدها تقفل الباب على صاحب الطلب نفسه (فحص 2026-11-18) — الملكية
+  // هنا بـ userId أولاً، وبالبريد للطلبات التاريخية بلا userId فقط:
+  // البريد لا يُقبل إلا إذا كان userId فارغاً — طلب جديد بـ userId
+  // مختلف لا يفتحه البريد وحده (شرط 2026-11-18). وهي نفس قاعدة مسار
+  // العرض /api/agent-docs/[id]، لا قيد دور الطالب في isFileOwner لأن
+  // مقدم الطلب قد يكون زائراً.
+  const agentDoc = await client.agentDocument.findFirst({
+    where: { storageKey: key },
+    select: { agent: { select: { userId: true, email: true } } },
+  })
+  if (agentDoc?.agent && (agentDoc.agent.userId === user.id || (agentDoc.agent.userId == null && sameFileAccessEmail(agentDoc.agent.email, user.email)))) return true
 
   return false
 }
