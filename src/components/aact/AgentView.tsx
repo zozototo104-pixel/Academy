@@ -435,7 +435,7 @@ export function AgentView() {
                   const fee = agentRules?.categoryFees?.[it.key]
                   return (
                     <SelectItem key={it.key} value={it.key}>
-                      {it.label} {fee ? `— ${fee} : fee === 0 ? '— حسب الطلب' : it.fee ? `— ${it.fee} : '— حسب الطلب'}
+                      {it.label} {fee ? `— ${fee}$` : fee === 0 ? '— حسب الطلب' : it.fee ? `— ${it.fee}$` : '— حسب الطلب'}
                     </SelectItem>
                   )
                 })}
