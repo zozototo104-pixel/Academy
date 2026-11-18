@@ -10,7 +10,8 @@ import ts from 'typescript'
 const ORIGINAL_DIRECTORY_SHA256 = '73492fa6b2a1256884c21abc643b9563bc1d7892b0fa9bac74b6a5371f5b5cc8'
 const ORIGINAL_API_PATH_OCCURRENCES = 13
 const ORIGINAL_HANDLER_HASHES: Record<string, string> = {
-  formFromRepresentative: '9ac2d544eceab4bf81166ef6d4f42595075a31b0d65930f893bd5a4aa596f117',
+  // Updated for nullable fields when switching between representatives (covered by the browser test).
+  formFromRepresentative: '89c5b86479e3078780e015a80f1f30ed63c069b95952da466575263906ac3176',
   load: 'ff65c141c3e9b573eebaa591869dde469dd30d6565f1d0ed3fde4abf446e0f5c',
   update: '3b106fa7a01c7003c77d9bb1dd011d29c9979e45f0189871c7d4295937b1c2fe',
   newRepresentative: '6cf0956184a43df46ad29567f0aaeaf815eb1c73cc9761ede507319a0ec5ef14',
