@@ -9,6 +9,7 @@ let currentUser: any = null
 let storedKeys: string[] = []
 let deletedKeys: string[] = []
 let linkedKey: string | null = null
+let pendingKey: string | null = null
 
 mock.module('@/lib/auth', () => ({
   getCurrentUser: async () => currentUser,
@@ -27,6 +28,11 @@ mock.module('@/lib/storage', () => ({
 
 mock.module('@/lib/db', () => ({
   db: {
+    agentPendingUpload: {
+      create: async ({ data }: any) => { pendingKey = data.storageKey },
+      updateMany: async ({ where }: any) => ({ count: Number(pendingKey === where.storageKey) }),
+      deleteMany: async () => { pendingKey = null; return { count: 1 } },
+    },
     agentDocument: {
       findFirst: async (args: any) => args.where.storageKey === linkedKey ? { id: 'saved-doc' } : null,
     },
@@ -135,6 +141,7 @@ describe('حذف مفتاح مرحّل', () => {
     deletedKeys = []
     const key = 'agent-documents/license/2026-11-18/uuid-1-license.png'
     linkedKey = null
+    pendingKey = key
     const token = createAgentUploadToken({ userId: 'u1', docType: 'LICENSE', storageKey: key, storageProvider: 'local', fileName: 'license.png', mimeType: 'image/png', size: 100 })
     const { DELETE } = await import('@/app/api/agent-apply/files/route')
     const res = await DELETE(new NextRequest('http://localhost/api/agent-apply/files', {
@@ -144,6 +151,21 @@ describe('حذف مفتاح مرحّل', () => {
     }))
     expect(res.status).toBe(200)
     expect(deletedKeys).toEqual([key])
+  })
+
+  test('a consumed key cannot be removed even before the linked-document lookup sees it', async () => {
+    currentUser = { id: 'u1', role: 'STUDENT' }
+    deletedKeys = []
+    linkedKey = null
+    pendingKey = null
+    const key = 'agent-documents/license/consumed.png'
+    const token = createAgentUploadToken({ userId: 'u1', docType: 'LICENSE', storageKey: key, storageProvider: 'local', fileName: 'consumed.png', mimeType: 'image/png', size: 100 })
+    const { DELETE } = await import('@/app/api/agent-apply/files/route')
+    const response = await DELETE(new NextRequest('http://localhost/api/agent-apply/files', {
+      method: 'DELETE', body: JSON.stringify({ storageKey: key, uploadToken: token }),
+    }))
+    expect(response.status).toBe(409)
+    expect(deletedKeys).toEqual([])
   })
 
   test('رمز الرفع لا يسمح بحذف وثيقة أصبحت مرتبطة بطلب محفوظ', async () => {
