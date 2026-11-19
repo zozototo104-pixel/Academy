@@ -493,12 +493,20 @@ export function AgentView() {
         </p>
       </div>
 
-      <Tabs defaultValue="agency" dir="rtl" className="w-full">
+      <Tabs
+        defaultValue={kind === 'ACCREDITATION' ? 'accreditation' : 'agency'}
+        onValueChange={(tab) => {
+          if (tab === 'agency') setKind('AGENCY')
+          if (tab === 'accreditation') setKind('ACCREDITATION')
+        }}
+        dir="rtl"
+        className="w-full"
+      >
         <TabsList className="mx-auto grid w-full max-w-lg grid-cols-3">
-          <TabsTrigger value="agency" onClick={() => setKind('AGENCY')} className="text-xs font-bold sm:text-sm">
+          <TabsTrigger value="agency" className="text-xs font-bold sm:text-sm">
             الوكالة الدولية (للشركات)
           </TabsTrigger>
-          <TabsTrigger value="accreditation" onClick={() => setKind('ACCREDITATION')} className="text-xs font-bold sm:text-sm">
+          <TabsTrigger value="accreditation" className="text-xs font-bold sm:text-sm">
             طلبات الاعتماد (للأفراد)
           </TabsTrigger>
           <TabsTrigger value="portal" className="text-xs font-bold text-[#a8841a] sm:text-sm">
