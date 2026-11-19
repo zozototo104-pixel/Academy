@@ -66,6 +66,9 @@ jobs:
       - name: Validate E2E base URL allowlist
         run: bash scripts/validate-e2e-base-url.sh "${E2E_BASE_URL}"
 
+      - name: Verify deployed QA preview matches workflow commit
+        run: bash scripts/e2e-strict-preflight.sh
+
       - name: Wait for full journey route
         shell: bash
         run: |
@@ -73,8 +76,8 @@ jobs:
           base="${E2E_BASE_URL%/}"
           url="$base/api/admin/full-journey"
           expected_schema=5
-          echo "Waiting for deployed full journey schema v${expected_schema}: $url"
-          for i in {1..90}; do
+          echo "Checking deployed full journey schema v${expected_schema}: $url"
+          for i in {1..6}; do
             if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
               code=$(curl -sS -o /tmp/full-journey-route-check.txt -w "%{http_code}" \
                 -H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
@@ -94,9 +97,6 @@ jobs:
           echo "Full journey schema v${expected_schema} was not deployed after waiting. Last response:"
           cat /tmp/full-journey-route-check.txt || true
           exit 1
-
-      - name: Verify deployed QA preview matches workflow commit
-        run: bash scripts/e2e-strict-preflight.sh
 
       - name: Run full platform journey suite
         run: bun run e2e:journey
