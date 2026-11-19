@@ -161,6 +161,19 @@ export function SupervisorView() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [mainSection, setMainSection] = useState<'students' | 'lectures' | 'content' | 'review'>('students')
+  useEffect(() => {
+    // Direct URL and the in-app notification bell open the review workspace.
+    const directLink = new URLSearchParams(window.location.search).get('section') === 'review'
+    const timer = directLink ? window.setTimeout(() => setMainSection('review'), 0) : null
+    const onNotification = (event: Event) => {
+      if ((event as CustomEvent<{ section?: string }>).detail?.section === 'review') setMainSection('review')
+    }
+    window.addEventListener('aact-supervisor-section', onNotification)
+    return () => {
+      if (timer !== null) window.clearTimeout(timer)
+      window.removeEventListener('aact-supervisor-section', onNotification)
+    }
+  }, [])
   const [reviewFocus, setReviewFocus] = useState<{ type: 'PROGRAM' | 'UNIT'; id: string; nonce: number } | null>(null)
   const openAttemptReview = (type: 'PROGRAM' | 'UNIT', attemptId: string) => {
     setReviewFocus({ type, id: attemptId, nonce: Date.now() })
