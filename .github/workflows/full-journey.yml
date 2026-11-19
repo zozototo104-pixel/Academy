@@ -81,7 +81,6 @@ jobs:
             if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
               code=$(curl -sS -o /tmp/full-journey-route-check.txt -w "%{http_code}" \
                 -H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
-                -H "x-vercel-set-bypass-cookie: true" \
                 "$url" || true)
             else
               code=$(curl -sS -o /tmp/full-journey-route-check.txt -w "%{http_code}" "$url" || true)
