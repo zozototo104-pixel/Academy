@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
-import { setPendingReturnView } from '@/lib/pending-return-view'
+import { peekPendingReturnView, setPendingReturnView } from '@/lib/pending-return-view'
 import { ADMISSION_GUIDE, ACADEMY_INFO } from '@/lib/academyData'
 import { getServiceFlow } from '@/lib/service-flows'
 import { EXTRA_ADMISSION_DOCS, REQUIRED_ADMISSION_DOCS, SERVICE_REQUEST_DOCS, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
@@ -62,13 +62,31 @@ interface ProgramLite {
 }
 
 const APPLY_DRAFT_KEY = 'aact-apply-draft'
+let loginFiles: Record<string, File> | null = null
+
+if (typeof window !== 'undefined') {
+  useAppStore.subscribe((state, previous) => {
+    if ((previous.view === 'auth' && state.view !== 'auth' && state.view !== 'apply') ||
+        (previous.user && previous.user.id !== state.user?.id)) clearApplyDraft()
+  })
+}
 
 // قراءة مسودة طلب الالتحاق/الخدمة المحفوظة قبل الدخول — null عند
 // غيابها أو فسادها، مع تسجيل التحذير بدل ابتلاع الخطأ بصمت.
 function readApplyDraft(): { form?: Record<string, string>; selectedCategory?: string; acknowledged?: boolean } | null {
   if (typeof window === 'undefined') return null
   try {
-    const raw = localStorage.getItem(APPLY_DRAFT_KEY)
+    let raw = sessionStorage.getItem(APPLY_DRAFT_KEY)
+    if (!raw) {
+      const legacy = localStorage.getItem(APPLY_DRAFT_KEY)
+      const email = useAppStore.getState().user?.email?.trim().toLowerCase()
+      if (legacy && (peekPendingReturnView() === 'apply' ||
+          (email && JSON.parse(legacy)?.form?.email?.trim().toLowerCase() === email))) {
+        sessionStorage.setItem(APPLY_DRAFT_KEY, legacy)
+        localStorage.removeItem(APPLY_DRAFT_KEY)
+        raw = legacy
+      }
+    }
     if (!raw) return null
     const draft = JSON.parse(raw)
     return draft && typeof draft === 'object' ? draft : null
@@ -81,8 +99,10 @@ function readApplyDraft(): { form?: Record<string, string>; selectedCategory?: s
 // مسح المسودة بعد تأكيد نجاح الطلب — بلا مسح تبقى بيانات شخصية
 // (اسم/هوية/تاريخ ميلاد) في المتصفح بعد انتهاء التقديم (فحص 2026-11-18).
 function clearApplyDraft() {
+  loginFiles = null
   if (typeof window === 'undefined') return
   try {
+    sessionStorage.removeItem(APPLY_DRAFT_KEY)
     localStorage.removeItem(APPLY_DRAFT_KEY)
   } catch (e) {
     console.warn('Failed to clear application draft.', e)
@@ -248,7 +268,10 @@ export function ApplyView() {
     ...(readApplyDraft()?.form || {}),
   }))
   const [acknowledged, setAcknowledged] = useState(() => !!readApplyDraft()?.acknowledged)
-  const [files, setFiles] = useState<Record<string, File>>({})
+  const [files, setFiles] = useState<Record<string, File>>(() => loginFiles || {})
+  useEffect(() => {
+    if (user?.id) clearApplyDraft()
+  }, [user?.id])
   const [missingDocs, setMissingDocs] = useState<string[]>([])
   const [replacementFiles, setReplacementFiles] = useState<Record<string, File>>({})
   const [replacementLoading, setReplacementLoading] = useState<string | null>(null)
@@ -505,7 +528,7 @@ export function ApplyView() {
     }
     if (!user) {
       // بوابة الدخول: حفظ المسودة نصوصاً ثم رسالة وزر لشاشة الدخول.
-      try { localStorage.setItem(APPLY_DRAFT_KEY, JSON.stringify({ form, selectedCategory, acknowledged })) } catch (e) { console.warn('Failed to save application draft.', e) }
+      try { sessionStorage.setItem(APPLY_DRAFT_KEY, JSON.stringify({ form, selectedCategory, acknowledged })) } catch (e) { console.warn('Failed to save application draft.', e) }
       setLoginPrompt(true)
       return
     }
@@ -951,8 +974,8 @@ export function ApplyView() {
                   {loginPrompt && (
                     <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-center">
                       <p className="text-sm font-black text-[#0f2b46]">نرجو تسجيل الدخول لاستكمال الطلب</p>
-                      <p className="mt-1 text-[11px] font-bold text-slate-500">حُفظت بيانات النموذج — سجل دخولك ثم أرسل الطلب من جديد (الملفات تُعاد إرفاقاً).</p>
-                      <Button type="button" className="mt-3 bg-[#0f2b46] font-bold text-[#f5f0e1]" onClick={() => { setPendingReturnView('apply'); navigate('auth') }}>تسجيل الدخول</Button>
+                      <p className="mt-1 text-[11px] font-bold text-slate-500">بعد تسجيل الدخول في هذا التبويب، ستعود إلى بياناتك ومرفقاتك لتراجع الطلب وترسله.</p>
+                      <Button type="button" className="mt-3 bg-[#0f2b46] font-bold text-[#f5f0e1]" onClick={() => { loginFiles = { ...files }; setPendingReturnView('apply'); navigate('auth') }}>تسجيل الدخول</Button>
                     </div>
                   )}
                   <section className="rounded-xl border border-[#c9a227]/40 bg-white">
