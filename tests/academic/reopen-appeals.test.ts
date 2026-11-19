@@ -1,12 +1,16 @@
 import { describe, expect, mock, test } from 'bun:test'
+import { NextRequest } from 'next/server'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 // التماسات إعادة الفتح (المرحلة 4): إنشاء ضمن فصل قائم، بتّ إداري
 // مشروط بالحالة، تصعيد عند تأخر البتّ بلا رفض تلقائي، ومنع إغلاق
 // الفصل ما دام التماس مؤثر بدرجة معلّقًا.
 function makeWorld() {
-  const state: any = { appeals: [] as any[], outbox: [] as any[], closed: false, role: 'ADMIN', seq: 0 }
-  const match = (row: any, where: any) =>
+  const state: any = { appeals: [] as any[], outbox: [] as any[], closed: false, role: 'ADMIN', seq: 0, supervisors: { p1: 'sup-p1', p2: 'sup-p2' } as Record<string, string | null>, candidates: [] as any[], assignments: [] as any[] }
+  const match = (row: any, where: any): boolean =>
     Object.entries(where || {}).every(([k, v]) => {
+      if (k === 'OR') return Array.isArray(v) && v.some((branch: any) => match(row, branch))
       if (v === undefined) return true
       if (v === null) return row[k] === null || row[k] === undefined
       if (typeof v === 'object') {
@@ -17,9 +21,16 @@ function makeWorld() {
     })
   const db: any = {
     $transaction: async (cb: any) => cb(db),
-    user: { findUnique: async () => ({ role: state.role, name: 'مسؤول' }) },
+    user: { findUnique: async () => ({ role: state.role, name: 'مسؤول' }), findMany: async () => [{ id: 'u1', name: 'طالب تجريبي' }] },
+    program: { findMany: async () => [{ id: 'p1', titleAr: 'برنامج أول' }, { id: 'p2', titleAr: 'برنامج ثان' }] },
     unit: { findUnique: async ({ where }: any) => (where.id === 'u1a' ? { id: 'u1a', programId: 'p1', semester: 1 } : null), findMany: async () => [] },
     enrollment: { findUnique: async () => ({ id: 'enr1', userId: 'u1', programId: 'p1' }) },
+    admissionApplication: {
+      findFirst: async ({ where }: any) => ({ supervisorId: state.supervisors[where.programId] || null }),
+      findMany: async ({ where }: any) => where.supervisorId
+        ? state.candidates.filter((a: any) => a.supervisorId === where.supervisorId)
+        : state.assignments,
+    },
     enrollmentSemesterState: {
       findUnique: async () => (state.closed ? { status: 'CLOSED' } : { status: 'OPEN' }),
     },
@@ -52,9 +63,20 @@ const world = makeWorld()
 mock.module('@/lib/db', () => ({ db: world.db }))
 mock.module('@/lib/notify', () => ({ audit: async () => {}, notify: async () => {}, notifyAdmins: async () => {} }))
 mock.module('@/lib/mailer', () => ({ emailTemplate: (t: string) => t, sendEmailDetailed: async () => 'SKIPPED' }))
+mock.module('@/lib/supervisor-scope', () => ({
+  requireSupervisor: async () => {
+    if (!['SUPERVISOR', 'ADMIN'].includes(world.state.role)) throw new Error('UNAUTHORIZED')
+    return { id: 'sup-p1', role: world.state.role, name: 'مشرف' }
+  },
+  supervisorStudentIds: async () => ['u1'],
+  isAssignedStudent: async () => true,
+}))
+mock.module('@/lib/supervisor-grade-review', () => ({ resolveExamAppeal: async () => ({}) }))
 const { createReopenAppeal, decideReopenAppeal, escalateOverdueReopenAppeals } = await import('../../src/lib/reopen-appeals')
 const { collectSemesterApprovalBlockers } = await import('../../src/lib/semester-approval')
 const { submissionWindowCheck } = await import('../../src/lib/semester-lifecycle')
+const { GET: getSupervisorAppeals } = await import('../../src/app/api/supervisor/appeals/route')
+const { pathForView } = await import('../../src/lib/app-routes')
 
 function reset() {
   world.state.appeals = []
@@ -62,6 +84,9 @@ function reset() {
   world.state.closed = false
   world.state.role = 'ADMIN'
   world.state.seq = 0
+  world.state.supervisors = { p1: 'sup-p1', p2: 'sup-p2' }
+  world.state.candidates = []
+  world.state.assignments = []
 }
 
 describe('التماسات إعادة الفتح', () => {
@@ -76,6 +101,76 @@ describe('التماسات إعادة الفتح', () => {
       expect(days).toBeLessThanOrEqual(7)
     }
     expect(world.state.outbox.map((o: any) => o.kind)).toContain('REOPEN_APPEAL_CREATED')
+  })
+
+  test('إشعار إعادة الفتح يذهب لمشرف برنامج الوحدة الفعلي مع رابط للمتابعة فقط', async () => {
+    reset()
+    const created = await createReopenAppeal(world.db, {
+      userId: 'u1', unitId: 'u1a', programId: 'p2', semester: 2, reason: 'تعذر تقديم الوحدة',
+    })
+    expect(created.ok).toBe(true)
+    const supervisorNotice = world.state.outbox.find((o: any) => o.recipientUserId?.startsWith('sup-'))
+    expect(supervisorNotice?.recipientUserId).toBe('sup-p1')
+    expect(supervisorNotice?.link).toBe('/supervisor?section=review')
+    expect(supervisorNotice?.body).toContain('القرار للإدارة')
+    expect(world.state.outbox.find((o: any) => o.recipientRole === 'ADMINS')?.link).toBe('/admin?tab=grading-review')
+  })
+
+  test('بدون مشرف على برنامج الالتماس لا يصل تنبيه لمشرف برنامج آخر', async () => {
+    reset()
+    world.state.supervisors.p1 = null
+    const created = await createReopenAppeal(world.db, { userId: 'u1', unitId: 'u1a', reason: 'سبب' })
+    expect(created.ok).toBe(true)
+    expect(world.state.outbox.some((o: any) => o.recipientUserId?.startsWith('sup-'))).toBe(false)
+    expect(world.state.outbox.some((o: any) => o.recipientRole === 'ADMINS')).toBe(true)
+  })
+
+  test('المشرف يطّلع على التماسات برنامجه الحالي فقط لا التعيين التاريخي في برنامج آخر', async () => {
+    reset()
+    world.state.role = 'SUPERVISOR'
+    world.state.candidates = [
+      { userId: 'u1', programId: 'p1', supervisorId: 'sup-p1' },
+      { userId: 'u1', programId: 'p2', supervisorId: 'sup-p1' },
+    ]
+    world.state.assignments = [
+      { userId: 'u1', programId: 'p1', supervisorId: 'sup-p1' },
+      { userId: 'u1', programId: 'p2', supervisorId: 'sup-p2' },
+      { userId: 'u1', programId: 'p2', supervisorId: 'sup-p1' },
+    ]
+    world.state.appeals = [
+      { id: 'ap-one', userId: 'u1', programId: 'p1', semester: 1, unitId: 'u1a', reason: 'سبب أول', status: 'PENDING' },
+      { id: 'ap-two', userId: 'u1', programId: 'p2', semester: 1, unitId: null, reason: 'سبب ثان', status: 'PENDING' },
+    ]
+    const response = await getSupervisorAppeals(new NextRequest('http://localhost/api/supervisor/appeals?view=reopen'))
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.appeals.map((a: any) => a.id)).toEqual(['ap-one'])
+    expect(data.appeals[0].studentName).toBe('طالب تجريبي')
+  })
+
+  test('المشرف السابق والطالب الغريب لا يستطيعان الاطلاع على طلب إعادة الفتح', async () => {
+    reset()
+    world.state.role = 'SUPERVISOR'
+    world.state.candidates = [{ userId: 'u1', programId: 'p1', supervisorId: 'sup-p1' }]
+    world.state.assignments = [{ userId: 'u1', programId: 'p1', supervisorId: 'sup-p2' }]
+    world.state.appeals = [{ id: 'secret', userId: 'u1', programId: 'p1', reason: 'تفاصيل خاصة', status: 'PENDING' }]
+    const former = await getSupervisorAppeals(new NextRequest('http://localhost/api/supervisor/appeals?view=reopen'))
+    expect((await former.json()).appeals).toEqual([])
+    world.state.role = 'STUDENT'
+    const stranger = await getSupervisorAppeals(new NextRequest('http://localhost/api/supervisor/appeals?view=reopen'))
+    expect(stranger.status).toBe(403)
+  })
+
+  test('شاشة المشرف تقرأ إعادة الفتح فقط، والإدارة ما زالت صاحبة قرار الموافقة', () => {
+    const root = join(import.meta.dir, '..', '..')
+    const view = readFileSync(join(root, 'src/components/aact/SupervisorGradeReviewTab.tsx'), 'utf8')
+    const shell = readFileSync(join(root, 'src/components/aact/Shell.tsx'), 'utf8')
+    expect(view).toContain('/api/supervisor/appeals?view=reopen')
+    expect(view).toContain('هذه القائمة للاطلاع والمتابعة فقط')
+    expect(view).toContain('قرار إعادة فتح الفصل أو الوحدة أو الواجب من صلاحية الإدارة وحدها')
+    expect(shell).toContain('aact-supervisor-section')
+    expect(pathForView('supervisor', { section: 'review' })).toBe('/supervisor?section=review')
+    expect(pathForView('supervisor')).toBe('/supervisor')
   })
 
   test('التماس مكرر معلّق لنفس الوحدة مرفوض، وبعد إغلاق الفصل مرفوض أصلًا', async () => {

@@ -16,7 +16,7 @@ export type ReopenAppealResult =
 
 export async function createReopenAppeal(
   client: AnyClient,
-  args: { userId: string; unitId?: string | null; programId?: string | null; semester?: number | null; reason: string; supervisorUserId?: string | null },
+  args: { userId: string; unitId?: string | null; programId?: string | null; semester?: number | null; reason: string },
 ): Promise<ReopenAppealResult> {
   const reason = String(args.reason || '').trim()
   if (!args.userId?.trim() || !reason) return { ok: false, code: 'INVALID_INPUT' }
@@ -83,14 +83,24 @@ export async function createReopenAppeal(
     recipientRole: 'ADMINS',
     title: 'التماس إعادة فتح جديد',
     body: `قدّم طالب التماس إعادة فتح تسليم (الفصل ${semester}) — البتّ مطلوب قبل ${appeal.decisionDeadline.toISOString().slice(0, 10)}.`,
+    link: '/admin?tab=grading-review',
   }).catch(() => {})
-  if (args.supervisorUserId) {
+  // The unit's canonical programId (not a client-supplied programme) is now
+  // known. A student's newest supervisor in another programme must not be
+  // notified about this programme's appeal.
+  const assigned = await client.admissionApplication?.findFirst?.({
+    where: { userId: args.userId, programId: appeal.programId },
+    orderBy: [{ supervisorAt: 'desc' }, { createdAt: 'desc' }],
+    select: { supervisorId: true },
+  }).catch(() => null)
+  if (assigned?.supervisorId) {
     await enqueueOutbox(client, {
       key: `reopen-appeal-created-sup:${appeal.id}`,
       kind: 'REOPEN_APPEAL_CREATED',
-      recipientUserId: args.supervisorUserId,
+      recipientUserId: assigned.supervisorId,
       title: 'التماس إعادة فتح من طالبك',
       body: `قدّم أحد طلابك التماس إعادة فتح تسليم (الفصل ${semester}) — القرار للإدارة.`,
+      link: '/supervisor?section=review',
     }).catch(() => {})
   }
   return { ok: true, appeal }
