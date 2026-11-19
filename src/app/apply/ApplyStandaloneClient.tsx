@@ -26,11 +26,29 @@ export function ApplyStandaloneClient() {
   const view = useAppStore((s) => s.view)
 
   useEffect(() => {
+    const controller = new AbortController()
     useAppStore.setState({ view: 'apply', mobileMenuOpen: false })
+    if (!useAppStore.getState().user) {
+      void fetch('/api/auth/me', { cache: 'no-store', signal: controller.signal })
+        .then((response) => response.ok ? response.json() : null)
+        .then((data) => {
+          const state = useAppStore.getState()
+          if (!controller.signal.aborted && data?.user && !state.user && state.view === 'apply') state.setUser(data.user)
+        })
+        .catch(() => {})
+    }
+    return () => controller.abort()
   }, [])
 
   const effectiveView = view === 'home' ? 'apply' : view
 
+  const supported = ['apply', 'programs', 'program-detail', 'verify', 'directory', 'about', 'contact', 'auth'].includes(effectiveView)
+  useEffect(() => {
+    // navigate() has already updated the URL, including the invoice or dashboard tab.
+    if (!supported || (view === 'home' && window.location.pathname === '/')) window.location.reload()
+  }, [supported, view])
+
+  if (!supported) return null
   return (
     <div className="flex min-h-screen flex-col bg-[#eef0f5]">
       <Header />

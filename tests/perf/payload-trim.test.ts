@@ -25,12 +25,19 @@ describe('admin payload trimming contracts', () => {
     expect(programRulesDetailRoute).toContain('rules,')
   })
 
-  test('question-bank list excludes heavy review fields', () => {
-    const listSelect = questionBankRoute.slice(questionBankRoute.indexOf('select: {'), questionBankRoute.indexOf('return items.map'))
-    expect(listSelect).not.toContain('modelAnswer: true')
-    expect(listSelect).not.toContain('sourceEvidence: true')
-    expect(listSelect).not.toContain('correctRationale: true')
-    expect(listSelect).not.toContain('distractorRationales: true')
-    expect(listSelect).not.toContain('reviewNotes: true')
+  test('question-bank list selects bounded previews and omits full review fields', () => {
+    const select = questionBankRoute.match(/SELECT ([\s\S]*?)FROM "QuestionBankItem"/)?.[1]
+    expect(select).toBeDefined()
+    let remaining = select!
+    for (const [field, alias] of [
+      ['modelAnswer', 'modelAnswer'], ['sourceEvidence', 'sourceEvidence'],
+      ['reviewNotes', 'verifierReason'], ['rejectedReason', 'rejectedReason'],
+    ]) {
+      const preview = `NULLIF(LEFT(BTRIM("${field}", \${whitespace}), 200), '') AS "${alias}"`
+      expect(remaining).toContain(preview)
+      remaining = remaining.replace(preview, '')
+      expect(remaining).not.toContain(`"${field}"`)
+    }
+    expect(remaining).not.toMatch(/\*|correctRationale|distractorRationales/)
   })
 })

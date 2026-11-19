@@ -20,11 +20,16 @@ let S: any
 function matches(row: any, where: any): boolean {
   if (!where) return true
   for (const [key, cond] of Object.entries<any>(where)) {
+    if (key === 'OR') {
+      if (!cond.some((branch: any) => matches(row, branch))) return false
+      continue
+    }
     if (cond && typeof cond === 'object' && !Array.isArray(cond) && !(cond instanceof Date)) {
       if ('in' in cond) { if (!cond.in.includes(row[key])) return false; continue }
       if ('not' in cond) { if (cond.not === null && (row[key] === null || row[key] === undefined)) return false; if (cond.not !== null && row[key] === cond.not) return false; continue }
       if ('notIn' in cond) { if (cond.notIn.includes(row[key])) return false; continue }
-      continue // nested relation filters: seeded data already satisfies them
+      if (!row[key] || !matches(row[key], cond)) return false
+      continue
     }
     if (row[key] !== cond) return false
   }
@@ -314,6 +319,23 @@ describe('appeals', () => {
     expect(res.status).toBe(403)
     const body = await res.json()
     expect(body.code).toBe('NO_HUMAN_SUPERVISOR')
+  })
+
+  test('appeals list is scoped to the assigned student and program together', async () => {
+    const own = S.unitAttempts.find((attempt: any) => attempt.id === 'AT1')
+    own.appealStatus = 'PENDING'
+    const otherStudent = S.unitAttempts.find((attempt: any) => attempt.id === 'AT2')
+    otherStudent.appealStatus = 'PENDING'
+    S.unitAttempts.push({
+      ...own, id: 'AT-foreign-program',
+      exam: { ...own.exam, unit: { ...own.exam.unit, programId: 'P2' } },
+    })
+
+    asSupervisor()
+    const response = await supervisorAppealsRoute.GET()
+    expect(response.status).toBe(200)
+    const { appeals } = await response.json()
+    expect(appeals.filter((item: any) => item.type === 'UNIT').map((item: any) => item.id)).toEqual(['AT1'])
   })
 
   test('unit appeal files to the assigned supervisor, who resolves it', async () => {

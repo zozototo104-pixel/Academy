@@ -42,9 +42,16 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const user = await requireUser()
+    if (req.nextUrl.searchParams.get('view') === 'status') {
+      const appeals = await db.reopenAppeal.groupBy({
+        by: ['programId', 'semester', 'unitId', 'status'],
+        where: { userId: user.id, status: { in: ['APPROVED', 'PENDING', 'REJECTED'] } },
+      })
+      return NextResponse.json({ ok: true, appeals })
+    }
     const appeals = await (db as any).reopenAppeal.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },

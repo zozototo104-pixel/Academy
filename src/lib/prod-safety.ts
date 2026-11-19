@@ -11,6 +11,10 @@ export const PRIVATE_STORAGE_PREFIXES = [
   'defense-recordings/',
   'backups/',
   'service-deliverables/',
+  // وثائق الوكالة والاعتماد (هوية/ترخيص/سيرة ذاتية) — كانت تُخزَّن
+  // برابط عام مباشر لأن البادئة «agent-documents/» لم تكن في القائمة
+  // (فحص 2026-11-18): لا رابط عام، والقراءة عبر /api/files بفحص ملكية.
+  'agent-documents/',
 ] as const
 
 export function normalizeStorageKeyForPolicy(value: unknown): string {

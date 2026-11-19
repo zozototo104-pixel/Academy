@@ -1,7 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
+import { setPendingReturnView } from '@/lib/pending-return-view'
+import { readAgentDraft, saveAgentDraft, clearAgentDraft, readAgentStagedDocs, saveAgentStagedDocs, clearAgentStagedDocs, type AgentStagedDoc } from '@/lib/agent-draft'
+import { getPendingAgentFiles, setPendingAgentFile, clearPendingAgentFiles } from '@/lib/agent-pending-files'
 import { ACADEMY_INFO, ACCREDITATION_GUIDE, ADMISSION_FEES } from '@/lib/academyData'
 import { toast, useToast } from '@/hooks/use-toast'
 import { AgentPortalTab } from '@/components/aact/AgentPortalTab'
@@ -71,22 +74,6 @@ type AgentRules = {
 }
 
 const DOC_ICONS: Record<string, any> = { LICENSE: ScrollText, ID: IdCard, PHOTO: Camera, CV: FileText }
-const AGENT_DRAFT_KEY = 'aact-agent-draft'
-
-// قراءة مسودة نموذج الوكالة/الاعتماد المحفوظة قبل الدخول — null عند
-// غيابها أو فسادها، مع تسجيل التحذير بدل ابتلاع الخطأ بصمت.
-function readAgentDraft(): { form?: Record<string, string>; kind?: string; accreditationType?: string } | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const raw = localStorage.getItem(AGENT_DRAFT_KEY)
-    if (!raw) return null
-    const draft = JSON.parse(raw)
-    return draft && typeof draft === 'object' ? draft : null
-  } catch (e) {
-    console.warn('Failed to read saved agent draft.', e)
-    return null
-  }
-}
 
 export function AgentView() {
   const { toast } = useToast()
@@ -94,8 +81,18 @@ export function AgentView() {
   const [loading, setLoading] = useState(false)
   // نتيجة التقديم: فاتورة رسوم التقديم + ملخص رسالة البريد المرسلة
   const [done, setDone] = useState<{ kind: 'agency' | 'accreditation'; invoice?: { invoiceNo: string; amount: number } | null; email?: { to: string; invoiceNo: string; amount: number } | null } | null>(null)
+  const [savedWithoutInvoice, setSavedWithoutInvoice] = useState<string | null>(null)
   // الوثائق الرسمية المرفوعة (إلزامية لكلا النوعين، من قواعد الوكالة والاعتماد)
-  const [files, setFiles] = useState<Record<string, File | null>>({})
+  // files: الملتقطة في هذه الجلسة (تنجو من رحلة الدخول عبر الحافظة)؛
+  // staged: المرحّلة إلى التخزين بمفاتيحها (تنجو حتى من تحديث الصفحة).
+  const [files, setFiles] = useState<Record<string, File | null>>(() => getPendingAgentFiles(user?.id))
+  const [staged, setStaged] = useState<Record<string, AgentStagedDoc>>(() => {
+    const map: Record<string, AgentStagedDoc> = {}
+    for (const d of readAgentStagedDocs(user?.id)) map[d.docType] = d
+    return map
+  })
+  const [staging, setStaging] = useState<Record<string, boolean>>({})
+  const stagingInFlight = useRef<Set<string>>(new Set())
   const [missingDocs, setMissingDocs] = useState<string[]>([])
   const [loginPrompt, setLoginPrompt] = useState(false)
   // سداد رسوم التقديم
@@ -105,14 +102,14 @@ export function AgentView() {
   // مسودة محفوظة قبل الذهاب لشاشة الدخول (نصوص فقط — الملفات تُعاد إرفاقاً).
   // تُقرأ في مُهيّئ الحالة لا في تأثير، حتى لا نستدعي setState داخل
   // التأثير (تحذير react-hooks/set-state-in-effect) ولا نكسر العرض.
-  const [kind, setKind] = useState<'AGENCY' | 'ACCREDITATION'>(() => readAgentDraft()?.kind === 'ACCREDITATION' ? 'ACCREDITATION' : 'AGENCY')
+  const [kind, setKind] = useState<'AGENCY' | 'ACCREDITATION'>(() => readAgentDraft(user?.id)?.kind === 'ACCREDITATION' ? 'ACCREDITATION' : 'AGENCY')
   const [accreditationType, setAccreditationType] = useState(() => {
-    const saved = readAgentDraft()?.accreditationType
+    const saved = readAgentDraft(user?.id)?.accreditationType
     return saved === 'CONSULTANT' || saved === 'TRAINER' || saved === 'QUALITY' ? saved : 'CONSULTANT'
   })
   const [form, setForm] = useState(() => ({
     orgName: '', repName: '', email: '', phone: '', country: '', territory: '', experience: '',
-    ...(readAgentDraft()?.form || {}),
+    ...(readAgentDraft(user?.id)?.form || {}),
   }))
   const [agentRules, setAgentRules] = useState<AgentRules | null>(null)
   const canSubmitAgentApplication = !user || !['ADMIN', 'SUPERVISOR'].includes(user.role)
@@ -131,6 +128,56 @@ export function AgentView() {
     icon: DOC_ICONS[d.type] || FileText,
   }))
 
+  // ترحيل ملف واحد فور اختياره (طلب مستقل لكل ملف). لا نرسل جميع
+  // المرفقات ضمن FormData عند الفشل، لأن ذلك يتجاوز حد جسم الطلب.
+  const stageFile = async (type: string, f: File) => {
+    if (stagingInFlight.current.has(type)) return
+    stagingInFlight.current.add(type)
+    setStaging((prev) => ({ ...prev, [type]: true }))
+    try {
+      const fd = new FormData()
+      fd.append('file', f)
+      fd.append('docType', type)
+      const res = await fetch('/api/agent-apply/files', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('aact_token') || ''}` },
+        body: fd,
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d?.document?.storageKey) {
+        if (d?.code === 'LOGIN_REQUIRED') setLoginPrompt(true)
+        throw new Error(d?.error || 'تعذر رفع الملف')
+      }
+      // المستخدم قد يستبدل الملف أو يزيله أثناء وجود الطلب في الشبكة.
+      // استجابة الملف القديم لا يجوز أن تحل مكان الملف المختار الآن.
+      if (getPendingAgentFiles(user?.id)[type] !== f || useAppStore.getState().user?.id !== user?.id) {
+        await deleteStagedKey(d.document as AgentStagedDoc)
+        return
+      }
+      setStaged((prev) => ({ ...prev, [type]: d.document as AgentStagedDoc }))
+    } catch (e: any) {
+      toast({ title: 'تعذّر رفع الملف الآن', description: `${f.name} — اضغط إعادة رفع الملف للمحاولة من جديد.`, variant: 'destructive' })
+    } finally {
+      stagingInFlight.current.delete(type)
+      setStaging((prev) => ({ ...prev, [type]: false }))
+      const replacement = getPendingAgentFiles(user?.id)[type]
+      if (replacement && replacement !== f && useAppStore.getState().user?.id === user?.id) {
+        void stageFile(type, replacement)
+      }
+    }
+  }
+
+  // حذف مفتاح مرحّل قديم من التخزين عند استبداله أو إزالته (أفضل جهد).
+  const deleteStagedKey = async (doc: AgentStagedDoc) => {
+    try {
+      await fetch('/api/agent-apply/files', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('aact_token') || ''}` },
+        body: JSON.stringify({ storageKey: doc.storageKey, uploadToken: doc.uploadToken }),
+      })
+    } catch { /* ignore — مفتاح يتيم خاص غير قابل للتخمين */ }
+  }
+
   const setFile = (type: string, f: File | null) => {
     if (f && f.size > MAX_FILE_MB * 1024 * 1024) {
       toast({ title: 'الملف كبير', description: `الحد الأقصى ${MAX_FILE_MB} ميجابايت — يرجى ضغط الملف`, variant: 'destructive' })
@@ -140,16 +187,45 @@ export function AgentView() {
       toast({ title: 'صيغة غير مدعومة', description: 'المسموح: JPG / PNG / PDF', variant: 'destructive' })
       return
     }
+    setPendingAgentFile(type, f, user?.id)
     setFiles((prev) => ({ ...prev, [type]: f }))
+    if (staged[type]) {
+      const old = staged[type]
+      setStaged((prev) => {
+        const next = { ...prev }
+        delete next[type]
+        return next
+      })
+      void deleteStagedKey(old)
+    }
+    if (f && user) void stageFile(type, f)
   }
 
-  const allDocsUploaded = displayDocs.every((d) => files[d.type])
+  // المفاتيح المرحّلة تُحفظ في مسودتها المستقلة عند كل تغيير، فتنجو من
+  // تحديث الصفحة؛ والمسودة النصية لا تُمس هنا إطلاقاً (تُحفظ عند بوابة
+  // الدخول فقط، فلا يكتب ترحيل متأخر فوق نص أحدث).
+  useEffect(() => {
+    saveAgentStagedDocs(Object.values(staged), user?.id)
+  }, [staged, user?.id])
+
+  // بعد العودة من الدخول: الملفات الملتقطة قبل الدخول ما زالت في الحافظة
+  // بلا ترحيل — رحّلها الآن تلقائياً حتى لا يعيد المستخدم إرفاقها.
+  useEffect(() => {
+    if (!user) return
+    for (const [type, f] of Object.entries(files)) {
+      if (f && !staged[type] && !stagingInFlight.current.has(type)) void stageFile(type, f)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
+  const allDocsUploaded = displayDocs.every((d) => staged[d.type] || files[d.type])
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if (!user) {
       // بوابة الدخول: حفظ المسودة نصوصاً ثم رسالة وزر لشاشة الدخول.
-      try { localStorage.setItem(AGENT_DRAFT_KEY, JSON.stringify({ form, kind, accreditationType })) } catch (e) { console.warn('Failed to save agent draft.', e) }
+      // (المفاتيح المرحّلة محفوظة أصلاً في مسودتها المستقلة.)
+      saveAgentDraft({ form, kind, accreditationType })
       setLoginPrompt(true)
       return
     }
@@ -162,34 +238,48 @@ export function AgentView() {
       return
     }
     // المرفقات الإلزامية من قواعد الوكالة والاعتماد — لكلا النوعين.
-    const missing = displayDocs.filter((d) => !files[d.type])
+    const missing = displayDocs.filter((d) => !staged[d.type] && !files[d.type])
     if (missing.length > 0) {
       setMissingDocs(missing.map((m) => m.label))
       toast({ title: 'الوثائق الرسمية غير مكتملة', description: `يرجى رفع: ${missing.map((m) => m.label).join('، ')}`, variant: 'destructive' })
       return
     }
+    const notStaged = displayDocs.filter((d) => !staged[d.type])
+    if (notStaged.length > 0) {
+      setMissingDocs(notStaged.map((d) => d.label))
+      toast({ title: 'انتظر اكتمال رفع الوثائق', description: 'لا يمكن إرسال الطلب حتى يتم رفع كل ملف منفرداً. إذا فشل ملف اضغط إعادة رفع الملف.', variant: 'destructive' })
+      return
+    }
     setMissingDocs([])
     setLoading(true)
     try {
-      const fd = new FormData()
-      fd.append('kind', kind)
-      if (kind === 'ACCREDITATION') fd.append('accreditationType', accreditationType)
-      Object.entries(form).forEach(([k, v]) => fd.append(k, v))
-      for (const doc of displayDocs) {
-        const f = files[doc.type]
-        if (f) fd.append(`doc_${doc.type}`, f)
-      }
+      // إرسال JSON بالمفاتيح فقط — لا يوجد مسار احتياطي يجمع الملفات
+      // الكبيرة أو يسقط بعض المرفقات المرفوعة عند اكتمال بعضها فقط.
       const res = await fetch('/api/agent-apply', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('aact_token') || ''}` },
-        body: fd,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('aact_token') || ''}` },
+        body: JSON.stringify({ kind, ...(kind === 'ACCREDITATION' ? { accreditationType } : {}), ...form, stagedDocs: displayDocs.map((d) => staged[d.type]) }),
       })
-      const d: { message?: string; error?: string; code?: string; invoice?: { invoiceNo: string; amount: number } | null; email?: { to: string; invoiceNo: string; amount: number } | null } = await res.json().catch(() => ({}))
+      const d: { message?: string; error?: string; code?: string; applicationId?: string; invoice?: { invoiceNo: string; amount: number } | null; email?: { to: string; invoiceNo: string; amount: number } | null } = await res.json().catch(() => ({}))
       if (!res.ok) {
+        // A post-save invoice/notification error is NOT an unsuccessful application.
+        // Show the saved ID and stop retries with already-consumed upload keys.
+        if (typeof d.applicationId === 'string' && d.applicationId) {
+          clearAgentDraft(user?.id)
+          clearAgentStagedDocs(user?.id)
+          clearPendingAgentFiles(user?.id)
+          setStaged({})
+          setSavedWithoutInvoice(d.applicationId)
+          toast({ title: 'طلبك محفوظ', description: `رقم الطلب: ${d.applicationId} — يرجى التواصل مع الإدارة لاستكمال الفاتورة.` })
+          return
+        }
         if (d.code === 'LOGIN_REQUIRED') { setLoginPrompt(true); throw new Error(d.error || 'نرجو تسجيل الدخول لاستكمال الطلب') }
         throw new Error(d.error || d.message || 'تعذر إرسال الطلب')
       }
-      try { localStorage.removeItem(AGENT_DRAFT_KEY) } catch (e) { console.warn('Failed to clear agent draft.', e) }
+      clearAgentDraft(user?.id)
+      clearAgentStagedDocs(user?.id)
+      clearPendingAgentFiles(user?.id)
+      setStaged({})
       setDone({ kind: kind === 'AGENCY' ? 'agency' : 'accreditation', invoice: d.invoice || null, email: d.email || null })
       toast({ title: 'تم الإرسال', description: d.message })
     } catch (e: any) {
@@ -233,7 +323,7 @@ export function AgentView() {
           <span className="text-sm font-black text-[#0f2b46]">إرفاق الوثائق الرسمية المطلوبة (إلزامي — لا يُقبل الطلب بدونها)</span>
         </div>
         <Badge className={allDocsUploaded ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
-          {displayDocs.filter((d) => files[d.type]).length} / {displayDocs.length} مكتملة
+          {displayDocs.filter((d) => staged[d.type] || files[d.type]).length} / {displayDocs.length} مكتملة
         </Badge>
       </div>
       <div className="p-4">
@@ -241,8 +331,10 @@ export function AgentView() {
         <div className="grid gap-2.5 sm:grid-cols-2">
           {displayDocs.map((doc) => {
             const f = files[doc.type]
+            const stagedDoc = staged[doc.type]
+            const shownName = stagedDoc ? stagedDoc.fileName : f ? f.name : null
             return (
-              <div key={doc.type} className={`rounded-xl border p-3 transition-colors ${f ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200 bg-slate-50/60'}`}>
+              <div key={doc.type} className={`rounded-xl border p-3 transition-colors ${shownName ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200 bg-slate-50/60'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <doc.icon className="h-4 w-4 text-[#a8841a]" />
@@ -251,7 +343,7 @@ export function AgentView() {
                       <p className="text-[10px] text-slate-400">{doc.hint}</p>
                     </div>
                   </div>
-                  {f && (
+                  {(f || stagedDoc) && (
                     <button type="button" onClick={() => setFile(doc.type, null)} className="text-red-400 hover:text-red-600" aria-label="إزالة">
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -259,9 +351,14 @@ export function AgentView() {
                 </div>
                 <label className="mt-2 flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#c9a227]/50 bg-white px-3 py-2 text-[11px] font-bold text-[#a8841a] hover:bg-[#f7edd0]/40">
                   <UploadCloud className="h-3.5 w-3.5" />
-                  {f ? f.name.slice(0, 28) : 'اختيار ملف'}
+                  {staging[doc.type] ? 'جارٍ رفع الملف...' : shownName ? shownName.slice(0, 28) : 'اختيار ملف'}
                   <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" onChange={(e) => setFile(doc.type, e.target.files?.[0] || null)} />
                 </label>
+                {f && !stagedDoc && !staging[doc.type] && user && (
+                  <button type="button" onClick={() => void stageFile(doc.type, f)} className="mt-2 text-xs font-bold text-amber-700 underline">
+                    إعادة رفع الملف
+                  </button>
+                )}
               </div>
             )
           })}
@@ -280,8 +377,8 @@ export function AgentView() {
       {loginPrompt && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-center">
           <p className="text-sm font-black text-[#0f2b46]">نرجو تسجيل الدخول لاستكمال الطلب</p>
-          <p className="mt-1 text-[11px] font-bold text-slate-500">حُفظت بيانات النموذج — سجل دخولك ثم أرسل الطلب من جديد (الملفات تُعاد إرفاقاً).</p>
-          <Button type="button" className="mt-3 bg-[#0f2b46] font-bold text-[#f5f0e1]" onClick={() => navigate('auth')}>تسجيل الدخول</Button>
+          <p className="mt-1 text-[11px] font-bold text-slate-500">حُفظت بيانات النموذج وملفاتك — سجل دخولك وستعود إلى النموذج نفسه لإرسال الطلب.</p>
+          <Button type="button" className="mt-3 bg-[#0f2b46] font-bold text-[#f5f0e1]" onClick={() => { setPendingReturnView('agent'); navigate('auth') }}>تسجيل الدخول</Button>
         </div>
       )}
       {!canSubmitAgentApplication && (
@@ -364,11 +461,20 @@ export function AgentView() {
           : `رسوم تقديم طلب الوكالة: ${agentRules?.agencyFee ?? 100}$ (غير مستردة) — تُصدر فاتورة فور التقديم وتُسدد من نفس الصفحة، ثم تُدرس الإدارة الملف ويُصدر العقد بعد القبول.`
         }
       </p>
-      <Button type="submit" disabled={loading || !canSubmitAgentApplication} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-60">
+      <Button type="submit" disabled={loading || Object.values(staging).some(Boolean) || !canSubmitAgentApplication} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-60">
         {loading ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Send className="ml-2 h-4 w-4 rotate-180" />}
         {canSubmitAgentApplication ? (kind === 'AGENCY' ? 'إرسال طلب الوكالة الدولية' : 'إرسال طلب الاعتماد') : 'يتطلب حساب جهة/وكيل منفصل'}
       </Button>
     </form>
+  )
+
+  const savedApplicationNotice = savedWithoutInvoice && (
+    <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-6 text-center" dir="rtl">
+      <CheckCircle2 className="mx-auto mb-3 h-9 w-9 text-emerald-600" />
+      <h3 className="text-lg font-black text-[#0f2b46]">تم حفظ طلبك ووثائقك بنجاح</h3>
+      <p className="mt-2 text-sm font-bold text-amber-800">تعذّر إكمال الفاتورة أو الإشعار بعد حفظ الطلب. لا تُعد إرسال الطلب؛ تواصل مع إدارة الأكاديمية وأبلغها برقم الطلب التالي.</p>
+      <p className="mt-3 select-all break-all rounded-lg bg-white px-3 py-3 font-mono text-base font-black text-[#0f2b46]" dir="ltr">{savedWithoutInvoice}</p>
+    </div>
   )
 
   return (
@@ -387,12 +493,20 @@ export function AgentView() {
         </p>
       </div>
 
-      <Tabs defaultValue="agency" dir="rtl" className="w-full">
+      <Tabs
+        defaultValue={kind === 'ACCREDITATION' ? 'accreditation' : 'agency'}
+        onValueChange={(tab) => {
+          if (tab === 'agency') setKind('AGENCY')
+          if (tab === 'accreditation') setKind('ACCREDITATION')
+        }}
+        dir="rtl"
+        className="w-full"
+      >
         <TabsList className="mx-auto grid w-full max-w-lg grid-cols-3">
-          <TabsTrigger value="agency" onClick={() => setKind('AGENCY')} className="text-xs font-bold sm:text-sm">
+          <TabsTrigger value="agency" className="text-xs font-bold sm:text-sm">
             الوكالة الدولية (للشركات)
           </TabsTrigger>
-          <TabsTrigger value="accreditation" onClick={() => setKind('ACCREDITATION')} className="text-xs font-bold sm:text-sm">
+          <TabsTrigger value="accreditation" className="text-xs font-bold sm:text-sm">
             طلبات الاعتماد (للأفراد)
           </TabsTrigger>
           <TabsTrigger value="portal" className="text-xs font-bold text-[#a8841a] sm:text-sm">
@@ -447,7 +561,7 @@ export function AgentView() {
             </CardContent>
           </Card>
 
-          {done?.kind === 'agency' ? (
+          {savedWithoutInvoice ? savedApplicationNotice : done?.kind === 'agency' ? (
             <Card className="mx-auto max-w-2xl border-emerald-200 bg-emerald-50/50">
               <CardContent className="p-8 text-center">
                 <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-emerald-600" />
@@ -564,7 +678,7 @@ export function AgentView() {
             </Card>
           </div>
 
-          {done?.kind === 'accreditation' ? (
+          {savedWithoutInvoice ? savedApplicationNotice : done?.kind === 'accreditation' ? (
             <Card className="mx-auto max-w-2xl border-emerald-200 bg-emerald-50/50">
               <CardContent className="p-8 text-center">
                 <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-emerald-600" />

@@ -200,7 +200,8 @@ test.describe('AACT mobile UX guardrails suite', () => {
     // width inside grids without min-w-0. The books check covers the
     // program picker (the wide element); the outline/buttons rows are
     // pinned by tests/admin/mobile-overflow-guard.test.ts.
-    await setBrowserToken(page, adminLogin.token)
+    const adminSession = await login(page, requiredEnv('E2E_ADMIN_EMAIL'), requiredEnv('E2E_ADMIN_PASSWORD'))
+    await setBrowserToken(page, adminSession.token)
     await page.goto('/admin', { waitUntil: 'domcontentloaded', timeout: 45_000 })
     await page.waitForLoadState('networkidle', { timeout: 12_000 }).catch(() => {})
     await page.getByRole('tab', { name: /الكتب والاختبارات/ }).click()

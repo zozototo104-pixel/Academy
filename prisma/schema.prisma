@@ -1687,6 +1687,13 @@ model AgentDocument {
   @@index([storageProvider])
 }
 
+// A staged key is consumed exactly once by submission or cancellation.
+model AgentPendingUpload {
+  storageKey String   @id
+  cancelled  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
 model RevenueShareTransaction {
   id             String   @id @default(cuid())
   agentId        String

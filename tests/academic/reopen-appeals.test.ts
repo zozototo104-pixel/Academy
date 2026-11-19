@@ -114,6 +114,18 @@ describe('التماسات إعادة الفتح', () => {
     expect(v.ok).toBe(true)
   })
 
+  test('قبول التماس الفصل ينبّه الطالب أن الوحدات تحتاج التماسًا مستقلًا', async () => {
+    reset()
+    const created = await createReopenAppeal(world.db, { userId: 'u1', programId: 'p1', semester: 1, reason: 'تعذر التسليم في الوقت' })
+    if (!created.ok) throw new Error('create failed')
+    const decided = await decideReopenAppeal(world.db, { appealId: created.appeal.id, actor: { id: 'admin' }, approve: true })
+    expect(decided.ok).toBe(true)
+    const notice = world.state.outbox.find((o: any) => o.kind === 'REOPEN_APPEAL_DECIDED')
+    expect(notice?.body).toContain('الواجبات غير المرتبطة بوحدة')
+    expect(notice?.body).toContain('الوحدات التي انتهت مدتها ما زالت مغلقة')
+    expect(notice?.body).toContain('التماس إعادة فتح مستقل لكل وحدة')
+  })
+
   test('تصعيد المتأخر دون رفض تلقائي، والالتماس المعلّق يمنع إغلاق الفصل', async () => {
     reset()
     const created = await createReopenAppeal(world.db, { userId: 'u1', unitId: 'u1a', reason: 'سبب' })

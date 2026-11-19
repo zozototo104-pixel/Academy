@@ -315,8 +315,9 @@ test.describe('books workspace organization (QA, read-only)', () => {
     await chooseFirstProgram(page)
     const banner = await page.getByText(/الكتب والامتحانات ستُربط تحديداً بـ/).innerText()
     for (const name of [/نظرة عامة/, /بنك المعرفة/, /الوحدات/, /أدلة الدراسة/, /الواجبات/, /مركز التصحيح/, /الامتحانات/]) {
-      await page.getByRole('tab', { name }).first().click()
-      await expect(page.getByRole('tab', { name }).first()).toHaveAttribute('aria-selected', 'true')
+      const tab = page.locator('#admin-books-workspace').getByRole('tab', { name }).first()
+      await tab.click()
+      await expect(tab).toHaveAttribute('aria-selected', 'true')
       await expect(page.getByText(/الكتب والامتحانات ستُربط تحديداً بـ/)).toHaveText(banner)
     }
     await gotoBooksCurrent(page)

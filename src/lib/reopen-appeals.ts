@@ -125,7 +125,9 @@ export async function decideReopenAppeal(
     recipientUserId: appeal.userId,
     title: args.approve ? 'قُبل التماس إعادة الفتح' : 'رُفض التماس إعادة الفتح',
     body: args.approve
-      ? `قُبل التماسك: يمكنك التسليم الآن ضمن فترة الفصل القائمة${args.note ? ` — ملاحظة الإدارة: ${String(args.note).slice(0, 300)}` : ''}.`
+      ? `${appeal.unitId == null
+          ? 'قُبل التماس الفصل: يمكنك تسليم الواجبات غير المرتبطة بوحدة ضمن فترة الفصل القائمة. الوحدات التي انتهت مدتها ما زالت مغلقة؛ يلزم تقديم التماس إعادة فتح مستقل لكل وحدة.'
+          : 'قُبل التماس إعادة فتح الوحدة: يمكنك تسليم واجبات هذه الوحدة وتقديم امتحانها ضمن فترة الفصل القائمة، مع مراعاة شروط المحاولات الأخرى.'}${args.note ? ` — ملاحظة الإدارة: ${String(args.note).slice(0, 300)}` : ''}`
       : `رُفض التماس إعادة الفتح${args.note ? ` — السبب: ${String(args.note).slice(0, 300)}` : ''}.`,
   }).catch(() => {})
   return { ok: true, appeal: decided || appeal }
@@ -164,8 +166,8 @@ export async function escalateOverdueReopenAppeals(client: AnyClient, now = new 
 // ===== منحة إعادة الفتح أمام موعد الواجب =====
 // موعد الواجب جدار مستقل عن نافذة الوحدة: تسليم متأخر يُرفض عنده
 // ولو كانت نافذة الفصل قائمة. منحة إعادة فتح معتمَدة لهذا الطالب
-// ترفع الجدار عنه وحده: إما منحة وحدته نفسها (حين يرتبط الواجب
-// بوحدة)، أو منحة فصلية (بلا وحدة) لنفس الفصل. فترة الفصل تبقى
+// ترفع الجدار عنه وحده: منحة وحدته نفسها للواجب المرتبط بوحدة،
+// أو منحة فصلية للواجب غير المرتبط بوحدة فقط. فترة الفصل تبقى
 // الحد الخارجي — يفحصها حارس النوافذ بعد هذا الفحص في مسار التسليم.
 export async function hasApprovedReopenGrant(
   client: AnyClient,
@@ -173,16 +175,13 @@ export async function hasApprovedReopenGrant(
 ): Promise<boolean> {
   const store = (client as AnyClient)?.reopenAppeal
   if (!store?.findMany || !args.enrollmentId) return false
-  const grants: any[] = await store
-    .findMany({
-      where: { enrollmentId: args.enrollmentId, status: 'APPROVED' },
-      select: { unitId: true, semester: true },
-      take: 50,
-    })
-    .catch(() => [])
-  return grants.some(
-    (g) =>
-      (args.unitId != null && g.unitId === args.unitId) ||
-      (g.unitId == null && g.semester === args.semester),
-  )
+  const grants = await store.findMany({
+    where: {
+      enrollmentId: args.enrollmentId, semester: args.semester,
+      unitId: args.unitId ?? null, status: 'APPROVED',
+    },
+    select: { id: true },
+    take: 1,
+  }).catch(() => [])
+  return grants.length > 0
 }

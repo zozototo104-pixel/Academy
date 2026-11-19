@@ -136,7 +136,8 @@ test.describe('representatives accordion — QA read-only', () => {
     await expect(panel(page, 'uploads')).toBeVisible()
     for (const key of ['basic', 'bio', 'onboarding']) await expect(panel(page, key)).toBeHidden()
     await heading(page, 'uploads').click()
-    await expect(panel(page, 'uploads')).toBeVisible() // Always one section open.
+    await expect(panel(page, 'uploads')).toBeHidden()
+    await expect(heading(page, 'uploads')).toHaveAttribute('aria-expanded', 'false')
   })
 
   test('unsaved bio survives folding; selecting a second person restores that person data', async ({ page }) => {

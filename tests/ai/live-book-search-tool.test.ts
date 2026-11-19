@@ -30,6 +30,7 @@ mock.module('@/lib/auth', () => ({
 }))
 mock.module('@/lib/rate-limit', () => ({ enforceApiRateLimit: () => null }))
 mock.module('@/lib/supervisor-ai', () => ({
+  buildSupervisorPersonaBlock: () => 'Test supervisor persona',
   buildSupervisorContext: async () => '',
   mergeContext: (...parts: unknown[]) => parts.filter(Boolean).join('\n'),
   buildRelevantSupervisorBookSnippets: async (programIds: string[], query: string | null | undefined) => {

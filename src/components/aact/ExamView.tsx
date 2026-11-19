@@ -198,7 +198,9 @@ export function ExamView() {
 
   useEffect(() => {
     if (!activeExamId) return
+    let current = true
     setLoading(true)
+    setData(null)
     setResult(null)
     setCurrent(0)
     setMcqAnswers({})
@@ -231,6 +233,7 @@ export function ExamView() {
         : `/api/exam/detail?examId=${activeExamId}`
     api<ExamData>(url)
       .then(async (d) => {
+        if (!current) return
         setData(d)
         if (activeExamKind !== 'final' && d.exam.startedAt && d.exam.durationMin) {
           configureCountdown(d.exam.startedAt, d.exam.durationMin, d.serverNow)
@@ -275,12 +278,14 @@ export function ExamView() {
         }
         try {
           const draftRes = await api<any>(`/api/exam-draft?examId=${activeExamId}&examType=${examType}`)
+          if (!current) return
           const restored = restoreDraft(draftRes?.draft, 'cloud')
           if (!restored) {
             const localDraft = JSON.parse(window.localStorage.getItem(localKey) || 'null')
             setDraftStatus(restoreDraft(localDraft, 'local') ? 'saved' : 'idle')
           }
         } catch {
+          if (!current) return
           try {
             const localDraft = JSON.parse(window.localStorage.getItem(localKey) || 'null')
             setDraftStatus(restoreDraft(localDraft, 'local') ? 'saved' : 'error')
@@ -288,10 +293,11 @@ export function ExamView() {
             setDraftStatus('error')
           }
         } finally {
-          draftLoadedRef.current = true
+          if (current) draftLoadedRef.current = true
         }
       })
       .catch((e: ApiError) => {
+        if (!current) return
         const recovered = e.code === 'NEEDS_REVIEW' ? e.data?.preliminary : null
         if (recovered) {
           // إعادة فتح امتحان بانتظار المراجعة: الدرجة الأولية المحفوظة تظهر
@@ -316,8 +322,8 @@ export function ExamView() {
         }
         const message = examErrorMessage(e)
         toast({ title: 'تنبيه الاختبار', description: message, variant: 'destructive' })
-        if (e.code === 'UNIT_WINDOW_ENDED' && e.data?.unitId) {
-          setWindowEnded({ programId: String(e.data.programId || ''), semester: Number(e.data.semester), unitId: String(e.data.unitId) })
+        if (e.code === 'UNIT_WINDOW_ENDED' && e.data?.data?.unitId) {
+          setWindowEnded({ programId: String(e.data.data.programId || ''), semester: Number(e.data.data.semester), unitId: String(e.data.data.unitId) })
         }
         if (e.status === 402 || e.code === 'PENDING_PAYMENT' || e.code === 'ENROLLMENT_NOT_ACTIVE') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'payments' })
         else if ((e.status === 403 || e.status === 409) && ['ALREADY_PASSED', 'PASSED_ALREADY', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'MAX_ATTEMPTS_REACHED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(e.code || ''))) {
@@ -326,7 +332,8 @@ export function ExamView() {
           navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'results' })
         }
       })
-      .finally(() => setLoading(false))
+      .finally(() => { if (current) setLoading(false) })
+    return () => { current = false }
   }, [activeExamId, activeExamKind, configureCountdown, navigate, toast])
 
   const answeredCount = useMemo(() => {

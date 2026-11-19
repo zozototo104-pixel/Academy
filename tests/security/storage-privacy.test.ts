@@ -17,8 +17,15 @@ describe('تصنيف مفاتيح التخزين', () => {
     expect(isPrivateStorageKey('defense-recordings/user-1')).toBe(true)
   })
 
+  test('وثائق الوكالة والاعتماد خاصة (هوية/ترخيص/سيرة ذاتية)', () => {
+    expect(isPrivateStorageKey('agent-documents/id/2026-11-18/abc-id.png')).toBe(true)
+    expect(isPrivateStorageKey('agent-documents/license/2026-11-18/abc-license.pdf')).toBe(true)
+    expect(isPrivateStorageKey('agent-documents')).toBe(true)
+    expect(isPrivateStorageKey('Agent-Documents/CV/x.pdf')).toBe(true)
+  })
+
   test('البادئات الخاصة القائمة لم تتغير', () => {
-    for (const key of ['admissions/REF-1/id.pdf', 'payment-proofs/p1.png', 'assignments/a1/f.pdf', 'backups/db.sql', 'service-deliverables/d1.pdf', 'representatives-private/r1.pdf']) {
+    for (const key of ['admissions/REF-1/id.pdf', 'payment-proofs/p1.png', 'assignments/a1/f.pdf', 'backups/db.sql', 'service-deliverables/d1.pdf', 'representatives-private/r1.pdf', 'agent-documents/id/x.png']) {
       expect(isPrivateStorageKey(key)).toBe(true)
     }
   })

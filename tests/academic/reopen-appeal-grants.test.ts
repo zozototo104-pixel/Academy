@@ -15,8 +15,9 @@ const { hasApprovedReopenGrant } = await import('../../src/lib/reopen-appeals')
 function grantWorld(grants: any[]) {
   return {
     reopenAppeal: {
-      findMany: async ({ where }: any) =>
-        grants.filter((g) => g.enrollmentId === where.enrollmentId && g.status === where.status),
+      findMany: async ({ where, take }: any) => grants
+        .filter((grant) => Object.entries(where).every(([key, value]) => grant[key] === value))
+        .slice(0, take),
     },
   } as any
 }
@@ -28,16 +29,31 @@ describe('hasApprovedReopenGrant', () => {
   test('منحة الوحدة نفسها ترفع جدار واجبها', async () => {
     expect(await hasApprovedReopenGrant(grantWorld([unitGrant]), { enrollmentId: 'enr1', unitId: 'un1', semester: 1 })).toBe(true)
   })
+  test('يجد المنحة المطابقة بعد خمسين منحة لوحدات أخرى', async () => {
+    const others = Array.from({ length: 50 }, (_, i) => ({ ...unitGrant, unitId: `other-${i}` }))
+    expect(await hasApprovedReopenGrant(grantWorld([...others, unitGrant]), {
+      enrollmentId: 'enr1', unitId: 'un1', semester: 1,
+    })).toBe(true)
+  })
   test('منحة وحدة أخرى لا ترفع واجبًا لا يخصها', async () => {
     expect(await hasApprovedReopenGrant(grantWorld([unitGrant]), { enrollmentId: 'enr1', unitId: 'un9', semester: 1 })).toBe(false)
   })
-  test('المنحة الفصلية (بلا وحدة) ترفع أي واجب في فصلها فقط', async () => {
-    expect(await hasApprovedReopenGrant(grantWorld([semesterGrant]), { enrollmentId: 'enr1', unitId: 'un1', semester: 2 })).toBe(true)
+  test('منحة الوحدة لا تفتح وحدة أخرى أو الفصل غير المطابق', async () => {
+    expect(await hasApprovedReopenGrant(grantWorld([unitGrant]), { enrollmentId: 'enr1', unitId: 'un1', semester: 2 })).toBe(false)
+    expect(await hasApprovedReopenGrant(grantWorld([unitGrant]), { enrollmentId: 'enr1', unitId: 'un2', semester: 1 })).toBe(false)
+  })
+  test('المنحة الفصلية تفتح الواجبات غير المرتبطة بوحدة فقط', async () => {
+    expect(await hasApprovedReopenGrant(grantWorld([semesterGrant]), { enrollmentId: 'enr1', unitId: 'un1', semester: 2 })).toBe(false)
     expect(await hasApprovedReopenGrant(grantWorld([semesterGrant]), { enrollmentId: 'enr1', unitId: null, semester: 2 })).toBe(true)
     expect(await hasApprovedReopenGrant(grantWorld([semesterGrant]), { enrollmentId: 'enr1', unitId: null, semester: 1 })).toBe(false)
   })
   test('واجب بلا وحدة لا ترفعه منحة وحدة', async () => {
     expect(await hasApprovedReopenGrant(grantWorld([unitGrant]), { enrollmentId: 'enr1', unitId: null, semester: 1 })).toBe(false)
+  })
+  test('نطاق الالتماس واحد للخادم ولواجهة الطالب: الفصل لا يفتح الوحدات', () => {
+    const component = readFileSync(join(import.meta.dir, '..', '..', 'src/components/aact/ReopenAppeal.tsx'), 'utf8')
+    expect(component).toContain('a.semester === semester')
+    expect(component).toContain('unitId != null ? a.unitId === unitId : a.unitId == null')
   })
   test('بلا منح أو بلا مخزن: لا رفع', async () => {
     expect(await hasApprovedReopenGrant(grantWorld([]), { enrollmentId: 'enr1', unitId: 'un1', semester: 1 })).toBe(false)
@@ -61,6 +77,9 @@ describe('الأسلاك (مصادر)', () => {
     expect(comp).toContain('لديك منحة إعادة فتح معتمدة')
     expect(comp).toContain('قيد البتّ لدى الإدارة')
     expect(comp).toContain("'/api/reopen-appeals'")
+    expect(comp).toContain('a.semester === semester')
+    expect(comp).toContain('التماس إعادة فتح الوحدة')
+    expect(comp).toContain('يلزم تقديم التماس مستقل لكل وحدة')
     const dash = read('src/components/aact/DashboardView.tsx')
     expect(dash).toContain('AssignmentReopenAppeal')
     expect(dash).toContain('unitId?: string | null')

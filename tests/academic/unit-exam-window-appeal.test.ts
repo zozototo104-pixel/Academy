@@ -63,6 +63,7 @@ mock.module('@/lib/exam-attempt-policy', () => ({
 mock.module('@/lib/exam-attempt-notifications', () => ({ notifyAttemptNeedsReview: async () => {} }))
 
 const { GET } = await import('../../src/app/api/exam/detail/route')
+const { api } = await import('../../src/lib/store')
 
 function getDetail() {
   return GET(new NextRequest('http://localhost/api/exam/detail?examId=ex1'))
@@ -76,6 +77,22 @@ describe('التماس إعادة فتح امتحان الوحدة من شاشت
     const body = await res.json()
     expect(body.code).toBe('UNIT_WINDOW_ENDED')
     expect(body.data).toEqual({ programId: 'p1', semester: 1, unitId: 'u1a' })
+  })
+
+  test('عميل API يحفظ سياق الالتماس المتداخل داخل خطأ 403', async () => {
+    state.grant = false
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = Object.assign(async () => getDetail(), { preconnect: originalFetch.preconnect })
+    try {
+      let error: any = null
+      try { await api('/api/exam/detail?examId=ex1') } catch (e) { error = e }
+      expect(error?.status).toBe(403)
+      expect(error?.code).toBe('UNIT_WINDOW_ENDED')
+      expect(error?.data?.data).toEqual({ programId: 'p1', semester: 1, unitId: 'u1a' })
+      expect(error?.data?.unitId).toBeUndefined()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 
   test('مع منحة معتمدة: يمرّ حارس النافذة ولا يُرفق سياق التماس', async () => {
@@ -93,7 +110,8 @@ describe('التماس إعادة فتح امتحان الوحدة من شاشت
     const read = (p: string) => readFileSync(join(root, p), 'utf8')
     const view = read('src/components/aact/ExamView.tsx')
     expect(view).toContain("import { ReopenAppeal } from '@/components/aact/ReopenAppeal'")
-    expect(view).toContain("if (e.code === 'UNIT_WINDOW_ENDED' && e.data?.unitId)")
+    expect(view).toContain("if (e.code === 'UNIT_WINDOW_ENDED' && e.data?.data?.unitId)")
+    expect(view).toContain('setData(null)')
     expect(view).toContain('setWindowEnded(')
     expect(view).toContain('<ReopenAppeal context="exam"')
     expect(view).toContain('if (windowEnded) {')

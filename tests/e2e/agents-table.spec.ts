@@ -1,3 +1,4 @@
+import { PrismaClient } from '@prisma/client'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 // اختبار سلوك حقيقي لتبويب «الوكالة والاعتماد» بعد تحويله إلى جدول خفيف + عرض تفصيلي (نمط A).
@@ -22,11 +23,11 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 // ولا يصل أي طلب إلى أصل أجنبي، ثم يُتحقق من بقاء الصفحة على الأصل بعد الفتح.
 // حدود البوابة: هي تضبط عنوان الوجهة فقط — فصل قاعدة بيانات QA وخدمات الإرسال عن
 // الإنتاج شرط بيئي مستقل لا تستطيع هذه الدالة التحقق منه.
-// كل السيناريوهات تعمل على طلبات اختبار مخصصة معزولة تُنشأ عبر /api/agent-apply كزائر
+// تُنشأ الطلبات عبر مسار التقديم بحساب اختباري، وتُزرع صفوف التصفّح مباشرة في قاعدة QA.
 // بأسماء وبريد فريدة لكل تشغيلة (RUN_ID داخل الاسم والبريد، ونطاق example.com — لا يصل
 // أي إشعار لشخص حقيقي)، ولا تلمس أي طلب حقيقي قائم.
-// سياسة البقايا: التشغيلة الكاملة تُنشئ ١٤ طلبًا (١ فتح + ١١ تصفّح + ١ رفض + ١ خروج)
-// تبقى كلها في قاعدة بيانات QA كسجلات اختبار منتهية قابلة للتتبع ببادئة التشغيلة؛
+// تُنظف صفوف التصفح المخصصة بعد التشغيل. الطلبات الثلاثة المقدمة عبر الواجهة
+// تبقى في قاعدة بيانات QA كسجلات اختبار قابلة للتتبع ببادئة التشغيلة؛
 // لا توجد واجهة حذف لطلبات الوكالة، فالتنظيف يكون بسياسة بيئة QA نفسها (تصفير/تدوير
 // قاعدة الاختبار)، وليس المرفوض وحده هو المتروك.
 
@@ -175,13 +176,32 @@ async function chooseStatusFilter(page: Page, label: string) {
 
 const RUN_ID = `QA-AGT-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`
 
-// إنشاء طلب وكالة اختبار معزول كزائر (بلا أي جلسة إدارة) عبر سياق طلب مستقل.
+// يستخدم سياق الطلب حساب المتقدم الاختباري، وتبقى جلسة الإدارة في المتصفح فقط.
 // يعيد اسم الجهة ومعرّف السجل المنشأ حتى تثبت الاختبارات أن أفعالها استهدفت سجلّها هي.
 async function createDedicatedApplication(request: APIRequestContext, orgName: string, emailTag: string) {
+  const rules = await request.get('/api/agent-apply', { maxRedirects: 0 })
+  expect(rules.ok()).toBe(true)
+  const { docs } = await rules.json()
+  const stagedDocs: Array<{ docType: string; storageKey: string; uploadToken: string }> = []
+  for (const { type } of docs) {
+    const upload = await request.post('/api/agent-apply/files', {
+      maxRedirects: 0,
+      multipart: {
+        docType: type,
+        file: {
+          name: 'qa.png', mimeType: 'image/png',
+          buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j/lkAAAAASUVORK5CYII=', 'base64'),
+        },
+      },
+    })
+    expect(upload.ok(), `QA upload for ${type}: ${upload.status()}`).toBe(true)
+    stagedDocs.push((await upload.json()).document)
+  }
   const res = await request.post('/api/agent-apply', {
     maxRedirects: 0, // طلب كتابة: أي تحويل فشل صريح، لا اتباع صامت
     data: {
       kind: 'AGENCY',
+      stagedDocs,
       orgName,
       repName: 'ممثل اختبار آلي',
       email: `qa-agents-${RUN_ID}-${emailTag}@example.com`,
@@ -207,11 +227,48 @@ async function openDedicatedRow(page: Page, orgName: string) {
 }
 
 test.describe('agents tab — table + detail behavior (QA only, dedicated data)', () => {
-  test.beforeAll(() => {
+  let applicant: { id: string; email: string; password: string }
+  const prisma = new PrismaClient()
+  const paginationPrefix = `${RUN_ID}-PAGE-`
+  let paginationOwner: string | undefined
+  let fixtureStamp: string | undefined
+  let fixtureAdmin: APIRequestContext
+  test.beforeAll(async ({ playwright }) => {
     QA_ORIGIN = assertQaEnvironment()
+    fixtureAdmin = await playwright.request.newContext({ baseURL: QA_ORIGIN })
+    const login = await fixtureAdmin.post('/api/auth/login', {
+      maxRedirects: 0,
+      data: { email: requiredAnyEnv(['ADMIN_EMAIL', 'E2E_ADMIN_EMAIL']), password: requiredAnyEnv(['ADMIN_PASSWORD', 'E2E_ADMIN_PASSWORD']) },
+    })
+    expect(login.ok()).toBe(true)
+    const response = await fixtureAdmin.post('/api/admin/full-journey', { maxRedirects: 0, timeout: 90_000 })
+    expect(response.ok()).toBe(true)
+    const fixture = await response.json()
+    fixtureStamp = fixture.stamp
+    applicant = fixture.student
+    expect(applicant?.email).toBeTruthy()
   })
 
-  test.beforeEach(async ({ page }) => {
+  test.afterAll(async () => {
+    try {
+      if (paginationOwner) {
+        await prisma.agentApplication.deleteMany({ where: { userId: paginationOwner, orgName: { startsWith: paginationPrefix } } })
+      }
+      if (fixtureStamp) {
+        const cleanup = await fixtureAdmin.delete('/api/admin/full-journey', { maxRedirects: 0, data: { stamp: fixtureStamp } })
+        expect(cleanup.ok()).toBe(true)
+      }
+    } finally {
+      await prisma.$disconnect()
+      await fixtureAdmin?.dispose()
+    }
+  })
+
+  test.beforeEach(async ({ page, request }) => {
+    const login = await request.post('/api/auth/login', {
+      maxRedirects: 0, data: { email: applicant.email, password: applicant.password },
+    })
+    expect(login.ok()).toBe(true)
     await loginAsAdmin(page)
     await openAgentsTab(page)
   })
@@ -229,12 +286,21 @@ test.describe('agents tab — table + detail behavior (QA only, dedicated data)'
     await expect(page.getByText(orgName).first()).toBeVisible()
   })
 
-  test('returning preserves search, filter and page — with no refetch on open or back', async ({ page, request }) => {
-    // ١١ طلبًا مخصصًا بنفس بادئة التشغيلة: بحجم الصفحة الافتراضي (١٠) نحصل على صفحتين بيقين.
-    const prefix = `${RUN_ID}-PAGE`
-    for (let i = 1; i <= 11; i++) {
-      await createDedicatedApplication(request, `${prefix}-${String(i).padStart(2, '0')}`, `page${i}`)
+  test('returning preserves search, filter and page — with no refetch on open or back', async ({ page }) => {
+    // These eleven rows exercise pagination only. Upload and submission run in the other scenarios.
+    if (process.env.E2E_QA_ONLY !== '1' || !fixtureStamp || !/^\d{14}$/.test(fixtureStamp)) {
+      throw new Error('Pagination fixtures require the isolated QA journey database')
     }
+    const owner = await prisma.user.findUnique({ where: { id: applicant.id }, select: { id: true, email: true } })
+    if (!owner || owner.email !== `qa.fulljourney.${fixtureStamp}@aact.test`) throw new Error('QA fixture owner mismatch')
+    paginationOwner = owner.id
+    const prefix = paginationPrefix
+    await prisma.agentApplication.createMany({
+      data: Array.from({ length: 11 }, (_, index) => ({
+        orgName: `${prefix}${String(index + 1).padStart(2, '0')}`, userId: owner.id, email: owner.email,
+        repName: 'ممثل اختبار التصفح', phone: '+970000000000', country: 'فلسطين',
+      })),
+    })
 
     await chooseStatusFilter(page, 'كل الطلبات')
     await searchBox(page).fill(prefix)

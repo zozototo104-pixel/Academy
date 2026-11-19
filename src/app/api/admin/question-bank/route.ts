@@ -1,4 +1,5 @@
 import { after, NextRequest, NextResponse } from 'next/server'
+import { Prisma, type QuestionBankItem } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
@@ -153,55 +154,31 @@ async function questionStats(programId: string) {
   }
 }
 
+type ListedQuestion = Pick<QuestionBankItem,
+  'id' | 'type' | 'text' | 'options' | 'correctAnswer' | 'modelAnswer' | 'sourceEvidence'
+  | 'sourceLocator' | 'sourceBookTitle' | 'knowledgeItemId' | 'cognitiveSkill' | 'difficulty'
+  | 'status' | 'qualityFlags' | 'generatedBy' | 'rejectedReason' | 'createdAt'
+> & { verifierReason: string | null }
+
 async function listQuestions(programId: string, status?: string | null) {
-  const select = {
-    id: true,
-    type: true,
-    text: true,
-    options: true,
-    correctAnswer: true,
-    modelAnswer: true,
-    sourceEvidence: true,
-    sourceLocator: true,
-    sourceBookTitle: true,
-    knowledgeItemId: true,
-    cognitiveSkill: true,
-    difficulty: true,
-    status: true,
-    qualityFlags: true,
-    reviewNotes: true,
-    generatedBy: true,
-    rejectedReason: true,
-    createdAt: true,
-  } as const
   const statusFilter = status && STATUSES.has(status) ? status : null
-  const baseWhere = { programId, ...(statusFilter ? { status: statusFilter } : {}) }
-  const total = await withTiming('db_question_bank_items_count', () => db.questionBankItem.count({ where: baseWhere }))
-  const items = await withTiming('db_question_bank_items', async () => {
-    if (statusFilter) {
-      return db.questionBankItem.findMany({ where: baseWhere, orderBy: { createdAt: 'desc' }, take: 300, select })
-    }
-    const pending = await db.questionBankItem.findMany({ where: { programId, status: 'PENDING_REVIEW' }, orderBy: { createdAt: 'desc' }, take: 300, select })
-    const remaining = Math.max(0, 300 - pending.length)
-    if (!remaining) return pending
-    const rest = await db.questionBankItem.findMany({ where: { programId, status: { not: 'PENDING_REVIEW' } }, orderBy: { createdAt: 'desc' }, take: remaining, select })
-    return [...pending, ...rest]
-  })
-  const preview = (value?: string | null) => {
-    const text = String(value || '').trim()
-    return text ? text.slice(0, 200) : null
-  }
-  return {
-    items: items.map((item) => ({
-      ...item,
-      modelAnswer: preview(item.modelAnswer),
-      sourceEvidence: preview(item.sourceEvidence),
-      rejectedReason: preview(item.rejectedReason),
-      verifierReason: preview(item.reviewNotes),
-      reviewNotes: undefined,
-    })),
-    itemsTruncated: total > items.length,
-  }
+  const where = { programId, ...(statusFilter ? { status: statusFilter } : {}) }
+  const total = await withTiming('db_question_bank_items_count', () => db.questionBankItem.count({ where }))
+  // Trim the same whitespace as String.trim() before limiting each preview in Postgres.
+  const whitespace = ' \t\n\v\f\r\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff'
+  const items = await withTiming('db_question_bank_items', () => db.$queryRaw<ListedQuestion[]>`
+    SELECT "id", "type", "text", "options", "correctAnswer", "sourceLocator", "sourceBookTitle",
+           "knowledgeItemId", "cognitiveSkill", "difficulty", "status", "qualityFlags", "generatedBy", "createdAt",
+           NULLIF(LEFT(BTRIM("modelAnswer", ${whitespace}), 200), '') AS "modelAnswer",
+           NULLIF(LEFT(BTRIM("sourceEvidence", ${whitespace}), 200), '') AS "sourceEvidence",
+           NULLIF(LEFT(BTRIM("rejectedReason", ${whitespace}), 200), '') AS "rejectedReason",
+           NULLIF(LEFT(BTRIM("reviewNotes", ${whitespace}), 200), '') AS "verifierReason"
+    FROM "QuestionBankItem"
+    WHERE "programId" = ${programId} ${statusFilter ? Prisma.sql`AND "status" = ${statusFilter}` : Prisma.empty}
+    ORDER BY ("status" = 'PENDING_REVIEW') DESC, "createdAt" DESC, "id" ASC
+    LIMIT 300
+  `)
+  return { items, itemsTruncated: total > items.length }
 }
 
 export async function GET(req: NextRequest) {
