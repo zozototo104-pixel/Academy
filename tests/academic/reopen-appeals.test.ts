@@ -111,7 +111,7 @@ describe('التماسات إعادة الفتح', () => {
     expect(created.ok).toBe(true)
     const supervisorNotice = world.state.outbox.find((o: any) => o.recipientUserId?.startsWith('sup-'))
     expect(supervisorNotice?.recipientUserId).toBe('sup-p1')
-    expect(supervisorNotice?.link).toBe('/supervisor?section=reopen')
+    expect(supervisorNotice?.link).toBe('/supervisor?section=review')
     expect(supervisorNotice?.body).toContain('القرار للإدارة')
     expect(world.state.outbox.find((o: any) => o.recipientRole === 'ADMINS')?.link).toBe('/admin?tab=grading-review')
   })
