@@ -41,6 +41,20 @@ describe('مؤشر العودة إلى النموذج', () => {
 })
 
 describe('مسودة الوكالة والملفات المرحّلة', () => {
+  test('العودة إلى مسودة اعتماد تفتح تبويب الاعتماد ونموذجه', async () => {
+    const { createElement } = await import('react')
+    const { renderToStaticMarkup } = await import('react-dom/server')
+    const { AgentView } = await import('@/components/aact/AgentView')
+    saveAgentDraft({ kind: 'ACCREDITATION', accreditationType: 'TRAINER', form: {} })
+    try {
+      const html = renderToStaticMarkup(createElement(AgentView))
+      expect(html).toMatch(/<button[^>]*aria-selected="true"[^>]*>طلبات الاعتماد/)
+      expect(html).not.toContain('نموذج طلب الوكالة الدولية')
+    } finally {
+      clearAgentDraft()
+    }
+  })
+
   test('مسودة النصوص تُحفظ وتُقرأ وتُمسح', () => {
     clearAgentDraft()
     expect(readAgentDraft()).toBeNull()
