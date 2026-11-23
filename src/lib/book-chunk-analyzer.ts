@@ -351,9 +351,13 @@ export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt
         await tx.bookChunk.update({
           where: { id: chunk.id },
           data: {
-            ...(capacity === 0 || available === 0
-              ? { saturatedAt: new Date() }
-              : { analysisPasses: { increment: 1 } }),
+            // Saturation means 20 persisted items, never merely exhausted tries.
+            // Count consecutive zero-yield passes; any saved item reopens progress.
+            ...(capacity === 0 || available === 0 || rows.length + accepted.length >= 20
+              ? { saturatedAt: new Date(), analysisPasses: 0 }
+              : accepted.length > 0
+                ? { analysisPasses: 0 }
+                : { analysisPasses: { increment: 1 } }),
             lastError: null,
           },
         })
