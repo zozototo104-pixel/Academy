@@ -4,7 +4,8 @@ import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRou
 import type { TextAiPreferredModel, TextAiProvider, TextAiRouterPolicy } from '@/lib/text-ai'
 import { db } from '@/lib/db'
 import { normalizeArabic } from '@/lib/arabic-normalize'
-import { formatNumberedBookLines, resolveBookLineEvidence, textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
+import { textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
+import { formatNumberedBookLines, resolveBookLineEvidence } from '@/lib/book-line-evidence'
 import { assertBookReadLease, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
 
 export const BOOK_KNOWLEDGE_CATEGORIES = ['CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'PRINCIPLE', 'FACT'] as const
