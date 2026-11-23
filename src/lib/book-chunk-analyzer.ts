@@ -1,7 +1,7 @@
 import { geminiCompleteJson } from '@/lib/gemini'
-import { withPipelineRun } from '@/lib/ai-pipeline-log'
+import { hashPipelineData, withPipelineRun } from '@/lib/ai-pipeline-log'
 import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRoutingOverrides } from '@/lib/ai-stage-profiles'
-import type { TextAiPreferredModel, TextAiProvider, TextAiRouterPolicy } from '@/lib/text-ai'
+import { pipelineConfigSnapshot, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { db } from '@/lib/db'
 import { normalizeArabic } from '@/lib/arabic-normalize'
 import { textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
@@ -112,10 +112,35 @@ function withStageRouting(opts: AnalysisCallOpts, routing: NonNullable<AnalysisR
   }
 }
 
-async function callAnalysisAi(baseOpts: AnalysisCallOpts, routing: AnalysisRouting, usage: AnalysisUsage): Promise<string> {
-  if (!routing) return geminiCompleteJson(withUsageCapture(baseOpts, usage))
+export function preferSuccessfulBookAnalysisModel<T extends { provider: string; model: string }>(
+  models: readonly T[], favorite: { provider: string; model: string } | null,
+): T[] {
+  if (!favorite) return [...models]
+  const index = models.findIndex((item) => item.provider === favorite.provider && item.model === favorite.model)
+  if (index <= 0) return [...models]
+  return [models[index], ...models.filter((_, i) => i !== index)]
+}
+
+async function callAnalysisAi(
+  baseOpts: AnalysisCallOpts, routing: AnalysisRouting, usage: AnalysisUsage,
+  favorite: TextAiPreferredModel | null = null,
+): Promise<string> {
+  if (!routing) {
+    const opts = favorite
+      ? { ...baseOpts, preferredModels: [favorite], preferredProviders: [favorite.provider] }
+      : baseOpts
+    return geminiCompleteJson(withUsageCapture(opts, usage))
+  }
+  const eligible = favorite && routing.preferredModels.some((m) => m.provider === favorite.provider && m.model === favorite.model)
+  const favoredRouting = eligible && favorite
+    ? {
+        ...routing,
+        preferredModels: preferSuccessfulBookAnalysisModel(routing.preferredModels, favorite),
+        preferredProviders: [favorite.provider, ...routing.preferredProviders.filter((p) => p !== favorite.provider)],
+      }
+    : routing
   try {
-    return await geminiCompleteJson(withStageRouting(withUsageCapture(baseOpts, usage), routing))
+    return await geminiCompleteJson(withStageRouting(withUsageCapture(baseOpts, usage), favoredRouting))
   } catch (error) {
     if (!routing.allowGlobalFallback) throw error
     usage.fallbackUsed = true
@@ -151,7 +176,37 @@ async function prepareAnalysisRun(): Promise<{ routing: AnalysisRouting; profile
   }
 }
 
-async function analyzeBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; prior: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; routing?: AnalysisRouting; aiUsage?: AnalysisUsage }): Promise<BookKnowledgeCandidate[]> {
+// Keep the successful model only within the same book-read job and the same
+// effective profile version. Operation logs already survive separate workers;
+// missing telemetry must never block analysis or alter configured fallbacks.
+async function lastSuccessfulBookTaskModel(
+  jobId: string | undefined, bookId: string, run: Awaited<ReturnType<typeof prepareAnalysisRun>>,
+): Promise<TextAiPreferredModel | null> {
+  if (!jobId) return null
+  try {
+    const stamp = run.profileStamp ?? await (async () => {
+      const snapshot = await pipelineConfigSnapshot()
+      return { profileId: 'global', profileVersion: hashPipelineData(JSON.stringify(snapshot)) }
+    })()
+    const last = await db.aiPipelineOperationLog.findFirst({
+      where: {
+        stage: 'ANALYSIS', batchId: jobId, bookId, success: true,
+        outputCount: { gt: 0 }, profileId: stamp.profileId, profileVersion: stamp.profileVersion,
+        provider: { not: null }, model: { not: null },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { provider: true, model: true },
+    })
+    if (!last?.provider || !last.model) return null
+    if (run.routing && !run.routing.preferredModels.some((m) => m.provider === last.provider && m.model === last.model)) return null
+    return { provider: last.provider as TextAiPreferredModel['provider'], model: last.model }
+  } catch {
+    // Performance hint only: data/telemetry outages preserve normal routing.
+    return null
+  }
+}
+
+async function analyzeBookChunkInner(input: { bookId: string; jobId?: string; chunkText: string; deadlineMs: number; prior: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; routing?: AnalysisRouting; aiUsage?: AnalysisUsage; favorite?: TextAiPreferredModel | null }): Promise<BookKnowledgeCandidate[]> {
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const numberedLines = formatNumberedBookLines(input.chunkText)
@@ -159,11 +214,11 @@ async function analyzeBookChunkInner(input: { bookId: string; chunkText: string;
     system: 'أنت محلل كتب أكاديمية. استخرج المعرفة من النص الحرفي فقط. أرجع JSON فقط.',
     history: [{ role: 'user', text: `الأسطر التالية مرقمة من نص الكتاب الأصلي. استخرج 3 إلى 12 عنصراً بحسب كثافة النص، مع عنوان وملخص يؤيدهما مدى من 1 إلى 6 أسطر متتابعة. اختر lineStart وlineEnd كرقمين صحيحين من أرقام الأسطر؛ يمكن أن يكونا متساويين، والسطر الطويل مقبول كما هو. يجب أن يكون الاقتباس المختار 60 حرفاً على الأقل. الخادم يأخذ النص الحرفي من تلك الأسطر فلا تُرسل excerpt ولا تعيد صياغة الدليل. لا تخترع معلومات ولا تنشئ QUESTION_SEED ولا تختار سؤالاً بديلاً عن شرح. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر category,title,summary,lineStart,lineEnd,importance (رقم 0-100). أرجع JSON على شكل {"items":[...]}. أسطر المصدر:\n${numberedLines}` }],
     taskLevel: 'ACADEMIC_DRAFT',
-    stickyScope: `BOOK_READ:${input.bookId}`,
+    stickyScope: input.jobId ? `BOOK_READ_TASK:${input.jobId}` : `BOOK_READ:${input.bookId}`,
     deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)),
     temperature: 0.2, timeoutMs: 35_000,
     validate: (raw) => validateSourceBackedBookBatch(raw, input.chunkText, input.prior),
-  }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false })
+  }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false }, input.favorite ?? null)
   const parsed = JSON.parse(result)
   const accepted: BookKnowledgeCandidate[] = []
   const rejected = { category: 0, invalidLineRange: 0, shortEvidence: 0, excerptOrFields: 0, duplicate: 0 }
@@ -186,7 +241,7 @@ async function analyzeBookChunkInner(input: { bookId: string; chunkText: string;
   return accepted
 }
 
-async function enrichBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; existing: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; routing?: AnalysisRouting; aiUsage?: AnalysisUsage }): Promise<BookKnowledgeCandidate[]> {
+async function enrichBookChunkInner(input: { bookId: string; jobId?: string; chunkText: string; deadlineMs: number; existing: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; routing?: AnalysisRouting; aiUsage?: AnalysisUsage; favorite?: TextAiPreferredModel | null }): Promise<BookKnowledgeCandidate[]> {
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const numberedLines = formatNumberedBookLines(input.chunkText)
@@ -194,9 +249,9 @@ async function enrichBookChunkInner(input: { bookId: string; chunkText: string; 
     system: 'أنت محلل كتب أكاديمية. استخرج معرفة جديدة من النص الحرفي فقط. أرجع JSON فقط.',
     history: [{ role: 'user', text: `استخرج حتى 8 عناصر جديدة غير موجودة في القائمة، اعتماداً على أسطر المصدر المرقمة أدناه حصراً. لكل عنصر حدّد lineStart وlineEnd كرقمين صحيحين لنطاق متصل من 1 إلى 6 أسطر يدعم عنوانه وملخصه، بطول 60 حرفاً على الأقل. السطر الطويل مقبول كما هو. الخادم ينسخ الاقتباس الأصلي من الأسطر، لذلك لا تكتب excerpt ولا تخترع معلومات أو أسئلة. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. الحقول: category,title,summary,lineStart,lineEnd,importance (رقم 0-100). أرجع JSON على شكل {"items":[...]}. العناصر الموجودة:\n${input.existing.map((item) => `${item.title}: ${item.summary}`).join('\n')}\nأسطر المصدر:\n${numberedLines}` }],
     taskLevel: 'ACADEMIC_DRAFT', taskType: 'BOOK_ENRICH', maxOutputTokens: 8192,
-    stickyScope: `BOOK_READ:${input.bookId}`, deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)), temperature: 0.2, timeoutMs: 35_000,
+    stickyScope: input.jobId ? `BOOK_READ_TASK:${input.jobId}` : `BOOK_READ:${input.bookId}`, deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)), temperature: 0.2, timeoutMs: 35_000,
     validate: (raw) => validateSourceBackedBookBatch(raw, input.chunkText, input.existing),
-  }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false })
+  }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false }, input.favorite ?? null)
   const accepted: BookKnowledgeCandidate[] = []
   const rejected = { category: 0, invalidLineRange: 0, shortEvidence: 0, excerptOrFields: 0, duplicate: 0 }
   let candidates = 0
@@ -234,20 +289,22 @@ export type EnrichStepStore = {
 // التحقق الذي يمرره geminiCompleteJson على مساريه كليهما.
 export async function analyzeBookChunk(input: Parameters<typeof analyzeBookChunkInner>[0]): ReturnType<typeof analyzeBookChunkInner> {
   const run = await prepareAnalysisRun()
+  const favorite = await lastSuccessfulBookTaskModel(input.jobId, input.bookId, run)
   const usage: AnalysisUsage = { provider: null, model: null, fallbackUsed: false }
   return withPipelineRun(
-    { stage: 'ANALYSIS', bookId: input.bookId, inputText: input.chunkText, profileStamp: run.profileStamp, fallbackUsed: !run.isStage, liveState: usage, detail: run.detail },
-    () => analyzeBookChunkInner({ ...input, routing: run.routing, aiUsage: usage }),
+    { stage: 'ANALYSIS', bookId: input.bookId, batchId: input.jobId, inputText: input.chunkText, profileStamp: run.profileStamp, fallbackUsed: !run.isStage, liveState: usage, detail: run.detail },
+    () => analyzeBookChunkInner({ ...input, routing: run.routing, aiUsage: usage, favorite }),
     (r) => ({ provider: usage.provider, model: usage.model, outputCount: r.length, fallbackUsed: usage.fallbackUsed || undefined }),
   )
 }
 
 export async function enrichBookChunk(input: Parameters<typeof enrichBookChunkInner>[0]): ReturnType<typeof enrichBookChunkInner> {
   const run = await prepareAnalysisRun()
+  const favorite = await lastSuccessfulBookTaskModel(input.jobId, input.bookId, run)
   const usage: AnalysisUsage = { provider: null, model: null, fallbackUsed: false }
   return withPipelineRun(
-    { stage: 'ANALYSIS', bookId: input.bookId, inputText: input.chunkText, profileStamp: run.profileStamp, fallbackUsed: !run.isStage, liveState: usage, detail: { ...run.detail, enrich: true } },
-    () => enrichBookChunkInner({ ...input, routing: run.routing, aiUsage: usage }),
+    { stage: 'ANALYSIS', bookId: input.bookId, batchId: input.jobId, inputText: input.chunkText, profileStamp: run.profileStamp, fallbackUsed: !run.isStage, liveState: usage, detail: { ...run.detail, enrich: true } },
+    () => enrichBookChunkInner({ ...input, routing: run.routing, aiUsage: usage, favorite }),
     (r) => ({ provider: usage.provider, model: usage.model, outputCount: r.length, fallbackUsed: usage.fallbackUsed || undefined }),
   )
 }
@@ -264,7 +321,7 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
   let candidates: BookKnowledgeCandidate[] = []
   if (capacity) {
     try {
-      candidates = await analyze({ bookId: job.bookId, chunkText: chunk.text, deadlineMs, existing: existing.own })
+      candidates = await analyze({ bookId: job.bookId, jobId, chunkText: chunk.text, deadlineMs, existing: existing.own })
     } catch (error: any) {
       const message = String(error?.message || error)
       if (message.includes('BOOK_READ_TIME_BUDGET_EXHAUSTED') || (Date.now() >= deadlineMs - 10_000 && /timeout|deadline|abort|timed out/i.test(message))) return { completed: false, added: 0 }
@@ -434,7 +491,7 @@ export async function analyzeStepWithStore(
     try {
       const prior = await store.priorItems(job.bookId, chunk.index)
       if (deadlineMs - Date.now() < 25_000) return { analyzed, failed, completed: false, paused: false }
-      const candidates = await analyze({ bookId: job.bookId, chunkText: chunk.text, deadlineMs, prior })
+      const candidates = await analyze({ bookId: job.bookId, jobId, chunkText: chunk.text, deadlineMs, prior })
       // Revalidate at the persistence boundary, including injected analyzers in tests.
       const items = candidates.map((item) => validateBookKnowledgeCandidate(item, chunk.text, { fromVerifiedLineRange: item.sourceLineRangeVerified === true && chunk.text.includes(item.excerpt) }))
         .filter((item): item is BookKnowledgeCandidate => item !== null)
