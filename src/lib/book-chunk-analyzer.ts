@@ -470,7 +470,7 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number, claimedA
           kbVersion: 2, category: item.category, title: item.title, summary: item.summary,
           excerpt: item.excerpt, importance: item.importance,
         })) })
-        await tx.bookChunk.update({ where: { id: chunk.id }, data: { status: 'ANALYZED', lastError: null } })
+        await tx.bookChunk.update({ where: { id: chunk.id }, data: { status: 'ANALYZED', analysisPasses: 0, lastError: null } })
         await tx.bookReadJob.update({ where: { id }, data: { chunksAnalyzed: { increment: 1 } } })
       })
     },
