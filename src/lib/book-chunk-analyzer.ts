@@ -135,11 +135,10 @@ async function prepareAnalysisRun(): Promise<{ routing: AnalysisRouting; profile
 async function analyzeBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; prior: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; routing?: AnalysisRouting; aiUsage?: AnalysisUsage }): Promise<BookKnowledgeCandidate[]> {
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
-  const evidenceWindows = planBookEvidenceWindows(input.chunkText)
-  const evidenceText = evidenceWindows.map((window) => `[${window.id}] ${window.excerpt}`).join('\n\n')
+  const numberedLines = formatNumberedBookLines(input.chunkText)
   const result = await callAnalysisAi({
     system: 'أنت محلل كتب أكاديمية. استخرج المعرفة من النص الحرفي فقط. أرجع JSON فقط.',
-    history: [{ role: 'user', text: `الفقرات التالية مقتطفات حرفية مرقمة من الكتاب. استخرج من 3 إلى 12 عنصراً بحسب كثافة النص. لكل عنصر اختر evidenceId من أرقام الفقرات E1 وما بعدها، ويجب أن تدعم الفقرة المختارة عنوان العنصر وملخصه. الخادم سيضع اقتباس الفقرة حرفياً فلا تكتب excerpt ولا تعيد صياغة الدليل. لا تخترع معلومات ولا تنشئ QUESTION_SEED. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. حقول كل عنصر: category,title,summary (صياغة أكاديمية عربية),evidenceId,importance (رقم 0-100). أرجع JSON على شكل {"items":[...]}. الفقرات:\n${evidenceText}` }],
+    history: [{ role: 'user', text: `الأسطر التالية مرقمة من نص الكتاب الأصلي. استخرج 3 إلى 12 عنصراً بحسب كثافة النص، مع عنوان وملخص يؤيدهما مدى من 1 إلى 6 أسطر متتابعة. اختر lineStart وlineEnd كرقمين صحيحين من أرقام الأسطر؛ يمكن أن يكونا متساويين، والسطر الطويل مقبول كما هو. يجب أن يكون الاقتباس المختار 60 حرفاً على الأقل. الخادم يأخذ النص الحرفي من تلك الأسطر فلا تُرسل excerpt ولا تعيد صياغة الدليل. لا تخترع معلومات ولا تنشئ QUESTION_SEED ولا تختار سؤالاً بديلاً عن شرح. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر category,title,summary,lineStart,lineEnd,importance (رقم 0-100). أرجع JSON على شكل {"items":[...]}. أسطر المصدر:\n${numberedLines}` }],
     taskLevel: 'ACADEMIC_DRAFT',
     stickyScope: `BOOK_READ:${input.bookId}`,
     deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)),
@@ -151,37 +150,52 @@ async function analyzeBookChunkInner(input: { bookId: string; chunkText: string;
   }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false })
   const parsed = JSON.parse(result)
   const accepted: BookKnowledgeCandidate[] = []
+  const rejected = { category: 0, invalidLineRange: 0, shortEvidence: 0, excerptOrFields: 0, duplicate: 0 }
+  let candidates = 0
   for (const raw of parsed.items || []) {
-    const candidate = validateBookKnowledgeCandidateWithEvidence(raw, input.chunkText, evidenceWindows)
-    if (!candidate || isRepeatedBookConcept(candidate, [...input.prior, ...accepted])) continue
-    accepted.push(candidate)
+    candidates++
+    if (!raw || typeof raw !== 'object' || !BOOK_KNOWLEDGE_CATEGORIES.includes(String((raw as Record<string, unknown>).category) as BookKnowledgeCandidate['category'])) { rejected.category++; continue }
+    const resolved = resolveBookKnowledgeCandidateFromLines(raw, input.chunkText)
+    if (!resolved.candidate) {
+      if (resolved.reason === 'INVALID_LINE_RANGE') rejected.invalidLineRange++
+      else if (resolved.reason === 'EVIDENCE_TOO_SHORT') rejected.shortEvidence++
+      else rejected.excerptOrFields++
+      continue
+    }
+    if (isRepeatedBookConcept(resolved.candidate, [...input.prior, ...accepted])) { rejected.duplicate++; continue }
+    accepted.push(resolved.candidate)
     if (accepted.length === 12) break
   }
+  console.info('[book-analysis] model-validation', { bookId: input.bookId, candidates, accepted: accepted.length, rejected })
   return accepted
 }
 
 async function enrichBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; existing: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; routing?: AnalysisRouting; aiUsage?: AnalysisUsage }): Promise<BookKnowledgeCandidate[]> {
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
-  const evidenceWindows = planBookEvidenceWindows(input.chunkText)
-  const evidenceText = evidenceWindows.map((window) => `[${window.id}] ${window.excerpt}`).join('\n\n')
+  const numberedLines = formatNumberedBookLines(input.chunkText)
   const result = await callAnalysisAi({
     system: 'أنت محلل كتب أكاديمية. استخرج معرفة جديدة من النص الحرفي فقط. أرجع JSON فقط.',
-    history: [{ role: 'user', text: `استخرج حتى 8 عناصر جديدة غير مذكورة في القائمة. استند فقط إلى الفقرات الحرفية المرقمة أدناه. لكل عنصر اختر evidenceId من E1 وما بعدها، ويجب أن تدعم الفقرة عنوانه وملخصه. الخادم يدرج نص الفقرة الأصلي اقتباساً، لذلك لا تكتب excerpt ولا تخترع معلومات أو أسئلة. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. حقول كل عنصر: category,title,summary,evidenceId,importance (رقم 0-100). أرجع JSON على شكل {"items":[...]}. العناصر الموجودة:\n${input.existing.map((item) => `${item.title}: ${item.summary}`).join('\n')}\nالفقرات:\n${evidenceText}` }],
+    history: [{ role: 'user', text: `استخرج حتى 8 عناصر جديدة غير موجودة في القائمة، اعتماداً على أسطر المصدر المرقمة أدناه حصراً. لكل عنصر حدّد lineStart وlineEnd كرقمين صحيحين لنطاق متصل من 1 إلى 6 أسطر يدعم عنوانه وملخصه، بطول 60 حرفاً على الأقل. السطر الطويل مقبول كما هو. الخادم ينسخ الاقتباس الأصلي من الأسطر، لذلك لا تكتب excerpt ولا تخترع معلومات أو أسئلة. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. الحقول: category,title,summary,lineStart,lineEnd,importance (رقم 0-100). أرجع JSON على شكل {"items":[...]}. العناصر الموجودة:\n${input.existing.map((item) => `${item.title}: ${item.summary}`).join('\n')}\nأسطر المصدر:\n${numberedLines}` }],
     taskLevel: 'ACADEMIC_DRAFT', taskType: 'BOOK_ENRICH', maxOutputTokens: 8192,
     stickyScope: `BOOK_READ:${input.bookId}`, deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)), temperature: 0.2,
     validate: (raw) => { if (!Array.isArray(JSON.parse(raw)?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE') },
   }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false })
   const accepted: BookKnowledgeCandidate[] = []
-  const rejected = { category: 0, excerptOrFields: 0, duplicate: 0 }
+  const rejected = { category: 0, invalidLineRange: 0, shortEvidence: 0, excerptOrFields: 0, duplicate: 0 }
   let candidates = 0
   for (const raw of JSON.parse(result).items) {
     candidates++
     if (!raw || typeof raw !== 'object' || !BOOK_KNOWLEDGE_CATEGORIES.includes(String((raw as Record<string, unknown>).category) as BookKnowledgeCandidate['category'])) { rejected.category++; continue }
-    const candidate = validateBookKnowledgeCandidateWithEvidence(raw, input.chunkText, evidenceWindows)
-    if (!candidate) { rejected.excerptOrFields++; continue }
-    if (isRepeatedBookConcept(candidate, [...input.existing, ...accepted])) { rejected.duplicate++; continue }
-    accepted.push(candidate)
+    const resolved = resolveBookKnowledgeCandidateFromLines(raw, input.chunkText)
+    if (!resolved.candidate) {
+      if (resolved.reason === 'INVALID_LINE_RANGE') rejected.invalidLineRange++
+      else if (resolved.reason === 'EVIDENCE_TOO_SHORT') rejected.shortEvidence++
+      else rejected.excerptOrFields++
+      continue
+    }
+    if (isRepeatedBookConcept(resolved.candidate, [...input.existing, ...accepted])) { rejected.duplicate++; continue }
+    accepted.push(resolved.candidate)
     if (accepted.length >= 8) break
   }
   console.info('[book-enrich] model-validation', { bookId: input.bookId, candidates, accepted: accepted.length, rejected })
