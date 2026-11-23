@@ -24,7 +24,7 @@ export function isRepeatedBookConcept(candidate: Pick<BookKnowledgeCandidate, 't
     return b.size > 0 && intersection / (a.size + b.size - intersection) >= 0.75
   })
 }
-export function validateBookKnowledgeCandidate(raw: unknown, chunkText: string): BookKnowledgeCandidate | null {
+export function validateBookKnowledgeCandidate(raw: unknown, chunkText: string, options: { fromVerifiedLineRange?: boolean } = {}): BookKnowledgeCandidate | null {
   if (!raw || typeof raw !== 'object') return null
   const item = raw as Record<string, unknown>
   const category = String(item.category || '')
@@ -33,7 +33,7 @@ export function validateBookKnowledgeCandidate(raw: unknown, chunkText: string):
   const excerpt = String(item.excerpt || '').trim()
   const importance = Number(item.importance)
   if (!BOOK_KNOWLEDGE_CATEGORIES.includes(category as BookKnowledgeCandidate['category'])) return null
-  if (!title || !summary || excerpt.length < 60 || excerpt.length > 600) return null
+  if (!title || !summary || excerpt.length < 60 || (!options.fromVerifiedLineRange && excerpt.length > 600)) return null
   if (/[؟?]\s*$/.test(excerpt) || /^(?:ما|ماذا|كيف|لماذا|هل|أين|متى)\s/.test(excerpt)) return null
   if (!textContainsEvidenceAfterNormalization(chunkText, excerpt)) return null
   if (!Number.isFinite(importance) || importance < 0 || importance > 100) return null
