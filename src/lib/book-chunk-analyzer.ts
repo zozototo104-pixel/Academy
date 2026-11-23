@@ -64,6 +64,24 @@ export function resolveBookKnowledgeCandidateFromLines(raw: unknown, chunkText: 
   )
   return candidate ? { candidate: { ...candidate, sourceLineRangeVerified: true }, reason: null } : { candidate: null, reason: 'EXCERPT_OR_FIELDS' }
 }
+
+// A response with no source-backed new knowledge is a model-validation failure,
+// so the configured router can try the next model instead of saving zero items.
+export function validateSourceBackedBookBatch(
+  raw: string, chunkText: string, prior: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[],
+): void {
+  const parsed = JSON.parse(raw)
+  if (!Array.isArray(parsed?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE')
+  if (chunkText.trim().length < 60) return
+  const hasVerifiedNovelItem = parsed.items.some((item: unknown) => {
+    const candidate = resolveBookKnowledgeCandidateFromLines(item, chunkText).candidate
+    return candidate && !isRepeatedBookConcept(candidate, prior)
+  })
+  if (!hasVerifiedNovelItem) {
+    throw Object.assign(new Error('EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION:BOOK_KNOWLEDGE_NO_VERIFIED_ITEMS'), { code: 'VALIDATION_REJECTED' })
+  }
+}
+
 // D2.2: توصيل التحليل — نفس النمط الصارم للقراءة (D2.1b/D2.1c).
 // بروفايل التحليل الفعّال يقيد النداء بقائمته (الراوتر عبر
 // restrictToModels، والسلسلة الأصلية عبر ترشيح gemini.ts)، وفشل الكل
