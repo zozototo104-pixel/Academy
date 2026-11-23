@@ -164,6 +164,12 @@ describe('AdminFinanceTab workspace organization', () => {
       "await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: payment.id, approvalReference, approvalNote }) })",
       'approvalReference = trimmed',
       'approvalNote = trimmed',
+      'hasPendingProof',
+      'hasAcceptedProof',
+      'evidenceSufficient',
+      'savedReference.length >= 3',
+      'savedNote.length >= 6',
+      'تأكيد سداد بدليل إداري',
       "toast({ title: 'تم التأكيد'",
       'load()',
     ])

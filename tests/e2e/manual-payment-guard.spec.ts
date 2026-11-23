@@ -196,4 +196,37 @@ test.describe('Manual payment approval guardrails', () => {
     expect(paid?.manualApprovalNote).toContain('بيئة QA')
     expect(paid?.manualApprovalReference).toContain('بيئة QA')
   })
+
+  test('rejected-only proof with note + reference is accepted', async ({ request }) => {
+    if (process.env.E2E_QA_ONLY !== '1') {
+      throw new Error('Manual payment guardrail test must run only in QA E2E mode.')
+    }
+
+    const token = await loginAsAdmin(request)
+    const headers = { Authorization: `Bearer ${token}` }
+
+    // A rejected-only proof is not evidence, but a written note sent as both
+    // reference and note is: the finance button must offer the note path
+    // instead of failing on the rejected proof alone.
+    const prefix = stamp()
+    prefixes.push(prefix)
+    const payment = await createPayment(prefix, 'BANK_TRANSFER')
+    await addProof(payment.id, 'REJECTED', 'rejected')
+
+    const res = await request.patch('/api/admin/payments', {
+      headers,
+      data: {
+        id: payment.id,
+        approvalNote: 'تم التحقق من التحويل في بيئة QA',
+        approvalReference: 'تم التحقق من التحويل في بيئة QA',
+      },
+    })
+    const body = await res.json().catch(() => ({}))
+    expect(res.ok(), `Rejected-only proof with note + reference must be accepted: ${res.status()} ${JSON.stringify(body)}`).toBeTruthy()
+    expect(body?.receiptNo).toBeTruthy()
+
+    const paid = await prisma.payment.findUnique({ where: { id: payment.id }, select: { status: true, manualApprovalReference: true } })
+    expect(paid?.status).toBe('PAID')
+    expect(paid?.manualApprovalReference).toContain('بيئة QA')
+  })
 })

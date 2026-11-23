@@ -662,7 +662,9 @@ export function AdminView() {
     }
     try {
       setPaymentConfirmSubmitting(true)
-      await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: paymentConfirmDialog.paymentId, approvalReference: note, approvalNote: note }) })
+      // For USDT the note is a note only: the server keeps the verified TX hash
+      // as the reference (sending the note as reference would overwrite it).
+      await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: paymentConfirmDialog.paymentId, approvalReference: needsNote ? note : '', approvalNote: note }) })
       toast({
         title: paymentConfirmDialog.method === 'USDT' ? 'تم تأكيد دفع USDT' : 'تم تأكيد الدفع المباشر',
         description: 'تم إصدار الإيصال وتحديث الطلب حسب نوع الفاتورة.',

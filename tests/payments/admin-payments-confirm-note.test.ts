@@ -8,6 +8,8 @@ const calls: string[] = []
 let fixtureMethod = 'DIRECT_PAYMENT'
 let fixtureProofs: any[] = []
 let fixtureStatus = 'UNPAID'
+let fixtureCryptoTxHash: string | null = null
+let fixtureCryptoStatus: string | null = null
 
 const fixturePayment = () => ({
   id: 'payment-1',
@@ -18,8 +20,8 @@ const fixturePayment = () => ({
   amount: 88,
   description: 'دفعة جزئية من الرسوم الدراسية',
   status: fixtureStatus,
-  cryptoTxHash: null,
-  cryptoVerificationStatus: null,
+  cryptoTxHash: fixtureCryptoTxHash,
+  cryptoVerificationStatus: fixtureCryptoStatus,
   manualApprovalReference: null,
   manualApprovalNote: null,
   admission: null,
@@ -84,6 +86,8 @@ beforeEach(() => {
   fixtureMethod = 'DIRECT_PAYMENT'
   fixtureProofs = []
   fixtureStatus = 'UNPAID'
+  fixtureCryptoTxHash = null
+  fixtureCryptoStatus = null
 })
 
 const NOTE = 'استلمت المبلغ نقداً من الطالب'
@@ -125,5 +129,31 @@ describe('admin payment confirm accepts a written note', () => {
     expect(status).toBe(409)
     expect(String(payload.error || '')).toContain('إثبات الدفع بانتظار مراجعة')
     expect(calls.some((call) => call.startsWith('markInvoicePaid'))).toBe(false)
+  })
+
+  test('rejected-only proof with note + reference is accepted', async () => {
+    fixtureProofs = [{ id: 'proof-1', status: 'REJECTED' }]
+    const { status, payload } = await patch({ id: 'payment-1', approvalNote: NOTE, approvalReference: NOTE })
+    expect(status).toBe(200)
+    expect(payload.ok).toBe(true)
+    expect(calls.some((call) => call.startsWith('markInvoicePaid:AACT-INV-2026-0065:DIRECT_PAYMENT'))).toBe(true)
+  })
+
+  test('direct payment with accepted proof but no saved note still needs the note', async () => {
+    fixtureProofs = [{ id: 'proof-1', status: 'ACCEPTED' }]
+    const { status, payload } = await patch({ id: 'payment-1' })
+    expect(status).toBe(400)
+    expect(String(payload.error || '')).toContain('ملاحظة')
+    expect(calls.some((call) => call.startsWith('markInvoicePaid'))).toBe(false)
+  })
+
+  test('USDT note-only keeps the verified TX hash as the reference', async () => {
+    fixtureMethod = 'USDT'
+    fixtureCryptoTxHash = '0xabc123def456'
+    fixtureCryptoStatus = 'VERIFIED'
+    const { status, payload } = await patch({ id: 'payment-1', approvalNote: NOTE })
+    expect(status).toBe(200)
+    expect(payload.ok).toBe(true)
+    expect(calls.some((call) => call === `payment.update:ref=0xabc123def456:note=${NOTE}`)).toBe(true)
   })
 })
