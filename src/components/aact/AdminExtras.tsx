@@ -1063,17 +1063,22 @@ export function AdminFinanceTab() {
         defaultValue: payment.manualApprovalReference || payment.manualApprovalNote || '',
         placeholder: 'مثال: حوالة ويسترن رقم 123 أو اعتماد إداري موثق',
         required: true,
-        minLength: 3,
+        minLength: method === 'DIRECT_PAYMENT' ? 6 : 3,
         multiline: true,
         confirmLabel: 'تأكيد السداد',
         tone: 'warning',
       })
       if (value === null) return
       const trimmed = value.trim()
-      if (trimmed.length < 3) {
-        toast({ title: 'مطلوب دليل اعتماد', description: 'اكتب رقم حوالة أو ملاحظة واضحة، أو اطلب من الطالب رفع إثبات الدفع أولاً.', variant: 'destructive' })
+      const minEvidenceLength = method === 'DIRECT_PAYMENT' ? 6 : 3
+      if (trimmed.length < minEvidenceLength) {
+        toast({ title: 'مطلوب دليل اعتماد', description: `اكتب رقم حوالة أو ملاحظة واضحة لا تقل عن ${minEvidenceLength} أحرف، أو اطلب من الطالب رفع إثبات الدفع أولاً.`, variant: 'destructive' })
         return
       }
+      // The server accepts a manual payment only with a reference (≥3 chars)
+      // or a reviewable proof; the note alone is not enough. Send what the
+      // admin typed as both, so the button accepts as soon as a note is written.
+      approvalReference = trimmed
       approvalNote = trimmed
     }
     try {

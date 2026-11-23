@@ -152,4 +152,48 @@ test.describe('Manual payment approval guardrails', () => {
     expect(paid?.manualApprovalNote).toContain('بيئة QA')
     expect(paid?.receiptNo).toBeTruthy()
   })
+
+  test('admin note sent as note + reference approves a no-proof manual payment', async ({ request }) => {
+    if (process.env.E2E_QA_ONLY !== '1') {
+      throw new Error('Manual payment guardrail test must run only in QA E2E mode.')
+    }
+
+    const token = await loginAsAdmin(request)
+    const headers = { Authorization: `Bearer ${token}` }
+
+    // Note alone is not enough: the server still requires a reference, a
+    // reviewable proof, or a crypto reference. The client fix sends the
+    // typed note as both fields, so this is what the buttons must send.
+    const noteOnlyPrefix = stamp()
+    prefixes.push(noteOnlyPrefix)
+    const noteOnly = await createPayment(noteOnlyPrefix, 'DIRECT_PAYMENT')
+
+    const noteOnlyRes = await request.patch('/api/admin/payments', {
+      headers,
+      data: { id: noteOnly.id, approvalNote: 'تم التحقق من التحويل في بيئة QA' },
+    })
+    const noteOnlyBody = await noteOnlyRes.json().catch(() => ({}))
+    expect(noteOnlyRes.status(), `Note without reference must be rejected: ${JSON.stringify(noteOnlyBody)}`).toBe(400)
+
+    const happyPrefix = stamp()
+    prefixes.push(happyPrefix)
+    const happyPayment = await createPayment(happyPrefix, 'DIRECT_PAYMENT')
+
+    const happyRes = await request.patch('/api/admin/payments', {
+      headers,
+      data: {
+        id: happyPayment.id,
+        approvalNote: 'تم التحقق من التحويل في بيئة QA',
+        approvalReference: 'تم التحقق من التحويل في بيئة QA',
+      },
+    })
+    const happyBody = await happyRes.json().catch(() => ({}))
+    expect(happyRes.ok(), `No-proof DIRECT_PAYMENT with note + reference must be accepted: ${happyRes.status()} ${JSON.stringify(happyBody)}`).toBeTruthy()
+    expect(happyBody?.receiptNo).toBeTruthy()
+
+    const paid = await prisma.payment.findUnique({ where: { id: happyPayment.id }, select: { status: true, manualApprovalNote: true, manualApprovalReference: true } })
+    expect(paid?.status).toBe('PAID')
+    expect(paid?.manualApprovalNote).toContain('بيئة QA')
+    expect(paid?.manualApprovalReference).toContain('بيئة QA')
+  })
 })

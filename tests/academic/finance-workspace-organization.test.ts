@@ -162,6 +162,8 @@ describe('AdminFinanceTab workspace organization', () => {
   test('keeps protected finance action body contracts', () => {
     requireAll(functionBody('confirm'), [
       "await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: payment.id, approvalReference, approvalNote }) })",
+      'approvalReference = trimmed',
+      'approvalNote = trimmed',
       "toast({ title: 'تم التأكيد'",
       'load()',
     ])

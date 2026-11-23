@@ -558,6 +558,7 @@ export function AdminView() {
     cryptoVerificationStatus?: string | null
   }>(null)
   const [paymentConfirmSubmitting, setPaymentConfirmSubmitting] = useState(false)
+  const [paymentConfirmNote, setPaymentConfirmNote] = useState('')
   const [revokeDialog, setRevokeDialog] = useState<null | { app: AgentApp; reason: string }>(null)
   const [revokeSubmitting, setRevokeSubmitting] = useState(false)
 
@@ -645,18 +646,29 @@ export function AdminView() {
       status: payment.status,
       cryptoVerificationStatus: payment.cryptoVerificationStatus,
     })
+    setPaymentConfirmNote('')
   }
 
   const confirmAdmissionPayment = async () => {
     if (!paymentConfirmDialog) return
+    const note = paymentConfirmNote.trim()
+    // USDT is evidenced by its verified TX hash; every other manual method
+    // needs the admin note (the server only accepts a reference or a proof
+    // besides the note, so the typed note is sent as both).
+    const needsNote = paymentConfirmDialog.method !== 'USDT'
+    if (needsNote && note.length < 6) {
+      toast({ title: 'مطلوب ملاحظة اعتماد', description: 'اكتب ملاحظة إدارية واضحة (6 أحرف على الأقل) توضّح أساس الاعتماد قبل تأكيد الدفع.', variant: 'destructive' })
+      return
+    }
     try {
       setPaymentConfirmSubmitting(true)
-      await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: paymentConfirmDialog.paymentId }) })
+      await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: paymentConfirmDialog.paymentId, approvalReference: note, approvalNote: note }) })
       toast({
         title: paymentConfirmDialog.method === 'USDT' ? 'تم تأكيد دفع USDT' : 'تم تأكيد الدفع المباشر',
         description: 'تم إصدار الإيصال وتحديث الطلب حسب نوع الفاتورة.',
       })
       setPaymentConfirmDialog(null)
+      setPaymentConfirmNote('')
       await load()
     } catch (e: any) {
       toast({ title: 'تعذر تأكيد الدفع', description: e.message, variant: 'destructive' })
@@ -2825,6 +2837,20 @@ export function AdminView() {
                       ? 'تم التحقق آلياً من التحويل. اضغط التأكيد فقط إذا راجعت العملية وتأكدت من مطابقتها للفاتورة.'
                       : 'لا تؤكد دفع USDT قبل ظهور حالة التحقق الآلي الناجح. سيمنع النظام التأكيد إذا لم يتحقق التحويل.'
                     : 'استخدم هذا الزر فقط بعد استلام المبلغ فعلياً عبر الدفع المباشر أو التحويل المتفق عليه.'}
+                </div>
+
+                <div>
+                  <Label htmlFor="payment-confirm-note" className="text-xs font-black text-slate-600">
+                    ملاحظة الاعتماد {paymentConfirmDialog.method === 'USDT' ? '(اختيارية)' : '(إلزامية — 6 أحرف على الأقل)'}
+                  </Label>
+                  <Textarea
+                    id="payment-confirm-note"
+                    value={paymentConfirmNote}
+                    onChange={(event) => setPaymentConfirmNote(event.target.value)}
+                    placeholder="مثال: استلمت المبلغ نقداً من الطالب"
+                    rows={3}
+                    className="mt-1 rounded-2xl"
+                  />
                 </div>
               </div>
 
