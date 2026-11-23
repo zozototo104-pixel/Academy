@@ -44,9 +44,9 @@ assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 1
 assert.equal(resolveBookKnowledgeCandidateFromLines(candidate, source).candidate?.excerpt, source, 'legacy verbatim evidence remains accepted')
 const sourceBatch = JSON.stringify({ items: [{ ...candidate, excerpt: 'نص غير موجود', lineStart: 1, lineEnd: 2 }] })
 assert.doesNotThrow(() => validateSourceBackedBookBatch(sourceBatch, numberedSource, []), 'verified original line ranges qualify the model response')
-assert.throws(() => validateSourceBackedBookBatch(JSON.stringify({ items: [] }), numberedSource, []), /EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION/, 'empty model batches must trigger provider fallback')
-assert.throws(() => validateSourceBackedBookBatch(JSON.stringify({ items: [{ ...candidate, lineStart: 0, lineEnd: 2 }] }), numberedSource, []), /EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION/, 'invalid line references must trigger provider fallback')
-assert.throws(() => validateSourceBackedBookBatch(sourceBatch, numberedSource, [candidate]), /EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION/, 'fully duplicated results must trigger provider fallback')
+assert.throws(() => validateSourceBackedBookBatch(JSON.stringify({ items: [] }), numberedSource, []), /BOOK_KNOWLEDGE_NO_ITEMS/, 'an empty model batch means the chunk is exhausted, not broken')
+assert.throws(() => validateSourceBackedBookBatch(JSON.stringify({ items: [{ ...candidate, lineStart: 0, lineEnd: 2 }] }), numberedSource, []), /BOOK_KNOWLEDGE_NO_VERIFIED_ITEMS/, 'invalid line references must trigger provider fallback')
+assert.throws(() => validateSourceBackedBookBatch(sourceBatch, numberedSource, [candidate]), /BOOK_KNOWLEDGE_ALL_DUPLICATE/, 'fully duplicated results mean the chunk is exhausted, not broken')
 const configuredModels = [{ provider: 'GROQ', model: 'model-a' }, { provider: 'OPENAI', model: 'model-b' }, { provider: 'GEMINI', model: 'model-c' }]
 assert.deepEqual(preferSuccessfulBookAnalysisModel(configuredModels, configuredModels[1]), [configuredModels[1], configuredModels[0], configuredModels[2]], 'last successful model takes priority without changing eligible models')
 assert.deepEqual(preferSuccessfulBookAnalysisModel(configuredModels, { provider: 'GROQ', model: 'no-longer-allowed' }), configuredModels, 'removed models cannot be reintroduced by the affinity hint')
@@ -195,6 +195,29 @@ async function exhaustedAnalysisChunkDoesNotBlockTheRest() {
   assert.equal(result.completed, true, 'the analyzer reaches completion instead of crashing')
   assert.equal(completed, true)
   assert.deepEqual(entries.map((entry) => entry.status), ['FAILED', 'ANALYZED'])
+}
+
+async function exhaustedBatchSavesAnalyzedWithZeroItems() {
+  // An honest empty model batch counts as zero accepted: the chunk is saved
+  // ANALYZED with no items instead of failing after 3 attempts, and the
+  // job completes instead of stalling on an exhausted chunk.
+  const source = 'مقطع بلا معرفة جديدة: فهرس المراجع والمصادر التي اعتمد عليها الكتاب في إعداده وتوثيق معلوماته.'
+  let completed = false
+  let savedItems = -1
+  const store = {
+    getJob: async () => ({ id: 'job', bookId: 'book', programId: 'program', phase: 'ANALYZE', status: completed ? 'COMPLETED' : 'RUNNING' }),
+    nextChunk: async (_bookId: string, excluded: string[]) => excluded.length ? null : { id: 'chunk', bookId: 'book', programId: 'program', index: 0, text: source, pageStart: 1, pageEnd: 1, textProvenance: 'NATIVE_TEXT', attempts: 0 },
+    priorItems: async () => [],
+    saveAnalyzed: async (_chunk: { id: string }, items: unknown[]) => { savedItems = items.length },
+    saveFailure: async () => { throw new Error('saveFailure must not run for an exhausted chunk') },
+    complete: async () => { completed = true },
+  }
+  const result = await analyzeStepWithStore('job', Date.now() + 60_000, store as any, (async () => []) as any)
+  assert.equal(savedItems, 0, 'an exhausted chunk is saved with zero items')
+  assert.equal(result.analyzed, 1, 'the exhausted chunk counts as analyzed')
+  assert.equal(result.failed, 0, 'no failure is recorded for an exhausted chunk')
+  assert.equal(result.completed, true, 'the job completes instead of stalling')
+  assert.equal(completed, true)
 }
 
 async function postgresAnalysisCompletionRegression() {
@@ -368,6 +391,7 @@ const readChecks = process.env.BOOK_READ_PG_CONTRACT === '1'
       .then(() => unreadablePdfPageDoesNotStopFollowingPages())
       .then(() => analyzeResumeRegression())
       .then(() => exhaustedAnalysisChunkDoesNotBlockTheRest())
+      .then(() => exhaustedBatchSavesAnalyzedWithZeroItems())
       .then(() => ocrSoloStateSurvivesPipelineWrites())
       .then(() => deadlineKilledGroupOcrResumesSolo())
       .then(() => failedOcrSoloCheckpointMustSurfaceError())

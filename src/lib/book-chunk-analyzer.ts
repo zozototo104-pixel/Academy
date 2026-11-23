@@ -67,19 +67,48 @@ export function resolveBookKnowledgeCandidateFromLines(raw: unknown, chunkText: 
 
 // A response with no source-backed new knowledge is a model-validation failure,
 // so the configured router can try the next model instead of saving zero items.
+// The suffix records WHY nothing verified: NO_ITEMS (the model found nothing)
+// and ALL_DUPLICATE (it found only already-known knowledge) both mean the
+// chunk is exhausted, while NO_VERIFIED_ITEMS means every item failed
+// validation and the models — not the chunk — are at fault.
 export function validateSourceBackedBookBatch(
   raw: string, chunkText: string, prior: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[],
 ): void {
   const parsed = JSON.parse(raw)
   if (!Array.isArray(parsed?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE')
   if (chunkText.trim().length < 60) return
+  if (parsed.items.length === 0) {
+    throw Object.assign(new Error('EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION:BOOK_KNOWLEDGE_NO_ITEMS'), { code: 'VALIDATION_REJECTED' })
+  }
+  let sawInvalid = false
   const hasVerifiedNovelItem = parsed.items.some((item: unknown) => {
     const candidate = resolveBookKnowledgeCandidateFromLines(item, chunkText).candidate
-    return candidate && !isRepeatedBookConcept(candidate, prior)
+    if (!candidate) { sawInvalid = true; return false }
+    return !isRepeatedBookConcept(candidate, prior)
   })
   if (!hasVerifiedNovelItem) {
-    throw Object.assign(new Error('EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION:BOOK_KNOWLEDGE_NO_VERIFIED_ITEMS'), { code: 'VALIDATION_REJECTED' })
+    const suffix = sawInvalid ? 'BOOK_KNOWLEDGE_NO_VERIFIED_ITEMS' : 'BOOK_KNOWLEDGE_ALL_DUPLICATE'
+    throw Object.assign(new Error(`EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION:${suffix}`), { code: 'VALIDATION_REJECTED' })
   }
+}
+
+// Exhausted-chunk markers: every model tried agreed the chunk holds no NEW
+// source-backed knowledge (an empty list, or only already-known items). Any
+// other attempt error (rate limit, timeout, invalid output, …) means the
+// models failed, not the chunk, and must keep the existing defer/fail path.
+// The router joins per-model errors with ' | '; the enrich wrapper nests
+// those lists inside STAGE=[...] / GLOBAL=[...] (or ROUTER=[...] /
+// NATIVE=[...]), so the seams between the lists are flattened into the same
+// separator first. A message without every attempt marked exhausted
+// defaults to NOT exhausted.
+const EXHAUSTED_BOOK_BATCH_MARKERS = ['BOOK_KNOWLEDGE_NO_ITEMS', 'BOOK_KNOWLEDGE_ALL_DUPLICATE'] as const
+export function isExhaustedBookBatchError(error: unknown): boolean {
+  const message = String((error as Error)?.message || error || '')
+  if (!message.includes('EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION')) return false
+  const flattened = message.replace(/\]\s*(STAGE|GLOBAL|ROUTER|NATIVE)=\[/g, ' | ')
+  const attempts = flattened.split(' | ').map((part) => part.trim()).filter(Boolean)
+  if (!attempts.length) return false
+  return attempts.every((attempt) => EXHAUSTED_BOOK_BATCH_MARKERS.some((marker) => attempt.includes(marker)))
 }
 
 // D2.2: توصيل التحليل — نفس النمط الصارم للقراءة (D2.1b/D2.1c).
@@ -157,6 +186,23 @@ async function callAnalysisAi(
   }
 }
 
+// When every model tried agreed the chunk holds no new source-backed
+// knowledge, the AI call resolves to an empty batch instead of a provider
+// failure, so the chunk counts as zero accepted (saved in analysis, one
+// pass counted in enrich) instead of failing or deferring forever. Any
+// mixed or real provider error still throws and keeps its old path.
+export async function callAnalysisAiWithExhaustedAsEmpty(
+  baseOpts: AnalysisCallOpts, routing: AnalysisRouting, usage: AnalysisUsage,
+  favorite: TextAiPreferredModel | null = null,
+): Promise<string> {
+  try {
+    return await callAnalysisAi(baseOpts, routing, usage, favorite)
+  } catch (error) {
+    if (isExhaustedBookBatchError(error)) return JSON.stringify({ items: [] })
+    throw error
+  }
+}
+
 async function prepareAnalysisRun(): Promise<{ routing: AnalysisRouting; profileStamp?: { profileId: string; profileVersion: string; policy: string | null; allowedModels: string[] }; isStage: boolean; detail: Record<string, unknown> }> {
   let overrides: StageRoutingOverrides | { kind: 'resolution-error' }
   try {
@@ -210,7 +256,7 @@ async function analyzeBookChunkInner(input: { bookId: string; jobId?: string; ch
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const numberedLines = formatNumberedBookLines(input.chunkText)
-  const result = await callAnalysisAi({
+  const result = await callAnalysisAiWithExhaustedAsEmpty({
     system: 'أنت محلل كتب أكاديمية. استخرج المعرفة من النص الحرفي فقط. أرجع JSON فقط.',
     history: [{ role: 'user', text: `الأسطر التالية مرقمة من نص الكتاب الأصلي. استخرج 3 إلى 12 عنصراً بحسب كثافة النص، مع عنوان وملخص يؤيدهما مدى من 1 إلى 6 أسطر متتابعة. اختر lineStart وlineEnd كرقمين صحيحين من أرقام الأسطر؛ يمكن أن يكونا متساويين، والسطر الطويل مقبول كما هو. يجب أن يكون الاقتباس المختار 60 حرفاً على الأقل. الخادم يأخذ النص الحرفي من تلك الأسطر فلا تُرسل excerpt ولا تعيد صياغة الدليل. لا تخترع معلومات ولا تنشئ QUESTION_SEED ولا تختار سؤالاً بديلاً عن شرح. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر category,title,summary,lineStart,lineEnd,importance (رقم 0-100). أرجع JSON على شكل {"items":[...]}. أسطر المصدر:\n${numberedLines}` }],
     taskLevel: 'ACADEMIC_DRAFT',
@@ -245,7 +291,7 @@ async function enrichBookChunkInner(input: { bookId: string; jobId?: string; chu
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const numberedLines = formatNumberedBookLines(input.chunkText)
-  const result = await callAnalysisAi({
+  const result = await callAnalysisAiWithExhaustedAsEmpty({
     system: 'أنت محلل كتب أكاديمية. استخرج معرفة جديدة من النص الحرفي فقط. أرجع JSON فقط.',
     history: [{ role: 'user', text: `استخرج حتى 8 عناصر جديدة غير موجودة في القائمة، اعتماداً على أسطر المصدر المرقمة أدناه حصراً. لكل عنصر حدّد lineStart وlineEnd كرقمين صحيحين لنطاق متصل من 1 إلى 6 أسطر يدعم عنوانه وملخصه، بطول 60 حرفاً على الأقل. السطر الطويل مقبول كما هو. الخادم ينسخ الاقتباس الأصلي من الأسطر، لذلك لا تكتب excerpt ولا تخترع معلومات أو أسئلة. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. الحقول: category,title,summary,lineStart,lineEnd,importance (رقم 0-100). أرجع JSON على شكل {"items":[...]}. العناصر الموجودة:\n${input.existing.map((item) => `${item.title}: ${item.summary}`).join('\n')}\nأسطر المصدر:\n${numberedLines}` }],
     taskLevel: 'ACADEMIC_DRAFT', taskType: 'BOOK_ENRICH', maxOutputTokens: 8192,
