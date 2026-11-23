@@ -3,6 +3,7 @@ import { PDFDocument } from 'pdf-lib'
 import { db } from '@/lib/db'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
+import { stripPostgresForbiddenChars } from '@/lib/postgres-text'
 import { textAiCompleteJsonWithMetadata, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRoutingOverrides } from '@/lib/ai-stage-profiles'
 import { withPipelineRun } from '@/lib/ai-pipeline-log'
@@ -30,8 +31,13 @@ export function planBookChunks(pages: readonly ExtractedBookPage[], minChars = 2
   let headingPath: string | null = null
   const flush = () => {
     if (!text.trim()) return
-    const value = text.trim()
-    chunks.push({ index: chunks.length, pageStart: start, pageEnd: end, headingPath, text: value, charCount: value.length, textProvenance: provenance, contentHash: createHash('sha256').update(value).digest('hex') })
+    // PDF text layers can embed NUL/control bytes Postgres refuses (22021);
+    // strip them here — the single choke point for native and OCR text —
+    // so the chunk text and its hash are computed on the stored value.
+    const value = stripPostgresForbiddenChars(text.trim())
+    if (!value.trim()) return
+    const cleanHeading = headingPath ? stripPostgresForbiddenChars(headingPath) : null
+    chunks.push({ index: chunks.length, pageStart: start, pageEnd: end, headingPath: cleanHeading, text: value, charCount: value.length, textProvenance: provenance, contentHash: createHash('sha256').update(value).digest('hex') })
     text = ''
     headingPath = null
   }
