@@ -197,7 +197,7 @@ describe('terminal book failure recovery in admin UI', () => {
 
   it('retries failed enrichment as enrichment, never as a fresh PDF read', () => {
     expect(adminBooks).toContain("job.phase === 'ENRICH' ? startBookEnrichment(b.id)")
-    expect(adminBooks).toContain("job.phase === 'ANALYZE' && chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)")
+    expect(adminBooks).toContain("(job.phase === 'ANALYZE' || job.status === 'COMPLETED') && chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)")
     expect(adminBooks).toContain('إعادة محاولة استخراج المزيد')
   })
 })
@@ -217,9 +217,11 @@ describe('manual resume keeps saved book progress', () => {
   it('retries only failed knowledge chunks without erasing completed chunks or replacing the job', () => {
     expect(retryFailedChunksRoute).toContain("where: { bookId: id, status: 'FAILED' }")
     expect(retryFailedChunksRoute).toContain("data: { status: 'PENDING', attempts: 0, lastError: null }")
-    expect(retryFailedChunksRoute).toContain("latest?.status !== 'FAILED' || latest.phase !== 'ANALYZE'")
+    expect(retryFailedChunksRoute).toContain("(latest?.status === 'FAILED' && latest.phase === 'ANALYZE')")
+    expect(retryFailedChunksRoute).toContain("(latest?.status === 'COMPLETED' && latest.phase === 'DONE')")
     expect(retryFailedChunksRoute).toContain("if (!failedCount) return { noFailedChunks: true")
-    expect(retryFailedChunksRoute).toContain("where: { id: latest.id, status: 'FAILED' }")
+    expect(retryFailedChunksRoute).toContain("where: { id: latest.id, status: latest.status }")
+    expect(retryFailedChunksRoute).toContain("data: { status: 'QUEUED', phase: 'ANALYZE', chunksFailed: 0")
     expect(retryFailedChunksRoute).toContain("chunksFailed: 0")
     expect(retryFailedChunksRoute).not.toContain("tx.bookReadJob.create(")
     expect(retryFailedChunksRoute).not.toContain("bookKnowledgeItem.deleteMany")
@@ -545,13 +547,36 @@ describe('direct failed-chunk API cannot skip unfinished extraction', () => {
     expect(createdJobs).toBe(0)
   })
 
-  it('rejects direct chunk retry after completed reading rather than creating an empty analysis job', async () => {
+  it('retries failed chunks of a completed analysis job instead of stranding them', async () => {
     retryJob.phase = 'DONE'
     retryJob.status = 'COMPLETED'
+    retryJob.pagesDone = 227
+    const response = await requestFailedChunkRetry()
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.jobId).toBe('saved-job')
+    expect(body.chunksReset).toBe(1)
+    expect(retryJob.status).toBe('QUEUED')
+    expect(retryJob.phase).toBe('ANALYZE')
+    expect(retryJob.pagesDone).toBe(227)
+    expect(retryJob.chunksAnalyzed).toBe(24)
+    expect(retryJob.chunksFailed).toBe(0)
+    expect(retryChunks[0].status).toBe('PENDING')
+    expect(retryChunks[0].attempts).toBe(0)
+    expect(retryChunks[0].lastError).toBe(null)
+    expect(retryChunks[1].status).toBe('ANALYZED')
+    expect(createdJobs).toBe(0)
+  })
+
+  it('still refuses a completed job with no failed chunks rather than creating an empty analysis job', async () => {
+    retryJob.phase = 'DONE'
+    retryJob.status = 'COMPLETED'
+    retryChunks[0].status = 'ANALYZED'
     const response = await requestFailedChunkRetry()
     expect(response.status).toBe(409)
-    expect((await response.json()).error).toBe('BOOK_ANALYSIS_PHASE_REQUIRED')
+    expect((await response.json()).error).toBe('BOOK_NO_FAILED_CHUNKS')
     expect(retryJob.status).toBe('COMPLETED')
+    expect(retryJob.phase).toBe('DONE')
     expect(changedChunks).toBe(0)
     expect(createdJobs).toBe(0)
   })
