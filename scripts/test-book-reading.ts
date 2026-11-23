@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { nextExtractionPage, pagesNeedingOcr, planBookChunks, extractPdfBatch, extractNumberedPdfPages } from '../src/lib/book-reader'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
-import { analyzeStepWithStore, isRepeatedBookConcept, planBookEvidenceWindows, validateBookKnowledgeCandidate, validateBookKnowledgeCandidateWithEvidence } from '../src/lib/book-chunk-analyzer'
+import { analyzeStepWithStore, isRepeatedBookConcept, resolveBookKnowledgeCandidateFromLines, validateBookKnowledgeCandidate } from '../src/lib/book-chunk-analyzer'
 import { mergeBookPageReadIssues, parseBookOcrSoloPages, parseBookPageReadIssues, preserveBookPageReadIssues, withBookOcrSoloPages } from '../src/lib/book-read-job-control'
 
 const pages = [{ page: 1, text: `${'هذه جملة طويلة عن المعرفة. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }, { page: 2, text: `${'هذه جملة ثانية عن العلم. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }]
@@ -26,24 +26,22 @@ assert.ok(validateBookKnowledgeCandidate(candidate, source))
 assert.equal(validateBookKnowledgeCandidate({ ...candidate, excerpt: 'عبارة غير موجودة في النص الأصلي '.repeat(3) }, source), null)
 assert.equal(validateBookKnowledgeCandidate({ ...candidate, excerpt: `${source.slice(0, -1)}؟` }, source), null)
 assert.ok(isRepeatedBookConcept(candidate, [{ title: 'المنهج العلمي', summary: 'تفسير منهجي للتجريب والملاحظة' }]))
-// The model selects an evidence ID; the server inserts the exact source span.
-// The old verbatim-only path remains valid, and nonexistent evidence IDs fail.
-const numberedSource = (source + '\n').repeat(12)
-const evidenceWindows = planBookEvidenceWindows(numberedSource)
-assert.ok(evidenceWindows.length >= 3, 'all long book chunks receive multiple source windows')
-for (const window of evidenceWindows) {
-  assert.ok(window.excerpt.length >= 60 && window.excerpt.length <= 600)
-  assert.ok(numberedSource.includes(window.excerpt), 'every evidence window is a literal saved-source span')
-}
-assert.ok(evidenceWindows[evidenceWindows.length - 1].excerpt.includes(source.slice(-30)), 'last source text is covered')
-const selected = validateBookKnowledgeCandidateWithEvidence(
-  { ...candidate, excerpt: 'اقتباس مختلق لا وجود له في الكتاب', evidenceId: evidenceWindows[1].id },
-  numberedSource, evidenceWindows,
+// The model returns lineStart/lineEnd, and the server copies the exact source.
+const numberedSource = (source + '\n').repeat(8)
+const exactLines = numberedSource.split('\n').slice(0, 2).join('\n')
+const selected = resolveBookKnowledgeCandidateFromLines(
+  { ...candidate, excerpt: 'اقتباس مختلق لا وجود له في الكتاب', lineStart: 1, lineEnd: 2 }, numberedSource,
 )
-assert.equal(selected?.excerpt, evidenceWindows[1].excerpt, 'the model cannot supply or paraphrase persisted evidence')
-assert.equal(validateBookKnowledgeCandidateWithEvidence({ ...candidate, evidenceId: 'E999', excerpt: source }, numberedSource, evidenceWindows), null, 'unknown evidence IDs cannot fall back to model quotes')
-assert.equal(validateBookKnowledgeCandidateWithEvidence({ ...candidate, evidenceId: evidenceWindows[0].id, category: 'QUESTION_SEED' }, numberedSource, evidenceWindows), null, 'category guard remains strict')
-assert.equal(validateBookKnowledgeCandidateWithEvidence(candidate, source, planBookEvidenceWindows(source))?.excerpt, source, 'old exact-quote output remains supported')
+assert.equal(selected.candidate?.excerpt, exactLines, 'model text never becomes the saved evidence')
+assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 0, lineEnd: 2 }, numberedSource).reason, 'INVALID_LINE_RANGE')
+assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 1, lineEnd: 9, excerpt: source }, numberedSource).reason, 'INVALID_LINE_RANGE', 'invalid ranges cannot fall back to model quotes')
+assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 1, lineEnd: 1, category: 'QUESTION_SEED' }, numberedSource).candidate, null, 'category guard remains strict')
+const originalLongLine = source.repeat(6)
+assert.ok(originalLongLine.length > 600)
+assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 1, lineEnd: 1 }, originalLongLine).candidate?.excerpt, originalLongLine, 'one long trusted line may exceed legacy 600-character cap')
+const questionLine = 'كيف يمكن للمحاسب أن يستخدم بيانات المنشأة خلال الدورة المحاسبية لتحديد الأرصدة واستخراج القوائم المالية بطريقة صحيحة؟'
+assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 1, lineEnd: 1 }, questionLine).candidate, null, 'source questions still cannot pass as evidence')
+assert.equal(resolveBookKnowledgeCandidateFromLines(candidate, source).candidate?.excerpt, source, 'legacy verbatim evidence remains accepted')
 async function pdfExtractionRegression() {
   const pdf = await PDFDocument.create()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
