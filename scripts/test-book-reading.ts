@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { nextExtractionPage, pagesNeedingOcr, planBookChunks, extractPdfBatch, extractNumberedPdfPages } from '../src/lib/book-reader'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
-import { analyzeStepWithStore, isRepeatedBookConcept, resolveBookKnowledgeCandidateFromLines, validateBookKnowledgeCandidate } from '../src/lib/book-chunk-analyzer'
+import { analyzeStepWithStore, isRepeatedBookConcept, preferSuccessfulBookAnalysisModel, resolveBookKnowledgeCandidateFromLines, validateBookKnowledgeCandidate, validateSourceBackedBookBatch } from '../src/lib/book-chunk-analyzer'
 import { mergeBookPageReadIssues, parseBookOcrSoloPages, parseBookPageReadIssues, preserveBookPageReadIssues, withBookOcrSoloPages } from '../src/lib/book-read-job-control'
 
 const pages = [{ page: 1, text: `${'هذه جملة طويلة عن المعرفة. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }, { page: 2, text: `${'هذه جملة ثانية عن العلم. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }]
@@ -42,6 +42,15 @@ assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 1
 const questionLine = 'كيف يمكن للمحاسب أن يستخدم بيانات المنشأة خلال الدورة المحاسبية لتحديد الأرصدة واستخراج القوائم المالية بطريقة صحيحة؟'
 assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 1, lineEnd: 1 }, questionLine).candidate, null, 'source questions still cannot pass as evidence')
 assert.equal(resolveBookKnowledgeCandidateFromLines(candidate, source).candidate?.excerpt, source, 'legacy verbatim evidence remains accepted')
+const sourceBatch = JSON.stringify({ items: [{ ...candidate, excerpt: 'نص غير موجود', lineStart: 1, lineEnd: 2 }] })
+assert.doesNotThrow(() => validateSourceBackedBookBatch(sourceBatch, numberedSource, []), 'verified original line ranges qualify the model response')
+assert.throws(() => validateSourceBackedBookBatch(JSON.stringify({ items: [] }), numberedSource, []), /EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION/, 'empty model batches must trigger provider fallback')
+assert.throws(() => validateSourceBackedBookBatch(JSON.stringify({ items: [{ ...candidate, lineStart: 0, lineEnd: 2 }] }), numberedSource, []), /EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION/, 'invalid line references must trigger provider fallback')
+assert.throws(() => validateSourceBackedBookBatch(sourceBatch, numberedSource, [candidate]), /EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION/, 'fully duplicated results must trigger provider fallback')
+const configuredModels = [{ provider: 'GROQ', model: 'model-a' }, { provider: 'OPENAI', model: 'model-b' }, { provider: 'GEMINI', model: 'model-c' }]
+assert.deepEqual(preferSuccessfulBookAnalysisModel(configuredModels, configuredModels[1]), [configuredModels[1], configuredModels[0], configuredModels[2]], 'last successful model takes priority without changing eligible models')
+assert.deepEqual(preferSuccessfulBookAnalysisModel(configuredModels, { provider: 'GROQ', model: 'no-longer-allowed' }), configuredModels, 'removed models cannot be reintroduced by the affinity hint')
+assert.deepEqual(preferSuccessfulBookAnalysisModel(configuredModels, null), configuredModels, 'new jobs preserve the configured starting order')
 async function pdfExtractionRegression() {
   const pdf = await PDFDocument.create()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
