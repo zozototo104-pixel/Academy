@@ -158,9 +158,11 @@ async function prepareAnalysisRun(): Promise<{ routing: AnalysisRouting; profile
 async function analyzeBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; prior: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; routing?: AnalysisRouting; aiUsage?: AnalysisUsage }): Promise<BookKnowledgeCandidate[]> {
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
+  const evidenceWindows = planBookEvidenceWindows(input.chunkText)
+  const evidenceText = evidenceWindows.map((window) => `[${window.id}] ${window.excerpt}`).join('\n\n')
   const result = await callAnalysisAi({
     system: 'أنت محلل كتب أكاديمية. استخرج المعرفة من النص الحرفي فقط. أرجع JSON فقط.',
-    history: [{ role: 'user', text: `استخرج من 3 إلى 12 عنصراً بحسب كثافة النص، لا تخترع معلومات، ولا تنشئ QUESTION_SEED. الأصناف المسموحة: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر: category,title,summary (صياغة أكاديمية عربية),excerpt (اقتباس حرفي من النص بين 60 و600 حرف),importance (0-100). أرجع {"items":[...]}. النص:\n${input.chunkText}` }],
+    history: [{ role: 'user', text: `الفقرات التالية مقتطفات حرفية مرقمة من الكتاب. استخرج من 3 إلى 12 عنصراً بحسب كثافة النص. لكل عنصر اختر evidenceId من أرقام الفقرات E1 وما بعدها، ويجب أن تدعم الفقرة المختارة عنوان العنصر وملخصه. الخادم سيضع اقتباس الفقرة حرفياً فلا تكتب excerpt ولا تعيد صياغة الدليل. لا تخترع معلومات ولا تنشئ QUESTION_SEED. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. حقول كل عنصر: category,title,summary (صياغة أكاديمية عربية),evidenceId,importance (رقم 0-100). أرجع JSON على شكل {"items":[...]}. الفقرات:\n${evidenceText}` }],
     taskLevel: 'ACADEMIC_DRAFT',
     stickyScope: `BOOK_READ:${input.bookId}`,
     deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)),
@@ -173,7 +175,7 @@ async function analyzeBookChunkInner(input: { bookId: string; chunkText: string;
   const parsed = JSON.parse(result)
   const accepted: BookKnowledgeCandidate[] = []
   for (const raw of parsed.items || []) {
-    const candidate = validateBookKnowledgeCandidate(raw, input.chunkText)
+    const candidate = validateBookKnowledgeCandidateWithEvidence(raw, input.chunkText, evidenceWindows)
     if (!candidate || isRepeatedBookConcept(candidate, [...input.prior, ...accepted])) continue
     accepted.push(candidate)
     if (accepted.length === 12) break
@@ -184,9 +186,11 @@ async function analyzeBookChunkInner(input: { bookId: string; chunkText: string;
 async function enrichBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; existing: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; routing?: AnalysisRouting; aiUsage?: AnalysisUsage }): Promise<BookKnowledgeCandidate[]> {
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
+  const evidenceWindows = planBookEvidenceWindows(input.chunkText)
+  const evidenceText = evidenceWindows.map((window) => `[${window.id}] ${window.excerpt}`).join('\n\n')
   const result = await callAnalysisAi({
     system: 'أنت محلل كتب أكاديمية. استخرج معرفة جديدة من النص الحرفي فقط. أرجع JSON فقط.',
-    history: [{ role: 'user', text: `استخرج حتى 8 عناصر جديدة غير مذكورة في القائمة، مفاهيم وتعريفات وأمثلة ومبادئ وحقائق. لا تخترع معلومات ولا تنشئ أسئلة. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر category,title,summary,excerpt (اقتباس حرفي 60-600 حرف),importance (0-100). أرجع {"items":[...]}. العناصر الموجودة:\n${input.existing.map((item) => `${item.title}: ${item.summary}`).join('\n')}\nالنص:\n${input.chunkText}` }],
+    history: [{ role: 'user', text: `استخرج حتى 8 عناصر جديدة غير مذكورة في القائمة. استند فقط إلى الفقرات الحرفية المرقمة أدناه. لكل عنصر اختر evidenceId من E1 وما بعدها، ويجب أن تدعم الفقرة عنوانه وملخصه. الخادم يدرج نص الفقرة الأصلي اقتباساً، لذلك لا تكتب excerpt ولا تخترع معلومات أو أسئلة. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. حقول كل عنصر: category,title,summary,evidenceId,importance (رقم 0-100). أرجع JSON على شكل {"items":[...]}. العناصر الموجودة:\n${input.existing.map((item) => `${item.title}: ${item.summary}`).join('\n')}\nالفقرات:\n${evidenceText}` }],
     taskLevel: 'ACADEMIC_DRAFT', taskType: 'BOOK_ENRICH', maxOutputTokens: 8192,
     stickyScope: `BOOK_READ:${input.bookId}`, deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)), temperature: 0.2,
     validate: (raw) => { if (!Array.isArray(JSON.parse(raw)?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE') },
@@ -197,7 +201,7 @@ async function enrichBookChunkInner(input: { bookId: string; chunkText: string; 
   for (const raw of JSON.parse(result).items) {
     candidates++
     if (!raw || typeof raw !== 'object' || !BOOK_KNOWLEDGE_CATEGORIES.includes(String((raw as Record<string, unknown>).category) as BookKnowledgeCandidate['category'])) { rejected.category++; continue }
-    const candidate = validateBookKnowledgeCandidate(raw, input.chunkText)
+    const candidate = validateBookKnowledgeCandidateWithEvidence(raw, input.chunkText, evidenceWindows)
     if (!candidate) { rejected.excerptOrFields++; continue }
     if (isRepeatedBookConcept(candidate, [...input.existing, ...accepted])) { rejected.duplicate++; continue }
     accepted.push(candidate)
