@@ -265,7 +265,7 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
   }
   const accepted: BookKnowledgeCandidate[] = []
   for (const raw of candidates) {
-    const item = validateBookKnowledgeCandidate(raw, chunk.text)
+    const item = validateBookKnowledgeCandidate(raw, chunk.text, { fromVerifiedLineRange: raw.sourceLineRangeVerified === true && chunk.text.includes(raw.excerpt) })
     if (item && !isRepeatedBookConcept(item, [...existing.local, ...accepted])) accepted.push(item)
     if (accepted.length >= capacity) break
   }
