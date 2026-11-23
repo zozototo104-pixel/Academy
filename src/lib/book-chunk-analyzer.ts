@@ -62,7 +62,7 @@ export function resolveBookKnowledgeCandidateFromLines(raw: unknown, chunkText: 
   const candidate = validateBookKnowledgeCandidate(
     { ...item, excerpt: evidence.excerpt }, chunkText, { fromVerifiedLineRange: true },
   )
-  return candidate ? { candidate, reason: null } : { candidate: null, reason: 'EXCERPT_OR_FIELDS' }
+  return candidate ? { candidate: { ...candidate, sourceLineRangeVerified: true }, reason: null } : { candidate: null, reason: 'EXCERPT_OR_FIELDS' }
 }
 // D2.2: توصيل التحليل — نفس النمط الصارم للقراءة (D2.1b/D2.1c).
 // بروفايل التحليل الفعّال يقيد النداء بقائمته (الراوتر عبر
