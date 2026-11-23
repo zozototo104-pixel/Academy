@@ -161,11 +161,8 @@ async function analyzeBookChunkInner(input: { bookId: string; chunkText: string;
     taskLevel: 'ACADEMIC_DRAFT',
     stickyScope: `BOOK_READ:${input.bookId}`,
     deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)),
-    temperature: 0.2,
-    validate: (raw) => {
-      const parsed = JSON.parse(raw)
-      if (!Array.isArray(parsed?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE')
-    },
+    temperature: 0.2, timeoutMs: 35_000,
+    validate: (raw) => validateSourceBackedBookBatch(raw, input.chunkText, input.prior),
   }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false })
   const parsed = JSON.parse(result)
   const accepted: BookKnowledgeCandidate[] = []
