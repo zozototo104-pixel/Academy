@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stripPostgresForbiddenChars } from '../../src/lib/postgres-text'
-import { formatNumberedBookLines, resolveBookLineEvidence } from '../../src/lib/text-provenance'
+import { formatNumberedBookLines, resolveBookLineEvidence } from '../../src/lib/book-line-evidence'
 
 // Regression for the 2026-11-23 live failure: a book page whose PDF text
 // layer embeds a NUL byte (0x00) made prisma.bookChunk.upsert() fail with
