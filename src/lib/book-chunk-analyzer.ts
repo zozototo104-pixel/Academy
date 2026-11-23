@@ -40,6 +40,52 @@ export function validateBookKnowledgeCandidate(raw: unknown, chunkText: string):
   return { category: category as BookKnowledgeCandidate['category'], title, summary, excerpt, importance: Math.round(importance) }
 }
 
+// Model-selected evidence IDs refer to exact spans of the saved BookChunk,
+// avoiding paraphrased model quotes without relaxing source provenance.
+export type BookEvidenceWindow = { id: string; excerpt: string }
+
+export function planBookEvidenceWindows(chunkText: string): BookEvidenceWindow[] {
+  const text = String(chunkText || '')
+  const windows: BookEvidenceWindow[] = []
+  let cursor = 0
+  while (cursor < text.length) {
+    while (cursor < text.length && /\s/.test(text[cursor])) cursor++
+    if (cursor >= text.length) break
+    let end = Math.min(text.length, cursor + 340)
+    if (end < text.length) {
+      const floor = cursor + 210
+      for (let at = end - 1; at >= floor; at--) {
+        if (/[.!؟؛\n]/.test(text[at])) { end = at + 1; break }
+      }
+      if (end === cursor + 340) {
+        const lastSpace = text.lastIndexOf(' ', end)
+        if (lastSpace >= floor) end = lastSpace + 1
+      }
+      // Include short tails in the last window, keeping every excerpt < 600.
+      if (text.length - end < 60) end = text.length
+    }
+    const excerpt = text.slice(cursor, end).trim()
+    if (excerpt.length >= 60 && excerpt.length <= 600) windows.push({ id: 'E' + (windows.length + 1), excerpt })
+    cursor = end
+  }
+  return windows
+}
+
+export function validateBookKnowledgeCandidateWithEvidence(
+  raw: unknown, chunkText: string, windows: readonly BookEvidenceWindow[],
+): BookKnowledgeCandidate | null {
+  if (!raw || typeof raw !== 'object') return null
+  const item = raw as Record<string, unknown>
+  const reference = item.evidenceId ?? item.evidence_id
+  if (reference === undefined || reference === null || String(reference).trim() === '') {
+    return validateBookKnowledgeCandidate(raw, chunkText)
+  }
+  const match = /^\[?E?(\d+)\]?$/i.exec(String(reference).trim())
+  const window = match && windows.find((entry) => entry.id === 'E' + Number(match[1]))
+  if (!window) return null
+  return validateBookKnowledgeCandidate({ ...item, excerpt: window.excerpt }, chunkText)
+}
+
 // D2.2: توصيل التحليل — نفس النمط الصارم للقراءة (D2.1b/D2.1c).
 // بروفايل التحليل الفعّال يقيد النداء بقائمته (الراوتر عبر
 // restrictToModels، والسلسلة الأصلية عبر ترشيح gemini.ts)، وفشل الكل
