@@ -708,6 +708,7 @@ export function AdminBooksTab() {
   const [bookReadJobs, setBookReadJobs] = useState<Record<string, BookReadJobRow>>({})
   const [bookEnrichment, setBookEnrichment] = useState<Record<string, {
     totalChunks: number; saturatedChunks: number; addedItems: number
+    capacitySaturatedChunks?: number; exhaustedChunks?: number
     storedChunks?: number; failedChunks?: number; knowledgeTotal?: number
     sourcePages?: number; pagesSaved?: number
   }>>({})
