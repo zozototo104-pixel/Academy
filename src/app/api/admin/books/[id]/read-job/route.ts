@@ -277,7 +277,16 @@ export async function POST(request: NextRequest, context: Context) {
       if (!readable) return NextResponse.json({ error: 'شغّل القراءة الكاملة أولاً' }, { status: 400 })
     }
     try {
-      const job = await db.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: mode, status: 'QUEUED' } })
+      const job = await db.$transaction(async (tx) => {
+        // Reopen only exhausted, non-saturated chunks when an administrator
+        // explicitly starts a fresh enrichment job. Preserve all saved items.
+        const created = await tx.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: mode, status: 'QUEUED' } })
+        if (mode === 'ENRICH') await tx.bookChunk.updateMany({
+          where: { bookId: id, status: 'ANALYZED', saturatedAt: null, analysisPasses: { gte: 3 } },
+          data: { analysisPasses: 0 },
+        })
+        return created
+      })
       return NextResponse.json({ ok: true, job, resumed: false })
     } catch (error: any) {
       // PostgreSQL partial unique index protects the create itself; a competing
