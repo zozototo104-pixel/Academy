@@ -417,7 +417,7 @@ export async function analyzeStepWithStore(
       if (deadlineMs - Date.now() < 25_000) return { analyzed, failed, completed: false, paused: false }
       const candidates = await analyze({ bookId: job.bookId, chunkText: chunk.text, deadlineMs, prior })
       // Revalidate at the persistence boundary, including injected analyzers in tests.
-      const items = candidates.map((item) => validateBookKnowledgeCandidate(item, chunk.text))
+      const items = candidates.map((item) => validateBookKnowledgeCandidate(item, chunk.text, { fromVerifiedLineRange: item.sourceLineRangeVerified === true && chunk.text.includes(item.excerpt) }))
         .filter((item): item is BookKnowledgeCandidate => item !== null)
         .filter((item, index, all) => !isRepeatedBookConcept(item, [...prior, ...all.slice(0, index)]))
       await store.saveAnalyzed(chunk, items, jobId)
