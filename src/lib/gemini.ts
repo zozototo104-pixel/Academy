@@ -29,6 +29,7 @@ interface GeminiCallOpts {
   excludeProviders?: TextAiProvider[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
+  timeoutMs?: number
   stickyScope?: string
   validate?: (text: string, context?: { provider: string; model: string }) => void
 }
