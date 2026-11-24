@@ -1992,6 +1992,7 @@ model Book {
   knowledgeItems BookKnowledgeItem[]
   readChunks BookChunk[]
   readJobs BookReadJob[]
+  repairJobs BookRepairJob[]
   outlines BookOutline[]
   uploadChunks BookUploadChunk[]
 }
