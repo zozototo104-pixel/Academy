@@ -26,15 +26,15 @@ export async function POST(req: NextRequest, context: Context) {
     const unit = await db.unit.findUnique({ where: { id: unitId }, select: { id: true, title: true } })
     if (!unit) return NextResponse.json({ error: 'UNIT_NOT_FOUND' }, { status: 404 })
     const updatedUnit = await db.$transaction(async (tx) => {
-      const applied = await tx.unit.update({
+      const claimed = await tx.unitRegenerationDraft.updateMany({
+        where: { id: draft.id, unitId, status: 'PENDING' },
+        data: { status: 'APPROVED', decidedAt: new Date() },
+      })
+      if (claimed.count !== 1) return null
+      return tx.unit.update({
         where: { id: unitId },
         data: buildUnitRegenerationApproveData(draft),
       })
-      await tx.unitRegenerationDraft.update({
-        where: { id: draft.id },
-        data: { status: 'APPROVED', decidedAt: new Date() },
-      })
-      return applied
     }, { maxWait: 20000, timeout: 30000 })
     await audit(admin, 'APPROVE_UNIT_REGENERATION', 'Unit', unitId,
       `اعتماد معاينة إعادة توليد الوحدة المتضررة: ${unit.title}`
