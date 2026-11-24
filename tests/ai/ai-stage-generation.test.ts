@@ -6,6 +6,10 @@ mock.module('@/lib/text-ai', () => ({
   pipelineConfigSnapshot: async () => ({ policy: 'balanced', allowedModels: ['GEMINI:g'], verifierPreferred: [] }),
   CUSTOM_AI_PROVIDERS_SETTING: 'AI_CUSTOM_PROVIDERS',
   parseCustomTextAiProviders: () => [],
+  // Bound by the stage runner's import chain at load time (step 6a
+  // auto OCR selection); auto OFF here.
+  isTextAiAutoModeEnabled: async () => false,
+  autoRankingForPurpose: async () => [],
 }))
 
 import type { StageUsage } from '@/lib/ai-stage-runner'

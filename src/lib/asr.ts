@@ -1,5 +1,19 @@
 import { GoogleGenAI, createPartFromUri, createUserContent } from '@google/genai'
 import { geminiApiKeys, isRetryableGeminiKeyError } from '@/lib/gemini'
+import { autoAsrRanking, isTextAiAutoModeEnabled } from '@/lib/text-ai'
+import { resolveAsrBackendOrder, type AsrBackendName } from '@/lib/ai-auto-mode'
+
+// Step 7g — auto selection WITHIN ASR only (never through the text
+// router): the stored AI_AUTO_RANKING:ASR order decides which
+// transcription backend is tried first. OFF (or an empty ranking) =
+// today's order (Gemini, then Whisper). The Gemini Files-API protocol
+// and the Whisper-compatible endpoint are unchanged — only the order
+// in which they are tried can change.
+async function asrBackendOrder(): Promise<AsrBackendName[]> {
+  const autoMode = await isTextAiAutoModeEnabled().catch(() => false)
+  const ranking = autoMode ? await autoAsrRanking().catch(() => []) : []
+  return resolveAsrBackendOrder({ autoMode, ranking, available: ['GEMINI', 'WHISPER'] })
+}
 
 type TranscribeAudioOptions = {
   mimeType?: string | null
@@ -211,38 +225,49 @@ export async function transcribeWhatsAppVoiceBase64(audioBase64: string, options
   const { clean, mimeType } = cleanBase64AndMime(audioBase64, options.mimeType)
   if (!clean) throw new Error('ASR_AUDIO_EMPTY')
 
+  const order = await asrBackendOrder()
   const model = String(process.env.GEMINI_WHATSAPP_ASR_MODEL || 'gemini-3.8-flash').trim()
   const keys = await asrGeminiKeys()
   const startedAt = Date.now()
-  for (const apiKey of keys.slice(0, 2)) {
-    // Leave time for an independent Whisper-compatible provider and the
-    // historical ASR path before WhatsApp's 38-second envelope expires.
-    if (Date.now() - startedAt > 14_000) break
-    try {
-      const ai = new GoogleGenAI({ apiKey })
-      const response = await ai.models.generateContent({
-        model,
-        contents: [createUserContent([
-          'انسخ الكلام المسموع حرفياً باللغة المنطوقة، بما فيها العربية. أرجع النص المنطوق فقط دون شرح أو ترجمة أو تخمين.',
-          { inlineData: { mimeType, data: clean } },
-        ])],
-        config: {
-          // Gemini 3.8 Flash rejects legacy sampling options such as temperature.
-          maxOutputTokens: 4096,
-          httpOptions: { timeout: 8_000 },
-        },
-      } as any)
-      const transcript = extractGeminiTranscript(response).trim()
-      if (transcript) return transcript
-    } catch (error) {
-      console.warn('WhatsApp fast ASR failed; trying next available backend:', String((error as any)?.message || error).slice(0, 180))
+  // Fast Gemini inline attempt (no file upload). Kept as a closure so the
+  // ASR order above can put Whisper first when auto mode ranks it first.
+  const tryFastGemini = async (): Promise<string | null> => {
+    for (const apiKey of keys.slice(0, 2)) {
+      // Leave time for an independent Whisper-compatible provider and the
+      // historical ASR path before WhatsApp's 38-second envelope expires.
+      if (Date.now() - startedAt > 14_000) break
+      try {
+        const ai = new GoogleGenAI({ apiKey })
+        const response = await ai.models.generateContent({
+          model,
+          contents: [createUserContent([
+            'انسخ الكلام المسموع حرفياً باللغة المنطوقة، بما فيها العربية. أرجع النص المنطوق فقط دون شرح أو ترجمة أو تخمين.',
+            { inlineData: { mimeType, data: clean } },
+          ])],
+          config: {
+            // Gemini 3.8 Flash rejects legacy sampling options such as temperature.
+            maxOutputTokens: 4096,
+            httpOptions: { timeout: 8_000 },
+          },
+        } as any)
+        const transcript = extractGeminiTranscript(response).trim()
+        if (transcript) return transcript
+      } catch (error) {
+        console.warn('WhatsApp fast ASR failed; trying next available backend:', String((error as any)?.message || error).slice(0, 180))
+      }
     }
+    return null
   }
-
-  // Whisper is attempted BEFORE the slower file-upload path, not after it:
-  // otherwise a Gemini Files API stall can consume the webhook deadline.
-  const whisper = await transcribeWithWhisperCompatible(clean, mimeType, 6_000)
-  if (whisper?.trim()) return whisper.trim()
+  const tryWhisper = async (): Promise<string | null> => {
+    // Whisper is attempted BEFORE the slower file-upload path, not after it:
+    // otherwise a Gemini Files API stall can consume the webhook deadline.
+    const whisper = await transcribeWithWhisperCompatible(clean, mimeType, 6_000)
+    return whisper?.trim() ? whisper.trim() : null
+  }
+  for (const backend of order) {
+    const transcript = backend === 'WHISPER' ? await tryWhisper() : await tryFastGemini()
+    if (transcript) return transcript
+  }
   return transcribeAudioBase64(clean, { ...options, mimeType })
 }
 
@@ -250,17 +275,25 @@ export async function transcribeAudioBase64(audioBase64: string, options: Transc
   const { clean, mimeType } = cleanBase64AndMime(audioBase64, options.mimeType)
   if (!clean) throw new Error('ASR_AUDIO_EMPTY')
 
+  // Step 7g: backends are tried in ASR-ranked order (Gemini first when
+  // auto is OFF — today's behaviour). Each backend keeps its own
+  // protocol and failure handling; only the try order is ranked.
+  const order = await asrBackendOrder()
   let geminiFailure: unknown = null
-  try {
-    const geminiText = await transcribeWithGemini(clean, { ...options, mimeType })
-    if (geminiText?.trim()) return geminiText.trim()
-    geminiFailure = new Error('GEMINI_ASR_EMPTY_OR_UNAVAILABLE')
-  } catch (error) {
-    geminiFailure = error
+  for (const backend of order) {
+    if (backend === 'WHISPER') {
+      const whisperText = await transcribeWithWhisperCompatible(clean, mimeType)
+      if (whisperText?.trim()) return whisperText.trim()
+      continue
+    }
+    try {
+      const geminiText = await transcribeWithGemini(clean, { ...options, mimeType })
+      if (geminiText?.trim()) return geminiText.trim()
+      geminiFailure = new Error('GEMINI_ASR_EMPTY_OR_UNAVAILABLE')
+    } catch (error) {
+      geminiFailure = error
+    }
   }
-
-  const whisperText = await transcribeWithWhisperCompatible(clean, mimeType)
-  if (whisperText?.trim()) return whisperText.trim()
 
   console.warn('ASR providers exhausted:', JSON.stringify({
     mimeType,

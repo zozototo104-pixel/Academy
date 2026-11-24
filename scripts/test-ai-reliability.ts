@@ -116,8 +116,8 @@ function testPlaintextGatewaySettingsRejectedBehaviorally() {
   delete process.env.AACT_SECRETS_KEY
 }
 
-function testAcademicVerifierExcludesGeneratorProviderBehavior() {
-  assert.deepEqual(__testVerifierExcludedProviders('GEMINI'), ['GEMINI'])
+function testAcademicVerifierAllowsDifferentModelOnGeneratorProviderBehavior() {
+  assert.deepEqual(__testVerifierExcludedProviders('GEMINI'), [])
   assert(!__testVerifierExcludedProviders('GEMINI').includes('OPENAI'))
 }
 
@@ -160,7 +160,7 @@ async function main() {
     testRedactDeepNestedObjects,
     testGeminiEncryptedSettingDecryptsToOriginalKey,
     testPlaintextGatewaySettingsRejectedBehaviorally,
-    testAcademicVerifierExcludesGeneratorProviderBehavior,
+    testAcademicVerifierAllowsDifferentModelOnGeneratorProviderBehavior,
     testAiHealthClaimIsAtomicBehavior,
     testAdminSystemGetShapeDoesNotExposeSecretsBehavior,
   ]

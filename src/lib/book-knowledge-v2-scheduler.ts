@@ -6,6 +6,7 @@ import { conceptTokens } from '@/lib/book-chunk-analyzer'
 import { transcribeScannedDocumentWithVision } from '@/lib/book-reader'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 import { textAiCompleteJson, CUSTOM_AI_PROVIDERS_SETTING, parseCustomTextAiProviders, type TextAiProvider, type TextAiPreferredModel } from '@/lib/text-ai'
+import { AI_AUTO_MODE_ENABLED_KEY, autoRankingKey, isAutoModeEnabled, parseAutoRanking } from '@/lib/ai-auto-mode'
 
 /** Preserve the existing program/semester scope. Never invokes the legacy v1 builder. */
 export async function scheduleProgramKnowledgeV2(programId: string, semester?: number | null) {
@@ -530,6 +531,38 @@ async function resolveRepairSourceCheap(item: RepairItemRow, ctx: RepairRunConte
   return { status: 'MISSING' }
 }
 
+// Step 6f — pure repair model choice. Auto ON + non-empty ranking →
+// the ranking (REVIEW, then ANALYSIS), scorer-excluded entries
+// dropped. Auto ON + empty ranking → the dedicated settings (the
+// repair must not refuse while the refresh has not run yet). Auto
+// OFF → the dedicated settings, exactly as today.
+export function chooseKnowledgeRepairModels(args: {
+  autoMode: boolean
+  reviewRankingRaw: string
+  analysisRankingRaw: string
+  repairProvider: TextAiProvider
+  repairModel: string
+  repairProviderAllowed: boolean
+}): { models: TextAiPreferredModel[]; source: 'auto' | 'dedicated' | 'none' } {
+  if (args.autoMode) {
+    const ranking = parseAutoRanking(args.reviewRankingRaw || '')
+      .concat(parseAutoRanking(args.analysisRankingRaw || ''))
+      .filter((c) => !c.excludedReason)
+    const models = ranking
+      .filter((c, i, all) => all.findIndex((x) => x.provider === c.provider && x.model === c.model) === i)
+      .slice(0, 8)
+      .map((c) => ({ provider: c.provider as TextAiPreferredModel['provider'], model: c.model }))
+    if (models.length) return { models, source: 'auto' }
+  }
+  if (args.repairProvider !== 'AUTO' && args.repairProviderAllowed && args.repairModel) {
+    return { models: [{ provider: args.repairProvider, model: args.repairModel }], source: 'dedicated' }
+  }
+  if (args.repairProvider === 'AUTO' && args.repairProviderAllowed) {
+    return { models: [], source: 'dedicated' }
+  }
+  return { models: [], source: 'none' }
+}
+
 // Called by a server-side cron only. One AI candidate at most per tick;
 // the optional database rate gate only applies if enabled by the admin.
 export async function runNextKnowledgeAiRepairStep(overrides: KnowledgeAiRepairOverrides = {}) {
@@ -552,6 +585,11 @@ export async function runNextKnowledgeAiRepairStep(overrides: KnowledgeAiRepairO
       'AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS',
       'AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN',
       CUSTOM_AI_PROVIDERS_SETTING,
+      // Step 6f: auto-mode ranking keys, read alongside the dedicated
+      // repair settings so one fetch decides which selector wins.
+      AI_AUTO_MODE_ENABLED_KEY,
+      autoRankingKey('REVIEW'),
+      autoRankingKey('ANALYSIS'),
     ] } },
     select: { key: true, value: true },
   })
@@ -564,9 +602,23 @@ export async function runNextKnowledgeAiRepairStep(overrides: KnowledgeAiRepairO
     .filter((entry) => entry.enabled)
   const repairProviderAllowed = REPAIR_SUPPORTED_PROVIDERS.has(repairProvider)
     || customRepairProviders.some((entry) => entry.id === repairProvider)
-  const chosenModel: TextAiPreferredModel[] = repairProvider !== 'AUTO' && repairProviderAllowed && repairModel
-    ? [{ provider: repairProvider, model: repairModel }] : []
-  if (!repairProviderAllowed || (repairProvider !== 'AUTO' && !chosenModel.length)) {
+  // Step 6f — model choice (pure helper below): when auto is ON, the
+  // dedicated repair provider/model settings are IGNORED and the repair
+  // call uses the auto ranking (REVIEW first — the call's purpose —
+  // ANALYSIS as fallback). When the ranking is empty (refresh has not
+  // run yet) the dedicated settings apply as a fallback instead of
+  // refusing the repair. When auto is OFF, today's dedicated settings
+  // apply unchanged. The 1–10 calls-per-run budget and the lease below
+  // are untouched.
+  const { models: chosenModel, source: repairModelSource } = chooseKnowledgeRepairModels({
+    autoMode: isAutoModeEnabled(config[AI_AUTO_MODE_ENABLED_KEY]),
+    reviewRankingRaw: config[autoRankingKey('REVIEW')] || '',
+    analysisRankingRaw: config[autoRankingKey('ANALYSIS')] || '',
+    repairProvider,
+    repairModel,
+    repairProviderAllowed,
+  })
+  if (repairModelSource === 'none') {
     return { status: 'INVALID_REPAIR_MODEL_CONFIGURATION' }
   }
   // An administrator-set interval of zero adds no artificial restriction.

@@ -11,7 +11,8 @@ import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
 import { getOfficialContact } from '@/lib/settings'
 import { ensureGeminiKey, geminiActiveTextModel, geminiComplete, geminiCompleteJson, geminiDiscussionThinkingLevel, geminiStreamText, type GeminiThinkingLevel } from '@/lib/gemini'
-import { textAiComplete, textAiDiagnostics, textAiModelHealthSnapshot, type TextAiProvider } from '@/lib/text-ai'
+import { textAiComplete, isTextAiAutoModeEnabled, textAiDiagnostics, textAiModelHealthSnapshot, type TextAiProvider } from '@/lib/text-ai'
+import { resolvePlatformAgentAttemptOrder, type PlatformAgentAttemptKind } from '@/lib/ai-auto-mode'
 import { assertWithinDeadline, remainingDeadlineMs } from '@/lib/prod-safety'
 
 export type PlatformAgentKind =
@@ -308,6 +309,10 @@ async function analyzeConversationIntent(messages: { role: string; content: stri
       ],
       temperature: 0.05,
       maxOutputTokens: 700,
+      // Step 7f: the intent classifier goes through the governed shim;
+      // the explicit purpose lets auto mode rank it as ANALYSIS.
+      purpose: 'ANALYSIS',
+      taskType: 'INTENT_CLASSIFICATION',
     }), classifierTimeoutMs, 'Conversation intent analysis timed out')
     const parsed = parseJsonObject(raw)
     if (!parsed) return fallback
@@ -964,6 +969,20 @@ export async function platformPublicAgentComplete(opts: {
   const timeoutMs = isWhatsApp ? platformAiTimeoutMs(42_000) : remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(22_000))
   if (!isWhatsApp && timeoutMs <= 0) throw new Error('Public platform agent deadline exceeded')
 
+  // Step 7f: attempt order comes from the pure auto helper. Auto ON
+  // removes GEMINI_DIRECT from the order entirely (WhatsApp included);
+  // the router call at the end (via chatComplete, taskType WHATSAPP)
+  // is then the only provider path. OFF keeps today's order.
+  const autoMode = await isTextAiAutoModeEnabled().catch(() => false)
+  const localCfg = await localAgentConfig().catch(() => null)
+  const attemptOrder: PlatformAgentAttemptKind[] = resolvePlatformAgentAttemptOrder({
+    autoMode,
+    channel: opts.channel || 'WEB_WIDGET',
+    shouldPreferGemini: isWhatsApp,
+    localEnabled: localCfg?.enabled === true,
+  })
+  const tryGeminiDirect = attemptOrder.includes('GEMINI_DIRECT')
+
   const runGemini = async () => {
     const geminiReady = await ensureGeminiKey().catch(() => false)
     if (!geminiReady) return null
@@ -984,7 +1003,7 @@ export async function platformPublicAgentComplete(opts: {
     }
   }
 
-  if (isWhatsApp) {
+  if (tryGeminiDirect && isWhatsApp) {
     try {
       const geminiReply = await runGemini()
       if (geminiReply) return geminiReply
@@ -994,7 +1013,6 @@ export async function platformPublicAgentComplete(opts: {
   }
 
 
-  const localCfg = await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
     try {
       const reply = await withPlatformTimeout(localChatComplete({
@@ -1011,7 +1029,7 @@ export async function platformPublicAgentComplete(opts: {
     }
   }
 
-  if (!isWhatsApp) {
+  if (tryGeminiDirect && !isWhatsApp) {
     try {
       const geminiReply = await runGemini()
       if (geminiReply) return geminiReply
@@ -1086,6 +1104,21 @@ export async function platformAgentComplete(opts: {
     || agent === 'THESIS_DEFENSE'
     || String(opts.uiContext || '').includes('Launch Quality Probe'))
 
+  // Step 7f: same auto rule as the public agent — when auto is ON,
+  // GEMINI_DIRECT leaves the attempt order and the router call below
+  // (via chatComplete, single-router under auto) is the provider path.
+  // The local open-source path stays as configured. OFF keeps today.
+  const autoMode = await isTextAiAutoModeEnabled().catch(() => false)
+  const localCfg = useAdminRouterPolicy ? null : await localAgentConfig().catch(() => null)
+  const attemptOrder: PlatformAgentAttemptKind[] = resolvePlatformAgentAttemptOrder({
+    autoMode,
+    channel: opts.mode || 'TEXT',
+    shouldPreferGemini,
+    useAdminRouterPolicy,
+    localEnabled: localCfg?.enabled === true,
+  })
+  const tryGeminiDirect = attemptOrder.includes('GEMINI_DIRECT')
+
   const runGemini = async () => {
     const geminiReady = await ensureGeminiKey().catch(() => false)
     if (!geminiReady) return null
@@ -1112,7 +1145,7 @@ export async function platformAgentComplete(opts: {
     }
   }
 
-  if (shouldPreferGemini) {
+  if (tryGeminiDirect && shouldPreferGemini) {
     try {
       const geminiReply = await runGemini()
       if (geminiReply) return geminiReply
@@ -1121,7 +1154,6 @@ export async function platformAgentComplete(opts: {
     }
   }
 
-  const localCfg = useAdminRouterPolicy ? null : await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
     try {
       const reply = await withPlatformTimeout(localChatComplete({
@@ -1138,7 +1170,7 @@ export async function platformAgentComplete(opts: {
     }
   }
 
-  if (!shouldPreferGemini && !useAdminRouterPolicy) {
+  if (tryGeminiDirect && !shouldPreferGemini && !useAdminRouterPolicy) {
     try {
       const geminiReply = await runGemini()
       if (geminiReply) return geminiReply
@@ -1266,7 +1298,13 @@ export async function platformAgentStream(opts: {
     }
   }
 
-  if (shouldPreferGemini) {
+  // Step 7f (stream): same auto rule — when auto is ON the direct
+  // Gemini stream is skipped and platformAgentComplete (auto-governed)
+  // answers instead. OFF keeps today's order.
+  const streamAutoMode = await isTextAiAutoModeEnabled().catch(() => false)
+  const tryGeminiStream = !streamAutoMode
+
+  if (tryGeminiStream && shouldPreferGemini) {
     const streamed = await runGeminiStream().catch((e) => { throw e })
     if (streamed) return streamed
   }

@@ -2475,6 +2475,12 @@ export function AdminBooksTab() {
       }
     } catch (error: any) {
       const message = String(error?.message || error)
+      if (message.includes('BOOK_REPAIR_JOB_ACTIVE')) {
+        // Repair owns this book until it finishes; retry quietly later
+        // instead of showing the same red toast every five seconds.
+        bookReadRetryRef.current[bookId] = { count: 0, nextAt: Date.now() + 30_000 }
+        return
+      }
       if (/\b(502|504)\b|bad gateway|gateway timeout|failed to fetch|networkerror|network error|load failed/i.test(message)) {
         const count = (bookReadRetryRef.current[bookId]?.count || 0) + 1
         bookReadRetryRef.current[bookId] = { count, nextAt: Date.now() + 5000 }
@@ -3792,6 +3798,11 @@ export function AdminBooksTab() {
                       const countForBook = v2CountsByBook[b.id] ?? 0
                       const activeJob = bookReadJobs[b.id]
                       const isEnriching = activeJob?.phase === 'ENRICH' && ['QUEUED', 'RUNNING', 'PAUSED'].includes(activeJob.status)
+                      // A manually stopped ENRICH job with no live lease is
+                      // safe to repair; the server explicitly permits it.
+                      const stoppedEnrichmentReleased = activeJob?.phase === 'ENRICH' && activeJob.status === 'PAUSED' &&
+                        activeJob.retryAt && new Date(activeJob.retryAt).getUTCFullYear() === 9999 &&
+                        (!activeJob.lockedUntil || new Date(activeJob.lockedUntil).getTime() <= Date.now())
                       const unfinishedRead = !!activeJob && ['EXTRACT', 'ANALYZE'].includes(activeJob.phase) && ['QUEUED', 'RUNNING', 'PAUSED', 'FAILED'].includes(activeJob.status)
                       const failedAnalysisChunks = bookEnrichment[b.id]?.failedChunks ?? activeJob?.chunksFailed ?? 0
                       const canRebuild = !activeJob || ['COMPLETED', 'FAILED'].includes(activeJob.status) ||
@@ -3815,7 +3826,7 @@ export function AdminBooksTab() {
                               {countForBook > 0 && <Button size="sm" variant="outline" onClick={() => startBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || unfinishedRead || isEnriching || (bookEnrichment[b.id]?.totalChunks > 0 && (bookEnrichment[b.id]?.capacitySaturatedChunks ?? 0) >= (bookEnrichment[b.id]?.totalChunks ?? Infinity))} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">{activeJob?.phase === 'ENRICH' && activeJob.status === 'PAUSED' ? 'الإثراء متوقف — اضغط استكمال' : bookReadBusyId === b.id || isEnriching ? 'جارٍ استخراج المزيد...' : 'استخراج المزيد'}</Button>}
                               {countForBook > 0 && (bookEnrichment[b.id]?.totalChunks ?? 0) > 0 && (bookEnrichment[b.id]?.capacitySaturatedChunks ?? 0) >= (bookEnrichment[b.id]?.totalChunks ?? Infinity) && (bookEnrichment[b.id]?.enrichmentTarget ?? activeJob?.enrichmentTarget ?? 10) === 10 && <Button size="sm" variant="outline" onClick={() => startExtraBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || unfinishedRead || isEnriching} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">إثراء إضافي حتى 20 عنصراً لكل مقطع</Button>}
                               {(bookEnrichment[b.id]?.enrichmentTarget ?? activeJob?.enrichmentTarget ?? 10) === 20 && <p className="self-center text-[10px] font-bold text-slate-500">الهدف الحالي للإثراء: 20 عنصراً لكل مقطع</p>}
-                              <Button size="sm" variant="outline" onClick={() => scanBookDistortion(b.id)} disabled={bookReadBusyId === b.id || unfinishedRead || isEnriching} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">فحص وإصلاح تشوهات الكتاب</Button>
+                              <Button size="sm" variant="outline" onClick={() => scanBookDistortion(b.id)} disabled={bookReadBusyId === b.id || unfinishedRead || (isEnriching && !stoppedEnrichmentReleased)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">فحص وإصلاح تشوهات الكتاب</Button>
                             </div>
                           </div>
                           {bookOutlines[b.id] && (() => {

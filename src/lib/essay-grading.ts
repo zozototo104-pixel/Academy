@@ -179,6 +179,7 @@ export async function gradeEssayWithRubric(args: {
   const raw = await textAiCompleteJson({
     taskLevel: 'ACADEMIC_CRITICAL',
     purpose: 'GRADING',
+    taskType: 'ESSAY_GRADING',
     routerPolicy: 'quality_first',
     temperature: 0.1,
     maxOutputTokens: 1800,

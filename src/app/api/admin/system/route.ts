@@ -8,8 +8,9 @@ import { sendEmail, getSmtpConfig, emailTemplate } from '@/lib/mailer'
 import { ensureGeminiKey, hasGemini, invalidateGeminiKeyCache, normalizeGeminiModelName, geminiActiveLiveModel, isValidGeminiLiveModel, geminiApiKey, isQuotaError, isAuthError, isModelUnavailableError, isInvalidArgumentError, geminiKeyDiagnostics, geminiTestConnection } from '@/lib/gemini'
 import { localAgentDiagnostics, testLocalAgentConnection } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
-import { assertPublicCustomTextAiUrl, forgetCustomTextAiProviderRuntimeState, CUSTOM_AI_PROVIDERS_SETTING, CUSTOM_AI_PROVIDER_REFERENCE_KEYS, customTextAiKeySetting, isCustomTextAiProviderId, parseCustomTextAiProviders, settingsAfterCustomTextAiProviderDeletion, refreshCustomTextAiFreeModels, clearTextAiRouterState, textAiCheckAllModelHealth, textAiDiagnostics, textAiDiscoveredModelsForProvider, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiRouterStateSnapshot, textAiTestConnection } from '@/lib/text-ai'
+import { assertPublicCustomTextAiUrl, forgetCustomTextAiProviderRuntimeState, CUSTOM_AI_PROVIDERS_SETTING, CUSTOM_AI_PROVIDER_REFERENCE_KEYS, customTextAiKeySetting, isCustomTextAiProviderId, parseCustomTextAiProviders, settingsAfterCustomTextAiProviderDeletion, refreshCustomTextAiFreeModels, refreshDiscoveryForProvider, clearTextAiRouterState, textAiCheckAllModelHealth, textAiDiagnostics, textAiDiscoveredModelsForProvider, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiRouterStateSnapshot, textAiTestConnection } from '@/lib/text-ai'
 import { clearSecretCache, decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret, isMaskedSecret, isSecretKeyName, redactDeep, redactSecrets, secretLast4 } from '@/lib/secret-crypto'
+import { AI_AUTO_MODE_TRANSITIONS_KEY, isAutoModeEnabled, parseAutoModeTransitions, recordAutoModeTransition } from '@/lib/ai-auto-mode'
 
 const NextResponse = {
   json: (body: unknown, init?: ResponseInit) => UnsafeNextResponse.json(redactDeep(body), init),
@@ -25,6 +26,7 @@ const SYSTEM_KEYS = [
   'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL', 'GEMINI_DISCUSSION_THINKING_LEVEL', 'GEMINI_TTS_VOICE',
   'AI_KNOWLEDGE_REPAIR_PROVIDER', 'AI_KNOWLEDGE_REPAIR_MODEL', 'AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS', 'AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN',
   'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES', 'AI_PROVIDER_FALLBACK_ORDER', 'AI_PROVIDER_FALLBACK_ORDER_ENABLED',
+  'AI_AUTO_MODE_ENABLED', 'AI_AUTO_MODE_CONFIG',
   'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
   'ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEYS', 'ANTHROPIC_TEXT_MODEL',
   'ZAI_API_KEY', 'ZAI_API_KEYS', 'ZAI_TEXT_MODEL', 'ZAI_API_BASE',
@@ -291,6 +293,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'عدد محاولات التصحيح في تشغيل واحد يجب أن يكون من 1 إلى 10' }, { status: 400 })
     }
     const updates: string[] = []
+    // Step 8 — transitions log: the toggle value BEFORE this save, so a
+    // real auto<->manual switch can be recorded afterwards. A missing
+    // row reads as manual (the default is OFF).
+    const beforeModeRow = await db.setting.findUnique({ where: { key: 'AI_AUTO_MODE_ENABLED' } }).catch(() => null)
+    const beforeAutoMode = isAutoModeEnabled(beforeModeRow?.value || '')
+    let nextAutoModeValue: string | null = null
     for (const key of SYSTEM_KEYS) {
       if (!(key in body)) continue
       let value = String(body[key] ?? '').trim()
@@ -311,6 +319,25 @@ export async function PATCH(req: NextRequest) {
       }
       if (key === 'AI_ACADEMIC_ALLOWLIST_STRICT' || key === 'AI_VERIFIER_STRICT' || key === 'AI_STICKY_ON_SUCCESS' || key === 'AI_PAID_FIRST' || key === 'AI_PROVIDER_FALLBACK_ORDER_ENABLED') {
         value = ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase()) ? 'true' : 'false'
+      }
+      if (key === 'AI_AUTO_MODE_ENABLED') {
+        // Auto-mode toggle: stored as '1'/'0' (default '0' = manual behaviour).
+        value = ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase()) ? '1' : '0'
+        nextAutoModeValue = value
+      }
+      if (key === 'AI_AUTO_MODE_CONFIG') {
+        // JSON config object; a malformed value is rejected rather than
+        // stored, so a bad row can never break routing (the reader also
+        // falls back to defaults per field).
+        if (value) {
+          try {
+            const parsed = JSON.parse(value)
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('AI_AUTO_MODE_CONFIG_MUST_BE_OBJECT')
+            value = JSON.stringify(parsed)
+          } catch {
+            return NextResponse.json({ error: 'إعدادات الوضع التلقائي يجب أن تكون JSON صحيحاً بصيغة كائن' }, { status: 400 })
+          }
+        }
       }
       if (key === 'AI_FAMILY_QUALITY_ORDER' || key === 'AI_FAMILY_COST_ORDER') {
         value = sanitizeFamilyOrder(value)
@@ -343,6 +370,25 @@ export async function PATCH(req: NextRequest) {
         update: { value },
       })
       updates.push(key)
+    }
+    // Step 8 — transitions log: record a REAL auto<->manual switch in
+    // AI_AUTO_MODE_TRANSITIONS (JSON array, newest first, capped at 20).
+    // Only a value CHANGE is recorded; a save that repeats the current
+    // value, or a save without the toggle, writes nothing. This runs
+    // after every upsert above succeeded, so a rejected save never logs
+    // a switch that did not happen.
+    if (nextAutoModeValue !== null && (nextAutoModeValue === '1') !== beforeAutoMode) {
+      const transitionsRow = await db.setting.findUnique({ where: { key: AI_AUTO_MODE_TRANSITIONS_KEY } }).catch(() => null)
+      const nextTransitions = recordAutoModeTransition(
+        parseAutoModeTransitions(transitionsRow?.value || ''),
+        beforeAutoMode ? 'auto' : 'manual',
+        nextAutoModeValue === '1' ? 'auto' : 'manual',
+      )
+      await db.setting.upsert({
+        where: { key: AI_AUTO_MODE_TRANSITIONS_KEY },
+        create: { key: AI_AUTO_MODE_TRANSITIONS_KEY, value: JSON.stringify(nextTransitions) },
+        update: { value: JSON.stringify(nextTransitions) },
+      })
     }
     clearSecretCache()
     if (updates.some((k) => k.startsWith('GEMINI_'))) invalidateGeminiKeyCache()
@@ -523,6 +569,21 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, ...catalog })
       } catch {
         return NextResponse.json({ error: 'تعذر تحديث نماذج المزوّد. راجع الرابط والمفتاح وتفعيل المزوّد.' }, { status: 400 })
+      }
+    }
+    // Manual "refresh now" for a BUILT-IN provider's discovery catalog
+    // (step 3): same path as the auto-refresh cron, one provider at a
+    // time. Custom providers keep their own action above. A failed
+    // refresh keeps the last good catalog (transient rule) and reports
+    // discoveryOk:false — it never empties the candidate pool.
+    if (action === 'refresh-built-in-ai-models') {
+      const id = String(body?.id || '').trim().toUpperCase()
+      if (!id || id === 'AUTO' || isCustomTextAiProviderId(id)) return NextResponse.json({ error: 'المزوّد غير صالح' }, { status: 400 })
+      try {
+        const catalog = await refreshDiscoveryForProvider(id)
+        return NextResponse.json({ ok: true, ...catalog })
+      } catch {
+        return NextResponse.json({ error: 'تعذر تحديث نماذج المزوّد. راجع الرابط والمفتاح.' }, { status: 400 })
       }
     }
     if (action === 'select-custom-ai-model') {

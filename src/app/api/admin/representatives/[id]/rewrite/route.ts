@@ -79,6 +79,9 @@ ${fileEvidence || 'لا توجد ملفات مستخرجة.'}
       history: [{ role: 'user', text: prompt }],
       temperature: 0.25,
       maxOutputTokens: 2200,
+      // Step 7i: explicit purpose so the auto ranking for GENERATION applies.
+      purpose: 'GENERATION',
+      taskType: 'REPRESENTATIVE_REWRITE',
     })
     const parsed = parseJson(raw)
     const updated = await db.academyRepresentative.update({

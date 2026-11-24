@@ -11,6 +11,10 @@ mock.module('@/lib/text-ai', () => ({
   pipelineConfigSnapshot: async () => ({ policy: 'balanced', allowedModels: [], verifierPreferred: [] }),
   CUSTOM_AI_PROVIDERS_SETTING: 'AI_CUSTOM_PROVIDERS',
   parseCustomTextAiProviders: () => [],
+  // Bound by the stage runner's import chain at load time (step 6a
+  // auto OCR selection); auto OFF here.
+  isTextAiAutoModeEnabled: async () => false,
+  autoRankingForPurpose: async () => [],
   modelFamily: (model: string) => {
     const m = String(model).toLowerCase()
     if (m.includes('gemini') || m.includes('gemma')) return 'gemini'

@@ -313,7 +313,11 @@ async function recordJobFailure(jobId: string, message: string): Promise<JobFail
 }
 
 export function isPausableQuestionBankError(message: string): boolean {
-  return /AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|DEADLINE|TIMEOUT|NO_PROVIDER|NOT_CONFIGURED|OPENAI_API_KEYS/i.test(message)
+  // Step 5: TEXT_AI_RUN_TIMEOUT is explicitly pausable — a run timeout
+  // preserves the job's progress and retryAt, never FAILED as exhausted.
+  // BOOK_READ_TIME_BUDGET_EXHAUSTED is the same run-timeout family
+  // (the worker budget ran out mid-run); it must pause, not fail.
+  return /AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|TEXT_AI_RUN_TIMEOUT|BOOK_READ_TIME_BUDGET_EXHAUSTED|DEADLINE|TIMEOUT|NO_PROVIDER|NOT_CONFIGURED|OPENAI_API_KEYS/i.test(message)
 }
 
 async function normalizeProviderError(message: string) {

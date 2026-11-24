@@ -166,6 +166,7 @@ async function readWithVisionRouter(buffer: Buffer, mimeType: string, declaredTy
     system: promptForImage(declaredTypeAr),
     history: [{ role: 'user', text: 'حلّل المرفق البصري المرفق فقط وأعد JSON حسب التعليمات.' }],
     purpose: 'VISION',
+    taskType: 'IMAGE_DOCUMENT_READ',
     routerPolicy: 'primary_first',
     excludeProviders: ['ZAI'], // لا نعتمد على Z-AI بدون مفتاح مُهيأ.
     temperature: 0.05,

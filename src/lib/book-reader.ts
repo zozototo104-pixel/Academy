@@ -5,7 +5,8 @@ import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 import { looksLikeBrokenBookPageText } from '@/lib/academic-output-quality'
 import { stripPostgresForbiddenChars } from '@/lib/postgres-text'
-import { textAiCompleteJsonWithMetadata, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from '@/lib/text-ai'
+import { autoRankingForPurpose, isTextAiAutoModeEnabled, textAiCompleteJsonWithMetadata, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from '@/lib/text-ai'
+import { pickOcrModel, splitOcrBudget } from '@/lib/ai-auto-mode'
 import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRoutingOverrides } from '@/lib/ai-stage-profiles'
 import { withPipelineRun } from '@/lib/ai-pipeline-log'
 import { assertBookReadLease, mergeBookPageReadIssues, parseBookOcrSoloPages, withBookOcrSoloPages, type BookPageReadIssue } from '@/lib/book-read-job-control'
@@ -142,7 +143,10 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
     return pages
   }
   const meta = await textAiCompleteJsonWithMetadata({
-    validate: (raw) => { parsePages(raw) },
+    validate: (raw) => {
+      const pages = parsePages(raw)
+      if (pages.every((page) => !page.text.trim())) throw new Error('OCR_ALL_PAGES_EMPTY')
+    },
     system: 'أنت محرك OCR حرفي. انسخ النص المرئي كما هو، دون شرح أو وصف أو استنتاج. لا تستخدم VISION_DESCRIPTION.',
     history: [{ role: 'user', text: `الملف يحتوي ${pageNumbers.length} صفحات بالترتيب. أرجع JSON فقط بالشكل {"pages":[{"page":1,"text":"النص الحرفي"}]}، حيث page هو رقم الصفحة داخل الملف الفرعي من 1 إلى ${pageNumbers.length}. لا تخترع نصاً ولا تلخص.` }],
     purpose: 'VISION',
@@ -150,20 +154,70 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
     ...(overrides?.preferredModels.length ? { preferredModels: overrides.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model })), restrictToModels: overrides.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model })) } : {}),
     ...(overrides?.preferredProviders.length ? { preferredProviders: overrides.preferredProviders as TextAiProvider[] } : {}),
     maxOutputTokens: 16000,
-    deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + 90_000),
+    // Step 6 (plan risk 5): one OCR attempt gets at most half the
+    // remaining budget, so a slow model can never eat the whole budget
+    // before the next model is tried (>= 2 attempts always fit).
+    deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + splitOcrBudget(deadlineMs - Date.now()).perAttemptMs),
     attachments,
   })
   const pages = parsePages(meta.text)
   return { pages, provider: meta.provider, model: meta.model }
 }
 
+// Step 6a — auto OCR selection: when auto mode is ON and no stage
+// profile pins the models, the OCR model comes from the VISION ranking
+// (capability ocr:true + best recent OCR-gate pass rate, in rank
+// order) instead of today's global order. PDF-first, PNG-second
+// stays. A stage profile still wins when one exists; when auto is OFF
+// (or the ranking is empty) the null path below runs unchanged.
+async function autoVisionOverrides(): Promise<{
+  overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null
+  autoSelected: boolean
+}> {
+  try {
+    if (!(await isTextAiAutoModeEnabled())) return { overrides: null, autoSelected: false }
+    const ranking = await autoRankingForPurpose('VISION')
+    if (!pickOcrModel({ ranking })) return { overrides: null, autoSelected: false }
+    const preferredModels = ranking.map((c) => ({ provider: c.provider, model: c.model }))
+    return {
+      overrides: {
+        preferredModels,
+        preferredProviders: [...new Set(ranking.map((c) => c.provider))],
+        policy: null,
+        allowGlobalFallback: true,
+      },
+      autoSelected: true,
+    }
+  } catch {
+    // Auto selection is best-effort: any failure here falls back to
+    // today's global order instead of breaking the read.
+    return { overrides: null, autoSelected: false }
+  }
+}
+
 // D2.1b: مع بروفايل مرحلة، المحاولة الأولى محصورة بقائمته حصرًا صارمًا.
 // فشل الكل: رجوع واحد للعام إن سمح البروفايل (ويُعلَّم fellBack)،
 // وإلا يفشل النداء بوضوح كما فشل.
-async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null, onFallbackAttempt?: () => void): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string; fellBack: boolean }> {
-  if (!overrides) return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null)), fellBack: false }
+async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, stageOverrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null, onFallbackAttempt?: () => void, allowAuto = true): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string; fellBack: boolean; autoSelected?: boolean }> {
+  // The one global fallback below must NOT re-resolve auto overrides:
+  // it retries with today's global order, otherwise the auto path
+  // would recurse into itself forever when every ranked model fails.
+  const auto = !stageOverrides && allowAuto ? await autoVisionOverrides() : { overrides: null, autoSelected: false }
+  // The effective overrides: the stage profile when one exists, else
+  // the auto VISION ranking, else null (today's global order). Named
+  // `overrides` to keep the D2.1b hard-allowlist lines verbatim.
+  const overrides = stageOverrides ?? auto.overrides
+  if (!overrides) {
+    try {
+      return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null)), fellBack: false }
+    } catch (pdfError) {
+      if (deadlineMs - Date.now() < 25_000) throw pdfError
+      // Global models may accept image_url but not PDF attachments.
+      return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null, true)), fellBack: false }
+    }
+  }
   try {
-    return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, overrides)), fellBack: false }
+    return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, overrides)), fellBack: false, autoSelected: auto.autoSelected || undefined }
   } catch (error) {
     // Retry the same source pages as images through the configured stage.
     // The attachment router filters models by vision capability; do not
@@ -171,16 +225,17 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
     if (deadlineMs - Date.now() >= 25_000) {
       try {
         const imageRouting = overrides
-        return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, imageRouting, true)), fellBack: false }
+        return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, imageRouting, true)), fellBack: false, autoSelected: auto.autoSelected || undefined }
       } catch (imageError) {
         if (!overrides.allowGlobalFallback) throw imageError
       }
     }
     if (!overrides.allowGlobalFallback) throw error
-    // D2.1c: الوسم يُضبط لحظة اتخاذ قرار الرجوع — قبل المحاولة نفسها —
-    // حتى يظهر في سجل الفشل إن فشلت محاولة الرجوع أيضًا.
+    // D2.1c: record the fallback before its PDF and PNG attempts.
     onFallbackAttempt?.()
-    return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null)), fellBack: true }
+    // The global fallback retries with today's global order (auto
+    // selection skipped here), and is not labelled an auto selection.
+    return { ...(await transcribeWithMeta(buffer, pageNumbers, deadlineMs, null, undefined, false)), fellBack: true, autoSelected: undefined }
   }
 }
 
@@ -189,7 +244,8 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
 // profile; this does not restart indexing or relax source-page validation.
 export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNumbers: readonly number[], deadlineMs = Date.now() + 120_000): Promise<ExtractedBookPage[]> {
   try {
-    const original = (await transcribeWithMeta(buffer, pageNumbers, deadlineMs, null)).pages
+    // Preserve the legacy first PDF attempt before consulting READING.
+    const original = (await transcribeOnce(buffer, pageNumbers, deadlineMs, null)).pages
     if (original.every((page) => !page.text.trim())) throw new Error('BOOK_OUTLINE_OCR_EMPTY_RESPONSE')
     return original
   } catch (originalError) {
@@ -199,12 +255,17 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
     } catch {
       // A missing/invalid profile must not replace the original failure.
     }
-    if (overrides?.kind !== 'stage') throw originalError
+    if (overrides?.kind !== 'stage') {
+      if (deadlineMs - Date.now() < 25_000) throw originalError
+      const imagePages = (await transcribeOnce(buffer, pageNumbers, deadlineMs, null, true)).pages
+      if (imagePages.every((page) => !page.text.trim())) throw originalError
+      return imagePages
+    }
     const rescued = (await transcribeWithMeta(buffer, pageNumbers, deadlineMs, {
       preferredModels: overrides.preferredModels,
       preferredProviders: overrides.preferredProviders,
       policy: overrides.policy,
-      allowGlobalFallback: false,
+      allowGlobalFallback: overrides.allowGlobalFallback,
     })).pages
     if (rescued.every((page) => !page.text.trim())) throw originalError
     return rescued
@@ -255,8 +316,15 @@ export type ExtractStepStore = {
 }
 
 /** One durable batch is at most eight pages. Progress advances only after every chunk is saved. */
-async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision; soloPages?: ReadonlySet<number>; routing?: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null; aiUsage?: { provider: string | null; model: string | null; fallbackUsed?: boolean; fallbackReason?: string } }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
+async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision; soloPages?: ReadonlySet<number>; routing?: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null; aiUsage?: { provider: string | null; model: string | null; fallbackUsed?: boolean; fallbackReason?: string; autoSelected?: boolean }; clock?: () => number }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
   const { buffer, bookId, programId, jobId, store } = input
+  // Test seam: the OCR budget checks read this clock so a test can
+  // advance time deterministically instead of sleeping on a deadline.
+  const nowMs = () => input.clock?.() ?? Date.now()
+  // Solo pages recorded during THIS run, unioned with the pages a
+  // previous run already recorded — a later batch must never drop an
+  // earlier batch's solo marker when it saves its own.
+  const soloRecorded = new Set<number>(input.soloPages || [])
   if (Date.now() >= input.deadlineMs) throw new Error('BOOK_EXTRACT_DEADLINE')
   const lastPage = Math.min(input.totalPages, input.pagesDone + 8)
   const numbers = Array.from({ length: lastPage - input.pagesDone }, (_, index) => input.pagesDone + index + 1)
@@ -280,8 +348,20 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
       input.aiUsage.provider = meta.provider
       input.aiUsage.model = meta.model
       if (meta.fellBack) input.aiUsage.fallbackUsed = true
+      if (meta.autoSelected) input.aiUsage.autoSelected = true
     }
     return meta.pages
+  }
+  // Step 6c — a solo recovery that itself runs out of budget mid-batch
+  // must record the still-undecided pages as solo-retry pages, or the
+  // next run repeats the group call that already died on budget. The
+  // checkpoint is cumulative across batches in this run.
+  const recordUndecidedSoloPages = async (batch: number[], sealed: ReadonlySet<number>): Promise<void> => {
+    const undecided = batch.filter((page) => !sealed.has(page))
+    if (!undecided.length) return
+    for (const page of undecided) soloRecorded.add(page)
+    if (!store.saveOcrSoloPages) throw new Error('BOOK_OCR_SOLO_CHECKPOINT_UNAVAILABLE')
+    await store.saveOcrSoloPages(jobId, [...soloRecorded].sort((a, b) => a - b))
   }
   const needsOcr = numbers.filter((page) => pageNeedsOcrText(pageMap.get(page)?.text || ''))
   const needsOcrSet = new Set(needsOcr)
@@ -339,7 +419,7 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
   // its outcome sealed, and a spent budget stops BEFORE the next page.
   const ocrBatchSolo = async (batch: number[]): Promise<'DONE' | 'STOP'> => {
     for (const page of batch) {
-      if (input.deadlineMs - Date.now() < 25_000) return 'STOP'
+      if (input.deadlineMs - nowMs() < 25_000) return 'STOP'
       try {
         const single = await callOcr([page])
         const recovered = single.find((item) => item.page === page && item.text.trim())
@@ -359,11 +439,14 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
     // new OCR batch — but persist every page already decided in this
     // batch first, so the next run resumes where this one stopped
     // instead of re-reading (and re-paying for) the same pages.
-    if (input.deadlineMs - Date.now() < 25_000) return persistDecidedPrefix()
+    if (input.deadlineMs - nowMs() < 25_000) return persistDecidedPrefix()
     if (batch.some((page) => input.soloPages?.has(page))) {
       // A previous run's group call for these pages died with the budget
       // spent. Never repeat that group request — work the pages solo.
-      if (await ocrBatchSolo(batch) === 'STOP') return persistDecidedPrefix()
+      if (await ocrBatchSolo(batch) === 'STOP') {
+        await recordUndecidedSoloPages(batch, ocrSealed)
+        return persistDecidedPrefix()
+      }
       continue
     }
     try {
@@ -382,16 +465,20 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
       // solo recovery cannot even start now — record the batch as
       // solo-retry state so the NEXT run goes straight to single pages
       // instead of repeating the identical group request and stalling.
-      if (input.deadlineMs - Date.now() < 25_000) {
+      if (input.deadlineMs - nowMs() < 25_000) {
         // Never report a resumable prefix if the recovery checkpoint could
         // not be saved: the next worker would repeat this exhausted group OCR.
         if (!store.saveOcrSoloPages) throw new Error('BOOK_OCR_SOLO_CHECKPOINT_UNAVAILABLE')
-        await store.saveOcrSoloPages(jobId, batch)
+        for (const page of batch) soloRecorded.add(page)
+        await store.saveOcrSoloPages(jobId, [...soloRecorded].sort((a, b) => a - b))
         return persistDecidedPrefix()
       }
       // A failure on one page of a four-page OCR call must not discard the
       // other three. Try each page, then preserve every remaining failure.
-      if (await ocrBatchSolo(batch) === 'STOP') return persistDecidedPrefix()
+      if (await ocrBatchSolo(batch) === 'STOP') {
+        await recordUndecidedSoloPages(batch, ocrSealed)
+        return persistDecidedPrefix()
+      }
     }
   }
   return persistPages(numbers)
@@ -404,6 +491,7 @@ export const __testExtractPdfBatchInnerForTests = extractPdfBatchInner
 /** Test-only seam: the single OCR call, so its result verification can be
  *  exercised with a stubbed router instead of a live provider. */
 export const __testTranscribeOnceForTests = transcribeOnce
+export const __testTranscribeWithMetaForTests = transcribeWithMeta
 
 // D0+D2.1: كل دفعة استخراج تُسجَّل كتشغيلة قراءة. بروفايل القراءة
 // الفعّال يُحسم أولًا: بروفايل مرحلة صالح يقود نداءات OCR ويُختم به
@@ -416,7 +504,7 @@ export async function extractPdfBatch(input: Parameters<typeof extractPdfBatchIn
   } catch {
     overrides = { kind: 'resolution-error' }
   }
-  const aiUsage: { provider: string | null; model: string | null; fallbackUsed: boolean; fallbackReason?: string } = { provider: null, model: null, fallbackUsed: false }
+  const aiUsage: { provider: string | null; model: string | null; fallbackUsed: boolean; fallbackReason?: string; autoSelected?: boolean } = { provider: null, model: null, fallbackUsed: false }
   const isStage = overrides.kind === 'stage'
   let routing: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null = null
   let profileStamp: { profileId: string; profileVersion: string; policy: string | null; allowedModels: string[] } | undefined
@@ -435,7 +523,10 @@ export async function extractPdfBatch(input: Parameters<typeof extractPdfBatchIn
   return withPipelineRun(
     { stage: 'READING', bookId: input.bookId, batchId: input.jobId, inputData: input.buffer, profileStamp, fallbackUsed: !isStage, liveState: aiUsage, detail },
     () => extractPdfBatchInner({ ...input, routing, aiUsage }),
-    (r) => ({ provider: aiUsage.provider, model: aiUsage.model, outputCount: r.totalChunks, fallbackUsed: aiUsage.fallbackUsed || undefined, detail: { pagesDone: r.pagesDone, totalPages: r.totalPages, phase: r.phase, ...(aiUsage.fallbackUsed ? { fallbackReason: 'all-stage-models-failed' } : {}) } }),
+    (r) => ({ provider: aiUsage.provider, model: aiUsage.model, outputCount: r.totalChunks, fallbackUsed: aiUsage.fallbackUsed || undefined, detail: { pagesDone: r.pagesDone, totalPages: r.totalPages, phase: r.phase, ...(aiUsage.fallbackUsed ? { fallbackReason: 'all-stage-models-failed' } : {}),
+      // Step 5 telemetry: the chosen model + ranking reason, so an
+      // admin can see why this model read the pages.
+      ...(aiUsage.autoSelected && aiUsage.provider && aiUsage.model ? { autoSelection: { provider: aiUsage.provider, model: aiUsage.model, reason: 'auto-vision-ranking' } } : {}) } }),
   )
 }
 

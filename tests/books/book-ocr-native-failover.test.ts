@@ -19,6 +19,10 @@ mock.module('@/lib/text-ai', () => ({
   hasExternalTextAi: async () => false,
   textAiCompleteJson: async () => { throw new Error('router disabled in this test') },
   textAiStreamText: async () => { throw new Error('router disabled in this test') },
+  // Bound by gemini.ts at load time (step 6a auto OCR selection);
+  // auto OFF here, so the native loop keeps its own model order.
+  isTextAiAutoModeEnabled: async () => false,
+  autoRankingForPurpose: async () => [],
 }))
 // mock.module factories are re-parsed without TypeScript syntax: keep the
 // factory body plain JS (no type annotations, no `as` casts) and route the

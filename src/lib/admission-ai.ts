@@ -1252,6 +1252,7 @@ export async function analyzeAdmission(
     const raw = await textAiCompleteJson({
       system: 'أنت خبير قبول أكاديمي صارم، لا ترفع النسبة إلا إذا كانت الأدلة المقروءة تثبت المتطلبات فعلاً. أرجع JSON صالحاً فقط.',
       purpose: 'ANALYSIS',
+      taskType: 'ADMISSION_REVIEW',
       routerPolicy: 'primary_first',
       excludeProviders: ['ZAI'], // التقييم النهائي لا يحتاج مفتاح Z-AI.
       temperature: 0.1,

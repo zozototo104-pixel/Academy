@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
       maxOutputTokens: 4096,
       taskLevel: 'ACADEMIC_CRITICAL',
       purpose: 'GENERATION',
+      taskType: 'STUDY_SCHEDULE',
       timeoutMs: 50_000,
       deadlineMs: Date.now() + 50_000,
     })

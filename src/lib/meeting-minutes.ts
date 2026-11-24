@@ -89,6 +89,7 @@ export async function generateMinutesDraft(db: any, meeting: any, actorId: strin
           ].join('\n\n'),
         }],
         purpose: 'GENERATION',
+        taskType: 'MEETING_MINUTES',
         json: true,
         maxOutputTokens: 1600,
       })

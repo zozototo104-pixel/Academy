@@ -8,6 +8,28 @@ import {
 } from '@/lib/gemini'
 import { cleanAcademicOutput, looksLikeBrokenBookPageText } from '@/lib/academic-output-quality'
 import { isKnowledgeItemPendingReview } from '@/lib/knowledge-bank'
+import { prepareStageRun, runStageAttempt, type StageRouting, type StageUsage } from '@/lib/ai-stage-runner'
+import type { TextAiPreferredModel, TextAiProvider, TextAiRouterPolicy } from '@/lib/text-ai'
+
+// Step 7a — GENERATION-plan routing for unit content (same pattern as
+// books-ai.ts generateExamQuestionBatch): the stage profile's model list
+// constrains the attempt; on total stage failure ONE global retry runs
+// if the profile allows it. When auto mode is ON the router's auto
+// choke point replaces the profile restriction with the auto ranking
+// (the profile is still recorded in telemetry by prepareStageRun).
+// With no stage profile, routing is null and the call is today's
+// governed-shim call, now with an explicit purpose/taskType so the
+// auto ranking for GENERATION applies.
+function stageRoutingOpts(routing: StageRouting | null): Partial<Parameters<typeof geminiCompleteJson>[0]> {
+  if (!routing) return {}
+  const models = routing.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model }))
+  return {
+    preferredModels: models,
+    restrictToModels: models,
+    preferredProviders: [...new Set([...routing.preferredProviders, ...routing.preferredModels.map((m) => m.provider)])] as TextAiProvider[],
+    ...(routing.policy ? { routerPolicy: routing.policy as TextAiRouterPolicy } : {}),
+  }
+}
 
 // Clean one guide field the same way the bank display cleans it, without
 // truncating a long field mid-repair: rule-fixable garbling bakes its cleaned
@@ -459,14 +481,19 @@ ${sourceChunkLines(params.chunks)}
 - لا تكتب أسئلة امتحانية ولا واجبات هنا.
 - لا تستخدم Markdown ولا نصاً خارج JSON.`
 
-  const raw = await geminiCompleteJson({
+  const genPlan = await prepareStageRun('GENERATION')
+  const genUsage: StageUsage = { fallbackUsed: false }
+  const raw = await runStageAttempt(genPlan, genUsage, (routing) => geminiCompleteJson({
     system: 'أنت مصمم وحدات أكاديمية مصدرية. أعد JSON صالحاً فقط ولا تستخدم أي مصدر خارج النطاق.',
     history: [{ role: 'user', text: prompt }],
     taskLevel: 'ACADEMIC_DRAFT',
+    purpose: 'GENERATION',
+    taskType: 'UNIT_GENERATION',
     temperature: 0.12,
     maxOutputTokens: 6000,
     deadlineMs: params.deadlineMs,
-  })
+    ...stageRoutingOpts(routing),
+  }))
   // Telemetry only (sizes + parse outcome): distinguishes a truncated model
   // response from a malformed one before anyone touches token budgets.
   let parsed: any
@@ -482,13 +509,18 @@ ${sourceChunkLines(params.chunks)}
   if (wc < 80 || wc > 150) {
     console.warn('Retrying unit summary length', { unitTitle: params.unitTitle, wc })
     const retryPrompt = `${prompt}\n\nالملخص السابق (${wc} كلمة) خارج النطاق المطلوب:\n${summary}\n\nأعد صياغة الملخص نفسه من المصادر أعلاه فقط ليكون بين 90 و140 كلمة. أعد JSON object يحتوي على summary فقط.`
+    // The summary-length retry inherits the same GENERATION plan
+    // (step 7a): it reuses the stage routing that produced the draft.
     const retryRaw = await geminiCompleteJson({
       system: 'أنت محرر أكاديمي. أعد JSON صالحاً فقط، والتزم بالمصادر المحددة.',
       history: [{ role: 'user', text: retryPrompt }],
       taskLevel: 'ACADEMIC_DRAFT',
+      purpose: 'GENERATION',
+      taskType: 'UNIT_GENERATION',
       temperature: 0.12,
       maxOutputTokens: 1200,
       deadlineMs: params.deadlineMs,
+      ...stageRoutingOpts(genPlan.routing),
     })
     let retried: any
     try {

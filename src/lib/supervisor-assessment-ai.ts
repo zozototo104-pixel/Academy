@@ -85,6 +85,11 @@ async function completionJson(system: string, prompt: string): Promise<any> {
       history: [{ role: 'user', text: prompt }],
       temperature: 0.2,
       maxOutputTokens: 5000,
+      // Step 7i: explicit purpose so the auto ranking for GENERATION
+      // applies (governed shim). The local open-source attempt above
+      // stays as configured (B7: separate local path).
+      purpose: 'GENERATION',
+      taskType: 'SUPERVISOR_ASSESSMENT',
     })
     const parsed = safeJson(out)
     if (parsed) return parsed

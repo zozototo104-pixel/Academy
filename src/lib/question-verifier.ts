@@ -39,15 +39,17 @@ export type VerificationSource = { text: string; textProvenance?: TextProvenance
 export const QUESTION_VERIFIER_TIME_BUDGET_MS = 90_000
 
 export function __testVerifierExcludedProviders(generatorProvider: TextAiProvider): TextAiProvider[] {
-  // Preserve verifier-mode diagnostics; the router selectively permits Alborihi cross-family review.
-  return [generatorProvider]
+  // Same provider is allowed: only the actual generator model (and its
+  // family) is forbidden. The response validator checks the exact pair.
+  void generatorProvider
+  return []
 }
 
 export function __testVerifierPreferredProvidersForTests(generatorProvider?: TextAiProvider | null): TextAiProvider[] {
   const preferred: TextAiProvider[] = ['GROQ', 'GEMINI', 'UNOROUTER']
-  return generatorProvider === 'ALBORIHI'
-    ? ['ALBORIHI', ...preferred]
-    : preferred.filter((provider) => provider !== generatorProvider)
+  return generatorProvider && generatorProvider !== 'AUTO'
+    ? [generatorProvider, ...preferred.filter((provider) => provider !== generatorProvider)]
+    : preferred
 }
 
 const verifierItemSchema = z.object({
@@ -411,7 +413,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         ? 'AI_VERIFIER_UNAVAILABLE'
         : error?.code === 'AI_VERIFIER_SAME_FAMILY'
           ? 'VERIFIER_SAME_FAMILY'
-          : error?.code === 'AI_DEADLINE_EXCEEDED'
+          : error?.code === 'AI_DEADLINE_EXCEEDED' || error?.code === 'TEXT_AI_RUN_TIMEOUT'
             ? 'VERIFIER_TIME_BUDGET_EXCEEDED'
             : `VERIFICATION_PENDING:${String(error?.reason || error?.code || error?.message || error).slice(0, 180)}`
       for (const item of prepared) {

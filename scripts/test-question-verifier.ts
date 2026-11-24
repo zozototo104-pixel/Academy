@@ -135,12 +135,13 @@ async function generatorFamilyUnknownFailsClosed() {
   )
 }
 
-async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
+async function generatorGeminiFamilyIsExcludedAndPromptUsesSelectedSourceOnly() {
   configureProviders()
   await withMockFetch(
     (call) => {
       if (call.url.includes('generativelanguage.googleapis.com')) {
-        return new Response(JSON.stringify({ error: { message: 'Gemini must be excluded' } }), { status: 500, headers: { 'content-type': 'application/json' } })
+        if (call.url.includes(':generateContent')) return new Response(JSON.stringify({ error: { message: 'Gemini-family inference must be excluded' } }), { status: 500, headers: { 'content-type': 'application/json' } })
+        return new Response(JSON.stringify({ models: [] }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
       if (call.url.includes('/api/pricing/catalog') || /\/models(?:\?|$)/.test(call.url)) {
         return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } })
@@ -157,7 +158,7 @@ async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
       })
       assert.ok(result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
       assert.ok(result[1].qualityFlags?.includes('SOURCE_GROUNDED'))
-      assert.equal(calls.some((call) => call.url.includes('generativelanguage.googleapis.com')), false, 'verifier must never call excluded Gemini')
+      assert.equal(calls.some((call) => call.url.includes('generativelanguage.googleapis.com') && call.url.includes(':generateContent')), false, 'verifier must not infer with the generator Gemini family')
       const completion = calls.find((call) => call.url.includes('/chat/completions'))
       const body = String(completion?.init?.body || '')
       assert.ok(body.includes(sourceTwo), 'verifier prompt must include the selected source text')
@@ -263,9 +264,9 @@ async function unavailableVerifierKeepsGenerationPending() {
     () => new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } }),
     async (calls) => {
       const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'gemini-3.8-flash' })
-      assert.equal(calls.length, 0, 'no provider should be called when only the excluded generator exists')
+      assert.equal(calls.some((call) => call.url.includes(':generateContent') || call.url.includes('/chat/completions')), false, 'no verifier inference should occur when only the generator family exists')
       assert.equal(result[0].verificationPending, true)
-      assert.equal(result[0].verificationReason, 'AI_VERIFIER_UNAVAILABLE')
+      assert.equal(result[0].verificationReason, 'VERIFIER_SAME_FAMILY')
       assert.ok(result[0].qualityFlags?.includes('NEEDS_HUMAN_REVIEW'))
     }
   )
@@ -395,7 +396,7 @@ async function main() {
   await runCase('generatorProviderUnknownFailsClosed', generatorProviderUnknownFailsClosed)
   await runCase('generatorModelUnknownFailsClosed', generatorModelUnknownFailsClosed)
   await runCase('generatorFamilyUnknownFailsClosed', generatorFamilyUnknownFailsClosed)
-  await runCase('generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly', generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly)
+  await runCase('generatorGeminiFamilyIsExcludedAndPromptUsesSelectedSourceOnly', generatorGeminiFamilyIsExcludedAndPromptUsesSelectedSourceOnly)
   await runCase('unknownFamilyVerifierFromDifferentProviderCanGround', unknownFamilyVerifierFromDifferentProviderCanGround)
   await runCase('gemmaVerifierIsBlockedAsGeminiFamily', gemmaVerifierIsBlockedAsGeminiFamily)
   await runCase('verifierRejectionKeepsHumanReview', verifierRejectionKeepsHumanReview)

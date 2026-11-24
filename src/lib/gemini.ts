@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { aiRetryDelayMs, wait } from '@/lib/ai-retry'
 import { STREAM_INTERRUPTED_RETRY_MESSAGE, streamWithNoFallbackAfterFirstChunk } from '@/lib/ai-stream-guard'
 import { decryptSecret, isEncryptedSecret, redactSecrets } from '@/lib/secret-crypto'
-import { hasExternalTextAi, textAiCompleteJson, textAiStreamText, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy, type TextAiTaskLevel } from '@/lib/text-ai'
+import { hasExternalTextAi, isTextAiAutoModeEnabled, textAiCompleteJson, textAiStreamText, type TextAiPreferredModel, type TextAiProvider, type TextAiPurpose, type TextAiRouterPolicy, type TextAiTaskLevel } from '@/lib/text-ai'
 
 export interface GeminiTurn {
   role: 'user' | 'model'
@@ -18,6 +18,10 @@ interface GeminiCallOpts {
   thinkingLevel?: GeminiThinkingLevel
   maxOutputTokens?: number
   taskLevel?: TextAiTaskLevel
+  // Purpose for the auto ranking (step 2): when set, the governed native
+  // fallback consults the ranking for this purpose; when unset it falls
+  // back to the CHAT ranking. Forwarded to the text router untouched.
+  purpose?: TextAiPurpose
   // Scoped request identity passes through to the text router for book enrichment.
   taskType?: string
   // D2.2: stage-profile pass-through — forwarded untouched to the
@@ -287,6 +291,13 @@ async function textModelChain(): Promise<string[]> {
   return [...new Set([custom, activeTextModel, ...TEXT_MODELS].filter(Boolean) as string[])]
 }
 
+// Step 7h — voice: native protocol, NOT auto-selected (see
+// AUTO_VOICE_EXCLUSION_NOTE in ai-auto-mode.ts, surfaced on the step-8
+// dashboard). Live and TTS models stay on their native chains below;
+// auto mode may never substitute a text model here, and a text ranking
+// may never inject a live/TTS model into text routing (filtered at the
+// settings() seam in text-ai.ts). Live-model ranking *within* the live
+// list is a separate step, only if Haris asks for it.
 async function ttsModelChain(): Promise<string[]> {
   await refreshFromDb()
   const custom = normalizeGeminiModelName(dbTtsModelCache || process.env.GEMINI_TTS_MODEL)
@@ -488,7 +499,9 @@ export function isTransientGeminiError(e: any): boolean {
 }
 
 export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<string> {
-  if (opts.taskLevel === 'ACADEMIC_CRITICAL') {
+  // In automatic mode every candidate (including Gemini) must be selected
+  // by the router; the native hardcoded chain must never bypass its ranking.
+  if (opts.taskLevel === 'ACADEMIC_CRITICAL' || await isTextAiAutoModeEnabled()) {
     for await (const chunk of streamWithNoFallbackAfterFirstChunk(() => textAiStreamText(opts))) yield chunk
     return
   }
@@ -565,7 +578,7 @@ export async function geminiComplete(opts: GeminiCallOpts): Promise<string> {
 }
 
 export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> {
-  if (opts.taskLevel === 'ACADEMIC_CRITICAL') return textAiCompleteJson(opts)
+  if (opts.taskLevel === 'ACADEMIC_CRITICAL' || await isTextAiAutoModeEnabled()) return textAiCompleteJson(opts)
   let routerError: unknown = null
   if (await hasExternalTextAi()) {
     try {
@@ -647,6 +660,20 @@ export async function geminiVisionJson(opts: {
   maxOutputTokens?: number
   timeoutMs?: number
 }): Promise<string> {
+  // The router owns model choice whenever auto mode is ON. Even without
+  // prior rankings it performs a bounded catalog bootstrap on first use;
+  // a failed bootstrap must not silently activate the native manual chain.
+  if (await isTextAiAutoModeEnabled()) {
+    return textAiCompleteJson({
+        system: opts.system || 'أنت قارئ مستندات بصري دقيق. أرجع JSON صالحاً فقط.',
+        history: [{ role: 'user', text: opts.prompt }],
+        attachments: opts.images.map((img) => ({ mimeType: img.mimeType || 'image/jpeg', base64: img.dataBase64 })),
+        purpose: 'VISION',
+        temperature: opts.temperature,
+        maxOutputTokens: opts.maxOutputTokens,
+        timeoutMs: opts.timeoutMs,
+    })
+  }
   const keys = await nativeGeminiKeys()
   if (!keys.length) throw new Error('GEMINI_NOT_CONFIGURED')
   const parts: any[] = [{ text: opts.prompt }]

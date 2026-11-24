@@ -239,6 +239,9 @@ export async function POST(req: NextRequest) {
             system: 'أنت مصمم تكليفات جامعية موثقة بالمصادر. أعد JSON array فقط.',
             history: [{ role: 'user', text: attempt ? prompt + '\nالمحاولة السابقة لم تجتز التوثيق. استخدم معرفات المصادر أعلاه حرفياً ولا تخلط بين الوحدات.' : prompt }],
             taskLevel: 'ACADEMIC_CRITICAL', routerPolicy: 'balanced',
+            // Step 7i: explicit purpose so the auto ranking for GENERATION applies.
+            purpose: 'GENERATION',
+            taskType: 'ASSIGNMENT_SUGGEST',
             temperature: 0.1, maxOutputTokens: 1800,
             stickyScope: `ASSIGNMENTS:${programId}:${id}`,
           })

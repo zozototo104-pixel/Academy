@@ -1489,6 +1489,13 @@ export function AdminSystemTab() {
             {F('AI_FAMILY_QUALITY_ORDER', 'ترتيب عائلات الجودة AI_FAMILY_QUALITY_ORDER', DEFAULT_FAMILY_QUALITY_ORDER, 'text', 'اختياري. اتركه فارغاً لاستخدام الترتيب الافتراضي.')}
             {F('AI_FAMILY_COST_ORDER', 'ترتيب عائلات التوفير AI_FAMILY_COST_ORDER', DEFAULT_FAMILY_COST_ORDER, 'text', 'اختياري. اتركه فارغاً لاستخدام الترتيب الافتراضي.')}
             {F('AI_ROUTER_COOLDOWN_MINUTES', 'مدة التبريد الافتراضية (دقائق)', '15', 'number', 'رقم من 1 إلى 120. إذا تُرك فارغاً أو خارج النطاق يعود إلى 15 دقيقة.')}
+            <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
+              <div>
+                <p className="text-xs font-black text-indigo-900">الوضع التلقائي لاختيار المزود والنموذج</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل يفحص النظام المزودين تدريجياً، ويختار النماذج المؤهلة بالترتيب لكل مهمة. لا يطبّق اختياراتك اليدوية أثناء الوضع التلقائي؛ وترجع كما كانت عند إطفائه. المدفوع يبقى محظوراً إلا بإذنك، والمدقق يمكن أن يستخدم نفس المزوّد بشرط اختلاف نموذج المولّد وعائلته.</p>
+              </div>
+              <Switch checked={form.AI_AUTO_MODE_ENABLED === '1' || form.AI_AUTO_MODE_ENABLED === 'true'} onCheckedChange={(v) => set('AI_AUTO_MODE_ENABLED', v ? '1' : '0')} />
+            </div>
             <div className="rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
