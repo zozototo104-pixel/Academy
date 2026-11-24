@@ -1,9 +1,9 @@
 // Auto AI capability probes (step 4) — tiny, cheap, purpose-shaped checks.
 //
-// Probes run ONLY from the background refresh (ai-auto-refresh.ts), never
-// on the live request path. Each probe is ONE small call with a hard
-// timeout, capped at ~3 models per provider per run, and only for
-// providers the admin opted in (probeProviders). A probe never invents a
+// Probes run in the background refresh, and a separate quota-bounded
+// first-task preflight may reuse these builders. Neither runs on every
+// request. Background probes are capped and only for opted-in providers.
+// A probe never invents a
 // capability: a pass records the flag as probe-verified, a fail records
 // the flag as probe-observed-false, and a probe that errors records
 // nothing at all.
