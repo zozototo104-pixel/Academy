@@ -160,7 +160,7 @@ async function main() {
     testRedactDeepNestedObjects,
     testGeminiEncryptedSettingDecryptsToOriginalKey,
     testPlaintextGatewaySettingsRejectedBehaviorally,
-    testAcademicVerifierExcludesGeneratorProviderBehavior,
+    testAcademicVerifierAllowsDifferentModelOnGeneratorProviderBehavior,
     testAiHealthClaimIsAtomicBehavior,
     testAdminSystemGetShapeDoesNotExposeSecretsBehavior,
   ]
