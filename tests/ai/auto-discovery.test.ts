@@ -237,6 +237,52 @@ describe('round-robin background refresh (one provider per run)', () => {
     expect(autoRefresh.pickNextRefreshProvider(['A', 'B', 'C'], { lastProvider: 'UNKNOWN' })).toBe('A')
   })
 
+  test('persists per-purpose rankings, rotates probes and preserves other providers', async () => {
+    const backing = new Map<string, string>()
+    const memStore = {
+      async read(keys: string[]) { return Object.fromEntries(keys.map((key) => [key, backing.get(key) || ''])) },
+      async write(key: string, value: string) { backing.set(key, value) },
+    }
+    const manualKey = 'AI_PROVIDER_FALLBACK_ORDER'
+    backing.set(manualKey, 'GEMINI,GROQ')
+    backing.set('AI_MODEL_STATS:CHAT:GEMINI:gemini-good', JSON.stringify({ success: 30, fail: {}, avgMs: 150 }))
+    const probeCalls: Array<{ provider: string; model: string; kind: string }> = []
+    const callModel = async (input: { provider: string; model: string; kind: string; planted?: string }) => {
+      probeCalls.push({ provider: input.provider, model: input.model, kind: input.kind })
+      return { ok: true, text: input.kind === 'json' ? '{"probe":true,"value":42}' : String(input.planted || '') }
+    }
+    const models = ['gemini-good', 'gemini-new', 'gemini-extra']
+    const common = {
+      store: memStore,
+      providers: ['GEMINI'],
+      discover: async () => ({ provider: 'GEMINI', models, discoveryOk: true }),
+      callModel,
+      probeProviders: ['GEMINI'],
+      probeKinds: ['json' as const, 'ocr' as const],
+      probeModelsPerRun: 1,
+      capabilitiesForProvider: async () => Object.fromEntries(models.map((model) => [model, { vision: true, costTier: 'free' as const }])),
+      rankAfterRefresh: true,
+    }
+    const first = await autoRefresh.runAutoRefresh({ ...common, nowMs: 1000 })
+    expect(first.probedModels).toEqual(['gemini-good'])
+    expect(first.rankedPurposes).toEqual([...autoMode.AUTO_PURPOSES])
+    for (const purpose of autoMode.AUTO_PURPOSES) {
+      const list = autoMode.parseAutoRanking(backing.get(`AI_AUTO_RANKING:${purpose}`))
+      expect(list.length).toBe(3)
+      expect(list.every((item) => item.provider === 'GEMINI')).toBe(true)
+    }
+    const previous = autoMode.parseAutoRanking(backing.get('AI_AUTO_RANKING:CHAT'))
+    backing.set('AI_AUTO_RANKING:CHAT', JSON.stringify({ candidates: [
+      ...previous, { provider: 'GROQ', model: 'llama-3.3-70b-versatile', score: 0.99 },
+    ] }))
+    const second = await autoRefresh.runAutoRefresh({ ...common, nowMs: 2000 })
+    expect(second.probedModels).toEqual(['gemini-new'])
+    expect(autoMode.parseAutoRanking(backing.get('AI_AUTO_RANKING:CHAT'))[0]).toMatchObject({ provider: 'GROQ', model: 'llama-3.3-70b-versatile' })
+    expect(probeCalls.map((call) => `${call.model}:${call.kind}`)).toEqual(['gemini-good:json', 'gemini-good:ocr', 'gemini-new:json', 'gemini-new:ocr'])
+    expect(backing.get(manualKey)).toBe('GEMINI,GROQ')
+    expect(backing.get('AI_AUTO_PROBE_CURSOR:GEMINI')).toBe('2')
+  })
+
   test('runAutoRefresh discovers exactly one provider per run and advances the cursor', async () => {
     const seen: string[] = []
     const backing = new Map<string, string>()
