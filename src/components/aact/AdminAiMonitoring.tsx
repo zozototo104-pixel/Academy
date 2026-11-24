@@ -181,6 +181,7 @@ export function AdminAiMonitoring() {
   const routerState = data?.routerState ?? []
   const transitions = data?.transitions ?? []
   const failovers = data?.failovers ?? []
+  const autoFailovers = data?.autoFailovers ?? []
 
   return (
     <div className="space-y-4" dir="rtl">
