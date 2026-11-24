@@ -46,6 +46,15 @@ function usesAnyKnowledgeId(value: unknown, ids: string[]): boolean {
 
 type LinkCounts = { questions: number; assignments: number; guides: number }
 
+// The single-chunk repair transaction returns one of three shapes. Declared
+// explicitly (not inferred): generic inference from multiple returns does
+// not produce a union that `in` narrows, so `outcome.corrected` read as
+// possibly-undefined under tsc until this annotation (CI, fb4405ba).
+type RepairTxOutcome =
+  | { skipped: 'changed' }
+  | { skipped: 'linked'; linkedItems: number; linked: LinkCounts }
+  | { repaired: true; hadItems: boolean; corrected: { itemId: string }[]; needsReview: { itemId: string; reason: string }[] }
+
 async function countItemLinks(
   tx: any,
   itemIds: string[],
@@ -252,7 +261,7 @@ export async function POST(request: NextRequest, context: Context) {
       // from the re-read text under the same IDs (or sent to REVIEW when
       // unprovable), never deleted and recreated. Only a chunk with NO items
       // returns to EXTRACTED for a first-time analysis afterwards.
-      const outcome = await db.$transaction(async (tx) => {
+      const outcome: RepairTxOutcome = await db.$transaction(async (tx) => {
         const current = await tx.bookChunk.findUnique({ where: { id: chunk.id }, select: { contentHash: true } })
         if (!current || current.contentHash !== chunk.contentHash) return { skipped: 'changed' as const }
         const itemRows = await tx.bookKnowledgeItem.findMany({

@@ -109,7 +109,7 @@ export function computeBookRepairCounters(
 
 type RepairItemRow = {
   id: string
-  chunkId: string
+  chunkId: string | null
   title: string
   summary: string
   excerpt: string | null
@@ -232,6 +232,15 @@ export type BookRepairScanStepResult = {
 // their current text. Progress + counters persist after every chunk, so a
 // stop or a crash resumes where it left off. A single stuck chunk is
 // recorded for review (ledger + progress) and never halts the book.
+
+// The per-chunk repair transaction returns one of two shapes. Declared
+// explicitly (not inferred): generic inference from multiple returns does
+// not produce a union that `in` narrows, so `outcome.corrected` read as
+// possibly-undefined under tsc until this annotation (CI, fb4405ba).
+type RepairScanTxOutcome =
+  | { skipped: 'changed' }
+  | { repaired: true; corrected: string[]; review: string[] }
+
 export async function runBookRepairScanStep(
   jobId: string,
   buffer: Buffer,
@@ -343,7 +352,7 @@ export async function runBookRepairScanStep(
     // ANALYZED — its items are corrected in place, not re-analyzed.
     const chunkItems = items.filter((item) => item.chunkId === chunk.id)
     const hadItems = chunkItems.length > 0
-    const outcome = await db.$transaction(async (tx) => {
+    const outcome: RepairScanTxOutcome = await db.$transaction(async (tx) => {
       const current = await tx.bookChunk.findUnique({ where: { id: chunk.id }, select: { contentHash: true } })
       if (!current || current.contentHash !== chunk.contentHash) return { skipped: 'changed' as const }
       const changed = await tx.bookChunk.updateMany({

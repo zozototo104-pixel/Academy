@@ -18,10 +18,10 @@ import { cleanOutlineUnitText, firstSentence } from '@/lib/outline-units'
 export type BookRepairChunk = { id: string; index: number; text: string }
 export type BookRepairItem = {
   id: string
-  chunkId: string
+  chunkId: string | null
   title: string
   summary: string
-  excerpt: string
+  excerpt: string | null
 }
 export type CorrectKnowledgeItemInput = {
   id: string
@@ -34,7 +34,7 @@ export type CorrectKnowledgeItemInput = {
 export type GuideItemInput = {
   title: string
   summary: string
-  excerpt: string
+  excerpt: string | null
   pageStart?: number | null
   pageEnd?: number | null
 }

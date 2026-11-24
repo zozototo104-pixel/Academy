@@ -181,8 +181,14 @@ export const looksLikeBrokenExcerpt = (text: string) => looksLikeBrokenAcademicO
 // DELETE_EMPTY) لا يجوز أن يدخل توليد دليل دراسة أو توليد أسئلة جديدة —
 // يُحجب عند التوليد حتى يُصحَّح أو يُراجَع، فلا يُخبَز نص مشوَّه في دليل
 // أو سؤال جديد أثناء انتظاره.
-export function isKnowledgeItemPendingReview(item: { title: string; summary: string; excerpt?: string | null }): boolean {
-  const action = planKnowledgeItemCleanup(item, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt).action
+export function isKnowledgeItemPendingReview(item: { title: string; summary: string | null; excerpt?: string | null }): boolean {
+  // planKnowledgeItemCleanup takes a non-null summary; a null summary is an
+  // empty summary for the garble check (its own `|| ''` does the same).
+  const action = planKnowledgeItemCleanup(
+    { title: item.title, summary: item.summary ?? '', excerpt: item.excerpt ?? null },
+    looksLikeBrokenAcademicOutput,
+    looksLikeBrokenExcerpt,
+  ).action
   return action === 'REVIEW' || action === 'DELETE_EMPTY'
 }
 
