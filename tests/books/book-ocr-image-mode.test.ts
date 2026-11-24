@@ -41,7 +41,7 @@ mock.module('@/lib/text-ai', () => ({
 }))
 
 const reader = await import('../../src/lib/book-reader')
-const { __testTranscribeOnceForTests, transcribeScannedDocumentWithVision } = reader
+const { __testTranscribeOnceForTests, __testTranscribeWithMetaForTests, transcribeScannedDocumentWithVision } = reader
 
 const cleanPage = 'يشرح هذا الفصل مفهوم الأصول المتداولة وكيفية قياسها في القوائم المالية. '.repeat(50)
 const cleanOcrJson = JSON.stringify({ pages: [{ page: 1, text: cleanPage }, { page: 2, text: cleanPage }] })
