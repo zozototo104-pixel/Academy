@@ -448,24 +448,148 @@ describe('first-task auto bootstrap (no synthetic model spend)', () => {
     values.set('AI_TEXT_PROVIDER', 'ZAI')
     const oldQuery = db.$queryRawUnsafe
     let claims = 0
-    db.$queryRawUnsafe = async () => { claims++; return claims === 1 ? [{ key: 'AI_AUTO_TASK_BOOTSTRAP_LAST_RUN' }] : [] }
+    db.$queryRawUnsafe = async (_sql: string, key?: string) => {
+      claims++
+      return key === 'AI_AUTO_TASK_PREFLIGHT:CLAIM:CHAT' || claims === 1 ? [{ key: key || 'AI_AUTO_TASK_BOOTSTRAP_LAST_RUN' }] : []
+    }
     zaiRows = [freeRow('glm-4.5')]
-    globalThis.fetch = mock(async (url: string | URL | Request) => {
+    let realModelCalls = 0
+    let probeModelCalls = 0
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
       const urlText = String(url)
       fetchCalls.push(urlText)
       if (urlText.startsWith('https://zai.test/v1/models')) return jsonResponse({ data: zaiRows })
-      if (urlText.startsWith('https://zai.test/v1/chat/completions')) return jsonResponse({ choices: [{ message: { content: 'ready' } }] })
+      if (urlText.startsWith('https://zai.test/v1/chat/completions')) {
+        const isProbe = String(init?.body || '').includes('Reply ONLY as JSON')
+        if (isProbe) probeModelCalls++
+        else realModelCalls++
+        return jsonResponse({ choices: [{ message: { content: isProbe ? '{"probe":true,"value":42}' : 'ready' } }] })
+      }
       throw new Error(`unexpected fetch: ${urlText}`)
     }) as any
     try {
       const request = { system: 'test', history: [{ role: 'user' as const, text: 'hello' }], purpose: 'CHAT' as const }
       expect(await textAi.textAiComplete(request)).toBe('ready')
-      expect(claims).toBe(1)
+      expect(claims).toBe(2) // One catalog lease + one per-purpose real probe lease.
       expect(autoMode.parseAutoRanking(values.get('AI_AUTO_RANKING:CHAT')).some((item) => item.provider === 'ZAI' && item.model === 'glm-4.5')).toBe(true)
+      expect(JSON.parse(values.get('AI_AUTO_TASK_PREFLIGHT:CHAT') || '{}').verdicts).toMatchObject([{ pass: true }])
       expect(await textAi.textAiComplete(request)).toBe('ready')
-      expect(claims).toBe(1)
+      expect(claims).toBe(2)
+      expect(probeModelCalls).toBe(1)
+      expect(realModelCalls).toBe(2)
     } finally {
       db.$queryRawUnsafe = oldQuery
     }
+  })
+})
+
+describe('quota-bounded real preflight on the first task', () => {
+  const candidate = (provider: string, model: string) => ({ provider, model, score: 0.9 })
+
+  test('probes at most two different providers, ranks a proven success first, and reuses it on later tasks', async () => {
+    const backing = new Map<string, string>()
+    const calls: string[] = []
+    const candidates = [candidate('ZAI', 'unavailable'), candidate('ZAI', 'backup'), candidate('GROQ', 'fast')]
+    const args = {
+      store: makeStore(backing), purpose: 'ANALYSIS', candidates, nowMs: 1_000_000,
+      claim: async () => true,
+      callModel: async (input: { provider: string; model: string; kind: string }) => {
+        calls.push(`${input.provider}:${input.model}:${input.kind}`)
+        return input.model === 'fast'
+          ? { ok: true, text: '{"probe":true,"value":42}' }
+          : { ok: false, text: '', error: '429 quota reached' }
+      },
+    }
+    const sorted = await autoRefresh.preflightAutoCandidatesForTask(args)
+    expect(calls).toEqual(['ZAI:unavailable:json', 'GROQ:fast:json'])
+    expect(sorted.map((entry) => entry.model)).toEqual(['fast', 'backup', 'unavailable'])
+    expect((await autoRefresh.preflightAutoCandidatesForTask({ ...args, nowMs: 1_060_000 })).map((entry) => entry.model)).toEqual(['fast', 'backup', 'unavailable'])
+    expect(calls).toHaveLength(2)
+    expect(backing.has(autoRefresh.taskPreflightKey('ANALYSIS'))).toBe(true)
+  })
+
+  test('a failed pool retries after ten minutes, but not on every new task', async () => {
+    const backing = new Map<string, string>()
+    let calls = 0
+    const args = {
+      store: makeStore(backing), purpose: 'GRADING', candidates: [candidate('ZAI', 'unstable')],
+      claim: async () => true,
+      callModel: async () => { calls++; return { ok: false, text: '', error: 'UNAVAILABLE' } },
+    }
+    await autoRefresh.preflightAutoCandidatesForTask({ ...args, nowMs: 1_000_000 })
+    await autoRefresh.preflightAutoCandidatesForTask({ ...args, nowMs: 1_060_000 })
+    expect(calls).toBe(1)
+    await autoRefresh.preflightAutoCandidatesForTask({ ...args, nowMs: 1_000_000 + autoRefresh.AI_AUTO_TASK_PREFLIGHT_RETRY_MS + 1 })
+    expect(calls).toBe(2)
+    await autoRefresh.preflightAutoCandidatesForTask({ ...args, nowMs: 1_000_000 + 2 * autoRefresh.AI_AUTO_TASK_PREFLIGHT_RETRY_MS })
+    expect(calls).toBe(2) // Consecutive failures now back off for 20 minutes.
+  })
+
+  test('after two failed models it explores newly discovered alternatives at the next retry', async () => {
+    const backing = new Map<string, string>()
+    const tried: string[] = []
+    const args = {
+      store: makeStore(backing), purpose: 'REVIEW',
+      candidates: [candidate('ZAI', 'bad-1'), candidate('GROQ', 'bad-2'), candidate('GEMINI', 'good-3')],
+      claim: async () => true,
+      callModel: async (input: { model: string }) => {
+        tried.push(input.model)
+        return input.model === 'good-3'
+          ? { ok: true, text: '{"probe":true,"value":42}' }
+          : { ok: false, text: '', error: 'unavailable' }
+      },
+    }
+    await autoRefresh.preflightAutoCandidatesForTask({ ...args, nowMs: 1_000_000 })
+    const ranked = await autoRefresh.preflightAutoCandidatesForTask({ ...args, nowMs: 1_000_000 + autoRefresh.AI_AUTO_TASK_PREFLIGHT_RETRY_MS + 1 })
+    expect(tried).toEqual(['bad-1', 'bad-2', 'good-3', 'bad-1'])
+    expect(ranked[0].model).toBe('good-3')
+  })
+
+  test('a genuine image-only OCR probe never leaks the answer in its prompt', async () => {
+    const backing = new Map<string, string>()
+    let calls = 0
+    const sorted = await autoRefresh.preflightAutoCandidatesForTask({
+      store: makeStore(backing), purpose: 'VISION', candidates: [candidate('GEMINI', 'vision-capable')],
+      claim: async () => true,
+      callModel: async (input) => {
+        calls++
+        expect(input.kind).toBe('ocr')
+        expect(input.planted).toMatch(/^AUTO-PROBE-OCR-/)
+        expect(input.prompt).not.toContain(input.planted!)
+        return { ok: true, text: input.planted! }
+      },
+    })
+    expect(sorted).toHaveLength(1)
+    expect(calls).toBe(1)
+    expect(JSON.parse(backing.get('AI_AUTO_TASK_PREFLIGHT:VISION') || '{}').verdicts[0].pass).toBe(true)
+  })
+
+  test('a new discovered model does not displace a still-working success until evidence changes', async () => {
+    const backing = new Map<string, string>()
+    const args = {
+      store: makeStore(backing), purpose: 'GENERATION',
+      candidates: [candidate('GROQ', 'proven')],
+      nowMs: 1_000_000, claim: async () => true,
+      callModel: async () => ({ ok: true, text: '{"probe":true,"value":42}' }),
+    }
+    await autoRefresh.preflightAutoCandidatesForTask(args)
+    let calls = 0
+    const sorted = await autoRefresh.preflightAutoCandidatesForTask({
+      ...args, nowMs: 1_050_000,
+      candidates: [candidate('GEMINI', 'new'), candidate('GROQ', 'proven')],
+      callModel: async () => { calls++; throw new Error('should reuse success') },
+    })
+    expect(sorted.map((entry) => entry.model)).toEqual(['proven', 'new'])
+    expect(calls).toBe(0)
+  })
+
+  test('failed lease does not trigger calls or block real task; manual mode skips the preflight entirely', async () => {
+    let calls = 0
+    const candidates = [candidate('GROQ', 'good')]
+    expect(await autoRefresh.preflightAutoCandidatesForTask({
+      store: makeStore(new Map()), purpose: 'CHAT', candidates,
+      claim: async () => false, callModel: async () => { calls++; return { ok: true, text: '{}' } },
+    })).toEqual(candidates)
+    expect(calls).toBe(0)
   })
 })
