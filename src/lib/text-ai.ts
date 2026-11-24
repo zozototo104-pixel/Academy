@@ -4416,16 +4416,16 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     persistentCooldowns,
     attachments,
     exploreModels,
+    autoOverride: autoResolution.autoOverride,
     allowAlborihiCrossFamilyVerifier,
     estimatedPaidCost,
   })
   if (stickyScope && stickyResolution.deleteSticky) stickyModels.delete(stickyScope)
-  const usableSticky = stickyResolution.sticky
-  // Step 5 — sticky-as-hint (plan risk 3, decided): when auto is ON
-  // with a ranking, the sticky pin is a hint, not a pin — it goes
-  // first only when it is already the top auto-ranked candidate.
-  // Otherwise the auto ranking order wins. When auto is OFF (or the
-  // ranking is empty) today's sticky-first behaviour is unchanged.
+  const usableSticky = autoResolution.autoOverride && stickyResolution.sticky
+    && !autoResolution.autoCandidates.some((candidate) => candidate.provider === stickyResolution.sticky?.provider && candidate.model === stickyResolution.sticky?.model)
+    ? null : stickyResolution.sticky
+  // A working model stays pinned within its task scope while it remains
+  // qualified; a failed/removed/cooldown model gives way to the ranking.
   const stickyFirst = !usableSticky || stickyOrderUnderAuto({
     autoMode: s.autoMode,
     autoOverride: autoResolution.autoOverride,
