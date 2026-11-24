@@ -373,6 +373,10 @@ export async function POST(req: NextRequest) {
       const name = String(body?.name || '').trim()
       const key = String(body?.apiKey || '').trim()
       const enabled = body?.enabled !== false
+      // allowPaid is explicit admin consent to bill the provider subscription.
+      // An edit that omits the flag keeps the saved value, so an older form
+      // can never silently switch a paid provider back to free-only.
+      const allowPaid = typeof body?.allowPaid === 'boolean' ? body.allowPaid : undefined
       if (name.length < 2 || name.length > 80 || /[<>\r\n]/.test(name)) {
         return NextResponse.json({ error: 'اسم المزوّد يجب أن يكون من 2 إلى 80 حرفًا' }, { status: 400 })
       }
@@ -400,7 +404,7 @@ export async function POST(req: NextRequest) {
         if (incomingId && !existing) return { error: 'NOT_FOUND' } as const
         if (!incomingId && providers.length >= 32) return { error: 'LIMIT' } as const
         const id = existing?.id || (`CUSTOM_${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}` as `CUSTOM_${string}`)
-        const updated = { id, name, baseUrl, enabled, selectedModel: existing?.selectedModel || '' }
+        const updated = { id, name, baseUrl, enabled, selectedModel: existing?.selectedModel || '', allowPaid: allowPaid ?? existing?.allowPaid ?? false }
         const registry = existing ? providers.map((item) => item.id === id ? updated : item) : [...providers, updated]
         await tx.setting.upsert({
           where: { key: CUSTOM_AI_PROVIDERS_SETTING },
@@ -424,7 +428,7 @@ export async function POST(req: NextRequest) {
           : NextResponse.json({ error: 'المزوّد المطلوب تعديله غير موجود' }, { status: 404 })
       }
       clearSecretCache()
-      await audit(admin, saved.updatedExisting ? 'AI_CUSTOM_PROVIDER_UPDATED' : 'AI_CUSTOM_PROVIDER_CREATED', 'Setting', saved.id, `Custom AI provider: ${saved.id}`)
+      await audit(admin, saved.updatedExisting ? 'AI_CUSTOM_PROVIDER_UPDATED' : 'AI_CUSTOM_PROVIDER_CREATED', 'Setting', saved.id, `Custom AI provider: ${saved.id}${allowPaid === true ? ' · allowPaid=true' : ''}`)
       return NextResponse.json({ ok: true, id: saved.id, customProviders: await adminCustomTextAiProviders() })
     }
     if (action === 'delete-custom-ai-provider') {

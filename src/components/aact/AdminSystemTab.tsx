@@ -152,6 +152,7 @@ type CustomProviderSummary = {
   baseUrl: string
   enabled: boolean
   selectedModel: string
+  allowPaid: boolean
   hasKey: boolean
 }
 
@@ -398,7 +399,7 @@ export function AdminSystemTab() {
   const [testing, setTesting] = useState(false)
   const [paymentQrUploading, setPaymentQrUploading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
-  const [customDraft, setCustomDraft] = useState({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })
+  const [customDraft, setCustomDraft] = useState({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true, allowPaid: false })
   const [customBusy, setCustomBusy] = useState(false)
   const [customDeleteTarget, setCustomDeleteTarget] = useState<CustomProviderSummary | null>(null)
   const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests' | null>('core')
@@ -683,7 +684,7 @@ export function AdminSystemTab() {
         body: JSON.stringify({ action: 'save-custom-ai-provider', ...customDraft }),
       })
       setData((prev) => prev ? { ...prev, customProviders: result.customProviders } : prev)
-      setCustomDraft({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })
+      setCustomDraft({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true, allowPaid: false })
       toast({ title: 'تم حفظ المزوّد الجديد', description: 'تم تشفير مفتاحه. يمكن اختياره من القائمة والترتيب اليدوي.' })
       if (customDraft.enabled) {
         try {
@@ -693,7 +694,7 @@ export function AdminSystemTab() {
           setTextModelCatalog((prev) => ({ ...prev, [catalog.provider]: catalog }))
           toast({ title: 'تحديث نماذج المزوّد', description: catalog.message })
         } catch {
-          toast({ title: 'المزوّد محفوظ، لكن تعذر اكتشاف نماذج مجانية مؤكدة', description: 'تأكد من دعم /models، ثم جرّب تحديث النماذج.', variant: 'destructive' })
+          toast({ title: customDraft.allowPaid ? 'المزوّد محفوظ، لكن تعذر اكتشاف نماذج المزوّد' : 'المزوّد محفوظ، لكن تعذر اكتشاف نماذج مجانية مؤكدة', description: 'تأكد من دعم /models، ثم جرّب تحديث النماذج.', variant: 'destructive' })
         }
       }
     } catch (e: any) {
@@ -726,7 +727,7 @@ export function AdminSystemTab() {
         delete next[id]
         return next
       })
-      if (customDraft.id === id) setCustomDraft({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })
+      if (customDraft.id === id) setCustomDraft({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true, allowPaid: false })
       setCustomDeleteTarget(null)
       toast({ title: 'تم حذف المزوّد', description: 'حُذف تعريفه ومفتاحه، وأزيل من إعدادات الترتيب والاختيار دون تغيير المزوّدين الأساسيين.' })
     } catch (e: any) {
@@ -773,7 +774,8 @@ export function AdminSystemTab() {
         method: 'POST', body: JSON.stringify({ action: 'select-custom-ai-model', id, model }),
       })
       setData((prev) => prev ? { ...prev, customProviders: r.customProviders } : prev)
-      toast({ title: 'تم اعتماد النموذج المجاني', description: model })
+      const paid = (r.customProviders || []).some((entry) => entry.id === id && entry.allowPaid === true)
+      toast({ title: paid ? 'تم اعتماد النموذج — مدفوع من اشتراكك في المزوّد' : 'تم اعتماد النموذج المجاني', description: model })
     } catch (e: any) {
       toast({ title: 'تعذّر اختيار النموذج', description: e.message, variant: 'destructive' })
     } finally {
@@ -1789,12 +1791,14 @@ export function AdminSystemTab() {
               <div className="flex flex-wrap items-center gap-3">
                 <Switch checked={customDraft.enabled} disabled={customBusy} onCheckedChange={(enabled) => setCustomDraft((old) => ({ ...old, enabled }))} />
                 <span className="text-xs">المزوّد مفعّل</span>
+                <Switch checked={customDraft.allowPaid} disabled={customBusy} onCheckedChange={(allowPaid) => setCustomDraft((old) => ({ ...old, allowPaid }))} />
+                <span className="text-xs">اسمح بالنماذج المدفوعة لهذا المزوّد</span>
                 <Button type="button" size="sm" disabled={customBusy || customDraft.name.trim().length < 2 || !customDraft.baseUrl.trim() || (!customDraft.id && !customDraft.apiKey.trim())} onClick={() => void saveCustomProvider()}>
                   {customBusy && <Loader2 className="ml-1 h-3 w-3 animate-spin" />} {customDraft.id ? 'حفظ تعديل المزوّد' : 'إضافة المزوّد'}
                 </Button>
-                {customDraft.id && <Button type="button" variant="outline" size="sm" onClick={() => setCustomDraft({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true })}>إلغاء التعديل</Button>}
+                {customDraft.id && <Button type="button" variant="outline" size="sm" onClick={() => setCustomDraft({ id: '', name: '', baseUrl: '', apiKey: '', enabled: true, allowPaid: false })}>إلغاء التعديل</Button>}
               </div>
-              <p className="text-[10px] text-amber-800">تظهر قائمة «مجاني مؤكد» فقط عندما يعلن المزوّد مجانية النموذج أو سعر الإدخال والإخراج صفرًا. إذا لم يعلن ذلك، لن نخمن مجانيته أو نشغله تلقائيًا.</p>
+              <p className="text-[10px] text-amber-800">تظهر قائمة «مجاني مؤكد» فقط عندما يعلن المزوّد مجانية النموذج أو سعر الإدخال والإخراج صفرًا. إذا لم يعلن ذلك، لن نخمن مجانيته أو نشغله تلقائيًا. إذا فعّلت «اسمح بالمدفوع» لمزوّد، تظهر كل نماذجه في القائمة، واختيار نموذج مدفوع يُحسب من اشتراكك في هذا المزوّد.</p>
               {(data.customProviders || []).map((entry) => {
                 const freeModels = textModelCatalog[entry.id]?.models || []
                 return (
@@ -1803,22 +1807,24 @@ export function AdminSystemTab() {
                       <span className="text-xs font-black">{entry.name}</span>
                       <code className="text-[10px] text-slate-500">{entry.id}</code>
                       <Badge className={entry.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}>{entry.enabled ? 'مفعّل' : 'معطّل'}</Badge>
+                      {entry.allowPaid && <Badge className="bg-amber-100 text-amber-800">يسمح بالمدفوع</Badge>}
                       <Badge>{entry.hasKey ? 'المفتاح محفوظ ومشفّر' : 'لا يوجد مفتاح'}</Badge>
                     </div>
                     <p dir="ltr" className="break-all text-[10px] text-slate-500">{entry.baseUrl}</p>
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" disabled={customBusy} onClick={() => setCustomDraft({ id: entry.id, name: entry.name, baseUrl: entry.baseUrl, apiKey: '', enabled: entry.enabled })}>تعديل الرابط أو المفتاح</Button>
+                      <Button size="sm" variant="outline" disabled={customBusy} onClick={() => setCustomDraft({ id: entry.id, name: entry.name, baseUrl: entry.baseUrl, apiKey: '', enabled: entry.enabled, allowPaid: entry.allowPaid === true })}>تعديل الرابط أو المفتاح</Button>
                       <Button size="sm" variant="outline" disabled={customBusy} onClick={() => void toggleCustomProvider(entry.id, !entry.enabled)}>{entry.enabled ? 'إيقاف' : 'تفعيل'}</Button>
-                      <Button size="sm" variant="outline" disabled={customBusy || !entry.enabled} onClick={() => void refreshCustomModels(entry.id)}>تحديث النماذج المجانية</Button>
+                      <Button size="sm" variant="outline" disabled={customBusy || !entry.enabled} onClick={() => void refreshCustomModels(entry.id)}>{entry.allowPaid ? 'تحديث النماذج' : 'تحديث النماذج المجانية'}</Button>
                       <Button size="sm" variant="destructive" disabled={customBusy} onClick={() => setCustomDeleteTarget(entry)}><Trash2 className="ml-1 h-3 w-3" /> حذف المزوّد</Button>
                     </div>
                     {freeModels.length ? (
                       <div className="space-y-1">
-                        <Label className="text-xs">النموذج المجاني المعتمد</Label>
+                        <Label className="text-xs">{entry.allowPaid ? 'النموذج المعتمد' : 'النموذج المجاني المعتمد'}</Label>
                         <Select value={freeModels.includes(entry.selectedModel) ? entry.selectedModel : undefined} onValueChange={(model) => void selectCustomModel(entry.id, model)} disabled={customBusy || !entry.enabled}>
-                          <SelectTrigger className="w-full bg-white" dir="ltr"><SelectValue placeholder="اختر نموذجًا من النماذج المجانية المكتشفة" /></SelectTrigger>
+                          <SelectTrigger className="w-full bg-white" dir="ltr"><SelectValue placeholder={entry.allowPaid ? 'اختر نموذجًا من نماذج المزوّد المكتشفة' : 'اختر نموذجًا من النماذج المجانية المكتشفة'} /></SelectTrigger>
                           <SelectContent>{freeModels.map((model) => <SelectItem key={model} value={model} dir="ltr">{model}</SelectItem>)}</SelectContent>
                         </Select>
+                        {entry.allowPaid && <p className="text-[10px] text-amber-800">النماذج المدفوعة هنا تُحسب من اشتراكك في هذا المزوّد.</p>}
                       </div>
                     ) : (
                       <p className="text-[11px] text-slate-500">{textModelCatalog[entry.id]?.message || 'اختر هذا المزوّد من قائمة النصوص أو اضغط تحديث النماذج لتحميل كتالوجه.'}</p>

@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 import { audit } from '@/lib/notify'
+import { looksLikeBrokenBookPageText } from '@/lib/academic-output-quality'
+import { hasActiveBookRepairJob } from '@/lib/book-repair-job'
 
 export const runtime = 'nodejs'
 type Context = { params: Promise<{ id: string }> }
@@ -29,22 +31,39 @@ export async function GET(_request: NextRequest, context: Context) {
     const job = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
     // Retried/enrichment jobs start with zero local counters. Report persisted
     // book totals separately so the UI never mistakes a retry for lost work.
-    const [storedChunks, analyzedChunks, failedChunks, saturatedChunks, knowledgeTotal, previousRead] = await Promise.all([
+    const [storedChunks, analyzedChunks, failedChunks, capacitySaturatedChunks, exhaustedChunks, knowledgeTotal, previousRead, corruptChunkTexts] = await Promise.all([
       db.bookChunk.count({ where: { bookId: id } }),
       db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
       db.bookChunk.count({ where: { bookId: id, status: 'FAILED' } }),
-      db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', OR: [{ saturatedAt: { not: null } }, { analysisPasses: { gte: 3 } }] } }),
+      db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', saturatedAt: { not: null } } }),
+      db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', saturatedAt: null, analysisPasses: { gte: 3 } } }),
       db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2 } }),
       db.bookReadJob.findFirst({ where: { bookId: id, totalPages: { gt: 0 } }, orderBy: { createdAt: 'desc' }, select: { totalPages: true, pagesDone: true } }),
+      db.bookChunk.findMany({ where: { bookId: id }, select: { text: true } }),
     ])
+    const corruptChunks = corruptChunkTexts.filter((chunk) => looksLikeBrokenBookPageText(chunk.text)).length
+    const saturatedChunks = capacitySaturatedChunks + exhaustedChunks
     const enrichment = {
       totalChunks: analyzedChunks,
       storedChunks,
       failedChunks,
+      corruptChunks,
       knowledgeTotal,
       sourcePages: previousRead?.totalPages || 0,
       pagesSaved: previousRead?.pagesDone || 0,
       saturatedChunks,
+      capacitySaturatedChunks,
+      exhaustedChunks,
+      enrichmentTarget: job?.enrichmentTarget ?? null,
+      // Base completion (10) vs final saturation (20), named explicitly:
+      // only an enrich job has a completion kind; extract/analyze jobs omit it.
+      // Inline ternary on purpose — the canonical helper lives in
+      // book-chunk-analyzer (enrichmentCompletionKind), but importing that
+      // heavy module here would widen this route's import graph; 20 is the
+      // only non-base target, so `=== 20` is exactly the helper's decision.
+      ...(job?.enrichmentTarget != null || job?.phase === 'ENRICH'
+        ? { completionKind: job?.enrichmentTarget === 20 ? 'FINAL_SATURATED' : 'BASE_COMPLETE' }
+        : {}),
       addedItems: job && (job.phase === 'ENRICH' || (job.phase === 'DONE' && job.totalChunks === 0))
         ? await db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2, createdAt: { gte: job.createdAt } } }) : 0,
     }
@@ -228,6 +247,14 @@ export async function POST(request: NextRequest, context: Context) {
     }
     const existing = await db.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
     if (existing) return NextResponse.json({ ok: true, job: existing, resumed: true })
+    // Mutual exclusion (repair vs enrichment): a repair job and a read/enrich
+    // job must never run on the same book at the same time. Starting new
+    // read work while a repair is active is refused; STOP/RESUME above are
+    // unaffected because they start no work.
+    if (await hasActiveBookRepairJob(id)) return NextResponse.json({
+      error: 'BOOK_REPAIR_JOB_ACTIVE',
+      message: 'هناك مهمة إصلاح تشوهات جارية على هذا الكتاب. انتظر اكتمالها أو أوقفها قبل بدء قراءة أو إثراء جديد.',
+    }, { status: 409 })
     const lastJob = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
     if (lastJob?.status === 'FAILED') {
       // A failed phase must be resumed in-place, never bypassed by creating
@@ -273,7 +300,40 @@ export async function POST(request: NextRequest, context: Context) {
       if (!readable) return NextResponse.json({ error: 'شغّل القراءة الكاملة أولاً' }, { status: 400 })
     }
     try {
-      const job = await db.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: mode, status: 'QUEUED' } })
+      const job = await db.$transaction(async (tx) => {
+        // Two-level enrichment: the base pass targets 10 items per chunk; the
+        // extra pass (enrichmentTarget 20) continues the SAME items — no
+        // re-extraction, no deletion. Only 10 and 20 are legal targets.
+        const enrichmentTarget = mode === 'ENRICH' && body?.enrichmentTarget === 20 ? 20 : 10
+        const created = await tx.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: mode, status: 'QUEUED', ...(mode === 'ENRICH' ? { enrichmentTarget } : {}) } })
+        if (mode === 'ENRICH') await tx.bookChunk.updateMany({
+          where: { bookId: id, status: 'ANALYZED', saturatedAt: null, analysisPasses: { gte: 3 } },
+          data: { analysisPasses: 0 },
+        })
+        if (mode === 'ENRICH' && enrichmentTarget === 20) {
+          // Reopen chunks that saturated at the base target (10) but hold
+          // fewer than 20 items, so the extra pass can continue them.
+          // Chunks already at 20 stay saturated; nothing is deleted.
+          const saturated = await tx.bookChunk.findMany({
+            where: { bookId: id, status: 'ANALYZED', saturatedAt: { not: null } },
+            select: { id: true },
+          })
+          if (saturated.length) {
+            const counts = await tx.bookKnowledgeItem.groupBy({
+              by: ['chunkId'],
+              where: { bookId: id, kbVersion: 2, chunkId: { in: saturated.map((chunk) => chunk.id) } },
+              _count: { _all: true },
+            })
+            const belowTarget = new Set(counts.filter((row) => row._count._all < 20).map((row) => row.chunkId))
+            const reopenIds = saturated.filter((chunk) => belowTarget.has(chunk.id)).map((chunk) => chunk.id)
+            if (reopenIds.length) await tx.bookChunk.updateMany({
+              where: { id: { in: reopenIds } },
+              data: { saturatedAt: null, analysisPasses: 0 },
+            })
+          }
+        }
+        return created
+      })
       return NextResponse.json({ ok: true, job, resumed: false })
     } catch (error: any) {
       // PostgreSQL partial unique index protects the create itself; a competing

@@ -4,21 +4,21 @@ import { enrichStepWithStore, type EnrichStepStore, type BookKnowledgeCandidate 
 const evidence = 'يُعرّف المنهج الأكاديمي المفهوم بوصفه وحدة معرفية تساعد على تفسير الظواهر من خلال أدلة موثقة وملاحظات متكررة في سياقات تعليمية متعددة.'
 const candidate: BookKnowledgeCandidate = { category: 'CONCEPT', title: 'المفهوم الأكاديمي', summary: 'وحدة معرفية لتفسير الظواهر', excerpt: evidence, importance: 70 }
 
-async function scenario(existingTitles: string[], produced: BookKnowledgeCandidate[]) {
+async function scenario(existingTitles: string[], produced: BookKnowledgeCandidate[], chunkText = evidence) {
   const persisted = existingTitles.map((title) => ({ title, summary: candidate.summary }))
   let saturatedAt: Date | null = null
   let passes = 1
   let added = 0
   const store: EnrichStepStore = {
     getJob: async () => ({ id: 'job', bookId: 'book', phase: 'ENRICH' }),
-    nextChunk: async () => ({ id: 'chunk', bookId: 'book', programId: 'program', index: 3, text: evidence, pageStart: 4, pageEnd: 4, textProvenance: 'NATIVE_TEXT', analysisPasses: passes }),
+    nextChunk: async () => ({ id: 'chunk', bookId: 'book', programId: 'program', index: 3, text: chunkText, pageStart: 4, pageEnd: 4, textProvenance: 'NATIVE_TEXT', analysisPasses: passes }),
     existing: async () => ({ local: persisted, own: persisted }),
     save: async (_chunk, items) => {
       // Model append-only createMany: no removal or modification of previously persisted rows.
       added = items.length
       if (items.length) persisted.push(...items.map(({ title, summary }) => ({ title, summary })))
       if (persisted.length >= 20) saturatedAt = new Date()
-      else passes++
+      passes = items.length > 0 ? 0 : passes + 1
     },
     finish: async () => {},
   }
@@ -36,11 +36,18 @@ async function main() {
   const accepted = await scenario(['معلومة قديمة'], [candidate])
   assert.equal(accepted.added, 1)
   assert.deepEqual(accepted.persisted.map((item) => item.title), ['معلومة قديمة', candidate.title], 'new knowledge appended')
+  assert.equal(accepted.passes, 0, 'accepted knowledge clears consecutive empty-pass counter')
 
   const full = await scenario(Array.from({ length: 20 }, (_, index) => `معلومة سابقة ${index}`), [candidate])
   assert.equal(full.added, 0, '20-item cap respected')
   assert.equal(full.persisted.length, 20)
   assert.equal(full.saturated, true)
+  const longSource = evidence.repeat(6)
+  assert.ok(longSource.length > 600)
+  const longTrusted = await scenario([], [{ ...candidate, excerpt: longSource, sourceLineRangeVerified: true }], longSource)
+  assert.equal(longTrusted.added, 1, 'long evidence selected from original numbered lines survives persistence validation')
+  const longUnverified = await scenario([], [{ ...candidate, excerpt: longSource }], longSource)
+  assert.equal(longUnverified.added, 0, 'legacy model-supplied oversized quotes remain rejected')
   // Three empty rounds exhaust eligibility without setting saturatedAt.
   let passes = 0
   let saved: { title: string; summary: string }[] = [{ title: candidate.title, summary: candidate.summary }]
@@ -49,7 +56,7 @@ async function main() {
     getJob: async () => ({ id: 'job', bookId: 'book', phase: 'ENRICH' }),
     nextChunk: async () => passes < 3 ? ({ id: 'chunk', bookId: 'book', programId: 'program', index: 0, text: evidence, pageStart: 1, pageEnd: 1, textProvenance: 'NATIVE_TEXT', analysisPasses: passes }) : null,
     existing: async () => ({ own: saved, local: saved }),
-    save: async (_chunk, items) => { saved = [...saved, ...items.map(({ title, summary }) => ({ title, summary }))]; passes++ },
+    save: async (_chunk, items) => { saved = [...saved, ...items.map(({ title, summary }) => ({ title, summary }))]; passes = items.length ? 0 : passes + 1 },
     finish: async () => { finished++ },
   }
   for (let round = 0; round < 3; round++) {
@@ -68,7 +75,7 @@ async function main() {
   const fresh: BookKnowledgeCandidate = { ...candidate, title: 'تطبيق تربوي جديد', summary: 'تطبيق عملي مختلف ومستقل في التعليم' }
   const resumed = await enrichStepWithStore('job', Date.now() + 30000, store, async () => [fresh])
   assert.equal(resumed.added, 1, 'success after zero accepted continues')
-  assert.equal(passes, 2)
+  assert.equal(passes, 0, 'a productive enrichment round resets the empty-pass counter')
   assert.equal(saved.length, 2)
   // An exhausted provider defers only its chunk; the next valid chunk can
   // still be enriched, and the previously saved knowledge is untouched.
@@ -90,7 +97,7 @@ async function main() {
   assert.equal(firstFailure.completed, false)
   assert.equal(firstFailure.added, 0)
   assert.deepEqual(deferredChunks, ['bad'])
-  const secondSuccess = await enrichStepWithStore('job', Date.now() + 30_000, isolatedStore, async () => [candidate])
+  const secondSuccess = await enrichStepWithStore('job', Date.now() + 30_000, isolatedStore, async (input) => { assert.equal(input.jobId, 'job', 'model affinity must be isolated to its book-read job'); return [candidate] })
   assert.equal(secondSuccess.added, 1)
   assert.deepEqual(successfulChunks, ['good'])
   assert.deepEqual(deferredChunks, ['bad'], 'failing chunk remains retryable')

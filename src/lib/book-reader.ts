@@ -3,6 +3,8 @@ import { PDFDocument } from 'pdf-lib'
 import { db } from '@/lib/db'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
+import { looksLikeBrokenBookPageText } from '@/lib/academic-output-quality'
+import { stripPostgresForbiddenChars } from '@/lib/postgres-text'
 import { textAiCompleteJsonWithMetadata, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRoutingOverrides } from '@/lib/ai-stage-profiles'
 import { withPipelineRun } from '@/lib/ai-pipeline-log'
@@ -11,8 +13,16 @@ import { assertBookReadLease, mergeBookPageReadIssues, parseBookOcrSoloPages, wi
 export type ExtractedBookPage = { page: number; text: string; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; readError?: string }
 export type PlannedBookChunk = { index: number; pageStart: number; pageEnd: number; headingPath: string | null; text: string; charCount: number; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; contentHash: string }
 
+// A page needs OCR when it is too short to read OR when its text layer is
+// mostly font-glyph garbage: a corrupt ToUnicode layer can hold thousands
+// of characters that are not readable Arabic at all.
+export function pageNeedsOcrText(text: string): boolean {
+  const trimmed = text.trim()
+  return trimmed.length < 80 || looksLikeBrokenBookPageText(trimmed)
+}
+
 export function pagesNeedingOcr(pages: readonly { page: number; text: string }[]): number[][] {
-  const missing = pages.filter((page) => page.text.trim().length < 80).map((page) => page.page)
+  const missing = pages.filter((page) => pageNeedsOcrText(page.text)).map((page) => page.page)
   const batches: number[][] = []
   for (let i = 0; i < missing.length; i += 4) batches.push(missing.slice(i, i + 4))
   return batches
@@ -30,8 +40,13 @@ export function planBookChunks(pages: readonly ExtractedBookPage[], minChars = 2
   let headingPath: string | null = null
   const flush = () => {
     if (!text.trim()) return
-    const value = text.trim()
-    chunks.push({ index: chunks.length, pageStart: start, pageEnd: end, headingPath, text: value, charCount: value.length, textProvenance: provenance, contentHash: createHash('sha256').update(value).digest('hex') })
+    // PDF text layers can embed NUL/control bytes Postgres refuses (22021);
+    // strip them here — the single choke point for native and OCR text —
+    // so the chunk text and its hash are computed on the stored value.
+    const value = stripPostgresForbiddenChars(text.trim())
+    if (!value.trim()) return
+    const cleanHeading = headingPath ? stripPostgresForbiddenChars(headingPath) : null
+    chunks.push({ index: chunks.length, pageStart: start, pageEnd: end, headingPath: cleanHeading, text: value, charCount: value.length, textProvenance: provenance, contentHash: createHash('sha256').update(value).digest('hex') })
     text = ''
     headingPath = null
   }
@@ -109,7 +124,25 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
       await parser.destroy().catch(() => {})
     }
   }
+  const parsePages = (raw: string): ExtractedBookPage[] => {
+    const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
+    if (!Array.isArray(parsed?.pages)) throw new Error('OCR_INVALID_PAGE_RESPONSE')
+    const pages = pageNumbers.map((page, i) => {
+      const match = parsed.pages.find((entry: any) => Number(entry.page) === i + 1)
+      if (!match || typeof match.text !== 'string') throw new Error(`OCR_MISSING_PAGE_${page}`)
+      return { page, text: match.text.trim(), textProvenance: 'VISION_OCR' as const }
+    })
+    // Presence alone is not proof: an OCR answer can itself be glyph garbage
+    // (or an invented summary). A broken page fails the OCR call so the
+    // READING-profile failover (next model, APINEX image retry, global
+    // fallback) gets its chance instead of saving the garbage as evidence.
+    for (const page of pages) {
+      if (page.text.trim() && looksLikeBrokenBookPageText(page.text)) throw new Error('OCR_TEXT_FAILED_VERIFICATION')
+    }
+    return pages
+  }
   const meta = await textAiCompleteJsonWithMetadata({
+    validate: (raw) => { parsePages(raw) },
     system: 'أنت محرك OCR حرفي. انسخ النص المرئي كما هو، دون شرح أو وصف أو استنتاج. لا تستخدم VISION_DESCRIPTION.',
     history: [{ role: 'user', text: `الملف يحتوي ${pageNumbers.length} صفحات بالترتيب. أرجع JSON فقط بالشكل {"pages":[{"page":1,"text":"النص الحرفي"}]}، حيث page هو رقم الصفحة داخل الملف الفرعي من 1 إلى ${pageNumbers.length}. لا تخترع نصاً ولا تلخص.` }],
     purpose: 'VISION',
@@ -120,13 +153,7 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
     deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + 90_000),
     attachments,
   })
-  const parsed = JSON.parse(meta.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
-  if (!Array.isArray(parsed?.pages)) throw new Error('OCR_INVALID_PAGE_RESPONSE')
-  const pages = pageNumbers.map((page, i) => {
-    const match = parsed.pages.find((entry: any) => Number(entry.page) === i + 1)
-    if (!match || typeof match.text !== 'string') throw new Error(`OCR_MISSING_PAGE_${page}`)
-    return { page, text: match.text.trim(), textProvenance: 'VISION_OCR' as const }
-  })
+  const pages = parsePages(meta.text)
   return { pages, provider: meta.provider, model: meta.model }
 }
 
@@ -138,14 +165,12 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
   try {
     return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, overrides)), fellBack: false }
   } catch (error) {
-    // APINEX guarantees image_url vision on Gemini but does not document
-    // accepting PDF file parts on this endpoint. Retry the same source pages
-    // as PNGs before abandoning the configured stage models.
-    const apinexVision = overrides.preferredModels.filter((item) =>
-      item.provider.toUpperCase() === 'APINEX' && /gemini/i.test(item.model))
-    if (apinexVision.length && deadlineMs - Date.now() >= 25_000) {
+    // Retry the same source pages as images through the configured stage.
+    // The attachment router filters models by vision capability; do not
+    // restrict this recovery to a particular provider or model name.
+    if (deadlineMs - Date.now() >= 25_000) {
       try {
-        const imageRouting = { ...overrides, preferredModels: apinexVision, preferredProviders: ['APINEX'] }
+        const imageRouting = overrides
         return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, imageRouting, true)), fellBack: false }
       } catch (imageError) {
         if (!overrides.allowGlobalFallback) throw imageError
@@ -258,7 +283,7 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
     }
     return meta.pages
   }
-  const needsOcr = numbers.filter((page) => (pageMap.get(page)?.text || '').trim().length < 80)
+  const needsOcr = numbers.filter((page) => pageNeedsOcrText(pageMap.get(page)?.text || ''))
   const needsOcrSet = new Set(needsOcr)
   const ocrSealed = new Set<number>()
   // Pages whose final text is already decided, counted as a prefix of
@@ -279,11 +304,20 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
       const result = pageMap.get(page) || { page, text: '', textProvenance: 'NATIVE_TEXT' as const }
       const text = result.textProvenance === 'NATIVE_TEXT' ? fixArabicPdfText(result.text) : result.text
       const reason = ocrFailures.get(page)
-      if (!text.trim() || reason) issues.push({
+      // Corrupt text must never become a chunk: a page whose final text
+      // still fails the quality gate is a hole in the evidence, recorded
+      // UNREADABLE, while the other pages keep their chunks. Good text
+      // with a recorded OCR failure keeps the old PARTIAL behaviour.
+      const broken = !!text.trim() && looksLikeBrokenBookPageText(text)
+      if (broken) issues.push({
+        page, kind: 'UNREADABLE',
+        reason: reason || 'BOOK_PAGE_TEXT_FAILED_QUALITY_GATE',
+      })
+      else if (!text.trim() || reason) issues.push({
         page, kind: text.trim() ? 'PARTIAL' : 'UNREADABLE',
         reason: reason || result.readError || 'NO_EXTRACTABLE_TEXT_AFTER_OCR',
       })
-      return { ...result, text }
+      return broken ? { ...result, text: '' } : { ...result, text }
     })
     const chunks = planBookChunks(ordered)
     for (let index = 0; index < chunks.length; index++) {
@@ -309,7 +343,8 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
       try {
         const single = await callOcr([page])
         const recovered = single.find((item) => item.page === page && item.text.trim())
-        if (recovered) pageMap.set(page, recovered)
+        if (recovered && !looksLikeBrokenBookPageText(recovered.text)) pageMap.set(page, recovered)
+        else if (recovered) ocrFailures.set(page, 'OCR_TEXT_FAILED_VERIFICATION')
         else ocrFailures.set(page, 'OCR_RETURNED_NO_TEXT')
       } catch (error) {
         ocrFailures.set(page, 'OCR_FAILED: ' + String(error instanceof Error ? error.message : error).slice(0, 120))
@@ -333,7 +368,13 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
     }
     try {
       const ocr = await callOcr(batch)
-      for (const item of ocr) if (batch.includes(item.page) && item.text.trim()) pageMap.set(item.page, item)
+      for (const item of ocr) {
+        if (!batch.includes(item.page)) continue
+        // Injected OCR doubles bypass transcribeOnce: verify here too, so a
+        // broken OCR answer is a failure for that page, never saved text.
+        if (item.text.trim() && !looksLikeBrokenBookPageText(item.text)) pageMap.set(item.page, item)
+        else if (item.text.trim()) ocrFailures.set(item.page, 'OCR_TEXT_FAILED_VERIFICATION')
+      }
       for (const page of batch) if (!ocr.some((item) => item.page === page && item.text.trim())) ocrFailures.set(page, 'OCR_RETURNED_NO_TEXT')
       for (const page of batch) ocrSealed.add(page)
     } catch {
@@ -355,6 +396,14 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
   }
   return persistPages(numbers)
 }
+
+/** Test-only seam: the extract step with injected pages/OCR/store, so the
+ *  quality gate and the corrupt-text block can be exercised without a DB. */
+export const __testExtractPdfBatchInnerForTests = extractPdfBatchInner
+
+/** Test-only seam: the single OCR call, so its result verification can be
+ *  exercised with a stubbed router instead of a live provider. */
+export const __testTranscribeOnceForTests = transcribeOnce
 
 // D0+D2.1: كل دفعة استخراج تُسجَّل كتشغيلة قراءة. بروفايل القراءة
 // الفعّال يُحسم أولًا: بروفايل مرحلة صالح يقود نداءات OCR ويُختم به

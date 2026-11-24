@@ -1052,28 +1052,47 @@ export function AdminFinanceTab() {
 
   const confirm = async (payment: PaymentRow) => {
     const method = String(payment.method || payment.provider || '').toUpperCase()
-    const hasProof = !!payment.proofs?.length
+    const proofs = payment.proofs || []
+    const hasPendingProof = proofs.some((p) => p.status === 'PENDING')
+    const hasAcceptedProof = proofs.some((p) => p.status === 'ACCEPTED')
+    const savedReference = (payment.manualApprovalReference || '').trim()
+    const savedNote = (payment.manualApprovalNote || '').trim()
+    // The server refuses without evidence — a reference (≥3 chars) or an
+    // accepted proof, plus a ≥6-char note for DIRECT_PAYMENT. A pending proof
+    // must be settled through the proof buttons (the server 409s the generic
+    // confirm), so ask for a note whenever the method is not USDT, no proof
+    // is pending, and the saved evidence is not already enough. This covers
+    // rejected-only proofs and DIRECT_PAYMENT with an accepted proof but no
+    // saved note, while invoices that already pass keep confirming at once.
+    const evidenceSufficient =
+      (hasAcceptedProof || savedReference.length >= 3) &&
+      (method !== 'DIRECT_PAYMENT' || savedNote.length >= 6)
     let approvalReference = ''
     let approvalNote = ''
-    if (!hasProof && method !== 'USDT') {
+    if (method !== 'USDT' && !hasPendingProof && !evidenceSufficient) {
       const value = await promptAction({
-        title: 'تأكيد سداد بدون إثبات مرفوع',
+        title: proofs.length > 0 ? 'تأكيد سداد بدليل إداري' : 'تأكيد سداد بدون إثبات مرفوع',
         description: 'اكتب رقم الحوالة أو ملاحظة الاعتماد قبل تأكيد السداد حتى يظهر السبب في السجل.',
         fieldLabel: 'رقم الحوالة أو ملاحظة الاعتماد',
         defaultValue: payment.manualApprovalReference || payment.manualApprovalNote || '',
         placeholder: 'مثال: حوالة ويسترن رقم 123 أو اعتماد إداري موثق',
         required: true,
-        minLength: 3,
+        minLength: method === 'DIRECT_PAYMENT' ? 6 : 3,
         multiline: true,
         confirmLabel: 'تأكيد السداد',
         tone: 'warning',
       })
       if (value === null) return
       const trimmed = value.trim()
-      if (trimmed.length < 3) {
-        toast({ title: 'مطلوب دليل اعتماد', description: 'اكتب رقم حوالة أو ملاحظة واضحة، أو اطلب من الطالب رفع إثبات الدفع أولاً.', variant: 'destructive' })
+      const minEvidenceLength = method === 'DIRECT_PAYMENT' ? 6 : 3
+      if (trimmed.length < minEvidenceLength) {
+        toast({ title: 'مطلوب دليل اعتماد', description: `اكتب رقم حوالة أو ملاحظة واضحة لا تقل عن ${minEvidenceLength} أحرف، أو اطلب من الطالب رفع إثبات الدفع أولاً.`, variant: 'destructive' })
         return
       }
+      // The server accepts a manual payment only with a reference (≥3 chars)
+      // or a reviewable proof; the note alone is not enough. Send what the
+      // admin typed as both, so the button accepts as soon as a note is written.
+      approvalReference = trimmed
       approvalNote = trimmed
     }
     try {

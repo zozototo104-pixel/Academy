@@ -29,6 +29,7 @@ interface GeminiCallOpts {
   excludeProviders?: TextAiProvider[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
+  timeoutMs?: number
   stickyScope?: string
   validate?: (text: string, context?: { provider: string; model: string }) => void
 }
@@ -605,7 +606,7 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
           return text
         } catch (e) {
           lastErr = e
-          if (String((e as { code?: string })?.code || '') === 'VALIDATION_REJECTED' || /INVALID_JSON|invalid_type|EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION/i.test(String((e as Error)?.message || ''))) break
+          if (String((e as { code?: string })?.code || '') === 'VALIDATION_REJECTED' || /INVALID_JSON|invalid_type|EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION|OCR_TEXT_FAILED_VERIFICATION/i.test(String((e as Error)?.message || ''))) break
           if (isRetryableGeminiKeyError(e)) { keyError = true; break }
           if (isTransientGeminiError(e)) {
             if (attempt < 2) {
