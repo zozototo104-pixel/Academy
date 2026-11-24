@@ -238,8 +238,7 @@ export async function runNextKnowledgeAiRepairStep() {
             original: { title: item.title, summary: item.summary, excerpt: item.excerpt }, sourceText: evidence,
           }) }],
           purpose: 'REVIEW',
-          // An explicitly selected model is used exactly as chosen; global
-          // academic allowlist settings do not silently replace that choice.
+          // Prefer the explicitly selected model; allow eligible router fallbacks.
           taskLevel: chosenModel.length ? 'GENERAL' : 'ACADEMIC_CRITICAL',
           taskType: 'BOOK_KNOWLEDGE_REPAIR',
           temperature: 0, maxOutputTokens: 1200, timeoutMs: 20_000,
