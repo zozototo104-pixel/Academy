@@ -4369,7 +4369,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   })
   if (autoResolution.autoOverride) {
     preferredModels = autoResolution.preferredModels
-    preferredProviders = autoResolution.preferredProviders
+    // Auto rankings hold validated provider ids, including CUSTOM_* ids
+    // that the TextAiProvider union does not cover — the cast is at this
+    // seam only; downstream treats providers as ids, not union members.
+    preferredProviders = autoResolution.preferredProviders as TextAiProvider[]
   }
   const effectiveRestrictToModels = autoResolution.autoOverride ? undefined : effectiveOpts.restrictToModels
   const baseOrderedProviders = providerOrder(s, taskLevel)
@@ -4602,6 +4605,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           // or empty output skips THIS model for this purpose only. The
           // key is untouched (garbage output is not evidence about the
           // key) and no cooldown is set; the next model is tried now.
+          // The OUTPUT_QUALITY bucket must win over the timeout classifier
+          // below (a rejection message may mention "timeout" without the
+          // failure being a timeout), so this runs before it.
           const autoFailure = classifyAutoFailure(e, status)
           if (autoFailure.failureKind === 'OUTPUT_QUALITY') {
             skipModelsThisRequest.add(`${provider}:${model}`)
@@ -4610,15 +4616,21 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           // Step 5 — PROVIDER_DOWN: repeated 5xx / network / DNS errors
           // across models of one provider cool the WHOLE provider once
           // the threshold is met, instead of hammering each model in turn.
+          // BELOW the threshold a 500 is still one bad key, not a dead
+          // provider: the model is NOT skipped and the next key is tried
+          // (a plain 500 must never skip the remaining keys of a model —
+          // the sticky-disabled key-order tests pin this). Only when the
+          // threshold is met (>=3 hits in 60s across >=2 models) does the
+          // provider cool and the model loop break.
           if (autoFailure.failureKind === 'PROVIDER_DOWN' || isProviderDownLike(e, status)) {
             const down = recordProviderDownHit(providerDownState, provider, model)
             providerDownState = down.state
-            skipModelsThisRequest.add(`${provider}:${model}`)
             if (down.providerDown) {
               markProviderCooldown(provider, msg, 15, status)
               noteSkip(provider, model, 'PROVIDER_DOWN')
+              skipModelsThisRequest.add(`${provider}:${model}`)
+              break
             }
-            break
           }
           if (provider === 'ALBORIHI') {
             const action = await handleAlborihiFailure({ key: currentKey, keyIndex, model, error: e, message: msg, status })

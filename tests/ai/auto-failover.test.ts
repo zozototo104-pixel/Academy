@@ -189,7 +189,7 @@ describe('router level — quota, provider-down, quality, timeout', () => {
   })
 
   function groqOnly() {
-    process.env.GROQ_API_KEY=<redacted>
+    process.env.GROQ_API_KEY = 'test-groq-key'
     values.set('GROQ_TEXT_MODEL', 'groq-model-a')
   }
 

@@ -134,7 +134,7 @@ beforeEach(() => {
 })
 
 describe('chooseKnowledgeRepairModels — pure choice', () => {
-  const ranking = (models: Array<{ provider: string; model: string }>) =>
+  const ranking = (models: Array<{ provider: string; model: string; excludedReason?: string }>) =>
     JSON.stringify({ candidates: models })
   test('auto ON with a REVIEW ranking uses it and ignores the dedicated provider/model', () => {
     const chosen = scheduler.chooseKnowledgeRepairModels({

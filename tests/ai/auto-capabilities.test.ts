@@ -1,5 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, mock, test } from 'bun:test'
+import type { RunResultEvent } from '../../src/lib/ai-auto-mode'
 
 // Step 4 — capability classification: provider metadata first, real
 // probes second, run-result feedback third. Name-based inference is only
@@ -174,7 +175,7 @@ describe('capability probes — capped runner', () => {
 })
 
 describe('run-result feedback demotes capability flags after N failures', () => {
-  const event = (outcome: 'VALIDATION_REJECTED' | 'JSON_FAILED' | 'OCR_GATE_FAILED' | 'SUCCESS'): autoMode.RunResultEvent => ({
+  const event = (outcome: 'VALIDATION_REJECTED' | 'JSON_FAILED' | 'OCR_GATE_FAILED' | 'SUCCESS'): RunResultEvent => ({
     provider: 'ZAI',
     model: 'glm-4.5',
     purpose: 'GENERATION',
@@ -195,7 +196,7 @@ describe('run-result feedback demotes capability flags after N failures', () => 
   })
 
   test('OCR-gate failures demote ocr for VISION only, not for other purposes', () => {
-    const ocrEvent: autoMode.RunResultEvent = { provider: 'ZAI', model: 'glm-4.5', purpose: 'VISION', outcome: 'OCR_GATE_FAILED' }
+    const ocrEvent: RunResultEvent = { provider: 'ZAI', model: 'glm-4.5', purpose: 'VISION', outcome: 'OCR_GATE_FAILED' }
     const { state, demotions } = autoMode.applyRunResultFeedback(
       autoMode.emptyCapabilityFeedbackState(),
       [ocrEvent, ocrEvent, ocrEvent],
