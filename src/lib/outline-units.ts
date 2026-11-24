@@ -413,7 +413,8 @@ export async function generateUnitContentWithAi(params: {
 }): Promise<GeneratedUnitContent> {
   // Never expose unresolved knowledge or corrupted source chunks to generation.
   const chunks = params.chunks.filter((chunk) => !looksLikeBrokenBookPageText(chunk.text))
-  const knowledge = params.knowledge.filter((item) => !isKnowledgeItemPendingReview(item))
+  const excludedKnowledgeIds = new Set(assessUnitSources(params.chunks, params.knowledge).badKnowledge.map((item) => item.id))
+  const knowledge = params.knowledge.filter((item) => !excludedKnowledgeIds.has(item.id))
   if (!chunks.length && !knowledge.length) throw new Error('UNIT_SOURCE_REQUIRES_REPAIR')
   if (chunks.length !== params.chunks.length || knowledge.length !== params.knowledge.length) {
     console.warn('[outline-unit-generate] UNIT_SOURCE_PARTIAL', { unitTitle: params.unitTitle, skippedChunkIndexes: params.chunks.filter((chunk) => !chunks.includes(chunk)).map((chunk) => chunk.index), skippedKnowledgeCount: params.knowledge.length - knowledge.length })
