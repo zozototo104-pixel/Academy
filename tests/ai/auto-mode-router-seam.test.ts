@@ -190,16 +190,15 @@ describe('ranking replaces inputs when ON, exclusions preserved', () => {
     values.set('GROQ_TEXT_MODEL', 'llama-3.3-70b-versatile')
     const calls = installFetch()
     // The Gemini family is excluded (verifier must differ from generator).
-    // The ranking's only candidate is Gemini-family, so it must never be
-    // attempted — the call falls back to the manual pool (Groq) instead.
-    const reply = await textAi.textAiCompleteJson({
+    // No other qualified auto model exists, so the call must fail closed
+    // instead of silently switching to the manual Groq configuration.
+    await expect(textAi.textAiCompleteJson({
       system: 'test', history: [{ role: 'user', text: 'hi' }],
       excludeProviders: ['OPENAI'],
       excludeModelFamilies: ['gemini'],
-    })
-    expect(reply).toBe('{"ok":"groq"}')
+    })).rejects.toThrow(/AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK/)
     expect(calls.some((c) => c.url.includes('generativelanguage.googleapis.com'))).toBe(false)
-    expect(calls[0].model).toBe('llama-3.3-70b-versatile')
+    expect(calls.some((c) => c.url.includes('api.groq.com'))).toBe(false)
   })
 })
 
@@ -229,7 +228,7 @@ describe('Gemini shim native fallback is governed when ON', () => {
     expect(nativeCalls).toHaveLength(0)
   })
 
-  test('ON, Gemini IS in the ranking: router failure falls back to native Gemini', async () => {
+  test('ON, Gemini IS in the ranking: router exhaustion never bypasses selection', async () => {
     values.set('AI_AUTO_MODE_ENABLED', '1')
     setRanking('CHAT', [
       { provider: 'GROQ', model: 'llama-3.3-70b-versatile' },
@@ -237,22 +236,20 @@ describe('Gemini shim native fallback is governed when ON', () => {
     ])
     configureRouterFails()
     installFetch({ groqChat: 500, geminiGenerate: 500 })
-    const reply = await gemini.geminiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'hi' }] })
-    expect(reply).toBe('{"native":"ok"}')
-    expect(nativeCalls).toHaveLength(1)
+    await expect(gemini.geminiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'hi' }] })).rejects.toThrow()
+    expect(nativeCalls).toHaveLength(0)
   })
 
-  test('ON: purpose selects the ranking — GENERATION ranking with Gemini allows fallback', async () => {
+  test('ON: purpose selects the ranking — GENERATION failure cannot use native fallback', async () => {
     values.set('AI_AUTO_MODE_ENABLED', '1')
     setRanking('CHAT', [{ provider: 'GROQ', model: 'llama-3.3-70b-versatile' }])
     setRanking('GENERATION', [{ provider: 'GEMINI', model: 'gemini-3.5-flash-lite' }])
     configureRouterFails()
     installFetch({ groqChat: 500, geminiGenerate: 500 })
-    const reply = await gemini.geminiCompleteJson({
+    await expect(gemini.geminiCompleteJson({
       system: 'test', history: [{ role: 'user', text: 'hi' }], purpose: 'GENERATION',
-    })
-    expect(reply).toBe('{"native":"ok"}')
-    expect(nativeCalls).toHaveLength(1)
+    })).rejects.toThrow()
+    expect(nativeCalls).toHaveLength(0)
   })
 
   test('ON, Gemini NOT in the ranking: stream fallback is also blocked', async () => {
@@ -307,7 +304,7 @@ describe('geminiVisionJson routes via the router when ON', () => {
     expect(nativeCalls).toHaveLength(0)
   })
 
-  test('ON, ranking empty: native stays as the last resort', async () => {
+  test('ON, ranking empty: bootstrap may route, but native manual model is forbidden', async () => {
     values.set('AI_AUTO_MODE_ENABLED', '1')
     setRanking('VISION', [])
     process.env.APINEX_API_KEY = 'apinex-test-key'
@@ -315,10 +312,8 @@ describe('geminiVisionJson routes via the router when ON', () => {
     values.set('APINEX_TEXT_MODEL', 'free/gemini-3.8-flash')
     process.env.GEMINI_API_KEY = 'test-gemini-key'
     installFetch({ apinexChat: 500, geminiGenerate: 500 })
-    const reply = await gemini.geminiVisionJson({ prompt: 'read this page', images })
-    expect(reply).toBe('{"native":"ok"}')
-    expect(nativeCalls).toHaveLength(1)
-    expect(nativeCalls[0].kind).toBe('vision')
+    await expect(gemini.geminiVisionJson({ prompt: 'read this page', images })).rejects.toThrow()
+    expect(nativeCalls).toHaveLength(0)
   })
 
   test('OFF: vision stays on the native path (today’s behaviour)', async () => {
