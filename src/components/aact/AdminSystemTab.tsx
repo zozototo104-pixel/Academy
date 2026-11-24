@@ -1492,7 +1492,7 @@ export function AdminSystemTab() {
             <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
               <div>
                 <p className="text-xs font-black text-indigo-900">الوضع التلقائي لاختيار المزود والنموذج</p>
-                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل يختار النظام المزود والنموذج الأفضل لكل مهمة تلقائياً بدل ترتيبك اليدوي — وترتيبك اليدوي يبقى محفوظاً كما هو، وإطفاء المفتاح يعيده فوراً دون أي تغيير. المدفوع يبقى محظوراً إلا بإذنك، والمدقق لا يأخذ أبداً نفس مزود أو عائلة المولّد.</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل يفحص النظام المزودين تدريجياً، ويختار النماذج المؤهلة بالترتيب لكل مهمة. لا يطبّق اختياراتك اليدوية أثناء الوضع التلقائي؛ وترجع كما كانت عند إطفائه. المدفوع يبقى محظوراً إلا بإذنك، والمدقق يمكن أن يستخدم نفس المزوّد بشرط اختلاف نموذج المولّد وعائلته.</p>
               </div>
               <Switch checked={form.AI_AUTO_MODE_ENABLED === '1' || form.AI_AUTO_MODE_ENABLED === 'true'} onCheckedChange={(v) => set('AI_AUTO_MODE_ENABLED', v ? '1' : '0')} />
             </div>
