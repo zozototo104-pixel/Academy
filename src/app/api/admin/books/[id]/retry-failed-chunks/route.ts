@@ -30,18 +30,26 @@ export async function POST(_request: NextRequest, context: Context) {
         if (latest?.status === 'FAILED' && latest.phase === 'EXTRACT') {
           return { blockedByExtraction: true, jobId: latest.id, chunksReset: 0 }
         }
-        // Only a failed ANALYZE job owns this operation. Do not create a
-        // different-phase job on completed or failed-enrichment records.
-        if (latest?.status !== 'FAILED' || latest.phase !== 'ANALYZE') {
+        // A failed ANALYZE job owns this operation, and so does a COMPLETED
+        // job whose analysis finished with failed chunks left behind
+        // (complete() marks those DONE): the failed chunks have no other
+        // retry path once the job is no longer FAILED. Failed enrichment
+        // and other phases still cannot use this route.
+        const retryableAnalyzeJob =
+          (latest?.status === 'FAILED' && latest.phase === 'ANALYZE') ||
+          (latest?.status === 'COMPLETED' && latest.phase === 'DONE')
+        if (!retryableAnalyzeJob) {
           return { wrongPhase: true, jobId: latest?.id ?? null, phase: latest?.phase ?? null }
         }
         const failedCount = await tx.bookChunk.count({ where: { bookId: id, status: 'FAILED' } })
         if (!failedCount) return { noFailedChunks: true, jobId: latest.id }
         // Claim the failed job before changing any chunks; both writes commit
         // together, so a competing admin cannot reset chunks of another job.
+        // A completed job re-enters analysis, so its phase returns to
+        // ANALYZE as well: the step guard skips any other phase.
         const changed = await tx.bookReadJob.updateMany({
-          where: { id: latest.id, status: 'FAILED' },
-          data: { status: 'QUEUED', chunksFailed: 0, retryAt: null, lockedUntil: null, finishedAt: null },
+          where: { id: latest.id, status: latest.status },
+          data: { status: 'QUEUED', phase: 'ANALYZE', chunksFailed: 0, retryAt: null, lockedUntil: null, finishedAt: null },
         })
         if (!changed.count) return { conflict: true, jobId: latest.id }
         const chunks = await tx.bookChunk.updateMany({
@@ -61,7 +69,7 @@ export async function POST(_request: NextRequest, context: Context) {
       if ('wrongPhase' in result && result.wrongPhase) {
         return NextResponse.json({
           error: 'BOOK_ANALYSIS_PHASE_REQUIRED',
-          message: 'إعادة المقاطع الفاشلة متاحة فقط لمهمة تحليل فاشلة. استكمل المرحلة الحالية من زرها المخصص.',
+          message: 'إعادة المقاطع الفاشلة متاحة فقط لمهمة تحليل فاشلة أو مكتملة مع مقاطع فاشلة. استكمل المرحلة الحالية من زرها المخصص.',
           jobId: result.jobId, failedPhase: result.phase,
         }, { status: 409 })
       }

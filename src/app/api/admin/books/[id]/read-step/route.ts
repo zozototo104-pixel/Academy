@@ -89,11 +89,16 @@ export async function POST(_request: NextRequest, context: Context) {
     await releaseBookReadLock(db, job.id, now, false)
     // Keep lastError untouched: it contains the per-page issue ledger.
     const updated = await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
-    const enrichment = job.phase === 'ENRICH' ? {
-      totalChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
-      saturatedChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', OR: [{ saturatedAt: { not: null } }, { analysisPasses: { gte: 3 } }] } }),
-      addedItems: await db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2, createdAt: { gte: job.createdAt } } }),
-    } : undefined
+    let enrichment: { totalChunks: number; saturatedChunks: number; capacitySaturatedChunks: number; exhaustedChunks: number; addedItems: number } | undefined
+    if (job.phase === 'ENRICH') {
+      const [totalChunks, capacitySaturatedChunks, exhaustedChunks, addedItems] = await Promise.all([
+        db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
+        db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', saturatedAt: { not: null } } }),
+        db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', saturatedAt: null, analysisPasses: { gte: 3 } } }),
+        db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2, createdAt: { gte: job.createdAt } } }),
+      ])
+      enrichment = { totalChunks, saturatedChunks: capacitySaturatedChunks + exhaustedChunks, capacitySaturatedChunks, exhaustedChunks, addedItems }
+    }
     return NextResponse.json({ ok: true, result, job: updated, enrichment })
   } catch (error: any) {
     const message = String(error?.message || error)

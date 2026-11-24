@@ -29,14 +29,16 @@ export async function GET(_request: NextRequest, context: Context) {
     const job = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
     // Retried/enrichment jobs start with zero local counters. Report persisted
     // book totals separately so the UI never mistakes a retry for lost work.
-    const [storedChunks, analyzedChunks, failedChunks, saturatedChunks, knowledgeTotal, previousRead] = await Promise.all([
+    const [storedChunks, analyzedChunks, failedChunks, capacitySaturatedChunks, exhaustedChunks, knowledgeTotal, previousRead] = await Promise.all([
       db.bookChunk.count({ where: { bookId: id } }),
       db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
       db.bookChunk.count({ where: { bookId: id, status: 'FAILED' } }),
-      db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', OR: [{ saturatedAt: { not: null } }, { analysisPasses: { gte: 3 } }] } }),
+      db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', saturatedAt: { not: null } } }),
+      db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', saturatedAt: null, analysisPasses: { gte: 3 } } }),
       db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2 } }),
       db.bookReadJob.findFirst({ where: { bookId: id, totalPages: { gt: 0 } }, orderBy: { createdAt: 'desc' }, select: { totalPages: true, pagesDone: true } }),
     ])
+    const saturatedChunks = capacitySaturatedChunks + exhaustedChunks
     const enrichment = {
       totalChunks: analyzedChunks,
       storedChunks,
@@ -45,6 +47,8 @@ export async function GET(_request: NextRequest, context: Context) {
       sourcePages: previousRead?.totalPages || 0,
       pagesSaved: previousRead?.pagesDone || 0,
       saturatedChunks,
+      capacitySaturatedChunks,
+      exhaustedChunks,
       addedItems: job && (job.phase === 'ENRICH' || (job.phase === 'DONE' && job.totalChunks === 0))
         ? await db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2, createdAt: { gte: job.createdAt } } }) : 0,
     }
@@ -273,7 +277,16 @@ export async function POST(request: NextRequest, context: Context) {
       if (!readable) return NextResponse.json({ error: 'شغّل القراءة الكاملة أولاً' }, { status: 400 })
     }
     try {
-      const job = await db.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: mode, status: 'QUEUED' } })
+      const job = await db.$transaction(async (tx) => {
+        // Reopen only exhausted, non-saturated chunks when an administrator
+        // explicitly starts a fresh enrichment job. Preserve all saved items.
+        const created = await tx.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: mode, status: 'QUEUED' } })
+        if (mode === 'ENRICH') await tx.bookChunk.updateMany({
+          where: { bookId: id, status: 'ANALYZED', saturatedAt: null, analysisPasses: { gte: 3 } },
+          data: { analysisPasses: 0 },
+        })
+        return created
+      })
       return NextResponse.json({ ok: true, job, resumed: false })
     } catch (error: any) {
       // PostgreSQL partial unique index protects the create itself; a competing

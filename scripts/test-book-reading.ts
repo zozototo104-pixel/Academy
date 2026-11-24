@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { nextExtractionPage, pagesNeedingOcr, planBookChunks, extractPdfBatch, extractNumberedPdfPages } from '../src/lib/book-reader'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
-import { analyzeStepWithStore, isRepeatedBookConcept, validateBookKnowledgeCandidate } from '../src/lib/book-chunk-analyzer'
+import { analyzeStepWithStore, isRepeatedBookConcept, preferSuccessfulBookAnalysisModel, resolveBookKnowledgeCandidateFromLines, validateBookKnowledgeCandidate, validateSourceBackedBookBatch } from '../src/lib/book-chunk-analyzer'
 import { mergeBookPageReadIssues, parseBookOcrSoloPages, parseBookPageReadIssues, preserveBookPageReadIssues, withBookOcrSoloPages } from '../src/lib/book-read-job-control'
 
 const pages = [{ page: 1, text: `${'هذه جملة طويلة عن المعرفة. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }, { page: 2, text: `${'هذه جملة ثانية عن العلم. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }]
@@ -26,6 +26,31 @@ assert.ok(validateBookKnowledgeCandidate(candidate, source))
 assert.equal(validateBookKnowledgeCandidate({ ...candidate, excerpt: 'عبارة غير موجودة في النص الأصلي '.repeat(3) }, source), null)
 assert.equal(validateBookKnowledgeCandidate({ ...candidate, excerpt: `${source.slice(0, -1)}؟` }, source), null)
 assert.ok(isRepeatedBookConcept(candidate, [{ title: 'المنهج العلمي', summary: 'تفسير منهجي للتجريب والملاحظة' }]))
+// The model returns lineStart/lineEnd, and the server copies the exact source.
+const numberedSource = (source + '\n').repeat(8)
+const exactLines = numberedSource.split('\n').slice(0, 2).join('\n')
+const selected = resolveBookKnowledgeCandidateFromLines(
+  { ...candidate, excerpt: 'اقتباس مختلق لا وجود له في الكتاب', lineStart: 1, lineEnd: 2 }, numberedSource,
+)
+assert.equal(selected.candidate?.excerpt, exactLines, 'model text never becomes the saved evidence')
+assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 0, lineEnd: 2 }, numberedSource).reason, 'INVALID_LINE_RANGE')
+assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 1, lineEnd: 9, excerpt: source }, numberedSource).reason, 'INVALID_LINE_RANGE', 'invalid ranges cannot fall back to model quotes')
+assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 1, lineEnd: 1, category: 'QUESTION_SEED' }, numberedSource).candidate, null, 'category guard remains strict')
+const originalLongLine = source.repeat(6)
+assert.ok(originalLongLine.length > 600)
+assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 1, lineEnd: 1 }, originalLongLine).candidate?.excerpt, originalLongLine, 'one long trusted line may exceed legacy 600-character cap')
+const questionLine = 'كيف يمكن للمحاسب أن يستخدم بيانات المنشأة خلال الدورة المحاسبية لتحديد الأرصدة واستخراج القوائم المالية بطريقة صحيحة؟'
+assert.equal(resolveBookKnowledgeCandidateFromLines({ ...candidate, lineStart: 1, lineEnd: 1 }, questionLine).candidate, null, 'source questions still cannot pass as evidence')
+assert.equal(resolveBookKnowledgeCandidateFromLines(candidate, source).candidate?.excerpt, source, 'legacy verbatim evidence remains accepted')
+const sourceBatch = JSON.stringify({ items: [{ ...candidate, excerpt: 'نص غير موجود', lineStart: 1, lineEnd: 2 }] })
+assert.doesNotThrow(() => validateSourceBackedBookBatch(sourceBatch, numberedSource, []), 'verified original line ranges qualify the model response')
+assert.throws(() => validateSourceBackedBookBatch(JSON.stringify({ items: [] }), numberedSource, []), /BOOK_KNOWLEDGE_NO_ITEMS/, 'an empty model batch means the chunk is exhausted, not broken')
+assert.throws(() => validateSourceBackedBookBatch(JSON.stringify({ items: [{ ...candidate, lineStart: 0, lineEnd: 2 }] }), numberedSource, []), /BOOK_KNOWLEDGE_NO_VERIFIED_ITEMS/, 'invalid line references must trigger provider fallback')
+assert.throws(() => validateSourceBackedBookBatch(sourceBatch, numberedSource, [candidate]), /BOOK_KNOWLEDGE_ALL_DUPLICATE/, 'fully duplicated results mean the chunk is exhausted, not broken')
+const configuredModels = [{ provider: 'GROQ', model: 'model-a' }, { provider: 'OPENAI', model: 'model-b' }, { provider: 'GEMINI', model: 'model-c' }]
+assert.deepEqual(preferSuccessfulBookAnalysisModel(configuredModels, configuredModels[1]), [configuredModels[1], configuredModels[0], configuredModels[2]], 'last successful model takes priority without changing eligible models')
+assert.deepEqual(preferSuccessfulBookAnalysisModel(configuredModels, { provider: 'GROQ', model: 'no-longer-allowed' }), configuredModels, 'removed models cannot be reintroduced by the affinity hint')
+assert.deepEqual(preferSuccessfulBookAnalysisModel(configuredModels, null), configuredModels, 'new jobs preserve the configured starting order')
 async function pdfExtractionRegression() {
   const pdf = await PDFDocument.create()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
@@ -170,6 +195,29 @@ async function exhaustedAnalysisChunkDoesNotBlockTheRest() {
   assert.equal(result.completed, true, 'the analyzer reaches completion instead of crashing')
   assert.equal(completed, true)
   assert.deepEqual(entries.map((entry) => entry.status), ['FAILED', 'ANALYZED'])
+}
+
+async function exhaustedBatchSavesAnalyzedWithZeroItems() {
+  // An honest empty model batch counts as zero accepted: the chunk is saved
+  // ANALYZED with no items instead of failing after 3 attempts, and the
+  // job completes instead of stalling on an exhausted chunk.
+  const source = 'مقطع بلا معرفة جديدة: فهرس المراجع والمصادر التي اعتمد عليها الكتاب في إعداده وتوثيق معلوماته.'
+  let completed = false
+  let savedItems = -1
+  const store = {
+    getJob: async () => ({ id: 'job', bookId: 'book', programId: 'program', phase: 'ANALYZE', status: completed ? 'COMPLETED' : 'RUNNING' }),
+    nextChunk: async (_bookId: string, excluded: string[]) => excluded.length ? null : { id: 'chunk', bookId: 'book', programId: 'program', index: 0, text: source, pageStart: 1, pageEnd: 1, textProvenance: 'NATIVE_TEXT', attempts: 0 },
+    priorItems: async () => [],
+    saveAnalyzed: async (_chunk: { id: string }, items: unknown[]) => { savedItems = items.length },
+    saveFailure: async () => { throw new Error('saveFailure must not run for an exhausted chunk') },
+    complete: async () => { completed = true },
+  }
+  const result = await analyzeStepWithStore('job', Date.now() + 60_000, store as any, (async () => []) as any)
+  assert.equal(savedItems, 0, 'an exhausted chunk is saved with zero items')
+  assert.equal(result.analyzed, 1, 'the exhausted chunk counts as analyzed')
+  assert.equal(result.failed, 0, 'no failure is recorded for an exhausted chunk')
+  assert.equal(result.completed, true, 'the job completes instead of stalling')
+  assert.equal(completed, true)
 }
 
 async function postgresAnalysisCompletionRegression() {
@@ -343,6 +391,7 @@ const readChecks = process.env.BOOK_READ_PG_CONTRACT === '1'
       .then(() => unreadablePdfPageDoesNotStopFollowingPages())
       .then(() => analyzeResumeRegression())
       .then(() => exhaustedAnalysisChunkDoesNotBlockTheRest())
+      .then(() => exhaustedBatchSavesAnalyzedWithZeroItems())
       .then(() => ocrSoloStateSurvivesPipelineWrites())
       .then(() => deadlineKilledGroupOcrResumesSolo())
       .then(() => failedOcrSoloCheckpointMustSurfaceError())
