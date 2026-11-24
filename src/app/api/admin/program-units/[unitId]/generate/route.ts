@@ -75,7 +75,7 @@ export async function POST(req: NextRequest, context: Context) {
     const { unitId } = await context.params
     const body = await req.json().catch(() => ({}))
     const force = Boolean(body?.regenerate || body?.force)
-    const activeJob = await db.unitGenerationJob.findFirst({ where: { unitId, status: { in: ['QUEUED', 'RUNNING'] } }, orderBy: { createdAt: 'desc' } })
+    const activeJob = await db.unitGenerationJob.findFirst({ where: { unitId, status: { in: ['QUEUED', 'RUNNING'] }, phase: { in: ['CONTENT', 'GUIDE'] } }, orderBy: { createdAt: 'desc' } })
     if (activeJob) {
       if (activeJob.status === 'RUNNING' && (!activeJob.lockedUntil || activeJob.lockedUntil.getTime() <= Date.now())) {
         const failedJob = await db.unitGenerationJob.update({ where: { id: activeJob.id }, data: { status: 'FAILED', lastError: 'توقفت، أعد المحاولة', lockedUntil: null, finishedAt: new Date() } })
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest, context: Context) {
       })
     } catch (error: any) {
       if (error?.code === 'P2002') {
-        const existing = await db.unitGenerationJob.findFirst({ where: { unitId: unit.id, status: { in: ['QUEUED', 'RUNNING'] } }, orderBy: { createdAt: 'desc' } })
+        const existing = await db.unitGenerationJob.findFirst({ where: { unitId: unit.id, status: { in: ['QUEUED', 'RUNNING'] }, phase: { in: ['CONTENT', 'GUIDE'] } }, orderBy: { createdAt: 'desc' } })
         if (existing) return NextResponse.json({ ok: true, job: existing, resumed: true })
       }
       throw error

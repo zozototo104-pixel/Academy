@@ -5,6 +5,7 @@ import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { buildBookOutline } from '@/lib/book-outline'
 import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, canRunBookReadJob, claimBookReadLock, releaseBookReadLock, classifyBookReadFailure, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
+import { hasActiveBookRepairJob } from '@/lib/book-repair-job'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -46,6 +47,12 @@ export async function POST(_request: NextRequest, context: Context) {
     return NextResponse.json({ error: 'لا توجد مهمة قراءة لهذا الكتاب — ابدأ القراءة أولاً' }, { status: 404 })
   }
   const now = new Date()
+  // Criterion 4 (second direction): enrichment must not step while a scan
+  // repair is active on the same book — the repair owns the chunks until it
+  // finishes or is stopped. The job stays queued; the admin retries later.
+  if (await hasActiveBookRepairJob(id)) {
+    return NextResponse.json({ ok: false, error: 'BOOK_REPAIR_JOB_ACTIVE', message: 'يوجد فحص إصلاح نشط لهذا الكتاب — انتظر حتى ينتهي ثم أعد المحاولة', job }, { status: 409 })
+  }
   if (!canRunBookReadJob(job, now)) return NextResponse.json({ ok: true, skipped: 'RETRY_NOT_DUE', job })
   const claimed = await claimBookReadLock(db, job.id, now)
   if (!claimed) return NextResponse.json({ ok: true, skipped: 'LOCKED_OR_NOT_DUE' })
@@ -89,7 +96,7 @@ export async function POST(_request: NextRequest, context: Context) {
     await releaseBookReadLock(db, job.id, now, false)
     // Keep lastError untouched: it contains the per-page issue ledger.
     const updated = await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
-    let enrichment: { totalChunks: number; saturatedChunks: number; capacitySaturatedChunks: number; exhaustedChunks: number; addedItems: number } | undefined
+    let enrichment: { totalChunks: number; saturatedChunks: number; capacitySaturatedChunks: number; exhaustedChunks: number; addedItems: number; enrichmentTarget: number | null; completionKind: string } | undefined
     if (job.phase === 'ENRICH') {
       const [totalChunks, capacitySaturatedChunks, exhaustedChunks, addedItems] = await Promise.all([
         db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
@@ -97,7 +104,10 @@ export async function POST(_request: NextRequest, context: Context) {
         db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', saturatedAt: null, analysisPasses: { gte: 3 } } }),
         db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2, createdAt: { gte: job.createdAt } } }),
       ])
-      enrichment = { totalChunks, saturatedChunks: capacitySaturatedChunks + exhaustedChunks, capacitySaturatedChunks, exhaustedChunks, addedItems }
+      // completionKind names base completion (10) vs final saturation (20)
+      // explicitly; inline on purpose — see enrichmentCompletionKind in
+      // book-chunk-analyzer, the canonical helper (20 is the only non-base target).
+      enrichment = { totalChunks, saturatedChunks: capacitySaturatedChunks + exhaustedChunks, capacitySaturatedChunks, exhaustedChunks, addedItems, enrichmentTarget: job.enrichmentTarget ?? null, completionKind: job.enrichmentTarget === 20 ? 'FINAL_SATURATED' : 'BASE_COMPLETE' }
     }
     return NextResponse.json({ ok: true, result, job: updated, enrichment })
   } catch (error: any) {

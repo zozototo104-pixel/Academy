@@ -7,6 +7,37 @@ import { normalizeArabic } from '@/lib/arabic-normalize'
 import { textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
 import { formatNumberedBookLines, resolveBookLineEvidence } from '@/lib/book-line-evidence'
 import { assertBookReadLease, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
+import { looksLikeBrokenBookPageText } from '@/lib/academic-output-quality'
+
+// Pure saturation decision, shared by the commit-time save below and its
+// tests: a chunk saturates only when the JOB target is reached (capacity or
+// available exhausted, or rows + newly accepted reach the target). A chunk
+// at the base target (10) under an extra-target job (20) does NOT saturate.
+export function enrichChunkSaturates(args: { capacity: number; available: number; rowsBefore: number; accepted: number; target: number }): boolean {
+  return args.capacity === 0 || args.available === 0 || args.rowsBefore + args.accepted >= args.target
+}
+
+// Two-level enrichment: the base pass ends at 10 items per chunk; the optional
+// extra pass continues the SAME items to 20. 10 is NOT final saturation —
+// final saturation is at 20. A chunk saturates honestly at its real count when
+// the model finds nothing new (the existing pass/duplicate logic stays the
+// authority on "no more items"). Only 10 and 20 are legal targets; anything
+// else (including NULL from old jobs) resolves to the base 10.
+export const BOOK_ENRICH_BASE_TARGET = 10
+export const BOOK_ENRICH_EXTRA_TARGET = 20
+export function resolveEnrichmentTarget(enrichmentTarget: number | null | undefined): number {
+  return enrichmentTarget === BOOK_ENRICH_EXTRA_TARGET ? BOOK_ENRICH_EXTRA_TARGET : BOOK_ENRICH_BASE_TARGET
+}
+
+// Base completion vs final saturation (claim 9): a job that ends at the
+// base target (10) is BASE_COMPLETE — its chunks may still continue to 20
+// in a later extra pass — while a job that ends at the extra target (20)
+// is FINAL_SATURATED. The target number alone left this implicit in every
+// status payload; the kind names it so the admin (and UI) can tell them apart.
+export type EnrichmentCompletionKind = 'BASE_COMPLETE' | 'FINAL_SATURATED'
+export function enrichmentCompletionKind(enrichmentTarget: number | null | undefined): EnrichmentCompletionKind {
+  return resolveEnrichmentTarget(enrichmentTarget) === BOOK_ENRICH_EXTRA_TARGET ? 'FINAL_SATURATED' : 'BASE_COMPLETE'
+}
 
 export const BOOK_KNOWLEDGE_CATEGORIES = ['CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'PRINCIPLE', 'FACT'] as const
 export type BookKnowledgeCandidate = { category: typeof BOOK_KNOWLEDGE_CATEGORIES[number]; title: string; summary: string; excerpt: string; importance: number; sourceLineRangeVerified?: true }
@@ -320,12 +351,12 @@ async function enrichBookChunkInner(input: { bookId: string; jobId?: string; chu
 }
 
 export type EnrichStepStore = {
-  getJob: (id: string) => Promise<{ id: string; bookId: string; phase: string } | null>
+  getJob: (id: string) => Promise<{ id: string; bookId: string; phase: string; enrichmentTarget?: number | null } | null>
   nextChunk: (bookId: string) => Promise<{ id: string; bookId: string; programId: string; index: number; text: string; pageStart: number; pageEnd: number; textProvenance: string; analysisPasses: number } | null>
   // Failed providers are deferred per chunk, not treated as successful analysis.
   defer?: (chunkId: string, reason: string) => Promise<void>
   existing: (bookId: string, chunkId: string, index: number) => Promise<{ local: Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; own: Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }>
-  save: (chunk: { id: string; bookId: string; programId: string; pageStart: number; pageEnd: number; textProvenance: string }, items: BookKnowledgeCandidate[], capacity?: number) => Promise<void>
+  save: (chunk: { id: string; bookId: string; programId: string; pageStart: number; pageEnd: number; textProvenance: string }, items: BookKnowledgeCandidate[], capacity?: number, target?: number) => Promise<void>
   finish: (jobId: string) => Promise<void>
 }
 
@@ -359,10 +390,11 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
   const job = await store.getJob(jobId)
   if (!job) throw new Error('BOOK_READ_JOB_NOT_FOUND')
   if (job.phase !== 'ENRICH') return { completed: job.phase === 'DONE', added: 0 }
+  const target = resolveEnrichmentTarget(job.enrichmentTarget)
   const chunk = await store.nextChunk(job.bookId)
-  if (!chunk) { await store.finish(jobId); return { completed: true, added: 0 } }
+  if (!chunk) { await store.finish(jobId); return { completed: true, added: 0, enrichmentCompletion: enrichmentCompletionKind(job.enrichmentTarget) } }
   const existing = await store.existing(job.bookId, chunk.id, chunk.index)
-  const capacity = Math.max(0, 20 - existing.own.length)
+  const capacity = Math.max(0, target - existing.own.length)
   if (capacity && deadlineMs - Date.now() < 25_000) return { completed: false, added: 0 }
   let candidates: BookKnowledgeCandidate[] = []
   if (capacity) {
@@ -387,8 +419,8 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
     if (item && !isRepeatedBookConcept(item, [...existing.local, ...accepted])) accepted.push(item)
     if (accepted.length >= capacity) break
   }
-  console.info('[book-enrich] selection', { bookId: job.bookId, chunkId: chunk.id, candidates: candidates.length, accepted: accepted.length, rejected: { duplicateOrInvalid: candidates.length - accepted.length }, capacity })
-  await store.save(chunk, accepted, capacity)
+  console.info('[book-enrich] selection', { bookId: job.bookId, chunkId: chunk.id, candidates: candidates.length, accepted: accepted.length, rejected: { duplicateOrInvalid: candidates.length - accepted.length }, capacity, target })
+  await store.save(chunk, accepted, capacity, target)
   return { completed: false, added: accepted.length }
 }
 
@@ -402,24 +434,32 @@ export function __testEnrichDeferralForTests(lastError: string | null | undefine
 /** Requires the shared read-step job lock. Processes exactly one chunk per call. */
 export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt: Date) {
   const store: EnrichStepStore = {
-    getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, phase: true } }),
+    getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, phase: true, enrichmentTarget: true } }),
     nextChunk: async (bookId) => {
       // Fetch only metadata first: no expensive 4KB texts until a due chunk
       // is found. Never turn an all-deferred book into false completion.
+      // A confirmed-garbled chunk is BLOCKED from enrichment until it is
+      // repaired: it is skipped here (and in finish) without touching the
+      // healthy chunks. When only garbled chunks remain, return null so the
+      // job completes for its readable content instead of spinning forever.
       const pending = await db.bookChunk.findMany({
         where: { bookId, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } },
         orderBy: [{ analysisPasses: 'asc' }, { index: 'asc' }],
         select: { id: true, lastError: true },
       })
-      const due = pending.find((item) => __testEnrichDeferralForTests(item.lastError).ready)
-      if (!due) {
-        if (pending.length) throw new Error('BOOK_ENRICH_DEFERRED')
-        return null
+      let sawDeferred = false
+      for (const item of pending) {
+        if (!__testEnrichDeferralForTests(item.lastError).ready) { sawDeferred = true; continue }
+        const chunk = await db.bookChunk.findUnique({
+          where: { id: item.id },
+          select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, analysisPasses: true },
+        })
+        if (!chunk) continue
+        if (looksLikeBrokenBookPageText(chunk.text)) continue
+        return chunk
       }
-      return db.bookChunk.findUnique({
-        where: { id: due.id },
-        select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, analysisPasses: true },
-      })
+      if (sawDeferred) throw new Error('BOOK_ENRICH_DEFERRED')
+      return null
     },
     defer: async (chunkId, reason) => {
       await db.$transaction(async (tx) => {
@@ -438,7 +478,8 @@ export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt
       const rows = await db.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 2, chunkId: { in: chunks.map((chunk) => chunk.id) } }, select: { chunkId: true, title: true, summary: true } })
       return { local: rows, own: rows.filter((row) => row.chunkId === chunkId) }
     },
-    save: async (chunk, items, capacity) => {
+    save: async (chunk, items, capacity, target) => {
+      const finalTarget = resolveEnrichmentTarget(target)
       await db.$transaction(async (tx) => {
         await assertBookReadLease(tx, jobId, claimedAt)
         const current = await tx.bookChunk.findUnique({
@@ -451,7 +492,7 @@ export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt
           where: { bookId: chunk.bookId, kbVersion: 2, chunkId: chunk.id },
           select: { title: true, summary: true },
         })
-        const available = Math.max(0, 20 - rows.length)
+        const available = Math.max(0, finalTarget - rows.length)
         const accepted: BookKnowledgeCandidate[] = []
         for (const item of items) {
           if (accepted.length >= available) break
@@ -469,9 +510,11 @@ export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt
         await tx.bookChunk.update({
           where: { id: chunk.id },
           data: {
-            // Saturation means 20 persisted items, never merely exhausted tries.
-            // Count consecutive zero-yield passes; any saved item reopens progress.
-            ...(capacity === 0 || available === 0 || rows.length + accepted.length >= 20
+            // Saturation means the job target persisted items, never merely
+            // exhausted tries. Count consecutive zero-yield passes; any saved
+            // item reopens progress. The base target (10) is NOT final
+            // saturation; final saturation is at 20.
+            ...(enrichChunkSaturates({ capacity: capacity ?? 0, available, rowsBefore: rows.length, accepted: accepted.length, target: finalTarget })
               ? { saturatedAt: new Date(), analysisPasses: 0 }
               : accepted.length > 0
                 ? { analysisPasses: 0 }
@@ -484,13 +527,20 @@ export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt
     finish: async (id) => {
       await db.$transaction(async (tx) => {
         await assertBookReadLease(tx, id, claimedAt)
-        const stillOpen = await tx.bookChunk.count({
-          where: { bookId: (await tx.bookReadJob.findUniqueOrThrow({ where: { id } })).bookId, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } },
+        const bookId = (await tx.bookReadJob.findUniqueOrThrow({ where: { id } })).bookId
+        const pending = await tx.bookChunk.findMany({
+          where: { bookId, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } },
+          select: { text: true },
         })
+        // Garbled chunks are blocked from enrichment until repaired; they do
+        // not keep the job open once every readable chunk is done.
+        const stillOpen = pending.filter((chunk) => !looksLikeBrokenBookPageText(chunk.text)).length
         if (stillOpen) return
+        const blocked = pending.length
+        const previous = blocked ? await tx.bookReadJob.findUnique({ where: { id }, select: { lastError: true } }) : null
         await tx.bookReadJob.updateMany({
           where: { id, status: 'RUNNING', startedAt: claimedAt },
-          data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null },
+          data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null, ...(blocked ? { lastError: preserveBookPageReadIssues(previous?.lastError, `BOOK_ENRICH_PARTIAL: ${blocked} مقطع مشوه يحتاج إصلاح القراءة قبل الإثراء.`) } : {}) },
         })
       })
     },
@@ -562,7 +612,22 @@ export async function analyzeStepWithStore(
 export async function runAnalyzeStep(jobId: string, deadlineMs: number, claimedAt: Date) {
   const store: AnalyzeStepStore = {
     getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, programId: true, phase: true, status: true } }),
-    nextChunk: (bookId, excludeIds) => db.bookChunk.findFirst({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] }, id: { notIn: excludeIds } }, orderBy: { index: 'asc' }, select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, attempts: true } }),
+    nextChunk: async (bookId, excludeIds) => {
+      // A confirmed-garbled chunk is BLOCKED from analysis until it is
+      // repaired: skip it without touching the healthy chunks. Fetch the
+      // pending texts once and pick the first readable one.
+      const pending = await db.bookChunk.findMany({
+        where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] }, id: { notIn: excludeIds } },
+        orderBy: { index: 'asc' },
+        select: { id: true, text: true },
+      })
+      const healthy = pending.find((chunk) => !looksLikeBrokenBookPageText(chunk.text))
+      if (!healthy) return null
+      return db.bookChunk.findUnique({
+        where: { id: healthy.id },
+        select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, attempts: true },
+      })
+    },
     priorItems: async (bookId, chunkIndex) => {
       const chunks = await db.bookChunk.findMany({
         where: { bookId, index: { gte: Math.max(0, chunkIndex - 2), lte: chunkIndex } },
@@ -607,9 +672,15 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number, claimedA
     complete: async (bookId, id) => {
       await db.$transaction(async (tx) => {
         await assertBookReadLease(tx, id, claimedAt)
-        const remaining = await tx.bookChunk.count({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] } } })
+        const pending = await tx.bookChunk.findMany({
+          where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] } },
+          select: { text: true },
+        })
+        // Garbled chunks are blocked from analysis until repaired; they do
+        // not keep the job open once every readable chunk is analyzed.
+        const remaining = pending.filter((chunk) => !looksLikeBrokenBookPageText(chunk.text)).length
         if (remaining) return
-        const failed = await tx.bookChunk.count({ where: { bookId, status: 'FAILED' } })
+        const failed = pending.length + await tx.bookChunk.count({ where: { bookId, status: 'FAILED' } })
         // Do not block the rest of the book because a few chunks exhausted
         // their retries. If nothing was analyzed at all, still fail honestly.
         const analyzed = failed ? await tx.bookChunk.count({ where: { bookId, status: 'ANALYZED' } }) : 0

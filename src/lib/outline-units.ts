@@ -6,6 +6,15 @@ import {
   isQuotaError,
   isTransientGeminiError,
 } from '@/lib/gemini'
+import { cleanAcademicOutput, looksLikeBrokenBookPageText } from '@/lib/academic-output-quality'
+import { isKnowledgeItemPendingReview } from '@/lib/knowledge-bank'
+
+// Clean one guide field the same way the bank display cleans it, without
+// truncating a long field mid-repair: rule-fixable garbling bakes its cleaned
+// form, never the raw garbled text.
+function cleanGuideField(value: string): string {
+  return cleanAcademicOutput(value, Math.max(1800, value.length + 128))
+}
 
 export type OutlineUnitSectionInput = {
   id: string
@@ -303,6 +312,77 @@ export function validateStudyGuideSources(sourceKnowledgeIds: unknown, allowedKn
   return [...new Set(requested)].slice(0, 80)
 }
 
+export type UnitRegenerationGaps = {
+  partial: boolean
+  skippedChunkIndexes: number[]
+  skippedKnowledgeIds: string[]
+  skippedChunkCount: number
+  skippedKnowledgeCount: number
+  healthyChunkCount: number
+  healthyKnowledgeCount: number
+}
+
+export type UnitSourceAssessment = {
+  affected: boolean
+  totalChunkCount: number
+  healthyChunkCount: number
+  garbledChunkCount: number
+  totalKnowledgeCount: number
+  healthyKnowledgeCount: number
+  pendingReviewKnowledgeCount: number
+  badChunks: Array<{ id: string; index: number }>
+  badKnowledge: Array<{ id: string; title: string }>
+  gaps: UnitRegenerationGaps
+}
+
+// Damaged-unit identification (Part 3): the SAME gates generation already
+// applies — a garbled chunk (looksLikeBrokenBookPageText) or a knowledge
+// item awaiting review (isKnowledgeItemPendingReview). A unit is affected
+// when any of its in-range sources fails either gate; healthy sources are
+// counted so the admin sees what regeneration can still build from.
+export function assessUnitSources(chunks: UnitSourceChunk[], knowledge: UnitSourceKnowledge[]): UnitSourceAssessment {
+  const badChunks = chunks
+    .filter((chunk) => looksLikeBrokenBookPageText(chunk.text))
+    .map((chunk) => ({ id: chunk.id, index: chunk.index }))
+  const healthyChunkIds = new Set(chunks.filter((chunk) => !looksLikeBrokenBookPageText(chunk.text)).map((chunk) => chunk.id))
+  const badKnowledge = knowledge
+    .filter((item) => isKnowledgeItemPendingReview(item) || (item.chunkId != null && !healthyChunkIds.has(item.chunkId)))
+    .map((item) => ({ id: item.id, title: item.title }))
+  const gaps: UnitRegenerationGaps = {
+    partial: badChunks.length > 0 || badKnowledge.length > 0,
+    skippedChunkIndexes: badChunks.map((chunk) => chunk.index),
+    skippedKnowledgeIds: badKnowledge.map((item) => item.id),
+    skippedChunkCount: badChunks.length,
+    skippedKnowledgeCount: badKnowledge.length,
+    healthyChunkCount: chunks.length - badChunks.length,
+    healthyKnowledgeCount: knowledge.length - badKnowledge.length,
+  }
+  return {
+    affected: gaps.partial,
+    totalChunkCount: chunks.length,
+    healthyChunkCount: gaps.healthyChunkCount,
+    garbledChunkCount: badChunks.length,
+    totalKnowledgeCount: knowledge.length,
+    healthyKnowledgeCount: gaps.healthyKnowledgeCount,
+    pendingReviewKnowledgeCount: badKnowledge.length,
+    badChunks,
+    badKnowledge,
+    gaps,
+  }
+}
+
+export function buildUnitRegenerationGaps(chunks: UnitSourceChunk[], knowledge: UnitSourceKnowledge[]): UnitRegenerationGaps {
+  return assessUnitSources(chunks, knowledge).gaps
+}
+
+// Regeneration refuses clearly when nothing healthy remains — never invents
+// content from zero usable sources. Same reason code generation already uses.
+export function assertUnitRegenerationHasHealthySources(assessment: Pick<UnitSourceAssessment, 'healthyChunkCount' | 'healthyKnowledgeCount'>): void {
+  if (assessment.healthyChunkCount <= 0 && assessment.healthyKnowledgeCount <= 0) {
+    throw new Error('UNIT_SOURCE_REQUIRES_REPAIR')
+  }
+}
+
 function sourceKnowledgeLines(items: UnitSourceKnowledge[]) {
   return items.map((item, index) => [
     `${index + 1}. id=${item.id}`,
@@ -331,6 +411,15 @@ export async function generateUnitContentWithAi(params: {
   knowledge: UnitSourceKnowledge[]
   deadlineMs?: number
 }): Promise<GeneratedUnitContent> {
+  // Never expose unresolved knowledge or corrupted source chunks to generation.
+  const chunks = params.chunks.filter((chunk) => !looksLikeBrokenBookPageText(chunk.text))
+  const excludedKnowledgeIds = new Set(assessUnitSources(params.chunks, params.knowledge).badKnowledge.map((item) => item.id))
+  const knowledge = params.knowledge.filter((item) => !excludedKnowledgeIds.has(item.id))
+  if (!chunks.length && !knowledge.length) throw new Error('UNIT_SOURCE_REQUIRES_REPAIR')
+  if (chunks.length !== params.chunks.length || knowledge.length !== params.knowledge.length) {
+    console.warn('[outline-unit-generate] UNIT_SOURCE_PARTIAL', { unitTitle: params.unitTitle, skippedChunkIndexes: params.chunks.filter((chunk) => !chunks.includes(chunk)).map((chunk) => chunk.index), skippedKnowledgeCount: params.knowledge.length - knowledge.length })
+  }
+  params = { ...params, chunks, knowledge }
   const allowedKnowledgeIds = params.knowledge.map((item) => item.id)
   const allowedChunkIndexes = params.chunks.map((chunk) => chunk.index)
   const prompt = `
@@ -421,7 +510,7 @@ ${sourceChunkLines(params.chunks)}
   return { summary, objectives, content }
 }
 
-function firstSentence(value: unknown, max = 240) {
+export function firstSentence(value: unknown, max = 240) {
   return cleanOutlineUnitText(value, max).split(/[.!؟]/)[0]?.trim() || cleanOutlineUnitText(value, max)
 }
 
@@ -433,7 +522,20 @@ export function buildUnitStudyGuideDraft(params: {
   knowledge: UnitSourceKnowledge[]
   unitContent?: UnitContentSection[]
 }): UnitStudyGuideDraft {
-  const knowledge = params.knowledge.filter((item) => item.id)
+  // Generation-time garble filter (criterion 3): an item awaiting review
+  // (REVIEW / DELETE_EMPTY by the same predicate as the manual review queue)
+  // never enters a new guide — it is skipped here, at the single choke point
+  // both guide paths share. Kept items bake their cleaned fields, the same
+  // text the bank displays, so rule-fixable garbling never enters either.
+  const knowledge = params.knowledge
+    .filter((item) => item.id)
+    .filter((item) => !isKnowledgeItemPendingReview(item))
+    .map((item) => ({
+      ...item,
+      title: cleanGuideField(item.title || ''),
+      summary: cleanGuideField(item.summary || ''),
+      excerpt: item.excerpt == null ? item.excerpt : cleanGuideField(item.excerpt),
+    }))
   const sourceKnowledgeIds = validateStudyGuideSources(knowledge.map((item) => item.id), knowledge.map((item) => item.id))
   const definitions = knowledge.filter((item) => String(item.category || '').toUpperCase() === 'DEFINITION')
   const concepts = knowledge.filter((item) => String(item.category || '').toUpperCase() !== 'QUESTION_SEED')
@@ -486,6 +588,71 @@ const PROVIDER_UNAVAILABLE_ERROR_CODES = new Set([
   'TEXT_AI_ROUTER_NO_VISION_PROVIDER',
   'TEXT_AI_ROUTER_FAILED',
 ])
+
+export type UnitRegenerationDraftData = {
+  summary: string | null
+  objectives: string
+  content: string
+  gaps: string
+  sourceKnowledgeIds: string
+}
+
+// The draft preview is stored as JSON strings on a separate
+// UnitRegenerationDraft row — the published Unit row is never written by
+// regeneration. Approve is the only writer, and it writes content fields only.
+export function buildUnitRegenerationDraftData(generated: GeneratedUnitContent, gaps: UnitRegenerationGaps): UnitRegenerationDraftData {
+  const sourceKnowledgeIds = [...new Set(generated.content.flatMap((section) => section.sourceKnowledgeIds || []))]
+  return {
+    summary: generated.summary,
+    objectives: JSON.stringify(generated.objectives),
+    content: JSON.stringify(generated.content),
+    gaps: JSON.stringify(gaps),
+    sourceKnowledgeIds: JSON.stringify(sourceKnowledgeIds),
+  }
+}
+
+export function parseUnitRegenerationDraft(row: { summary: string | null; objectives: string | null; content: string; gaps: string | null; sourceKnowledgeIds: string | null }): {
+  summary: string | null
+  objectives: string[]
+  content: UnitContentSection[]
+  gaps: UnitRegenerationGaps | null
+  sourceKnowledgeIds: string[]
+} {
+  const parseArray = (value: string | null): any[] => {
+    if (!value) return []
+    try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : [] } catch { return [] }
+  }
+  let gaps: UnitRegenerationGaps | null = null
+  if (row.gaps) {
+    try { gaps = JSON.parse(row.gaps) as UnitRegenerationGaps } catch { gaps = null }
+  }
+  return {
+    summary: row.summary,
+    objectives: parseArray(row.objectives).map((x) => String(x)).filter(Boolean),
+    content: parseArray(row.content) as UnitContentSection[],
+    gaps,
+    sourceKnowledgeIds: parseArray(row.sourceKnowledgeIds).map((x) => String(x)).filter(Boolean),
+  }
+}
+
+// Approve changes ONLY the content fields (plus the generation-version
+// bump). Unit id, order, semester, status, program, source book, chunk
+// range, outline link, exam, assignments and every student-side record are
+// outside this object by construction — the approve route spreads exactly
+// this into the Unit update, nothing else.
+export function buildUnitRegenerationApproveData(draft: { summary: string | null; objectives: string | null; content: string }): {
+  summary: string | null
+  objectives: string
+  content: string
+  generationVersion: { increment: number }
+} {
+  return {
+    summary: draft.summary,
+    objectives: draft.objectives ?? '[]',
+    content: draft.content,
+    generationVersion: { increment: 1 },
+  }
+}
 
 export function providerUnavailableStatus(error: unknown) {
   const message = String((error as any)?.message || error || '').trim()

@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { geminiCompleteJson, geminiVisionJson } from '@/lib/gemini'
 import { textAiCompleteJson } from '@/lib/text-ai'
 import { hydrateBookContentForExam, type RawBookForHydration } from '@/lib/book-content'
-import { cleanAcademicOutput as sharedCleanAcademicOutput, looksLikeBrokenGeneratedArabic as sharedLooksBrokenAcademicOutput, conciseAcademicLabel } from '@/lib/academic-output-quality'
+import { cleanAcademicOutput as sharedCleanAcademicOutput, looksLikeBrokenGeneratedArabic as sharedLooksBrokenAcademicOutput, conciseAcademicLabel, planKnowledgeItemCleanup } from '@/lib/academic-output-quality'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 import { appendTextProvenanceNote } from '@/lib/text-provenance'
 import { createHash } from 'crypto'
@@ -176,6 +176,21 @@ export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort
 // المقتطف اقتباس حرفي من الكتاب: يُفحص للتشوه والفراغ فقط، لا لشرط العربية.
 // العنوان والشرح يبقيان على الفاحص الكامل — هما صياغة المنصة بالعربية.
 export const looksLikeBrokenExcerpt = (text: string) => looksLikeBrokenAcademicOutput(text, { allowForeign: true })
+
+// نفس تعريف قائمة المراجعة اليدوية بالضبط: عنصر تنتظره المراجعة (REVIEW أو
+// DELETE_EMPTY) لا يجوز أن يدخل توليد دليل دراسة أو توليد أسئلة جديدة —
+// يُحجب عند التوليد حتى يُصحَّح أو يُراجَع، فلا يُخبَز نص مشوَّه في دليل
+// أو سؤال جديد أثناء انتظاره.
+export function isKnowledgeItemPendingReview(item: { title: string; summary: string | null; excerpt?: string | null }): boolean {
+  // planKnowledgeItemCleanup takes a non-null summary; a null summary is an
+  // empty summary for the garble check (its own `|| ''` does the same).
+  const action = planKnowledgeItemCleanup(
+    { title: item.title, summary: item.summary ?? '', excerpt: item.excerpt ?? null },
+    looksLikeBrokenAcademicOutput,
+    looksLikeBrokenExcerpt,
+  ).action
+  return action === 'REVIEW' || action === 'DELETE_EMPTY'
+}
 
 function safeGeneratedOrFallback(value: unknown, fallback: string, max = 1600, allowShort = false) {
   const cleaned = cleanAcademicGeneratedText(value, max)

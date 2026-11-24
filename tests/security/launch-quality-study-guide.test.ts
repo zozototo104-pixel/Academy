@@ -256,7 +256,10 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(worker).toContain("'AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN'")
     expect(worker).toContain('next.attempts - state.attempts >= maxCallsPerRun')
     expect(worker).toContain('Date.now() + 25_000 >= stopStartingAt')
-    expect(worker).toContain('restrictToModels: chosenModel')
+    // Owner-ordered contract (PR #212): chosen model first via
+    // preferredModels, then eligible router fallbacks (no restrictToModels).
+    expect(worker).toContain('preferredModels: chosenModel')
+    expect(worker).not.toContain('restrictToModels: chosenModel')
     expect(worker).toContain('apinexPromptOnlyJson: true')
     expect(worker).not.toContain("excludeProviders: ['APINEX']")
     expect(worker).toContain("'CLOUDFLARE', 'APINEX', 'OXION', 'AUTO'")
@@ -266,7 +269,14 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(worker).toContain("const owned = await db.setting.updateMany")
     expect(worker).toContain('validateGroundedKnowledgeRepair(parsed, evidence)')
     expect(worker).toContain('planKnowledgeItemCleanup(item, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt)')
-    expect(worker).toContain('!looksLikeBrokenAcademicOutput(candidate.excerpt)')
+    // Owner-ordered contract (PR #212): the broken-excerpt gate moved into
+    // assessRepairCandidate (named rejection reasons) and runs as the router
+    // `validate` callback, so a rejected output fails over to the next model.
+    expect(worker).toContain('assessRepairCandidate')
+    expect(worker).toContain('looksLikeBrokenAcademicOutput(candidate.excerpt)')
+    expect(worker).toContain("reason: 'STILL_BROKEN'")
+    expect(worker).toContain('validate: repairValidateCallback(evidence, next)')
+    expect(worker).toContain("err.code = 'VALIDATION_REJECTED'")
     expect(worker).toContain('db.bookKnowledgeItem.updateMany')
     expect(worker).toContain('updatedAt: item.updatedAt')
     expect(worker).not.toContain('db.bookKnowledgeItem.create(')
@@ -293,7 +303,10 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
     expect(repairPage).toContain("method: 'PATCH'")
     expect(repairPage).toContain('AI_KNOWLEDGE_REPAIR_PROVIDER: repairProvider')
     expect(repairPage).toContain('AI_KNOWLEDGE_REPAIR_MODEL:')
-    expect(worker).toContain('restrictToModels: chosenModel')
+    // Owner-ordered contract (PR #212): chosen model first via
+    // preferredModels, then eligible router fallbacks (no restrictToModels).
+    expect(worker).toContain('preferredModels: chosenModel')
+    expect(worker).not.toContain('restrictToModels: chosenModel')
     expect(worker).toContain('intervalMs > 0')
     expect(worker).not.toContain("excludeProviders: ['APINEX']")
   })
