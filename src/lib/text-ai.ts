@@ -1688,12 +1688,27 @@ function isAlborihiChatCapableModel(row: any): boolean {
 
 function capabilityFromModelRow(row: any): ModelCapability {
   const contextLength = Number(row?.context_length ?? row?.contextLength ?? row?.context_window ?? row?.max_context_length ?? row?.max_tokens ?? NaN)
+  // Some gateways (e.g. Coarena) declare vision only inside `capabilities`
+  // ({vision: true, image_url: false, image_base64: true}) with no
+  // `modalities` field. Map those flags into modalities so the vision gate
+  // sees them; every existing source below keeps merging untouched.
+  const capabilities = row?.capabilities
+  const capabilityModalities: unknown[] = Array.isArray(capabilities)
+    ? capabilities
+    : capabilities && typeof capabilities === 'object'
+      ? [
+          capabilities.vision === true ? 'image' : null,
+          capabilities.image_url === true ? 'image_url' : null,
+          capabilities.image_base64 === true ? 'image' : null,
+        ]
+      : []
   const modalities = [
     ...(Array.isArray(row?.modalities) ? row.modalities : []),
     ...(Array.isArray(row?.input_modalities) ? row.input_modalities : []),
     ...(Array.isArray(row?.supported_modalities) ? row.supported_modalities : []),
     row?.architecture?.input_modalities,
     row?.architecture?.modality,
+    ...capabilityModalities,
   ].flat().filter(Boolean).map((v: unknown) => String(v).toLowerCase())
   const supportedParameters = [
     ...(Array.isArray(row?.supported_parameters) ? row.supported_parameters : []),
@@ -1707,6 +1722,10 @@ function capabilityFromModelRow(row: any): ModelCapability {
     supportedParameters,
     family: typeof row?.family === 'string' ? row.family : undefined,
   }
+}
+
+export function __testCapabilityFromModelRowForTests(row: any): ModelCapability {
+  return capabilityFromModelRow(row)
 }
 
 function zeroish(value: unknown): boolean {

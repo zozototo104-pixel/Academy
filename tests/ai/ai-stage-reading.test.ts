@@ -304,7 +304,7 @@ describe('legacy book readers: profile rescue only after failure', () => {
     }
   })
 
-  test('disabled READING profile preserves the historical failure, without retry', async () => {
+  test('disabled READING profile preserves the historical failure, without stage retry', async () => {
     const { transcribeScannedDocumentWithVision } = await import('@/lib/book-reader')
     configureReadingProfile(false)
     const pdf = await PDFDocument.create()
@@ -313,7 +313,10 @@ describe('legacy book readers: profile rescue only after failure', () => {
     visionRouterCall = async () => { calls++; throw new Error('primary quota exhausted') }
     try {
       await expect(transcribeScannedDocumentWithVision(Buffer.from(await pdf.save()), [1])).rejects.toThrow('primary quota exhausted')
-      expect(calls).toBe(1)
+      // No STAGE rescue when the profile is disabled — but the legacy global
+      // path still retries once as PNG, so the router is called twice while
+      // the historical error stays the one surfaced.
+      expect(calls).toBe(2)
     } finally {
       __setStageProfileStoreForTests(null)
     }
