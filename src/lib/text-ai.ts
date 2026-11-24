@@ -1431,6 +1431,15 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
 
 const ROUTER_STATE_PROVIDERS: ConcreteProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION']
 
+// Hourly catalog discovery should rotate only providers that can actually
+// authenticate. Skipping unconfigured built-ins means newly released models
+// at active providers are discovered sooner without increasing cron frequency.
+export async function textAiAutoConfiguredProviders(): Promise<string[]> {
+  const s = await settings()
+  return [...ROUTER_STATE_PROVIDERS, ...s.customProviders.filter((entry) => entry.enabled).map((entry) => entry.id)]
+    .filter((provider) => providerKeys(s, provider).length > 0)
+}
+
 type ClearTextAiRouterStateInput = {
   type?: string
   provider?: string
