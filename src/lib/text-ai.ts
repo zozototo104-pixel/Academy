@@ -4539,6 +4539,25 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       rankingUsed: s.autoRankings[effectiveOpts.purpose || 'CHAT'] || [],
     })
   }
+  if (autoResolution.autoOverride && autoResolution.autoCandidates.length) {
+    try {
+      const { preflightAutoCandidatesForTask, callFastAutoProbeModel } = await import('./ai-auto-refresh')
+      const candidates = await preflightAutoCandidatesForTask({
+        store: settingStore(),
+        purpose: taskPurpose,
+        candidates: autoResolution.autoCandidates,
+        callModel: callFastAutoProbeModel,
+      })
+      // Apply real test results before provider ordering. An already
+      // successful sticky model remains pinned until its health says otherwise.
+      autoResolution.autoCandidates = candidates
+      autoResolution.preferredModels = candidates.map(({ provider, model }) => ({ provider: provider as TextAiPreferredModel['provider'], model }))
+      autoResolution.preferredProviders = [...new Set(candidates.map(({ provider }) => provider))]
+    } catch {
+      // Probe/DB unavailable: never block a real task. Use the persisted
+      // scoring and the router's existing live failover and cooldowns.
+    }
+  }
   if (autoResolution.autoOverride) {
     preferredModels = autoResolution.preferredModels
     // Auto rankings hold validated provider ids, including CUSTOM_* ids
