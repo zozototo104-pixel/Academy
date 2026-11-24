@@ -230,6 +230,10 @@ describe('reconciliation against hardcoded lists, admin choice and stage refs', 
 })
 
 describe('round-robin background refresh (one provider per run)', () => {
+  test('production refresh claim uses a quota-safe hourly interval', () => {
+    expect(autoRefresh.__testAiAutoRefreshClaimConstants.AI_AUTO_REFRESH_INTERVAL_MS).toBe(60 * 60 * 1000)
+  })
+
   test('pickNextRefreshProvider advances one step and wraps', () => {
     expect(autoRefresh.pickNextRefreshProvider(['A', 'B', 'C'], {})).toBe('A')
     expect(autoRefresh.pickNextRefreshProvider(['A', 'B', 'C'], { lastProvider: 'A' })).toBe('B')
