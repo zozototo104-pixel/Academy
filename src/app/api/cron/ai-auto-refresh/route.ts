@@ -5,14 +5,13 @@ import { isAutoModeEnabled, parseAutoModeConfig } from '@/lib/ai-auto-mode'
 import {
   AI_AUTO_LAST_REFRESH_KEY,
   ROUND_ROBIN_PROVIDERS,
+  callPinnedAutoProbeModel,
   claimAiAutoRefreshRun,
   runAutoRefresh,
 } from '@/lib/ai-auto-refresh'
-import { CUSTOM_AI_PROVIDERS_SETTING, parseCustomTextAiProviders, textAiAutoCapabilitiesForProvider, textAiAutoConfiguredProviders, textAiCompleteWithMetadata, textAiStaticTextModels } from '@/lib/text-ai'
+import { CUSTOM_AI_PROVIDERS_SETTING, parseCustomTextAiProviders, textAiAutoCapabilitiesForProvider, textAiAutoConfiguredProviders, textAiStaticTextModels } from '@/lib/text-ai'
 import { resolveEffectiveStageProfile } from '@/lib/ai-stage-profiles'
 import type { PipelineStageName } from '@/lib/ai-pipeline-log'
-import type { ProbeCallFn } from '@/lib/ai-capability-probes'
-import type { TextAiProvider } from '@/lib/text-ai'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -69,37 +68,12 @@ export async function GET(request: NextRequest) {
   } catch {
     stageProfileModels = []
   }
-  // The planted OCR literal exists only in the generated PNG, NEVER in
-  // the prompt. This proves the model can actually read image pixels.
-  // A probe bypasses automatic ranking to test exactly its assigned model.
-  const callModel: ProbeCallFn = async (input) => {
-    try {
-      const attachments = input.kind === 'ocr' && input.planted
-        ? [{ mimeType: 'image/png', base64: (await (await import('sharp')).default(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="820" height="240"><rect width="100%" height="100%" fill="white"/><text x="40" y="140" font-family="sans-serif" font-size="37" fill="black">${input.planted.replace(/[^A-Za-z0-9-]/g, '')}</text></svg>`)).png().toBuffer()).toString('base64') }]
-        : undefined
-      const result = await textAiCompleteWithMetadata({
-        history: [{ role: 'user', text: input.prompt }],
-        purpose: 'CHAT',
-        system: 'Answer the user prompt exactly as instructed, with nothing else.',
-        restrictToModels: [{ provider: input.provider as unknown as Exclude<TextAiProvider, 'AUTO'>, model: input.model }],
-        skipAutoSelection: true,
-        attachments,
-        json: input.kind === 'json',
-        maxOutputTokens: 256,
-        timeoutMs: 8_000,
-      })
-      if (result.provider !== input.provider || result.model !== input.model) return { text: '', ok: false, error: 'PROBE_MODEL_MISMATCH' }
-      return { text: result.text, ok: true }
-    } catch (e: any) {
-      return { text: '', ok: false, error: String(e?.message || 'PROBE_CALL_FAILED').slice(0, 120) }
-    }
-  }
   const result = await runAutoRefresh({
     store,
     providers,
     probeProviders: providers,
     probeKinds: ['json', 'ocr'],
-    callModel,
+    callModel: callPinnedAutoProbeModel,
     probeModelsPerRun: probeBudget,
     probeTimeoutMs: 8_000,
     capabilitiesForProvider: textAiAutoCapabilitiesForProvider,
