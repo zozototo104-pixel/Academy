@@ -99,6 +99,7 @@ export async function POST(req: NextRequest, context: Context) {
         data: { unitId: unit.id, programId: unit.programId, status: 'PENDING', ...draftData },
       })
     }, { maxWait: 20000, timeout: 30000 })
+    if (!draft) return NextResponse.json({ error: 'UNIT_REGENERATION_LEASE_LOST' }, { status: 409 })
     await audit(admin, 'REGENERATE_DAMAGED_UNIT_PREVIEW', 'Unit', unit.id,
       `إعادة توليد محتوى الوحدة المتضررة كمسودة معاينة (لم يُمس المحتوى المنشور): ${unit.title}`
     ).catch((auditError) => console.error('Unit regeneration audit failed after commit:', auditError))
