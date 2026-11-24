@@ -318,7 +318,12 @@ export function resolveAutoCandidates(input: ResolveAutoCandidatesInput): Resolv
     }
     return true
   })
-  if (!qualified.length) return { ...passthrough, excludedReasons }
+  if (!qualified.length) return {
+    preferredProviders: [], preferredModels: [], restrictToModels: [],
+    autoOverride: true, autoCandidates: [],
+    overriddenRestrictToModels: input.restrictToModels?.length ? [...input.restrictToModels] : undefined,
+    excludedReasons: [...excludedReasons, 'AUTO_NO_QUALIFIED_CANDIDATES'],
+  }
   return {
     preferredProviders: [...new Set(qualified.map((c) => c.provider))],
     preferredModels: qualified.map((c) => ({ provider: c.provider as TextAiPreferredModel['provider'], model: c.model })),
