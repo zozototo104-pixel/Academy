@@ -2295,7 +2295,9 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings, force = f
         return models
       }
     }
-  } catch {}
+  } catch {
+    // Persistent model discovery cache is best-effort.
+  }
   freeModelsCache.delete(cacheKey)
 
   let models: string[] = []
@@ -2598,7 +2600,11 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
     .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
   const ordered = await orderModelsByHealth(provider, sortModelsByFamily(s, provider, allowed, taskLevel), taskLevel, explore, purpose)
-  if (!s.automaticManagement && selectedPart[0] && ordered.includes(selectedPart[0])) {
+  // Manual-first only for an explicit non-default choice. A configured
+  // 'auto' normalises to the provider's first static model, so forcing
+  // defaults[0] first would let an unproven default jump ahead of a
+  // healthy proven model and break sticky preference (router-health).
+  if (!s.automaticManagement && selectedPart[0] && selectedPart[0] !== staticDefaults[0] && ordered.includes(selectedPart[0])) {
     return [selectedPart[0], ...ordered.filter((model) => model !== selectedPart[0])]
   }
   return ordered

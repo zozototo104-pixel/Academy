@@ -59,6 +59,7 @@ mock.module('@/lib/text-ai', () => ({
   textAiComplete: async () => 'رد الموجّه النصي في هذا المسار التجريبي.',
   textAiDiagnostics: async () => ({}),
   textAiModelHealthSnapshot: () => ({}),
+  textAiAutomaticManagementEnabled: async () => false,
 }))
 mock.module('@/lib/settings', () => ({
   getSettings: async () => {
