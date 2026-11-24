@@ -10,6 +10,7 @@ import { looksLikeBrokenBookPageText } from '@/lib/academic-output-quality'
 import { mergeBookPageReadIssues } from '@/lib/book-read-job-control'
 import { correctKnowledgeItemFromSource } from '@/lib/book-repair-scan'
 import { hasActiveBookRepairJob, runBookRepairScanStep } from '@/lib/book-repair-job'
+import { resumePendingUnitRegenerations } from '@/lib/unit-regeneration-link'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -76,6 +77,7 @@ async function countItemLinks(
 }
 
 export async function POST(request: NextRequest, context: Context) {
+  const requestStartedAt = Date.now()
   try {
     await requireAdmin()
     const { id } = await context.params
@@ -156,12 +158,24 @@ export async function POST(request: NextRequest, context: Context) {
       try {
         const step = await runBookRepairScanStep(repairJob.id, buffer, Date.now() + 240_000)
         const job = await db.bookRepairJob.findUniqueOrThrow({ where: { id: repairJob.id } })
+        // Repair-first auto-resume: when this step finishes the repair,
+        // resume any deferred unit regenerations waiting on this book.
+        // A resume failure never fails the repair response — the cron
+        // backstop heals it on its next run.
+        let resumed: Awaited<ReturnType<typeof resumePendingUnitRegenerations>> | null = null
+        if (step.done) {
+          try {
+            resumed = await resumePendingUnitRegenerations(id, { deadlineMs: requestStartedAt + 285_000 })
+          } catch (error) {
+            console.warn('Unit regeneration auto-resume failed after repair completion:', error)
+          }
+        }
         try {
           const admin = await requireAdmin()
           await audit({ id: admin.id, name: admin.name }, 'REPAIR_BOOK_SCAN', 'Book', id,
             `فحص وإصلاح تشوهات الكتاب: مقاطع صحيحة ${step.counters.chunksHealthy} · مصلحة ${step.counters.chunksCorrected} · متبقية ${step.counters.chunksRemaining} · تحتاج مراجعة ${step.counters.chunksNeedsReview}؛ عناصر مصلحة ${step.counters.itemsCorrected} · تحتاج مراجعة ${step.counters.itemsNeedsReview} (الكتاب: ${book.title})`)
         } catch (error) { console.error('Book repair audit failed:', error) }
-        return NextResponse.json({ ok: true, job, counters: step.counters, done: step.done, processedChunks: step.processedChunks, processedItems: step.processedItems })
+        return NextResponse.json({ ok: true, job, counters: step.counters, done: step.done, processedChunks: step.processedChunks, processedItems: step.processedItems, ...(resumed ? { resumed } : {}) })
       } catch (error: any) {
         if (error?.message === 'BOOK_REPAIR_JOB_ACTIVE') {
           return NextResponse.json({ error: 'BOOK_REPAIR_JOB_ACTIVE', message: 'بدأت مهمة قراءة/تحليل على هذا الكتاب أثناء الإصلاح. أوقفها أولًا ثم استكمل الإصلاح.' }, { status: 409 })

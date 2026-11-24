@@ -609,6 +609,7 @@ model Unit {
   studyGuides ProgramStudyGuide[]
   generationJobs UnitGenerationJob[]
   regenerationDrafts UnitRegenerationDraft[]
+  regenerationIntents UnitRegenerationIntent[]
   lectureSeries LectureSeries[]
   lectureVideos LectureVideoResource[]
 
@@ -660,6 +661,32 @@ model UnitRegenerationDraft {
 
   @@index([unitId, status])
   @@index([programId])
+}
+
+// Repair-first regeneration intent (PR #212): a damaged unit whose sources
+// are garbled does NOT generate and is NOT refused while a book repair can
+// still fix its sources. Instead the regenerate request defers: it records
+// this PENDING intent (one per unit, via @@unique([unitId, status])) linked
+// to the repair job, and the repair driver / cron resumes generation
+// automatically when the repair finishes. The intent resolves ONLY after a
+// draft is created or a final refusal is recorded; an admin can cancel it.
+// repairJobId is a plain String (NO FK): the repair job is a background
+// driver, and the intent must survive the job row's lifecycle.
+model UnitRegenerationIntent {
+  id         String    @id @default(cuid())
+  unitId     String
+  unit       Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  programId  String
+  bookId     String
+  repairJobId String?
+  status     String    @default("PENDING") // PENDING | RESOLVED | CANCELLED
+  resolution String?   // DRAFT_CREATED | REFUSED_NO_HEALTHY_SOURCES | CANCELLED_BY_ADMIN
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+
+  @@unique([unitId, status])
+  @@index([bookId, status])
 }
 
 model Enrollment {

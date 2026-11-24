@@ -582,6 +582,11 @@ interface DamagedUnitRow {
   badKnowledge: { id: string; title: string }[]
   gaps?: UnitRegenerationDraftView['gaps']
   draft?: UnitRegenerationDraftView | null
+  // Repair-first auto-resume (PR #212): a pending intent means the unit's
+  // regeneration is deferred until the book repair finishes; repairJob is
+  // the latest repair job for the unit's source book.
+  regenerationIntent?: { id: string; status: string; repairJobId?: string | null; createdAt?: string } | null
+  repairJob?: { id: string; status: string; chunksRemaining: number; chunksCorrected: number; chunksNeedsReview: number; itemsRemaining: number; updatedAt?: string } | null
 }
 
 function questionBankProgressCounts(unit: CurriculumUnitReviewItem) {
@@ -1771,7 +1776,12 @@ export function AdminBooksTab() {
     if (!(await askAdminConfirm({ title: 'إعادة توليد الوحدة المتضررة', description: 'سيُعاد توليد محتوى هذه الوحدة فقط من مصادرها السليمة، وتُحفظ النتيجة كمسودة معاينة دون المساس بالمحتوى المنشور.', confirmLabel: 'إعادة التوليد' }))) return
     setUnitBusyId(unitId)
     try {
-      const res = await api<{ ok?: boolean; error?: string; draft?: UnitRegenerationDraftView; gaps?: DamagedUnitRow['gaps'] }>(`/api/admin/program-units/${unitId}/regenerate`, { method: 'POST', body: JSON.stringify({}) })
+      const res = await api<{ ok?: boolean; error?: string; deferred?: boolean; repairJobId?: string; repairStatus?: string; intentId?: string; message?: string; draft?: UnitRegenerationDraftView; gaps?: DamagedUnitRow['gaps'] }>(`/api/admin/program-units/${unitId}/regenerate`, { method: 'POST', body: JSON.stringify({}) })
+      if (res.deferred) {
+        await loadDamagedUnits(programId)
+        toast({ title: 'جارٍ إصلاح مصادر الكتاب', description: 'سيستكمل التوليد تلقائياً دون الحاجة لضغطة جديدة — تابع حالة الإصلاح من صفحة الكتاب.' })
+        return
+      }
       if (res.error === 'UNIT_SOURCE_REQUIRES_REPAIR') {
         toast({ title: 'لا توجد مصادر سليمة كافية', description: 'أصلح مصادر الكتاب أولاً — لن يُخترع محتوى من دون مصدر سليم.', variant: 'destructive' })
         return
@@ -1811,6 +1821,24 @@ export function AdminBooksTab() {
       toast({ title: 'تم رفض المعاينة', description: 'بقي المحتوى المنشور كما هو.' })
     } catch (e: any) {
       toast({ title: 'تعذر رفض المعاينة', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
+  // Cancel a pending auto-resume intent (PR #212): the unit will NOT
+  // regenerate automatically after the book repair. No draft or published
+  // content is touched; retry is just regenerate again.
+  const cancelDamagedUnitRegeneration = async (unitId: string) => {
+    if (!programId) return
+    if (!(await askAdminConfirm({ title: 'إلغاء الاستكمال التلقائي', description: 'سيُلغى الاستكمال التلقائي لإعادة توليد هذه الوحدة بعد إصلاح الكتاب. لن تُحذف أي مسودة ولن يُمس المحتوى المنشور، ويمكنك إعادة التوليد يدوياً متى شئت.', confirmLabel: 'إلغاء الاستكمال', danger: true }))) return
+    setUnitBusyId(unitId)
+    try {
+      await api(`/api/admin/program-units/${unitId}/regenerate`, { method: 'POST', body: JSON.stringify({ action: 'CANCEL' }) })
+      await loadDamagedUnits(programId)
+      toast({ title: 'تم إلغاء الاستكمال التلقائي', description: 'لن تُستكمل إعادة توليد هذه الوحدة تلقائياً بعد الإصلاح.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إلغاء الاستكمال التلقائي', description: String(e?.message || e), variant: 'destructive' })
     } finally {
       setUnitBusyId(null)
     }
@@ -3980,11 +4008,25 @@ export function AdminBooksTab() {
                                 {damaged.badChunks.length > 0 ? ` · فهارس المقاطع: ${damaged.badChunks.map((c) => c.index).join('، ')}` : ''}
                                 {' · '}عناصر بانتظار المراجعة: {damaged.pendingReviewKnowledgeCount} من {damaged.totalKnowledgeCount} (سليمة: {damaged.healthyKnowledgeCount})
                               </p>
+                              {damaged.regenerationIntent && (
+                                <p className="mt-1 text-[11px] font-bold leading-5 text-sky-700">
+                                  إعادة التوليد مؤجلة: جارٍ إصلاح مصادر الكتاب
+                                  {damaged.repairJob ? ` — حالة الإصلاح: ${damaged.repairJob.status === 'PAUSED' ? 'متوقف مؤقتاً (استكمل الإصلاح من صفحة الكتاب)' : damaged.repairJob.status === 'COMPLETED' ? 'مكتمل' : damaged.repairJob.status === 'FAILED' ? 'فشل' : damaged.repairJob.status === 'QUEUED' ? 'في الانتظار' : 'قيد العمل'} · مقاطع مصلحة: ${damaged.repairJob.chunksCorrected} · متبقية: ${damaged.repairJob.chunksRemaining}` : ''}
+                                  {' — '}سيستكمل التوليد تلقائياً دون ضغطة جديدة.
+                                </p>
+                              )}
                             </div>
-                            <Button size="sm" variant="outline" disabled={unitBusyId === damaged.unitId} onClick={() => regenerateDamagedUnit(damaged.unitId)} className="border-[#c9a227] bg-white text-xs font-bold text-[#a8841a]">
-                              {unitBusyId === damaged.unitId ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
-                              {damaged.draft ? 'إعادة توليد المعاينة' : 'إعادة توليد كمعاينة'}
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" variant="outline" disabled={unitBusyId === damaged.unitId} onClick={() => regenerateDamagedUnit(damaged.unitId)} className="border-[#c9a227] bg-white text-xs font-bold text-[#a8841a]">
+                                {unitBusyId === damaged.unitId ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
+                                {damaged.draft ? 'إعادة توليد المعاينة' : 'إعادة توليد كمعاينة'}
+                              </Button>
+                              {damaged.regenerationIntent && (
+                                <Button size="sm" variant="outline" disabled={unitBusyId === damaged.unitId} onClick={() => cancelDamagedUnitRegeneration(damaged.unitId)} className="border-red-200 bg-white text-xs font-bold text-red-700">
+                                  إلغاء الاستكمال التلقائي
+                                </Button>
+                              )}
+                            </div>
                           </div>
                           {damaged.draft && (
                             <div className="mt-3 rounded-xl bg-amber-50/70 p-3 ring-1 ring-amber-100">

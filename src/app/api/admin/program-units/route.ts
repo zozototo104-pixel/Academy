@@ -252,6 +252,17 @@ async function listDamagedUnits(programId: string) {
       where: { unitId: unit.id, status: 'PENDING' },
       orderBy: { createdAt: 'desc' },
     })
+    // Repair-first intent + repair job status (PR #212): the admin sees
+    // whether this unit's regeneration is waiting on a book repair, and
+    // whether that repair is running, paused, or exhausted.
+    const intent = await db.unitRegenerationIntent.findFirst({
+      where: { unitId: unit.id, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    })
+    const repairJob = unit.sourceBookId ? await db.bookRepairJob.findFirst({
+      where: { bookId: unit.sourceBookId },
+      orderBy: { createdAt: 'desc' },
+    }) : null
     damaged.push({
       unitId: unit.id,
       title: unit.title,
@@ -270,6 +281,8 @@ async function listDamagedUnits(programId: string) {
       badChunks: assessment.badChunks,
       badKnowledge: assessment.badKnowledge,
       gaps: assessment.gaps,
+      regenerationIntent: intent ? { id: intent.id, status: intent.status, repairJobId: intent.repairJobId, createdAt: intent.createdAt } : null,
+      repairJob: repairJob ? { id: repairJob.id, status: repairJob.status, chunksRemaining: repairJob.chunksRemaining, chunksCorrected: repairJob.chunksCorrected, chunksNeedsReview: repairJob.chunksNeedsReview, itemsRemaining: repairJob.itemsRemaining, updatedAt: repairJob.updatedAt } : null,
       draft: draft ? { id: draft.id, status: draft.status, createdAt: draft.createdAt, ...parseUnitRegenerationDraft(draft) } : null,
     })
   }
