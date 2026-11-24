@@ -146,15 +146,14 @@ describe("sticky-'auto': healthy proven model wins over the unproven static defa
   })
 })
 
-describe("sticky-as-hint under auto ON (step 5 rule)", () => {
-  test('ON: the top-ranked model wins even when a sticky points elsewhere', async () => {
+describe('stable pins under auto ON', () => {
+  test('ON: a sticky that falls out of the qualified ranking gives way to a healthy replacement', async () => {
     configureUnoRouterAuto()
     const seenModels = installFetch()
     // Call 1, auto OFF: the healthy model wins and the sticky is set to it.
     const first = await textAi.textAiComplete({ system: 'test', history: [{ role: 'user', text: 'x' }], stickyScope: 'batch-1' })
     expect(first).toBe('first')
-    // Call 2, auto ON with a ranking whose top is the OTHER model: the
-    // sticky is only a hint, so the ranking wins.
+    // Call 2, auto ON excludes the old sticky entirely: replacement wins.
     values.set('AI_AUTO_MODE_ENABLED', '1')
     setRanking('CHAT', [{ provider: 'UNOROUTER', model: 'second-model:free' }])
     const second = await textAi.textAiComplete({ system: 'test', history: [{ role: 'user', text: 'x' }], stickyScope: 'batch-1' })
