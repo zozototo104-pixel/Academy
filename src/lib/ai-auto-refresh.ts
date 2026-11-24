@@ -172,7 +172,8 @@ export async function runAutoRefresh(input: RunAutoRefreshInput): Promise<RunAut
       .filter((ref) => String(ref.provider || '').toUpperCase() === provider.toUpperCase())
       .map((ref) => ref.model),
   })
-  // Probes: opt-in per provider only, capped inside runCapabilityProbes.
+  // Probes are enabled by the cron for every configured provider and
+  // capped inside runCapabilityProbes; unit tests may opt into a subset.
   // The probe call is the caller's responsibility (router call pinned to
   // one model); without it, discovery still refreshes and probes report
   // nothing — a missing probe caller must never fail the refresh.
@@ -181,15 +182,22 @@ export async function runAutoRefresh(input: RunAutoRefreshInput): Promise<RunAut
   let skippedProbeModels: string[] = []
   const probeOptIn = (input.probeProviders || []).map((p) => p.toUpperCase())
   if (input.callModel && probeOptIn.includes(provider.toUpperCase()) && result.models.length) {
+    const cursorKey = `${AI_AUTO_PROBE_CURSOR_KEY_PREFIX}${provider}`
+    const oldCursor = Number((await store.read([cursorKey]))[cursorKey]) || 0
+    const start = ((oldCursor % result.models.length) + result.models.length) % result.models.length
+    const rotated = [...result.models.slice(start), ...result.models.slice(0, start)]
     const probeRun = await runCapabilityProbes({
       provider,
-      models: result.models,
+      models: rotated,
       kinds: input.probeKinds || ['ocr', 'json'],
       callModel: input.callModel,
+      maxModelsPerRun: input.probeModelsPerRun ?? 2,
+      timeoutMs: input.probeTimeoutMs ?? 8_000,
     })
     probes = probeRun.results
     probedModels = probeRun.probedModels
     skippedProbeModels = probeRun.skipped
+    await store.write(cursorKey, String((start + probeRun.probedModels.length) % result.models.length))
     if (Object.keys(probeRun.capabilityUpdates).length) {
       const previousRaw = (await store.read([probeCapabilityKey(provider)]))[probeCapabilityKey(provider)] || ''
       let previous: Record<string, unknown> = {}
@@ -201,6 +209,16 @@ export async function runAutoRefresh(input: RunAutoRefreshInput): Promise<RunAut
         source: 'probe',
       }))
     }
+  }
+  let rankedPurposes: string[] = []
+  if (input.rankAfterRefresh && result.discoveryOk && result.models.length) {
+    const catalogCapabilities = await input.capabilitiesForProvider?.(provider) || {}
+    const probeRow = parseRecord((await store.read([probeCapabilityKey(provider)]))[probeCapabilityKey(provider)])
+    const capabilities = Object.fromEntries(result.models.map((model) => [
+      model,
+      { ...(catalogCapabilities[model] || {}), ...(probeRow[model] || {}) } as ModelCapability,
+    ]))
+    rankedPurposes = await computeAndPersistRankings({ store, provider, models: result.models, capabilities, nowMs })
   }
   const nextState: LastRefreshState = {
     lastProvider: provider,
