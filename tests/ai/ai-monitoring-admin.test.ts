@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'b
 //   + honest cost), health / router state / diagnostics, last refresh,
 //   last capability check (honest null when nothing recorded), transitions
 //   newest-first, failover history from AiPipelineOperationLog
-//   fallbackUsed rows (never the migration-only AiAutoFailoverEvent).
+//   fallbackUsed rows, plus optional AiAutoFailoverEvent rows when deployed.
 // - ZERO provider calls on GET: a fetch stub counts every call; the
 //   route must never touch the network.
 const values = new Map<string, string>()
@@ -176,6 +176,31 @@ describe('ai-monitoring GET auth', () => {
 })
 
 describe('ai-monitoring GET payload shape', () => {
+  test('shows the proven task-start winner above a higher-scored failed model without making provider calls', async () => {
+    seedDashboard()
+    values.set('AI_AUTO_RANKING:CHAT', JSON.stringify({
+      purpose: 'CHAT', computedAt: '2026-11-24T17:00:00.000Z', candidates: [
+        { provider: 'GROQ', model: 'fast-on-paper', score: 0.95 },
+        { provider: 'GEMINI', model: 'proven-working', score: 0.70 },
+        { provider: 'ZAI', model: 'blocked', score: 0.99, excludedReason: 'PAID_BLOCKED' },
+      ],
+    }))
+    const at = Date.now()
+    values.set('AI_AUTO_TASK_PREFLIGHT:CHAT', JSON.stringify({
+      at, kind: 'json', verdicts: [
+        { provider: 'GROQ', model: 'fast-on-paper', pass: false, available: false, latencyMs: 6000 },
+        { provider: 'GEMINI', model: 'proven-working', pass: true, available: true, latencyMs: 900 },
+      ],
+    }))
+    const body = await (await GET()).json()
+    const chat = body.rankings.find((r: any) => r.purpose === 'CHAT')
+    expect(chat.top).toMatchObject({ provider: 'GEMINI', model: 'proven-working', probe: { pass: true, latencyMs: 900 } })
+    expect(chat.candidates.map((c: any) => c.model)).toEqual(['proven-working', 'fast-on-paper', 'blocked'])
+    expect(chat.candidates[1].probe.pass).toBe(false)
+    expect(chat.taskPreflightAt).toBe(new Date(at).toISOString())
+    expect(fetchCalls).toBe(0)
+  })
+
   test('returns mode, all purposes, health, router state, diagnostics, refresh, capability check, transitions and failovers', async () => {
     seedDashboard()
     const response = await GET()
@@ -282,7 +307,7 @@ describe('ai-monitoring GET payload shape', () => {
     expect(chat.computedAt).toBeNull()
     const vision = body.rankings.find((r: any) => r.purpose === 'VISION')
     expect(vision.candidates).toEqual([
-      { provider: 'GROQ', model: 'llama-3.3-70b-versatile', score: null, components: null, excludedReason: null, costTier: 'unknown', balance: 'unknown' },
+      { provider: 'GROQ', model: 'llama-3.3-70b-versatile', score: null, components: null, excludedReason: null, costTier: 'unknown', balance: 'unknown', probe: null },
     ])
     expect(fetchCalls).toBe(0)
   })
