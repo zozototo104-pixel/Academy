@@ -314,6 +314,24 @@ describe('toggle ON override at the router', () => {
     expect(calls.some((c) => c.model === 'gpt-5-pro')).toBe(false)
     expect(calls[0].model).toBe('llama-3.3-70b-versatile')
   })
+
+  test('a background probe targets a provider missing from the manual order and never skews live stats', async () => {
+    configureTwoProviders()
+    values.set('AI_AUTO_MODE_ENABLED', '1')
+    values.set('AI_PROVIDER_FALLBACK_ORDER', 'GEMINI')
+    values.set('AI_AUTO_RANKING:CHAT', JSON.stringify({ candidates: [{ provider: 'GEMINI', model: 'gemini-3.5-flash-lite' }] }))
+    const calls = installFetch()
+    const result = await textAi.textAiCompleteWithMetadata({
+      system: 'probe', history: [{ role: 'user', text: 'probe' }], purpose: 'CHAT',
+      skipAutoSelection: true,
+      restrictToModels: [{ provider: 'GROQ', model: 'llama-3.3-70b-versatile' }],
+    })
+    expect(result.provider).toBe('GROQ')
+    expect(result.model).toBe('llama-3.3-70b-versatile')
+    expect(calls.map((call) => call.model)).toEqual(['llama-3.3-70b-versatile'])
+    expect(values.has('AI_MODEL_STATS:CHAT:GROQ:llama-3.3-70b-versatile')).toBe(false)
+    expect([...values.keys()].some((key) => key.startsWith('AI_AUTO_STICKY:'))).toBe(false)
+  })
 })
 
 describe('toggle round-trip preserves manual keys', () => {
