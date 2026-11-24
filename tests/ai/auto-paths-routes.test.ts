@@ -80,8 +80,8 @@ describe('verifier never equals generator under auto (step 7b)', () => {
       modelFamily: (_provider, model) => (model.includes('claude') ? 'claude' : 'llama'),
     })
     expect(result.autoCandidates.map((c) => c.provider)).toEqual(['GROQ'])
-    // With only the excluded provider ranked, auto has no qualified
-    // candidate and passes through — it never invents a verifier.
+    // With only the excluded provider ranked, auto fails closed instead
+    // of re-admitting a manually configured verifier.
     const onlyExcluded = resolveAutoCandidates({
       autoMode: true,
       ranking: [{ provider: 'ALBORIHI', model: 'claude-sonnet-5' }],
@@ -90,7 +90,7 @@ describe('verifier never equals generator under auto (step 7b)', () => {
       excludeModelFamilies: ['claude'],
       modelFamily: () => 'claude',
     })
-    expect(onlyExcluded.autoOverride).toBe(false)
+    expect(onlyExcluded.autoOverride).toBe(true)
     expect(onlyExcluded.autoCandidates).toEqual([])
   })
 })
