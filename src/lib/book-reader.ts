@@ -142,7 +142,10 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
     return pages
   }
   const meta = await textAiCompleteJsonWithMetadata({
-    validate: (raw) => { parsePages(raw) },
+    validate: (raw) => {
+      const pages = parsePages(raw)
+      if (pages.every((page) => !page.text.trim())) throw new Error('OCR_ALL_PAGES_EMPTY')
+    },
     system: 'أنت محرك OCR حرفي. انسخ النص المرئي كما هو، دون شرح أو وصف أو استنتاج. لا تستخدم VISION_DESCRIPTION.',
     history: [{ role: 'user', text: `الملف يحتوي ${pageNumbers.length} صفحات بالترتيب. أرجع JSON فقط بالشكل {"pages":[{"page":1,"text":"النص الحرفي"}]}، حيث page هو رقم الصفحة داخل الملف الفرعي من 1 إلى ${pageNumbers.length}. لا تخترع نصاً ولا تلخص.` }],
     purpose: 'VISION',
