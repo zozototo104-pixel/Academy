@@ -144,6 +144,11 @@ export async function GET() {
           unitId: true,
         },
       }),
+      db.aiAutoFailoverEvent?.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        select: { id: true, createdAt: true, provider: true, model: true, purpose: true, failureKind: true },
+      }).catch(() => []) ?? Promise.resolve([]),
       textAiModelHealthSnapshot(),
       textAiRouterStateSnapshot(),
       textAiDiagnostics(),
