@@ -1,6 +1,7 @@
 'use client'
 
 import { useAppStore, api, clearToken } from '@/lib/store'
+import { cleanAssistantReplyText } from '@/lib/utils'
 import { UrgentMessageAlert } from '@/components/aact/UrgentMessageAlert'
 import AccountEmailDialog from '@/components/aact/AccountEmailDialog'
 import { useEffect, useRef, useState } from 'react'
@@ -161,16 +162,7 @@ export function FloatingActions() {
     }
   }
 
-  const cleanFloatingAssistantReply = (value: unknown) => {
-    return String(value || '')
-      .replace(/^\s*#{1,6}\s*/gm, '')
-      .replace(/\*\*(.*?)\*\*/g, '$1')
-      .replace(/__(.*?)__/g, '$1')
-      .replace(/`([^`]+)`/g, '$1')
-      .replace(/^\s*[-*+]\s+/gm, '• ')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-  }
+  const cleanFloatingAssistantReply = cleanAssistantReplyText
 
   const typeFloatingAssistantReply = async (reply: string) => {
     const clean = cleanFloatingAssistantReply(reply) || 'أهلاً بك، كيف أساعدك؟'
@@ -281,7 +273,7 @@ export function FloatingActions() {
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         aria-label="العودة للأعلى"
-        className={`flex h-11 w-11 items-center justify-center rounded-full border border-[#c9a227]/50 bg-[#0f2b46] text-[#e0b83a] shadow-lg transition-all duration-300 hover:bg-[#12365c] ${
+        className={`flex h-10 w-10 items-center justify-center rounded-full border border-[#c9a227]/50 bg-[#0f2b46] text-[#e0b83a] shadow-lg transition-all duration-300 hover:bg-[#12365c] sm:h-11 sm:w-11 ${
           showTop ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0'
         }`}
       >
@@ -299,7 +291,7 @@ export function FloatingActions() {
         }}
         aria-label="افتح وكيل واتساب الذكي للأكاديمية"
         title="اسحب زر واتساب لأي مكان أو اضغط لفتح وكيل واتساب الذكي"
-        className="group relative flex h-14 w-14 touch-none select-none items-center justify-center rounded-full bg-[#25d366] text-white shadow-xl transition-transform duration-300 hover:scale-110"
+        className="group relative flex h-12 w-12 touch-none select-none items-center justify-center rounded-full bg-[#25d366] text-white shadow-xl transition-transform duration-300 hover:scale-110 sm:h-14 sm:w-14"
       >
         <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-full" aria-hidden="true">
           <span className="absolute inset-2 animate-ping rounded-full bg-[#25d366]/40" />

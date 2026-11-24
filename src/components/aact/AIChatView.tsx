@@ -1,6 +1,7 @@
 'use client'
 
 import { useAppStore, api, getToken } from '@/lib/store'
+import { cleanAssistantReplyText } from '@/lib/utils'
 import { getSharedAudio, playOnSharedAudio, unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
 import { GeminiLiveAgent as VoiceAgent, isLiveMinutesExhausted } from '@/lib/voice/geminiLiveAgent'
 import type { VoiceState as AgentVoiceState } from '@/lib/voice/voiceStateMachine'
@@ -894,7 +895,7 @@ export function AIChatView() {
         </DialogContent>
       </Dialog>
 
-      <div className="aact-fade-in mx-auto flex h-[calc(100vh-4rem)] max-w-4xl flex-col px-4 py-4">
+      <div className="aact-fade-in mx-auto flex h-[calc(100dvh-4rem)] max-w-4xl flex-col px-4 py-4">
         <div className="flex items-center justify-between gap-3 border-b border-[#0f2b46]/10 pb-3">
           <div className="flex items-center gap-3">
             <div className="relative"><div className="rounded-full bg-[#0f2b46] p-2.5 text-[#e0b83a]"><Bot className="h-6 w-6" /></div><span className="absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" /></div>
@@ -907,7 +908,7 @@ export function AIChatView() {
           </div>
         </div>
 
-        <div ref={scrollRef} className={`aact-scroll flex-1 space-y-4 overflow-y-auto py-4 ${voiceMode ? 'hidden' : ''}`}>
+        <div ref={scrollRef} className={`aact-scroll flex-1 space-y-4 overflow-y-auto pb-24 pt-4 ${voiceMode ? 'hidden' : ''}`}>
           {loadingHistory ? <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div> : messages.length === 0 ? (
             <div className="mx-auto max-w-lg py-6 text-center">
               <div className="mx-auto mb-4 w-fit rounded-2xl bg-[#0f2b46] p-4 text-[#e0b83a]"><MessageCircle className="h-9 w-9" /></div>
@@ -920,7 +921,7 @@ export function AIChatView() {
               <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${m.role === 'user' ? 'bg-[#c9a227] text-[#0f2b46]' : 'bg-[#0f2b46] text-[#e0b83a]'}`}>{m.role === 'user' ? <User2 className="h-4 w-4" /> : <Bot className="h-4 w-4" />}</div>
               <div className={`group max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-loose shadow-sm sm:max-w-[75%] ${m.role === 'user' ? 'rounded-br-sm bg-[#0f2b46] text-white' : 'rounded-bl-sm bg-[#f7edd0] text-[#0f2b46]'}`}>
                 <div className="mb-1.5 flex flex-wrap gap-1">{m.kind === 'THESIS_REVIEW' && <Badge className="gap-1 bg-[#c9a227] text-[9px] font-black text-[#0f2b46] hover:bg-[#c9a227]"><FileSearch className="h-2.5 w-2.5" /> تحليل مسودة بحث</Badge>}{m.role === 'assistant' && m.agent && <Badge className="gap-1 bg-white/60 text-[9px] font-black text-[#0f2b46] hover:bg-white/60"><Bot className="h-2.5 w-2.5" /> {AGENT_LABELS[m.agent] || 'الوكيل الذكي'}</Badge>}</div>
-                <div className="whitespace-pre-wrap break-words">{m.content}</div>
+                <div className="whitespace-pre-wrap break-words">{m.role === 'assistant' ? cleanAssistantReplyText(m.content) : m.content}</div>
                 {m.role === 'assistant' && m.partial && (
                   <div className="mt-2">
                     <p className="mb-1.5 text-[11px] font-bold text-[#a8841a]">انقطع الرد قبل ما يكتمل — النص اللي وصل محفوظ.</p>

@@ -2735,7 +2735,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* بروفايلات مراحل الذكاء */}
-        <TabsContent value="ai-stage-profiles">
+        <TabsContent value="ai-stage-profiles" className="w-full min-w-0 max-w-full overflow-x-hidden">
           <AdminAiStageProfiles />
         </TabsContent>
 
@@ -2991,7 +2991,7 @@ export function AdminView() {
                 const max = Math.max(...data.programCounts.map((x) => x.enrollments), 1)
                 return (
                   <div key={p.titleAr} className="flex items-center gap-3">
-                    <span className="w-40 shrink-0 truncate text-xs font-bold text-slate-600 sm:w-56">{p.titleAr}</span>
+                    <span className="w-40 shrink-0 text-xs font-bold leading-5 text-slate-600 sm:w-56">{p.titleAr}</span>
                     <div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
                       <div
                         className="h-full rounded-full bg-gradient-to-l from-[#c9a227] to-[#e0b83a] transition-all"

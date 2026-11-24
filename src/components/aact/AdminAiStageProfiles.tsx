@@ -769,7 +769,7 @@ export function AdminAiStageProfiles() {
                   </div>
                   <p className="mt-2 font-bold text-slate-800">{task.question ? shortText(task.question.text) : `سؤال ${task.questionId}`}</p>
                   <p className="mt-1">{recommendationText(task)}</p>
-                  <p className="mt-1 text-[11px] text-slate-400">profile: {task.profileVersion ?? '—'} · الحالة: {task.question?.status ?? 'غير موجود'}</p>
+                  <p className="mt-1 text-[11px] text-slate-400"><span className="[overflow-wrap:anywhere]">profile: {task.profileVersion ?? '—'}</span> · الحالة: {task.question?.status ?? 'غير موجود'}</p>
                 </div>
               ))}
             </div>
@@ -799,7 +799,7 @@ export function AdminAiStageProfiles() {
         const disabled = savingStage === stageName || !!draftError || !hasChanges
         return (
           <Card key={stageName} className="overflow-hidden border-slate-200">
-            <CardContent className="space-y-4 p-4">
+            <CardContent className="min-w-0 space-y-4 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -940,7 +940,7 @@ export function AdminAiStageProfiles() {
                     </div>
                   </div>
 
-                  <div>
+                  <div className="min-w-0">
                     <label className="mb-1 block text-xs font-bold text-slate-500">قائمة الموديلات المسموحة</label>
                     <Textarea
                       dir="ltr"
@@ -1015,9 +1015,9 @@ export function AdminAiStageProfiles() {
                               {log.success ? 'نجح' : 'فشل'}
                             </Badge>
                           </div>
-                          <div className="mt-1 text-slate-500">{shortModel(log.provider, log.model)}</div>
+                          <div className="aact-ltr-line mt-1 text-slate-500">{shortModel(log.provider, log.model)}</div>
                           <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-400">
-                            <span>profile: {log.profileVersion ?? 'global'}</span>
+                            <span className="min-w-0 [overflow-wrap:anywhere]">profile: {log.profileVersion ?? 'global'}</span>
                             <span>fallback: {log.fallbackUsed ? 'نعم' : 'لا'}</span>
                             {log.latencyMs != null && <span>{log.latencyMs}ms</span>}
                             {log.outputCount != null && <span>مخرجات: {log.outputCount}</span>}
