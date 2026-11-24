@@ -54,6 +54,14 @@ type FailoverRow = {
   bookId: string | null
   unitId: string | null
 }
+type AutoFailoverRow = {
+  id: string
+  createdAt: string
+  provider: string
+  model: string | null
+  purpose: string | null
+  failureKind: string
+}
 type MonitoringData = {
   mode: { auto: boolean; value: string }
   rankings: MonitoringRanking[]
@@ -64,6 +72,7 @@ type MonitoringData = {
   lastCapabilityCheck: { at: string; providers: { provider: string; probedAt: string }[] } | null
   transitions: Transition[]
   failovers: FailoverRow[]
+  autoFailovers: AutoFailoverRow[]
   voiceNote: string
 }
 
