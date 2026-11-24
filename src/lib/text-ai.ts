@@ -4599,8 +4599,13 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
           noteNoCandidate(provider, model, `REQUEST_FAILED(${status || 'unknown'}, ${msg})`)
-          if (stickyScope && usableSticky && usableSticky.provider === provider && usableSticky.model === model && usableSticky.key === currentKey) stickyModels.delete(stickyScope)
-          await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: effectiveOpts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, effectiveOpts.purpose)
+          if (stickyScope && usableSticky && usableSticky.provider === provider && usableSticky.model === model) {
+            stickyModels.delete(stickyScope)
+            if (autoStickyKey) {
+              try { await settingStore().write(autoStickyKey, '') } catch { /* best effort */ }
+            }
+          }
+          if (!effectiveOpts.skipAutoSelection) await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: effectiveOpts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, effectiveOpts.purpose)
           // Step 5 — OUTPUT_QUALITY: a validate() / OCR-gate rejection
           // or empty output skips THIS model for this purpose only. The
           // key is untouched (garbage output is not evidence about the
@@ -4609,6 +4614,20 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           // below (a rejection message may mention "timeout" without the
           // failure being a timeout), so this runs before it.
           const autoFailure = classifyAutoFailure(e, status)
+          if (autoResolution.autoOverride) {
+            // Record only classified failure metadata, never prompts or keys.
+            // This best-effort insert must not delay the next candidate.
+            try {
+              void db.aiAutoFailoverEvent?.create({ data: {
+                provider, model, keyIndex,
+                purpose: effectiveOpts.purpose || 'CHAT',
+                taskType: effectiveOpts.taskType || null,
+                failureKind: autoFailure.failureKind,
+                cooldownScope: autoFailure.cooldownScope,
+                detail: { status: status || null, errorCode: autoFailure.errorCode },
+              } }).catch(() => {})
+            } catch { /* optional telemetry must never block failover */ }
+          }
           if (autoFailure.failureKind === 'OUTPUT_QUALITY') {
             skipModelsThisRequest.add(`${provider}:${model}`)
             break
