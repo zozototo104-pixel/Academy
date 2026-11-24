@@ -3553,7 +3553,10 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
     throw err
   }
   if (!text) {
-    const err: any = new Error(`${provider}_EMPTY_RESPONSE`)
+    const finish = String(choice.finish_reason || '').toLowerCase()
+    const safeFinish = /^[a-z_]{1,40}$/.test(finish) ? finish : 'unknown'
+    const diagnostic = provider === 'CUSTOM_421999B38709' ? ` (finish=${safeFinish}, reasoning=${Boolean(message?.reasoning_content || message?.reasoning)}, contentType=${Array.isArray(message?.content) ? 'array' : typeof message?.content})` : ''
+    const err: any = new Error(`${provider}_EMPTY_RESPONSE${diagnostic}`)
     if (isNvidiaChatCompletionsRequest(provider, baseUrl) && message?.reasoning_content) err.code = 'EMPTY_RESPONSE'
     throw err
   }
