@@ -701,6 +701,15 @@ export async function runNextKnowledgeAiRepairStep(overrides: KnowledgeAiRepairO
       const assessed = assessRepairCandidate(result, evidence)
       const accepted = assessed.ok ? assessed.candidate : null
       if (accepted) {
+        // The source resolver already sends a null-bookId item to review
+        // (MISSING) before any repair call, so this is unreachable at
+        // runtime — but it narrows the type for the Prisma where-input
+        // below (BookChunk.bookId is non-nullable) and keeps the
+        // impossible case safe instead of crashing the job.
+        if (!item.bookId) {
+          next.cursor = item.id; next.scanned++; next.needsReview++; processed++
+          continue
+        }
         // Check both the source and the job lease before applying any output.
         // The source is the RESOLVED chunk (the item's link may have been
         // recovered from its book); the item keeps its own ID throughout.
