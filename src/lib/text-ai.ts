@@ -4154,13 +4154,16 @@ export function __testApplyModelRestrictionForTests(models: string[], provider: 
   return applyModelRestriction(models, provider, restrictToModels)
 }
 
-function strictCandidateModelsForRequest(s: Settings, provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, verifierCall: boolean): string[] {
+function strictCandidateModelsForRequest(s: Settings, provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, verifierCall: boolean, autoOverride = false): string[] {
+  // Auto's qualified ranking replaces manual model selections. The
+  // independence and payment checks still run on the actual candidates.
+  if (autoOverride) return models
   if (verifierCall) return s.verifierStrict ? models.filter((model) => providerModelListContains(s.verifierPreferred, provider, model)) : models
   if (taskLevel !== 'GENERAL' && s.academicAllowlistStrict) return models.filter((model) => providerModelListContains(s.academicAllowlist, provider, model))
   return models
 }
 
-export function __testStrictCandidateModelsForTests(args: { provider: TextAiProvider; models: string[]; taskLevel?: TextAiTaskLevel; verifierCall?: boolean; academicAllowlist?: string; academicStrict?: boolean; verifierPreferred?: string; verifierStrict?: boolean }): string[] {
+export function __testStrictCandidateModelsForTests(args: { provider: TextAiProvider; models: string[]; taskLevel?: TextAiTaskLevel; verifierCall?: boolean; academicAllowlist?: string; academicStrict?: boolean; verifierPreferred?: string; verifierStrict?: boolean; autoOverride?: boolean }): string[] {
   const provider = normalizeProvider(args.provider)
   if (provider === 'AUTO') return []
   const s = {
@@ -4169,14 +4172,20 @@ export function __testStrictCandidateModelsForTests(args: { provider: TextAiProv
     verifierPreferred: parseProviderModelList(args.verifierPreferred || ''),
     verifierStrict: args.verifierStrict === true,
   } as Settings
-  return strictCandidateModelsForRequest(s, provider, args.models, args.taskLevel || 'GENERAL', args.verifierCall === true)
+  return strictCandidateModelsForRequest(s, provider, args.models, args.taskLevel || 'GENERAL', args.verifierCall === true, args.autoOverride === true)
 }
 
 function stickyScopeForRequest(s: Settings, opts: TextAiCallOpts, verifierCall: boolean, taskLevel: TextAiTaskLevel): string | null {
+  // Synthetic background probes must not take over a real task's sticky pin.
+  if (opts.skipAutoSelection) return null
   if (opts.stickyScope) return opts.stickyScope
-  if (!s.stickyOnSuccess || (taskLevel === 'GENERAL' && !verifierCall)) return null
+  if (!s.autoMode && (!s.stickyOnSuccess || (taskLevel === 'GENERAL' && !verifierCall))) return null
   const route = clean(opts.taskType || opts.purpose || 'CHAT') || 'CHAT'
   return `${route}:${verifierCall ? 'verify' : 'gen'}`
+}
+
+function autoStickySettingKey(scope: string): string {
+  return `AI_AUTO_STICKY:${createHash('sha256').update(scope).digest('hex').slice(0, 24)}`
 }
 
 function stickyVerifierFamilyBlocked(s: Settings, opts: TextAiCallOpts, sticky: StickyModel, excludedFamilies: Set<string>, allowAlborihiCrossFamilyVerifier: boolean): boolean {
