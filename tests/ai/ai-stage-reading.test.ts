@@ -350,6 +350,8 @@ describe('legacy book readers: profile rescue only after failure', () => {
     expect(knowledge.indexOf('geminiVisionJson({', knowledge.indexOf('async function aiKnowledgeItemsFromUploadedFile'))).toBeLessThan(knowledge.indexOf('rescueOriginalBookVisionWithReadingProfile', knowledge.indexOf('async function aiKnowledgeItemsFromUploadedFile')))
     expect(knowledge).toContain("await prepareStageRun('ANALYSIS')")
     expect(knowledge).toContain('restrictToModels: models')
-    expect(reader).toContain('allowGlobalFallback: false')
+    // Legacy rescue still starts with the READING stage and only falls back
+    // to global providers when the saved stage explicitly permits it.
+    expect(reader).toContain('allowGlobalFallback: overrides.allowGlobalFallback')
   })
 })
