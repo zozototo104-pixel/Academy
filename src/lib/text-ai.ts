@@ -4124,7 +4124,7 @@ export function __testQuestionVerifierCandidatePlan(args: { preferred?: TextAiPr
   const ordered: TextAiPreferredModel[] = []
   for (const item of [...(args.preferred || []), ...(args.fallback || [])]) {
     const key = `${item.provider}:${item.model}`
-    if (excludedProvider && item.provider === excludedProvider) diagnostics.push(`${key} SAME_PROVIDER_AS_GENERATOR`)
+    if (excludedProvider && item.provider === excludedProvider && item.model.toLowerCase() === String(args.generatorModel || '').toLowerCase()) diagnostics.push(`${key} SAME_MODEL_AS_GENERATOR`)
     else if (excludedFamily && modelFamily(item.model) === excludedFamily) diagnostics.push(`${key} SAME_FAMILY_AS_GENERATOR`)
     else if (cooldown.has(key) || cooldown.has(item.provider)) diagnostics.push(`${key} COOLDOWN`)
     else if (noBalance.has(key) || noBalance.has(item.provider)) diagnostics.push(`${key} NO_BALANCE`)
@@ -4134,7 +4134,8 @@ export function __testQuestionVerifierCandidatePlan(args: { preferred?: TextAiPr
 }
 
 function isVerifierCall(opts: TextAiCallOpts): boolean {
-  return (opts.excludeProviders || []).some((provider) => provider !== 'AUTO')
+  return (opts.purpose === 'REVIEW' && opts.taskLevel === 'ACADEMIC_CRITICAL')
+    || (opts.excludeProviders || []).some((provider) => provider !== 'AUTO')
 }
 
 function providerModelListContains(list: readonly TextAiPreferredModel[], provider: ConcreteProvider, model: string): boolean {
