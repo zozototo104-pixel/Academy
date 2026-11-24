@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ClipboardCheck, Gavel, Loader2 } from 'lucide-react'
+import { ClipboardCheck, DoorOpen, Gavel, Loader2, RefreshCw } from 'lucide-react'
 
 // مراجعة الدرجات والالتماسات عند المشرف: النتيجة تصل الطالب فور
 // تصحيح الذكاء كما هي اليوم — وهنا يراجع المشرف طلابه متى شاء:
@@ -42,6 +42,7 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
   const { toast } = useToast()
   const openDetailRef = useRef<(type: string, id: string) => void>(() => {})
   const [appeals, setAppeals] = useState<any[]>([])
+  const [reopenAppeals, setReopenAppeals] = useState<any[]>([])
   const [attempts, setAttempts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -58,15 +59,18 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
     try {
       // Keep the successful list visible if the other endpoint fails.
       // An API error must never be reported as "no appeals/attempts".
-      const [a, t] = await Promise.allSettled([
+      const [a, t, r] = await Promise.allSettled([
         api<{ appeals: any[] }>('/api/supervisor/appeals'),
         api<{ attempts: any[] }>('/api/supervisor/grade-review'),
+        api<{ appeals: any[] }>('/api/supervisor/appeals?view=reopen'),
       ])
       if (a.status === 'fulfilled') setAppeals(a.value.appeals || [])
       if (t.status === 'fulfilled') setAttempts(t.value.attempts || [])
+      if (r.status === 'fulfilled') setReopenAppeals(r.value.appeals || [])
       const failures = [
         a.status === 'rejected' ? `الالتماسات: ${a.reason instanceof Error ? a.reason.message : 'تعذر التحميل'}` : null,
         t.status === 'rejected' ? `المحاولات: ${t.reason instanceof Error ? t.reason.message : 'تعذر التحميل'}` : null,
+        r.status === 'rejected' ? `إعادة الفتح: ${r.reason instanceof Error ? r.reason.message : 'تعذر التحميل'}` : null,
       ].filter(Boolean)
       setLoadError(failures.length ? failures.join(' — ') : null)
     } finally { setLoading(false) }
@@ -209,6 +213,30 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
   return (
     <div className="w-full min-w-0 max-w-full space-y-5 overflow-x-hidden" dir="rtl">
       {loadError && <div role="alert" className="break-words rounded-xl border border-red-300 bg-red-50 p-3 text-xs font-bold text-red-800">تعذر تحميل بعض بيانات المشرف: {loadError} <button type="button" onClick={() => void load()} className="mr-2 underline">إعادة المحاولة</button></div>}
+      <Card className="w-full min-w-0 overflow-hidden"><CardContent className="min-w-0 space-y-3 p-3 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="flex items-center gap-2 text-base font-black text-[#0f2b46]"><DoorOpen className="h-5 w-5 text-[#a8841a]" /> التماسات إعادة فتح طلابي ({reopenAppeals.length})</h3>
+          <Button size="sm" variant="outline" onClick={() => void load()}><RefreshCw className="ml-1 h-4 w-4" /> تحديث</Button>
+        </div>
+        <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-900">هذه القائمة للاطلاع والمتابعة فقط. قرار إعادة فتح الفصل أو الوحدة أو الواجب من صلاحية الإدارة وحدها؛ مراجعة درجات الامتحانات مستقلة أدناه.</p>
+        {!reopenAppeals.length && !loadError && <p className="text-xs font-bold text-slate-500">لا توجد التماسات إعادة فتح لطلابك حاليًا.</p>}
+        {reopenAppeals.map((a) => (
+          <div key={a.id} className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-xs font-bold leading-6 text-slate-700 [overflow-wrap:anywhere]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-black text-[#0f2b46]">{a.studentName}</p>
+                <p>{a.programTitle} · الفصل {a.semester} · {a.unitId ? `وحدة: ${a.unitTitle || 'غير محددة'}` : 'التماس فصلي للواجبات غير المرتبطة بوحدة'}</p>
+              </div>
+              <Badge variant="outline" className={a.status === 'PENDING' ? 'border-amber-300 text-amber-800' : a.status === 'APPROVED' ? 'border-emerald-300 text-emerald-800' : 'border-slate-300 text-slate-600'}>
+                {a.status === 'PENDING' ? 'بانتظار قرار الإدارة' : a.status === 'APPROVED' ? 'وافقت الإدارة' : a.status === 'REJECTED' ? 'رفضت الإدارة' : 'مؤرشف'}
+              </Badge>
+            </div>
+            <p className="rounded-lg bg-slate-50 p-2">سبب الطالب: {a.reason}</p>
+            <p className="text-slate-500">قُدّم: {dateAr(a.createdAt)} · {a.status === 'PENDING' ? `مهلة قرار الإدارة: ${dateAr(a.decisionDeadline)}` : `صدر القرار: ${dateAr(a.decidedAt)}`}</p>
+            {a.decisionNote && <p className="rounded-lg bg-blue-50 p-2">ملاحظة الإدارة: {a.decisionNote}</p>}
+          </div>
+        ))}
+      </CardContent></Card>
       <Card className={`w-full min-w-0 overflow-hidden ${appeals.length ? 'border-red-200' : ''}`}><CardContent className="min-w-0 space-y-3 p-3 sm:p-5">
         <h3 className="flex items-center gap-2 text-base font-black text-[#0f2b46]"><Gavel className="h-5 w-5 text-[#a8841a]" /> التماسات مراجعة بانتظار بتّك ({appeals.length})</h3>
         {!appeals.length && <p className="text-xs font-bold text-slate-500">لا التماسات معلّقة من طلابك. الالتماس يصلك فقط من طالب معيّن عليك أنت.</p>}
