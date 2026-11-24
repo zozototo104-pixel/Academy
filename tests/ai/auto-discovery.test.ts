@@ -287,6 +287,35 @@ describe('round-robin background refresh (one provider per run)', () => {
     expect(backing.get('AI_AUTO_PROBE_CURSOR:GEMINI')).toBe('2')
   })
 
+  test('a later catalog refresh adds newly released models and removes retired ones without paid probes', async () => {
+    const backing = new Map<string, string>()
+    const memStore = makeStore(backing)
+    let catalog = ['gemini-old']
+    const input = {
+      store: memStore,
+      providers: ['GEMINI'],
+      discover: async () => ({ provider: 'GEMINI', models: [...catalog], discoveryOk: true }),
+      capabilitiesForProvider: async () => Object.fromEntries(catalog.map((model) => [model, { text: true, vision: true, costTier: 'free' as const }])),
+      rankAfterRefresh: true,
+    }
+    await autoRefresh.runAutoRefresh({ ...input, nowMs: 1000 })
+    expect(autoMode.parseAutoRanking(backing.get('AI_AUTO_RANKING:CHAT')).map((item) => item.model)).toContain('gemini-old')
+
+    catalog = ['gemini-old', 'gemini-just-released']
+    const changed = await autoRefresh.runAutoRefresh({ ...input, nowMs: 2000 })
+    expect(changed.probes).toEqual([])
+    for (const purpose of autoMode.AUTO_PURPOSES) {
+      const models = autoMode.parseAutoRanking(backing.get(`AI_AUTO_RANKING:${purpose}`)).map((item) => item.model)
+      expect(models).toContain('gemini-just-released')
+    }
+
+    catalog = ['gemini-just-released']
+    await autoRefresh.runAutoRefresh({ ...input, nowMs: 3000 })
+    const models = autoMode.parseAutoRanking(backing.get('AI_AUTO_RANKING:CHAT')).map((item) => item.model)
+    expect(models).toContain('gemini-just-released')
+    expect(models).not.toContain('gemini-old')
+  })
+
   test('runAutoRefresh discovers exactly one provider per run and advances the cursor', async () => {
     const seen: string[] = []
     const backing = new Map<string, string>()
@@ -325,5 +354,75 @@ describe('round-robin background refresh (one provider per run)', () => {
     expect(result.lastError).toBe('DISCOVERY_HTTP_500')
     const state = JSON.parse(backing.get('AI_AUTO_LAST_REFRESH') || '{}')
     expect(state.results.ZAI.discoveryOk).toBe(false)
+  })
+})
+
+describe('first-task auto bootstrap (no synthetic model spend)', () => {
+  test('discovers configured providers once, merges seven rankings, and reuses them on the next task', async () => {
+    const backing = new Map<string, string>()
+    const memStore = makeStore(backing)
+    let claims = 0
+    let discoveries = 0
+    const common = {
+      store: memStore,
+      providers: ['GEMINI', 'GROQ', 'GEMINI'],
+      claim: async () => ++claims === 1,
+      discover: async (provider: string) => {
+        discoveries++
+        return { provider, models: [`${provider.toLowerCase()}-model`], discoveryOk: true }
+      },
+      capabilitiesForProvider: async () => ({ 'gemini-model': { vision: true, costTier: 'free' as const }, 'groq-model': { vision: false, costTier: 'free' as const } }),
+    }
+    const first = await autoRefresh.bootstrapAutoRankingsForTask(common)
+    expect(first.claimed).toBe(true)
+    expect(first.scanned).toEqual(['GEMINI', 'GROQ'])
+    expect(first.ranked.sort()).toEqual(['GEMINI', 'GROQ'])
+    expect(discoveries).toBe(2)
+    expect(autoMode.parseAutoRanking(backing.get('AI_AUTO_RANKING:CHAT')).map((item) => item.provider).sort()).toEqual(['GEMINI', 'GROQ'])
+    expect(autoMode.parseAutoRanking(backing.get('AI_AUTO_RANKING:VISION')).some((item) => item.provider === 'GEMINI' && !item.excludedReason)).toBe(true)
+    const saved = backing.get('AI_AUTO_RANKING:CHAT')
+    const second = await autoRefresh.bootstrapAutoRankingsForTask(common)
+    expect(second.claimed).toBe(false)
+    expect(discoveries).toBe(2)
+    expect(backing.get('AI_AUTO_RANKING:CHAT')).toBe(saved)
+  })
+
+  test('one failed catalog cannot prevent an available provider from being ranked', async () => {
+    const backing = new Map<string, string>()
+    const result = await autoRefresh.bootstrapAutoRankingsForTask({
+      store: makeStore(backing), providers: ['BROKEN', 'GOOD'], claim: async () => true,
+      discover: async (provider) => provider === 'BROKEN'
+        ? { provider, models: [], discoveryOk: false }
+        : { provider, models: ['good-model'], discoveryOk: true },
+    })
+    expect(result.failed).toContain('BROKEN')
+    expect(result.ranked).toEqual(['GOOD'])
+    expect(autoMode.parseAutoRanking(backing.get('AI_AUTO_RANKING:CHAT')).map((item) => item.model)).toEqual(['good-model'])
+  })
+
+  test('the cold task itself waits for ranking before routing; its next call reuses the saved choice', async () => {
+    values.set('AI_AUTO_MODE_ENABLED', '1')
+    values.set('AI_TEXT_PROVIDER', 'ZAI')
+    const oldQuery = db.$queryRawUnsafe
+    let claims = 0
+    db.$queryRawUnsafe = async () => { claims++; return claims === 1 ? [{ key: 'AI_AUTO_TASK_BOOTSTRAP_LAST_RUN' }] : [] }
+    zaiRows = [freeRow('glm-4.5')]
+    globalThis.fetch = mock(async (url: string | URL | Request) => {
+      const urlText = String(url)
+      fetchCalls.push(urlText)
+      if (urlText.startsWith('https://zai.test/v1/models')) return jsonResponse({ data: zaiRows })
+      if (urlText.startsWith('https://zai.test/v1/chat/completions')) return jsonResponse({ choices: [{ message: { content: 'ready' } }] })
+      throw new Error(`unexpected fetch: ${urlText}`)
+    }) as any
+    try {
+      const request = { system: 'test', history: [{ role: 'user' as const, text: 'hello' }], purpose: 'CHAT' as const }
+      expect(await textAi.textAiComplete(request)).toBe('ready')
+      expect(claims).toBe(1)
+      expect(autoMode.parseAutoRanking(values.get('AI_AUTO_RANKING:CHAT')).some((item) => item.provider === 'ZAI' && item.model === 'glm-4.5')).toBe(true)
+      expect(await textAi.textAiComplete(request)).toBe('ready')
+      expect(claims).toBe(1)
+    } finally {
+      db.$queryRawUnsafe = oldQuery
+    }
   })
 })
