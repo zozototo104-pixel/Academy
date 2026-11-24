@@ -164,6 +164,15 @@ describe('auto-mode toggle (pure helpers)', () => {
     textAi.__resetTextAiStateForTests()
     expect(await textAi.__testModelCapabilitiesForTests('GROQ', 'llama-3.3-70b-versatile')).toBeNull()
   })
+
+  test('auto ranking bypasses manual strict allowlists but normal routing keeps them', () => {
+    const args = { provider: 'GROQ' as const, models: ['llama-3.3-70b-versatile'], taskLevel: 'ACADEMIC_CRITICAL' as const, academicAllowlist: 'GEMINI:gemini-2.5-pro', academicStrict: true }
+    expect(textAi.__testStrictCandidateModelsForTests(args)).toEqual([])
+    expect(textAi.__testStrictCandidateModelsForTests({ ...args, autoOverride: true })).toEqual(['llama-3.3-70b-versatile'])
+    const verifierArgs = { ...args, verifierCall: true, verifierStrict: true, verifierPreferred: 'GEMINI:gemini-2.5-pro' }
+    expect(textAi.__testStrictCandidateModelsForTests(verifierArgs)).toEqual([])
+    expect(textAi.__testStrictCandidateModelsForTests({ ...verifierArgs, autoOverride: true })).toEqual(['llama-3.3-70b-versatile'])
+  })
 })
 
 describe('resolveAutoCandidates (pure choke point)', () => {
