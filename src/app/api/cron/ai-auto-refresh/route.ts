@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { redactDeep } from '@/lib/secret-crypto'
-import { isAutoModeEnabled } from '@/lib/ai-auto-mode'
+import { isAutoModeEnabled, parseAutoModeConfig } from '@/lib/ai-auto-mode'
 import {
   AI_AUTO_LAST_REFRESH_KEY,
-  AI_AUTO_PROBE_PROVIDERS_KEY,
+  ROUND_ROBIN_PROVIDERS,
   claimAiAutoRefreshRun,
   runAutoRefresh,
 } from '@/lib/ai-auto-refresh'
-import { textAiCompleteJsonWithMetadata, textAiStaticTextModels } from '@/lib/text-ai'
+import { CUSTOM_AI_PROVIDERS_SETTING, parseCustomTextAiProviders, textAiAutoCapabilitiesForProvider, textAiCompleteWithMetadata, textAiStaticTextModels } from '@/lib/text-ai'
 import { resolveEffectiveStageProfile } from '@/lib/ai-stage-profiles'
 import type { PipelineStageName } from '@/lib/ai-pipeline-log'
 import type { ProbeCallFn } from '@/lib/ai-capability-probes'
