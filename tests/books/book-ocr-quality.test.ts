@@ -15,6 +15,7 @@ let nextOcrMeta: () => Promise<{ text: string; provider: string; model: string }
 })
 mock.module('@/lib/text-ai', () => ({
   textAiCompleteJsonWithMetadata: async () => nextOcrMeta(),
+  textAiAutomaticManagementEnabled: async () => false,
   CUSTOM_AI_PROVIDERS_SETTING: 'AI_CUSTOM_PROVIDERS',
   parseCustomTextAiProviders: () => [],
   pipelineConfigSnapshot: () => ({}),
