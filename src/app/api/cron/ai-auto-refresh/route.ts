@@ -22,16 +22,9 @@ export const maxDuration = 60
 // ai-health. ai-health already spends a 40 s health budget inside a 60 s
 // maxDuration, and it must run whether auto mode is on or off; discovery
 // + probes add quota spend and time, and auto refresh must spend nothing
-// while auto mode is OFF. This route is independently claimable (one
-// winner/hour) and refreshes exactly ONE provider per run (round-robin).
-//
-// Probes in this route are JSON-shape only: the OCR probe needs the
-// planted literal rendered as a 1-page image, and this route has no image
-// renderer — the OCR evaluator + runner exist (ai-capability-probes.ts)
-// and accept an injected callModel, so the image-backed probe plugs in
-// from the book pipeline (step 6) without a code change here. The
-// long-context probe is not run by default either: a 100k-char input
-// costs real tokens on every run.
+// while auto mode is OFF. One provider per minute, including enabled
+// custom providers; at most two small model probes per tick, rotating
+// through the model list to eventually cover every discovered model.
 const STAGES: PipelineStageName[] = ['READING', 'ANALYSIS', 'GENERATION', 'REVIEW']
 
 export async function GET(request: NextRequest) {
@@ -39,12 +32,12 @@ export async function GET(request: NextRequest) {
   if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json(redactDeep({ error: 'UNAUTHORIZED' }), { status: 401 })
   }
-  const claimed = await claimAiAutoRefreshRun()
-  if (!claimed) return NextResponse.json(redactDeep({ ok: true, skipped: true }))
   const enabledRow = await db.setting.findUnique({ where: { key: 'AI_AUTO_MODE_ENABLED' } })
   if (!isAutoModeEnabled(enabledRow?.value || '')) {
     return NextResponse.json(redactDeep({ ok: true, skipped: 'auto-mode-off' }))
   }
+  const claimed = await claimAiAutoRefreshRun()
+  if (!claimed) return NextResponse.json(redactDeep({ ok: true, skipped: true }))
   const store = {
     async read(keys: string[]) {
       const rows = await db.setting.findMany({ where: { key: { in: keys } } })
@@ -54,14 +47,11 @@ export async function GET(request: NextRequest) {
       await db.setting.upsert({ where: { key }, update: { value }, create: { key, value } })
     },
   }
-  const probeProvidersRaw = (await store.read([AI_AUTO_PROBE_PROVIDERS_KEY]))[AI_AUTO_PROBE_PROVIDERS_KEY] || ''
-  let probeProviders: string[] = []
-  try {
-    const parsed = JSON.parse(probeProvidersRaw || '[]')
-    if (Array.isArray(parsed)) probeProviders = parsed.map(String)
-  } catch {
-    probeProviders = []
-  }
+  const customRow = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
+  const customProviders = parseCustomTextAiProviders(customRow?.value || '').filter((entry) => entry.enabled).map((entry) => entry.id)
+  const providers = [...ROUND_ROBIN_PROVIDERS, ...customProviders]
+  const configRow = await db.setting.findUnique({ where: { key: 'AI_AUTO_MODE_CONFIG' } })
+  const probeBudget = Math.min(2, parseAutoModeConfig(configRow?.value || '').probeBudgetPerRun)
   // Stage-profile model refs for reconciliation warnings (read-only).
   let stageProfileModels: Array<{ provider: string; model: string }> = []
   try {
@@ -74,27 +64,41 @@ export async function GET(request: NextRequest) {
   } catch {
     stageProfileModels = []
   }
-  // Probe call pinned to exactly one model via restrictToModels, with a
-  // hard 15 s timeout. Never runs on the live request path.
+  // The planted OCR literal exists only in the generated PNG, NEVER in
+  // the prompt. This proves the model can actually read image pixels.
+  // A probe bypasses automatic ranking to test exactly its assigned model.
   const callModel: ProbeCallFn = async (input) => {
     try {
-      const { text } = await textAiCompleteJsonWithMetadata({
+      const attachments = input.kind === 'ocr' && input.planted
+        ? [{ mimeType: 'image/png', base64: (await (await import('sharp')).default(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="820" height="240"><rect width="100%" height="100%" fill="white"/><text x="40" y="140" font-family="sans-serif" font-size="37" fill="black">${input.planted.replace(/[^A-Za-z0-9-]/g, '')}</text></svg>`)).png().toBuffer()).toString('base64') }]
+        : undefined
+      const result = await textAiCompleteWithMetadata({
         history: [{ role: 'user', text: input.prompt }],
         purpose: 'CHAT',
         system: 'Answer the user prompt exactly as instructed, with nothing else.',
         restrictToModels: [{ provider: input.provider as unknown as Exclude<TextAiProvider, 'AUTO'>, model: input.model }],
-        timeoutMs: 15_000,
+        skipAutoSelection: true,
+        attachments,
+        json: input.kind === 'json',
+        maxOutputTokens: 256,
+        timeoutMs: 8_000,
       })
-      return { text, ok: true }
+      if (result.provider !== input.provider || result.model !== input.model) return { text: '', ok: false, error: 'PROBE_MODEL_MISMATCH' }
+      return { text: result.text, ok: true }
     } catch (e: any) {
       return { text: '', ok: false, error: String(e?.message || 'PROBE_CALL_FAILED').slice(0, 120) }
     }
   }
   const result = await runAutoRefresh({
     store,
-    probeProviders,
-    probeKinds: ['json'],
+    providers,
+    probeProviders: providers,
+    probeKinds: ['json', 'ocr'],
     callModel,
+    probeModelsPerRun: probeBudget,
+    probeTimeoutMs: 8_000,
+    capabilitiesForProvider: textAiAutoCapabilitiesForProvider,
+    rankAfterRefresh: true,
     hardcodedModels: (provider) => textAiStaticTextModels(provider),
     adminChosenModel: async (provider) => {
       const row = await db.setting.findUnique({ where: { key: `${provider}_TEXT_MODEL` } })
