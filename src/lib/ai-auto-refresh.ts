@@ -124,6 +124,12 @@ export interface RunAutoRefreshInput {
   callModel?: ProbeCallFn
   probeProviders?: string[]
   probeKinds?: ProbeKind[]
+  probeModelsPerRun?: number
+  probeTimeoutMs?: number
+  // The catalog is already in the text-router cache after discover().
+  // Read its provider-declared capabilities without another network call.
+  capabilitiesForProvider?: (provider: string) => Promise<Record<string, ModelCapability>>
+  rankAfterRefresh?: boolean
   providers?: readonly string[]
   // Reconciliation inputs (defaults: empty — warnings only, never writes).
   // Stage refs carry their provider so only refs for the refreshed
