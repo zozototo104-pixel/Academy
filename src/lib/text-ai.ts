@@ -4352,8 +4352,36 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const visionCall = attachments.length > 0
   const effectiveOpts = visionCall ? { ...opts, attachments, purpose: opts.purpose || 'VISION', deadlineMs: opts.deadlineMs || Date.now() + VISION_ATTEMPT_TIMEOUT_MS } : opts
   const baseSettings = await settings()
-  const resolvedPolicy = resolveRouterPolicy(effectiveOpts.purpose, baseSettings, effectiveOpts.routerPolicy)
-  const s: Settings = resolvedPolicy === baseSettings.policy ? baseSettings : { ...baseSettings, policy: resolvedPolicy }
+  let taskSettings = baseSettings
+  const taskPurpose = effectiveOpts.purpose || 'CHAT'
+  if (baseSettings.autoMode && !effectiveOpts.skipAutoSelection &&
+    !(baseSettings.autoRankings[taskPurpose] || []).some((item) => !item.excludedReason)) {
+    try {
+      const autoRefresh = await import('./ai-auto-refresh')
+      const providers = [...new Set([
+        ...autoRefresh.ROUND_ROBIN_PROVIDERS,
+        ...baseSettings.customProviders.filter((entry) => entry.enabled).map((entry) => entry.id),
+      ])].filter((provider) => providerKeys(baseSettings, provider as ConcreteProvider).length > 0)
+      await autoRefresh.bootstrapAutoRankingsForTask({
+        store: settingStore(),
+        providers,
+        capabilitiesForProvider: textAiAutoCapabilitiesForProvider,
+        timeBudgetMs: 10_000,
+      })
+      const key = autoRankingKey(taskPurpose)
+      const raw = (await settingStore().read([key]))[key]
+      const ranked = filterVoiceModelsFromTextRanking(parseAutoRanking(raw || ''))
+      if (ranked.length) taskSettings = {
+        ...baseSettings,
+        autoRankings: { ...baseSettings.autoRankings, [taskPurpose]: ranked },
+      }
+    } catch {
+      // If discovery or its DB lease is unavailable, the existing safe
+      // manual fallback still serves the task. The hourly cron can retry.
+    }
+  }
+  const resolvedPolicy = resolveRouterPolicy(effectiveOpts.purpose, taskSettings, effectiveOpts.routerPolicy)
+  const s: Settings = resolvedPolicy === taskSettings.policy ? taskSettings : { ...taskSettings, policy: resolvedPolicy }
   const taskLevel = effectiveOpts.taskLevel || 'GENERAL'
   const excluded = excludedConcreteProviders(effectiveOpts.excludeProviders)
   const excludedFamilies = excludedModelFamilies(effectiveOpts.excludeModelFamilies)
@@ -4370,11 +4398,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     : (effectiveOpts.preferredModels || [])
   const preferredModelProviders = preferredModels.map((item) => item.provider).filter(Boolean)
   let preferredProviders = [...new Set([...(effectiveOpts.preferredProviders || []).filter(Boolean), ...preferredModelProviders])]
-  // Auto mode choke point (step 2): when ON, the auto ranking for this
-  // purpose replaces the preferred/restrict inputs. Exclusions are
-  // preserved — the ranking can never re-admit an excluded provider or
-  // family — and paid-blocked models are dropped. During the first
-  // background discovery cycle, the existing safe route stays available.
+  // Auto mode choke point: qualified candidates replace all manual routing.
+  // On first use a bounded catalog scan above populates the ranking. If
+  // nothing qualifies, fail honestly rather than silently using manual pins.
   const autoResolution = resolveAutoCandidates({
     autoMode: s.autoMode && effectiveOpts.skipAutoSelection !== true,
     ranking: s.autoRankings[effectiveOpts.purpose || 'CHAT'] || [],
@@ -4388,6 +4414,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     restrictToModels: effectiveOpts.restrictToModels,
     paidBlockedModels: s.paidUsageMode === 'off' ? s.paidModels : [],
   })
+  if (autoResolution.autoOverride && !autoResolution.autoCandidates.length) {
+    throw new Error(`AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK:${effectiveOpts.purpose || 'CHAT'}`)
+  }
   if (autoResolution.autoOverride) {
     preferredModels = autoResolution.preferredModels
     // Auto rankings hold validated provider ids, including CUSTOM_* ids
@@ -4395,8 +4424,6 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     // seam only; downstream treats providers as ids, not union members.
     preferredProviders = autoResolution.preferredProviders as TextAiProvider[]
   }
-  // During initial warm-up keep working using the legacy safe route.
-  // The cron gradually builds qualified rankings without blocking users.
   const effectiveRestrictToModels = autoResolution.autoOverride
     ? autoResolution.preferredModels
     : effectiveOpts.restrictToModels
