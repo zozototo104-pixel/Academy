@@ -330,6 +330,16 @@ export function AdminAiMonitoring() {
                 ))}
               </ul>
             )}
+            {autoFailovers.length > 0 && (
+              <div className="space-y-1 border-t border-slate-200 pt-2">
+                <p className="text-xs font-black text-slate-800">محاولات التوجيه التلقائي الفاشلة (آخر {autoFailovers.length})</p>
+                {autoFailovers.slice(0, 10).map((row) => (
+                  <p key={row.id} className="text-[11px] font-bold text-slate-700" dir="auto">
+                    {fmtDate(row.createdAt)} — {PURPOSE_LABELS[row.purpose || ''] || row.purpose || 'CHAT'} — {row.provider}:{row.model || '—'} — {row.failureKind}
+                  </p>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
