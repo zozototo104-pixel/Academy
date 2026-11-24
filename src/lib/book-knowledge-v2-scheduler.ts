@@ -246,12 +246,13 @@ export async function runNextKnowledgeAiRepairStep() {
           // APINEX may reject response_format=json_object; prompt-only JSON is
           // scoped to that provider by the shared router, never the others.
           apinexPromptOnlyJson: true,
-          ...(chosenModel.length ? { preferredModels: chosenModel, restrictToModels: chosenModel } : {}),
+          ...(chosenModel.length ? { preferredModels: chosenModel } : {}),
         })
       } catch {
-        next.status = 'PAUSED'
-        next.lastError = 'تعذر الاتصال بمزوّد التصحيح؛ استكمال يدوي من آخر مؤشر محفوظ'
-        break // Leave cursor unchanged so this item is retryable.
+        // Exhausted router attempts affect this item, not the entire program.
+        next.cursor = item.id; next.scanned++; next.needsReview++; processed++
+        console.warn('[knowledge-ai-repair] PROVIDER_EXHAUSTED', { programId: state.programId, itemId: item.id })
+        continue
       }
       let parsed: unknown
       try { parsed = JSON.parse(result) } catch { parsed = null }
