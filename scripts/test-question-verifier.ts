@@ -135,12 +135,13 @@ async function generatorFamilyUnknownFailsClosed() {
   )
 }
 
-async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
+async function generatorGeminiFamilyIsExcludedAndPromptUsesSelectedSourceOnly() {
   configureProviders()
   await withMockFetch(
     (call) => {
       if (call.url.includes('generativelanguage.googleapis.com')) {
-        return new Response(JSON.stringify({ error: { message: 'Gemini must be excluded' } }), { status: 500, headers: { 'content-type': 'application/json' } })
+        if (call.url.includes(':generateContent')) return new Response(JSON.stringify({ error: { message: 'Gemini-family inference must be excluded' } }), { status: 500, headers: { 'content-type': 'application/json' } })
+        return new Response(JSON.stringify({ models: [] }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
       if (call.url.includes('/api/pricing/catalog') || /\/models(?:\?|$)/.test(call.url)) {
         return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } })
@@ -157,7 +158,7 @@ async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
       })
       assert.ok(result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
       assert.ok(result[1].qualityFlags?.includes('SOURCE_GROUNDED'))
-      assert.equal(calls.some((call) => call.url.includes('generativelanguage.googleapis.com')), false, 'verifier must never call excluded Gemini')
+      assert.equal(calls.some((call) => call.url.includes('generativelanguage.googleapis.com') && call.url.includes(':generateContent')), false, 'verifier must not infer with the generator Gemini family')
       const completion = calls.find((call) => call.url.includes('/chat/completions'))
       const body = String(completion?.init?.body || '')
       assert.ok(body.includes(sourceTwo), 'verifier prompt must include the selected source text')
