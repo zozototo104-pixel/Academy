@@ -207,13 +207,15 @@ describe('resolveAutoCandidates (pure choke point)', () => {
     expect(out.overriddenRestrictToModels).toEqual([{ provider: 'GEMINI', model: 'gemini-3.5-flash-lite' }])
   })
 
-  test('ON with an empty ranking falls back to the manual inputs', () => {
+  test('ON with an empty ranking never reactivates manual inputs', () => {
     const out = autoMode.resolveAutoCandidates({
       autoMode: true, ranking: [],
       preferredProviders: ['GEMINI'], preferredModels: [{ provider: 'GEMINI', model: 'gemini-3.5-flash-lite' }],
     })
-    expect(out.autoOverride).toBe(false)
-    expect(out.preferredProviders).toEqual(['GEMINI'])
+    expect(out.autoOverride).toBe(true)
+    expect(out.preferredProviders).toEqual([])
+    expect(out.autoCandidates).toEqual([])
+    expect(out.excludedReasons).toContain('AUTO_NO_QUALIFIED_CANDIDATES')
   })
 
   test('exclusions are never overridden by the ranking', () => {
@@ -224,7 +226,7 @@ describe('resolveAutoCandidates (pure choke point)', () => {
       modelFamily: (_p, m) => (m.includes('gemini') ? 'gemini' : 'llama'),
     })
     expect(out.autoCandidates).toEqual([])
-    expect(out.autoOverride).toBe(false)
+    expect(out.autoOverride).toBe(true)
     expect(out.excludedReasons).toContain('GROQ:llama-3.3-70b-versatile EXCLUDED_PROVIDER')
     expect(out.excludedReasons).toContain('GEMINI:gemini-3.5-flash-lite EXCLUDED_FAMILY')
   })
@@ -296,14 +298,13 @@ describe('toggle ON override at the router', () => {
     expect(calls[0].model).toBe('llama-3.3-70b-versatile')
   })
 
-  test('ON with an empty ranking falls back to the manual order', async () => {
+  test('ON with an empty ranking fails closed if the bounded catalog bootstrap cannot run', async () => {
     configureTwoProviders()
     values.set('AI_AUTO_MODE_ENABLED', '1')
     values.set('AI_AUTO_RANKING:CHAT', JSON.stringify({ candidates: [] }))
     const calls = installFetch()
-    const reply = await textAi.textAiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'hi' }] })
-    expect(reply).toBe('{"ok":"gemini"}')
-    expect(calls[0].model).toBe('gemini-3.5-flash-lite')
+    await expect(textAi.textAiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'hi' }] })).rejects.toThrow('AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK:CHAT')
+    expect(calls).toHaveLength(0)
   })
 
   test('ON: a paid-listed model is never attempted while paid usage is off', async () => {
