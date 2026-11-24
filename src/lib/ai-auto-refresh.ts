@@ -33,6 +33,10 @@ export const AI_AUTO_LAST_REFRESH_KEY = 'AI_AUTO_LAST_REFRESH'
 export const AI_AUTO_REFRESH_LAST_RUN_KEY = 'AI_AUTO_REFRESH_LAST_RUN'
 // One provider per hour; production also caps probes to one model per run.
 export const AI_AUTO_REFRESH_INTERVAL_MS = 60 * 60 * 1000
+export const AI_AUTO_TASK_BOOTSTRAP_LAST_RUN_KEY = 'AI_AUTO_TASK_BOOTSTRAP_LAST_RUN'
+// A cold task may discover catalogs once. Concurrent/failed tasks cannot
+// stampede all providers; hourly cron keeps refreshing after this warm-up.
+export const AI_AUTO_TASK_BOOTSTRAP_COOLDOWN_MS = 10 * 60 * 1000
 export const AI_AUTO_CAPABILITY_PROBES_KEY_PREFIX = 'AI_AUTO_CAPABILITY_PROBES:'
 export const AI_AUTO_PROBE_CURSOR_KEY_PREFIX = 'AI_AUTO_PROBE_CURSOR:'
 
@@ -109,7 +113,112 @@ export async function claimAiAutoRefreshRun(client: RawQueryClient = db, nowMs =
      ON CONFLICT ("key") DO UPDATE
        SET "value" = EXCLUDED."value", "updatedAt" = CURRENT_TIMESTAMP
      WHERE CASE
-       WHEN "Setting"."value" ~ '^[0-9]+$' THEN "Setting"."value"::bigint
+       WHEN "Setting"."value" ~ '^[0-9]+export async function runAutoRefresh(input: RunAutoRefreshInput): Promise<RunAutoRefreshResult> {
+  const nowMs = input.nowMs ?? Date.now()
+  const store = input.store
+  const stateRaw = (await store.read([AI_AUTO_LAST_REFRESH_KEY]))[AI_AUTO_LAST_REFRESH_KEY] || ''
+  const state = parseLastRefreshState(stateRaw)
+  const provider = pickNextRefreshProvider(input.providers || ROUND_ROBIN_PROVIDERS, state)
+  const discover = input.discover || defaultDiscover
+  const result = await discover(provider)
+  const warnings = reconcileReferences({
+    provider,
+    discovered: result.models,
+    hardcoded: input.hardcodedModels?.(provider) || [],
+    retired: result.retired || [],
+    adminChosen: await input.adminChosenModel?.(provider),
+    stageProfileModels: (input.stageProfileModels || [])
+      .filter((ref) => String(ref.provider || '').toUpperCase() === provider.toUpperCase())
+      .map((ref) => ref.model),
+  })
+  // Probes are enabled by the cron for every configured provider and
+  // capped inside runCapabilityProbes; unit tests may opt into a subset.
+  // The probe call is the caller's responsibility (router call pinned to
+  // one model); without it, discovery still refreshes and probes report
+  // nothing — a missing probe caller must never fail the refresh.
+  let probes: ProbeResult[] = []
+  let probedModels: string[] = []
+  let skippedProbeModels: string[] = []
+  const probeOptIn = (input.probeProviders || []).map((p) => p.toUpperCase())
+  if (input.callModel && probeOptIn.includes(provider.toUpperCase()) && result.models.length) {
+    const cursorKey = `${AI_AUTO_PROBE_CURSOR_KEY_PREFIX}${provider}`
+    const oldCursor = Number((await store.read([cursorKey]))[cursorKey]) || 0
+    const start = ((oldCursor % result.models.length) + result.models.length) % result.models.length
+    const rotated = [...result.models.slice(start), ...result.models.slice(0, start)]
+    const probeRun = await runCapabilityProbes({
+      provider,
+      models: rotated,
+      kinds: input.probeKinds || ['ocr', 'json'],
+      callModel: input.callModel,
+      maxModelsPerRun: input.probeModelsPerRun ?? 2,
+      timeoutMs: input.probeTimeoutMs ?? 8_000,
+    })
+    probes = probeRun.results
+    probedModels = probeRun.probedModels
+    skippedProbeModels = probeRun.skipped
+    await store.write(cursorKey, String((start + probeRun.probedModels.length) % result.models.length))
+    if (Object.keys(probeRun.capabilityUpdates).length) {
+      const previousRaw = (await store.read([probeCapabilityKey(provider)]))[probeCapabilityKey(provider)] || ''
+      let previous: Record<string, unknown> = {}
+      try { previous = JSON.parse(previousRaw || '{}') || {} } catch { previous = {} }
+      await store.write(probeCapabilityKey(provider), JSON.stringify({
+        ...previous,
+        ...probeRun.capabilityUpdates,
+        probedAt: new Date(nowMs).toISOString(),
+        source: 'probe',
+      }))
+    }
+  }
+  let rankedPurposes: string[] = []
+  if (input.rankAfterRefresh && result.discoveryOk && result.models.length) {
+    const catalogCapabilities = await input.capabilitiesForProvider?.(provider) || {}
+    const probeRow = parseRecord((await store.read([probeCapabilityKey(provider)]))[probeCapabilityKey(provider)])
+    const capabilities = Object.fromEntries(result.models.map((model) => [
+      model,
+      { ...(catalogCapabilities[model] || {}), ...(probeRow[model] || {}) } as ModelCapability,
+    ]))
+    rankedPurposes = await computeAndPersistRankings({ store, provider, models: result.models, capabilities, nowMs })
+  }
+  const nextState: LastRefreshState = {
+    lastProvider: provider,
+    lastRunAt: nowMs,
+    results: {
+      ...(state.results || {}),
+      [provider]: {
+        discoveryOk: result.discoveryOk,
+        models: result.models.length,
+        at: nowMs,
+        ...(result.lastError ? { lastError: result.lastError } : {}),
+      },
+    },
+  }
+  await store.write(AI_AUTO_LAST_REFRESH_KEY, JSON.stringify(nextState))
+  return {
+    provider,
+    discoveryOk: result.discoveryOk,
+    models: result.models,
+    modelCount: result.models.length,
+    sourceCount: result.sourceCount,
+    lastError: result.lastError,
+    retired: result.retired || [],
+    renamed: result.renamed || {},
+    warnings,
+    probes,
+    probedModels,
+    skippedProbeModels,
+    rankedPurposes,
+  }
+}
+
+// Manual "refresh now" for one provider (admin action): same discovery
+// path as the cron, without advancing the round-robin cursor.
+export async function refreshProviderNow(
+  provider: string,
+  deps: { store: AutoRefreshStore; discover?: (provider: string) => Promise<DiscoveryResult> },
+): Promise<DiscoveryResult> {
+  return (deps.discover || defaultDiscover)(String(provider || '').toUpperCase())
+}
+ THEN "Setting"."value"::bigint
        ELSE 0
      END < $2
      RETURNING "key"`,
@@ -120,6 +229,128 @@ export async function claimAiAutoRefreshRun(client: RawQueryClient = db, nowMs =
 }
 
 export const __testAiAutoRefreshClaimConstants = { AI_AUTO_REFRESH_LAST_RUN_KEY, AI_AUTO_REFRESH_INTERVAL_MS }
+
+export async function claimAiAutoTaskBootstrapRun(client: RawQueryClient = db, nowMs = Date.now()): Promise<boolean> {
+  const rows = await client.$queryRawUnsafe<Array<{ key: string }>>(
+    `INSERT INTO "Setting" ("key", "value", "updatedAt")
+     VALUES ('AI_AUTO_TASK_BOOTSTRAP_LAST_RUN', $1, CURRENT_TIMESTAMP)
+     ON CONFLICT ("key") DO UPDATE
+       SET "value" = EXCLUDED."value", "updatedAt" = CURRENT_TIMESTAMP
+     WHERE CASE
+       WHEN "Setting"."value" ~ '^[0-9]+export async function runAutoRefresh(input: RunAutoRefreshInput): Promise<RunAutoRefreshResult> {
+  const nowMs = input.nowMs ?? Date.now()
+  const store = input.store
+  const stateRaw = (await store.read([AI_AUTO_LAST_REFRESH_KEY]))[AI_AUTO_LAST_REFRESH_KEY] || ''
+  const state = parseLastRefreshState(stateRaw)
+  const provider = pickNextRefreshProvider(input.providers || ROUND_ROBIN_PROVIDERS, state)
+  const discover = input.discover || defaultDiscover
+  const result = await discover(provider)
+  const warnings = reconcileReferences({
+    provider,
+    discovered: result.models,
+    hardcoded: input.hardcodedModels?.(provider) || [],
+    retired: result.retired || [],
+    adminChosen: await input.adminChosenModel?.(provider),
+    stageProfileModels: (input.stageProfileModels || [])
+      .filter((ref) => String(ref.provider || '').toUpperCase() === provider.toUpperCase())
+      .map((ref) => ref.model),
+  })
+  // Probes are enabled by the cron for every configured provider and
+  // capped inside runCapabilityProbes; unit tests may opt into a subset.
+  // The probe call is the caller's responsibility (router call pinned to
+  // one model); without it, discovery still refreshes and probes report
+  // nothing — a missing probe caller must never fail the refresh.
+  let probes: ProbeResult[] = []
+  let probedModels: string[] = []
+  let skippedProbeModels: string[] = []
+  const probeOptIn = (input.probeProviders || []).map((p) => p.toUpperCase())
+  if (input.callModel && probeOptIn.includes(provider.toUpperCase()) && result.models.length) {
+    const cursorKey = `${AI_AUTO_PROBE_CURSOR_KEY_PREFIX}${provider}`
+    const oldCursor = Number((await store.read([cursorKey]))[cursorKey]) || 0
+    const start = ((oldCursor % result.models.length) + result.models.length) % result.models.length
+    const rotated = [...result.models.slice(start), ...result.models.slice(0, start)]
+    const probeRun = await runCapabilityProbes({
+      provider,
+      models: rotated,
+      kinds: input.probeKinds || ['ocr', 'json'],
+      callModel: input.callModel,
+      maxModelsPerRun: input.probeModelsPerRun ?? 2,
+      timeoutMs: input.probeTimeoutMs ?? 8_000,
+    })
+    probes = probeRun.results
+    probedModels = probeRun.probedModels
+    skippedProbeModels = probeRun.skipped
+    await store.write(cursorKey, String((start + probeRun.probedModels.length) % result.models.length))
+    if (Object.keys(probeRun.capabilityUpdates).length) {
+      const previousRaw = (await store.read([probeCapabilityKey(provider)]))[probeCapabilityKey(provider)] || ''
+      let previous: Record<string, unknown> = {}
+      try { previous = JSON.parse(previousRaw || '{}') || {} } catch { previous = {} }
+      await store.write(probeCapabilityKey(provider), JSON.stringify({
+        ...previous,
+        ...probeRun.capabilityUpdates,
+        probedAt: new Date(nowMs).toISOString(),
+        source: 'probe',
+      }))
+    }
+  }
+  let rankedPurposes: string[] = []
+  if (input.rankAfterRefresh && result.discoveryOk && result.models.length) {
+    const catalogCapabilities = await input.capabilitiesForProvider?.(provider) || {}
+    const probeRow = parseRecord((await store.read([probeCapabilityKey(provider)]))[probeCapabilityKey(provider)])
+    const capabilities = Object.fromEntries(result.models.map((model) => [
+      model,
+      { ...(catalogCapabilities[model] || {}), ...(probeRow[model] || {}) } as ModelCapability,
+    ]))
+    rankedPurposes = await computeAndPersistRankings({ store, provider, models: result.models, capabilities, nowMs })
+  }
+  const nextState: LastRefreshState = {
+    lastProvider: provider,
+    lastRunAt: nowMs,
+    results: {
+      ...(state.results || {}),
+      [provider]: {
+        discoveryOk: result.discoveryOk,
+        models: result.models.length,
+        at: nowMs,
+        ...(result.lastError ? { lastError: result.lastError } : {}),
+      },
+    },
+  }
+  await store.write(AI_AUTO_LAST_REFRESH_KEY, JSON.stringify(nextState))
+  return {
+    provider,
+    discoveryOk: result.discoveryOk,
+    models: result.models,
+    modelCount: result.models.length,
+    sourceCount: result.sourceCount,
+    lastError: result.lastError,
+    retired: result.retired || [],
+    renamed: result.renamed || {},
+    warnings,
+    probes,
+    probedModels,
+    skippedProbeModels,
+    rankedPurposes,
+  }
+}
+
+// Manual "refresh now" for one provider (admin action): same discovery
+// path as the cron, without advancing the round-robin cursor.
+export async function refreshProviderNow(
+  provider: string,
+  deps: { store: AutoRefreshStore; discover?: (provider: string) => Promise<DiscoveryResult> },
+): Promise<DiscoveryResult> {
+  return (deps.discover || defaultDiscover)(String(provider || '').toUpperCase())
+}
+ THEN "Setting"."value"::bigint
+       ELSE 0
+     END < $2
+     RETURNING "key"`,
+    String(nowMs),
+    nowMs - AI_AUTO_TASK_BOOTSTRAP_COOLDOWN_MS,
+  )
+  return rows.length > 0
+}
 
 export interface RunAutoRefreshInput {
   store: AutoRefreshStore
@@ -255,6 +486,80 @@ async function computeAndPersistRankings(args: {
 async function defaultDiscover(provider: string): Promise<DiscoveryResult> {
   const textAi = await import('./text-ai')
   return textAi.refreshDiscoveryForProvider(provider)
+}
+
+export interface AutoTaskBootstrapInput {
+  store: AutoRefreshStore
+  providers: readonly string[]
+  claim?: () => Promise<boolean>
+  discover?: (provider: string) => Promise<DiscoveryResult>
+  capabilitiesForProvider?: (provider: string) => Promise<Record<string, ModelCapability>>
+  nowMs?: number
+  timeBudgetMs?: number
+}
+
+export interface AutoTaskBootstrapResult {
+  claimed: boolean
+  scanned: string[]
+  ranked: string[]
+  failed: string[]
+}
+
+// First actual task with an empty auto ranking: discover configured providers
+// in a bounded, three-way catalog scan, then persist their purpose rankings.
+// There are NO synthetic model calls here — the task's actual response and
+// validator provide the first quality signal. Future tasks reuse the saved
+// scores and stable pin instead of paying for another full scan.
+export async function bootstrapAutoRankingsForTask(input: AutoTaskBootstrapInput): Promise<AutoTaskBootstrapResult> {
+  const providers = [...new Set(input.providers.map((item) => String(item || '').toUpperCase()).filter(Boolean))]
+  const summary: AutoTaskBootstrapResult = { claimed: false, scanned: [], ranked: [], failed: [] }
+  if (!providers.length || !(await (input.claim || claimAiAutoTaskBootstrapRun)())) return summary
+  summary.claimed = true
+  const discover = input.discover || defaultDiscover
+  const timeBudgetMs = Math.max(1000, Math.min(15_000, input.timeBudgetMs ?? 10_000))
+  const deadline = Date.now() + timeBudgetMs
+  let index = 0
+  let rankWrites: Promise<void> = Promise.resolve()
+
+  const worker = async () => {
+    while (index < providers.length && Date.now() < deadline) {
+      const provider = providers[index++]
+      summary.scanned.push(provider)
+      let timer: ReturnType<typeof setTimeout> | undefined
+      let discovery: DiscoveryResult | null = null
+      try {
+        discovery = await Promise.race([
+          discover(provider),
+          new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('CATALOG_TIMEOUT')), Math.min(4000, Math.max(1000, deadline - Date.now()))) }),
+        ])
+      } catch {
+        summary.failed.push(provider)
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+      if (!discovery?.discoveryOk || !discovery.models.length) {
+        if (!summary.failed.includes(provider)) summary.failed.push(provider)
+        continue
+      }
+      // Discovery may run concurrently; ranking writes are serialized so
+      // each provider merges with the previous one, without lost updates.
+      const result = discovery
+      const write = rankWrites.then(async () => {
+        const catalog = await input.capabilitiesForProvider?.(provider) || {}
+        const probeKey = probeCapabilityKey(provider)
+        const probes = parseRecord((await input.store.read([probeKey]))[probeKey])
+        const capabilities = Object.fromEntries(result.models.map((model) => [
+          model, { ...(catalog[model] || {}), ...(probes[model] || {}) } as ModelCapability,
+        ]))
+        await computeAndPersistRankings({ store: input.store, provider, models: result.models, capabilities, nowMs: input.nowMs ?? Date.now() })
+        summary.ranked.push(provider)
+      }).catch(() => { summary.failed.push(provider) })
+      rankWrites = write
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(3, providers.length) }, () => worker()))
+  await rankWrites
+  return summary
 }
 
 export async function runAutoRefresh(input: RunAutoRefreshInput): Promise<RunAutoRefreshResult> {
