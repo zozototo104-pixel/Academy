@@ -668,7 +668,7 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number, claimedA
         // not keep the job open once every readable chunk is analyzed.
         const remaining = pending.filter((chunk) => !looksLikeBrokenBookPageText(chunk.text)).length
         if (remaining) return
-        const failed = await tx.bookChunk.count({ where: { bookId, status: 'FAILED' } })
+        const failed = pending.length + await tx.bookChunk.count({ where: { bookId, status: 'FAILED' } })
         // Do not block the rest of the book because a few chunks exhausted
         // their retries. If nothing was analyzed at all, still fail honestly.
         const analyzed = failed ? await tx.bookChunk.count({ where: { bookId, status: 'ANALYZED' } }) : 0
