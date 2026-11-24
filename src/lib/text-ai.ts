@@ -4402,6 +4402,23 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const errors: string[] = []
   const attempts: TextAiAttemptDiagnostics[] = []
   const persistentCooldowns = await loadPersistentCooldowns()
+  // Persist only the provider/model, never an API key. A new serverless
+  // worker reconstructs the key from the current configured key pool.
+  const autoStickyKey = s.autoMode && !effectiveOpts.skipAutoSelection && stickyScope
+    ? autoStickySettingKey(stickyScope) : null
+  if (autoStickyKey && stickyScope && !stickyModels.has(stickyScope)) {
+    try {
+      const raw = (await settingStore().read([autoStickyKey]))[autoStickyKey]
+      const saved = JSON.parse(raw || 'null') as { provider?: string; model?: string; at?: number } | null
+      const model = autoResolution.autoCandidates.find((candidate) =>
+        candidate.provider === saved?.provider && candidate.model === saved?.model)
+      if (model) {
+        const candidateProvider = model.provider as ConcreteProvider
+        const key = providerKeys(s, candidateProvider)[0]
+        if (key) stickyModels.set(stickyScope, { provider: candidateProvider, model: model.model, key, at: Number(saved?.at) || Date.now() })
+      }
+    } catch { /* no durable pin yet */ }
+  }
   const exploreModels = ++routerRequestSeq % 5 === 0
   const estimatedPaidCost = estimatedPaidCostUsd(effectiveOpts)
   const stickyResolution = await resolveUsableStickyModel({
