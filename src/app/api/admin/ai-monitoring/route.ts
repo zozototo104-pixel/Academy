@@ -18,7 +18,11 @@ import {
 import {
   AI_AUTO_CAPABILITY_PROBES_KEY_PREFIX,
   AI_AUTO_LAST_REFRESH_KEY,
+  AI_AUTO_TASK_PREFLIGHT_KEY_PREFIX,
+  AI_AUTO_TASK_PREFLIGHT_VALID_MS,
+  orderByTaskPreflight,
   parseLastRefreshState,
+  parseTaskPreflight,
 } from '@/lib/ai-auto-refresh'
 import {
   parseProviderTiers,
@@ -30,7 +34,9 @@ import {
 // Step 8 — monitoring dashboard API (admin-only GET).
 //
 // Composes EXISTING readers only and makes NO live provider calls on
-// GET: rankings come from the stored AI_AUTO_RANKING:<purpose> rows,
+// GET: scores come from stored AI_AUTO_RANKING:<purpose> rows; the
+// latest task-start probe results reorder the visible qualified models,
+// just like the live router, without making any calls from this GET.
 // health/quota/cooldown from textAiModelHealthSnapshot() +
 // textAiRouterStateSnapshot() + textAiDiagnostics(), the last refresh
 // from AI_AUTO_LAST_REFRESH, the last capability check from the stored
@@ -49,10 +55,9 @@ import {
 // carries a probedAt, lastCapabilityCheck is null and the dashboard
 // shows an honest "not recorded yet" state instead of inventing one.
 //
-// The AiAutoFailoverEvent Prisma model exists only as a migration file;
-// its table does not exist in production, so it is NEVER queried here.
-// Failover history reads AiPipelineOperationLog (fallbackUsed is a real
-// Boolean column, schema.prisma:224).
+// Failover history primarily reads AiPipelineOperationLog (fallbackUsed is
+// a real Boolean column). The optional AiAutoFailoverEvent query below is
+// best-effort: deployments without that table safely return no events.
 
 export type MonitoringCostTier = 'free' | 'paid' | 'unknown'
 
@@ -115,11 +120,14 @@ export interface MonitoringCandidate {
   excludedReason: string | null
   costTier: MonitoringCostTier
   balance: 'unknown'
+  probe: { pass: boolean; latencyMs: number } | null
 }
 
 export interface MonitoringRanking {
   purpose: string
   computedAt: string | null
+  taskPreflightAt: string | null
+  taskPreflightCurrent: boolean
   top: MonitoringCandidate | null
   candidates: MonitoringCandidate[]
 }
@@ -170,6 +178,7 @@ export async function GET() {
       tiersRow,
       rankingRows,
       probeRows,
+      preflightRows,
       pendingRows,
       failovers,
       autoFailovers,
@@ -183,6 +192,7 @@ export async function GET() {
       db.setting.findUnique({ where: { key: 'AI_PROVIDER_TIERS' } }),
       db.setting.findMany({ where: { key: { startsWith: 'AI_AUTO_RANKING:' } } }),
       db.setting.findMany({ where: { key: { startsWith: AI_AUTO_CAPABILITY_PROBES_KEY_PREFIX } } }),
+      db.setting.findMany({ where: { key: { startsWith: AI_AUTO_TASK_PREFLIGHT_KEY_PREFIX } } }),
       db.setting.findMany({ where: { key: { startsWith: AI_AUTO_NO_MODEL_PENDING_KEY_PREFIX } } }),
       db.aiPipelineOperationLog.findMany({
         where: { fallbackUsed: true },
@@ -214,22 +224,34 @@ export async function GET() {
     const auto = isAutoModeEnabled(modeRow?.value || '')
     const tiers = parseProviderTiers(tiersRow?.value || '') as Partial<Record<string, string>>
     const rankingByKey = new Map<string, string>(rankingRows.map((row) => [row.key, String(row.value || '')]))
+    const preflightByKey = new Map<string, string>(preflightRows.map((row) => [row.key, String(row.value || '')]))
     const rankings: MonitoringRanking[] = AUTO_PURPOSES.map((purpose) => {
       const payload = parseAutoRankingPayload(rankingByKey.get(autoRankingKey(purpose)) || '')
-      const candidates: MonitoringCandidate[] = payload.candidates.map((candidate) => ({
-        provider: candidate.provider,
-        model: candidate.model,
-        score: typeof candidate.score === 'number' ? candidate.score : null,
-        components: candidate.components || null,
-        excludedReason: candidate.excludedReason || null,
-        costTier: costTierForProvider(candidate.provider, tiers),
-        // No balance API exists: the scorer records balance 'unknown'
-        // and so does this payload. Never a remaining-balance figure.
-        balance: 'unknown' as const,
-      }))
+      const snapshot = parseTaskPreflight(preflightByKey.get(`${AI_AUTO_TASK_PREFLIGHT_KEY_PREFIX}${purpose}`) || '')
+      const fresh = snapshot && Date.now() >= snapshot.at && Date.now() - snapshot.at < AI_AUTO_TASK_PREFLIGHT_VALID_MS ? snapshot : null
+      const ordered = [
+        ...orderByTaskPreflight(payload.candidates.filter((candidate) => !candidate.excludedReason), fresh),
+        ...payload.candidates.filter((candidate) => candidate.excludedReason),
+      ]
+      const candidates: MonitoringCandidate[] = ordered.map((candidate) => {
+        const verified = fresh?.verdicts.find((item) => item.provider === candidate.provider && item.model === candidate.model)
+        return {
+          provider: candidate.provider,
+          model: candidate.model,
+          score: typeof candidate.score === 'number' ? candidate.score : null,
+          components: candidate.components || null,
+          excludedReason: candidate.excludedReason || null,
+          costTier: costTierForProvider(candidate.provider, tiers),
+          // No balance API: never claim remaining credit is known.
+          balance: 'unknown' as const,
+          probe: verified ? { pass: verified.pass, latencyMs: verified.latencyMs } : null,
+        }
+      })
       return {
         purpose,
         computedAt: payload.computedAt,
+        taskPreflightAt: snapshot ? new Date(snapshot.at).toISOString() : null,
+        taskPreflightCurrent: !!fresh,
         top: candidates.find((candidate) => !candidate.excludedReason) || null,
         candidates,
       }
