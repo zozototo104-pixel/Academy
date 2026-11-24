@@ -8,7 +8,7 @@ import {
   claimAiAutoRefreshRun,
   runAutoRefresh,
 } from '@/lib/ai-auto-refresh'
-import { CUSTOM_AI_PROVIDERS_SETTING, parseCustomTextAiProviders, textAiAutoCapabilitiesForProvider, textAiCompleteWithMetadata, textAiStaticTextModels } from '@/lib/text-ai'
+import { CUSTOM_AI_PROVIDERS_SETTING, parseCustomTextAiProviders, textAiAutoCapabilitiesForProvider, textAiAutoConfiguredProviders, textAiCompleteWithMetadata, textAiStaticTextModels } from '@/lib/text-ai'
 import { resolveEffectiveStageProfile } from '@/lib/ai-stage-profiles'
 import type { PipelineStageName } from '@/lib/ai-pipeline-log'
 import type { ProbeCallFn } from '@/lib/ai-capability-probes'
@@ -49,7 +49,9 @@ export async function GET(request: NextRequest) {
   }
   const customRow = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
   const customProviders = parseCustomTextAiProviders(customRow?.value || '').filter((entry) => entry.enabled).map((entry) => entry.id)
-  const providers = [...ROUND_ROBIN_PROVIDERS, ...customProviders]
+  const configured = new Set(await textAiAutoConfiguredProviders())
+  const providers = [...ROUND_ROBIN_PROVIDERS, ...customProviders].filter((provider) => configured.has(provider))
+  if (!providers.length) return NextResponse.json(redactDeep({ ok: true, skipped: 'no-configured-providers' }))
   const configRow = await db.setting.findUnique({ where: { key: 'AI_AUTO_MODE_CONFIG' } })
   const probeBudget = Math.min(1, parseAutoModeConfig(configRow?.value || '').probeBudgetPerRun)
   // Stage-profile model refs for reconciliation warnings (read-only).
