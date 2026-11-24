@@ -28,6 +28,7 @@ const world = {
   jobs: [] as AnyRow[],
   chunks: [] as AnyRow[],
   knowledge: [] as AnyRow[],
+  guides: [] as AnyRow[],
   unitUpdates: [] as AnyRow[],
   txDelayMs: 0,
   txUpdateManyDelayMs: 0,
@@ -46,6 +47,7 @@ function resetWorld() {
   world.jobs = []
   world.chunks = [cleanChunk(0)]
   world.knowledge = [cleanItem('item-clean', 'chunk-0')]
+  world.guides = []
   world.unitUpdates = []
   world.txDelayMs = 0
   world.txUpdateManyDelayMs = 0
@@ -81,10 +83,21 @@ function latestPendingDraft(unitId: string) {
   return null
 }
 
-function latestActiveJob(unitId: string) {
+function latestActiveJob(unitId: string, where?: AnyRow) {
+  // Mirrors Prisma for the conditions callers use: unitId equality,
+  // status.in, and phase (plain equality or { in: [...] }). Newest first.
+  // The phase condition is load-bearing for the cross-flow tests: a
+  // REGENERATE lookup must NOT match a RUNNING CONTENT/GUIDE job.
   for (let i = world.jobs.length - 1; i >= 0; i--) {
     const j = world.jobs[i]
-    if (j.unitId === unitId && (j.status === 'QUEUED' || j.status === 'RUNNING')) return j
+    if (j.unitId !== unitId) continue
+    if (where?.status?.in && !where.status.in.includes(j.status)) continue
+    if (typeof where?.status === 'string' && j.status !== where.status) continue
+    if (where?.phase) {
+      if (typeof where.phase === 'string' && j.phase !== where.phase) continue
+      if (where.phase.in && !where.phase.in.includes(j.phase)) continue
+    }
+    if (j.status === 'QUEUED' || j.status === 'RUNNING') return j
   }
   return null
 }
@@ -94,7 +107,7 @@ const draftApi = (getDelay: () => number) => ({
     where?.status === 'PENDING' ? latestPendingDraft(where.unitId) : null,
   updateMany: async ({ where, data }: AnyRow) => {
     await tick(getDelay())
-    const row = world.drafts.find((d) => d.id === where.id && d.unitId === where.unitId && (where.status == null || d.status === where.status))
+    const row = world.drafts.find((d) => d.id === where.id && (where.unitId == null || d.unitId === where.unitId) && (where.status == null || d.status === where.status))
     if (!row) return { count: 0 }
     Object.assign(row, data)
     return { count: 1 }
@@ -112,7 +125,7 @@ const draftApi = (getDelay: () => number) => ({
 })
 
 const jobApi = (getDelay: () => number) => ({
-  findFirst: async ({ where }: AnyRow) => latestActiveJob(where.unitId),
+  findFirst: async ({ where }: AnyRow) => latestActiveJob(where.unitId, where),
   create: async ({ data }: AnyRow) => {
     const row = { id: `job-${++world.jobSeq}`, createdAt: new Date(), updatedAt: new Date(), finishedAt: null, lastError: null, retryAt: null, ...data }
     world.jobs.push(row)
@@ -128,7 +141,7 @@ const jobApi = (getDelay: () => number) => ({
     await tick(getDelay())
     const row = world.jobs.find((j) =>
       j.id === where.id &&
-      j.unitId === where.unitId &&
+      (where.unitId == null || j.unitId === where.unitId) &&
       (where.status == null || j.status === where.status) &&
       (where.phase == null || j.phase === where.phase) &&
       (!where.lockedUntil?.gt || (j.lockedUntil && j.lockedUntil.getTime() > where.lockedUntil.gt.getTime())),
@@ -161,6 +174,26 @@ const fakeDb: AnyRow = {
     },
   },
   unitGenerationJob: jobApi(() => world.updateManyDelayMs),
+  programStudyGuide: {
+    findFirst: async () => world.guides[world.guides.length - 1] ?? null,
+    create: async ({ data }: AnyRow) => {
+      const row = { id: `guide-${world.guides.length + 1}`, createdAt: new Date(), ...data }
+      world.guides.push(row)
+      return row
+    },
+    update: async ({ where, data }: AnyRow) => {
+      const row = world.guides.find((g) => g.id === where.id)
+      if (!row) throw new Error('GUIDE_NOT_FOUND')
+      Object.assign(row, data)
+      return row
+    },
+  },
+  // The regenerate route resolves a pending auto-resume intent after a
+  // successful draft; no intent ever exists in this file's world.
+  unitRegenerationIntent: {
+    findFirst: async () => null,
+    updateMany: async () => ({ count: 0 }),
+  },
   bookChunk: {
     findMany: async ({ where }: AnyRow) =>
       world.chunks.filter((c) => c.index >= where.index.gte && c.index <= where.index.lte),
@@ -222,6 +255,7 @@ const {
 const approveApi = await import('../../src/app/api/admin/program-units/[unitId]/regenerate/approve/route')
 const rejectApi = await import('../../src/app/api/admin/program-units/[unitId]/regenerate/reject/route')
 const regenerateApi = await import('../../src/app/api/admin/program-units/[unitId]/regenerate/route')
+const generateApi = await import('../../src/app/api/admin/program-units/[unitId]/generate/route')
 const { runUnitRegeneration } = await import('../../src/lib/unit-regeneration')
 
 const cleanText = 'الأصول المتداولة هي الأصول التي يتوقع تحويلها إلى نقد خلال سنة مالية واحدة، وتشمل النقدية والمخزون والذمم المدينة التي تتحول إلى نقد خلال دورة التشغيل العادية للمنشأة. '.repeat(4)
@@ -489,6 +523,19 @@ describe('concurrency guards — approve / reject / regenerate lease', () => {
       { params: Promise.resolve({ unitId: 'unit-1' }) },
     )
   }
+  function postGenerate() {
+    return generateApi.POST(
+      new NextRequest('https://academy.test/api/admin/program-units/unit-1/generate', { method: 'POST', body: JSON.stringify({}) }),
+      { params: Promise.resolve({ unitId: 'unit-1' }) },
+    )
+  }
+  function seedRunningJob(id: string, phase: string) {
+    world.jobs.push({
+      id, unitId: 'unit-1', programId: 'prog-1', status: 'RUNNING', phase,
+      unitsTotal: 1, unitsDone: 0, startedAt: new Date(), lockedUntil: new Date(Date.now() + 240_000),
+      finishedAt: null, lastError: null, retryAt: null, createdAt: new Date(), updatedAt: new Date(),
+    })
+  }
 
   test('second concurrent approve gets 409 ALREADY_DECIDED and the unit is written once', async () => {
     // Both reads land before either claim; the claims then run in order.
@@ -530,7 +577,11 @@ describe('concurrency guards — approve / reject / regenerate lease', () => {
     expect(world.drafts.find((d) => d.id === 'draft-1')?.status).toBe('APPROVED')
   })
 
-  test('a job whose lease expires mid-generation loses the lease: no draft, seeded draft untouched', async () => {
+  test('a slow generation whose lock expires mid-generation still creates the draft (lock renewal)', async () => {
+    // Fix 1: the 240s creation lock lapses while generation is still
+    // running, but the renewal after the AI call (now + 60s) rescues the
+    // persist — the successful AI work is no longer discarded 409
+    // LEASE_LOST. The seeded PENDING draft is replaced by the new one.
     const seeded = world.drafts[0]
     geminiHook = async () => {
       // The 240s lock lapses while generation is still running.
@@ -538,14 +589,14 @@ describe('concurrency guards — approve / reject / regenerate lease', () => {
     }
     const result = await runUnitRegeneration('unit-1', { deadlineMs: Date.now() + 210_000 })
     expect(geminiCalls).toBe(1)
-    expect(result.outcome).toBe('LEASE_LOST')
+    expect(result.outcome).toBe('DRAFT_CREATED')
     expect(world.drafts.length).toBe(1)
-    expect(world.drafts[0]).toBe(seeded)
+    expect(world.drafts[0]).not.toBe(seeded) // seeded row deleted, new row created (ids collide: both 'draft-1')
     expect(world.drafts[0].status).toBe('PENDING')
+    if (result.outcome === 'DRAFT_CREATED') expect(world.drafts[0].id).toBe(result.draft.id)
     expect(world.unitUpdates.length).toBe(0)
-    // Lease loss leaves the job RUNNING with an expired lock; the next
-    // attempt fails it via the early check instead of generating over it.
-    expect(world.jobs[0].status).toBe('RUNNING')
+    expect(world.jobs[0].status).toBe('COMPLETED')
+    expect(world.jobs[0].lockedUntil).toBeNull()
   })
 
   test('a job marked FAILED mid-generation loses the lease: no draft, seeded draft untouched', async () => {
@@ -606,5 +657,57 @@ describe('concurrency guards — approve / reject / regenerate lease', () => {
     expect(body.job.id).toBe('job-seeded')
     expect(geminiCalls).toBe(0)
     expect(world.drafts.length).toBe(1)
+  })
+
+  test('regeneration proceeds when only a CONTENT job is RUNNING (phase-scoped entry gate)', async () => {
+    // Fix 3a: a RUNNING CONTENT job must not make regenerate report
+    // ALREADY_RUNNING — the gate is scoped to phase REGENERATE.
+    seedRunningJob('job-content', 'CONTENT')
+    const result = await runUnitRegeneration('unit-1', { deadlineMs: Date.now() + 210_000 })
+    expect(result.outcome).toBe('DRAFT_CREATED')
+    expect(geminiCalls).toBe(1)
+    expect(world.jobs.length).toBe(2)
+    expect(world.jobs[0].status).toBe('RUNNING')
+    expect(world.jobs[0].phase).toBe('CONTENT')
+    expect(world.jobs[1].status).toBe('COMPLETED')
+    expect(world.jobs[1].phase).toBe('REGENERATE')
+  })
+
+  test('POST regenerate while a CONTENT job is RUNNING creates a draft instead of resumed:true', async () => {
+    // Route-level twin of the test above: the UI must not show a false
+    // success toast with no draft on reload.
+    seedRunningJob('job-content', 'CONTENT')
+    const res = await postRegenerate()
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.resumed).toBeUndefined()
+    expect(body.draft).toBeDefined()
+    expect(body.job.status).toBe('COMPLETED')
+    expect(geminiCalls).toBe(1)
+    expect(world.jobs.length).toBe(2)
+    expect(world.jobs[0].status).toBe('RUNNING')
+    expect(world.jobs[0].phase).toBe('CONTENT')
+  })
+
+  test('POST generate while a REGENERATE job is RUNNING generates instead of resuming the regen job', async () => {
+    // Fix 3b: the generate gate is scoped to phases CONTENT/GUIDE, so a
+    // RUNNING REGENERATE job must not make generate report resumed:true
+    // with a job that never produces unit content.
+    seedRunningJob('job-regen', 'REGENERATE')
+    // The world unit is APPROVED, which generate skips after the gate; a
+    // DRAFT unit proves generation itself runs past the gate.
+    world.units.get('unit-1')!.status = 'DRAFT'
+    const res = await postGenerate()
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.resumed).toBeUndefined()
+    expect(body.ok).toBe(true)
+    expect(body.unit.summary).toBe(cannedGenerated.summary)
+    expect(geminiCalls).toBe(1)
+    expect(world.guides.length).toBe(1)
+    expect(world.jobs.length).toBe(2)
+    expect(world.jobs[0].status).toBe('RUNNING')
+    expect(world.jobs[0].phase).toBe('REGENERATE')
+    expect(world.jobs[1].status).toBe('COMPLETED')
   })
 })

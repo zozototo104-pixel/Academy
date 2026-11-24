@@ -75,8 +75,11 @@ export async function loadUnitRegenerationSources(unitId: string): Promise<UnitR
   return { unit: { ...unit, sourceBookId, chunkStartIndex, chunkEndIndex }, chunks, knowledge, assessment: assessUnitSources(chunks, knowledge) }
 }
 
-// An already-running generation job for the unit (QUEUED/RUNNING), or a
-// stale RUNNING job whose lease expired (marked FAILED, as the route did).
+// An already-running REGENERATION job for the unit (QUEUED/RUNNING,
+// phase REGENERATE only — a RUNNING CONTENT/GUIDE job belongs to the
+// generate flow and must never make regenerate report resumed:true),
+// or a stale RUNNING job whose lease expired (marked FAILED, as the
+// route did).
 // STALE_FAILED is distinct from NONE so callers can preserve the route's
 // original behaviour: a stale job answers 409 «توقفت، أعد المحاولة»
 // instead of silently starting a new job over it.
@@ -86,7 +89,7 @@ export type ActiveUnitGenerationJob =
   | { state: 'ACTIVE'; job: { id: string; status: string } }
 
 export async function findActiveUnitGenerationJob(unitId: string): Promise<ActiveUnitGenerationJob> {
-  const activeJob = await db.unitGenerationJob.findFirst({ where: { unitId, status: { in: ['QUEUED', 'RUNNING'] } }, orderBy: { createdAt: 'desc' } })
+  const activeJob = await db.unitGenerationJob.findFirst({ where: { unitId, status: { in: ['QUEUED', 'RUNNING'] }, phase: 'REGENERATE' }, orderBy: { createdAt: 'desc' } })
   if (!activeJob) return { state: 'NONE' }
   if (activeJob.status === 'RUNNING' && (!activeJob.lockedUntil || activeJob.lockedUntil.getTime() <= Date.now())) {
     await db.unitGenerationJob.update({ where: { id: activeJob.id }, data: { status: 'FAILED', lastError: 'توقفت، أعد المحاولة', lockedUntil: null, finishedAt: new Date() } })
@@ -154,7 +157,7 @@ export async function runUnitRegeneration(
       })
     } catch (error: any) {
       if (error?.code === 'P2002') {
-        const existing = await db.unitGenerationJob.findFirst({ where: { unitId: unit.id, status: { in: ['QUEUED', 'RUNNING'] } }, orderBy: { createdAt: 'desc' } })
+        const existing = await db.unitGenerationJob.findFirst({ where: { unitId: unit.id, status: { in: ['QUEUED', 'RUNNING'] }, phase: 'REGENERATE' }, orderBy: { createdAt: 'desc' } })
         if (existing) return { outcome: 'ALREADY_RUNNING', job: existing }
       }
       throw error
@@ -171,6 +174,16 @@ export async function runUnitRegeneration(
       deadlineMs: Math.min(opts.deadlineMs, Date.now() + 210_000),
     })
     const draftData = buildUnitRegenerationDraftData(generated, assessment.gaps)
+    // Lock renewal: the 240s creation lock may have lapsed during a slow
+    // generation (the AI deadline is 210s, but generation + retries can
+    // run past the lock). Renew for the persist transaction only — now +
+    // 60s is enough for it. Guarded on status RUNNING so a job another
+    // process already finalised is never touched; a 0-row renewal leaves
+    // the lease expired and the claim below fails LEASE_LOST as before.
+    await db.unitGenerationJob.updateMany({
+      where: { id: job!.id, status: 'RUNNING' },
+      data: { lockedUntil: new Date(Date.now() + 60_000) },
+    })
     const draft = await db.$transaction(async (tx) => {
       const claimed = await tx.unitGenerationJob.updateMany({
         where: { id: job!.id, unitId: unit.id, status: 'RUNNING', phase: 'REGENERATE', lockedUntil: { gt: new Date() } },

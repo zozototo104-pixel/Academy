@@ -618,6 +618,19 @@ model Unit {
   @@index([sourceBookId])
 }
 
+// Active-job guard (PR #212, fix 2) — partial unique index, SQL ONLY:
+// migration 20261124133500_unit_generation_job_active_phase_unique
+// creates "UnitGenerationJob_active_unit_phase_key" on ("unitId", "phase")
+// WHERE "status" IN ('QUEUED', 'RUNNING'). Prisma 6 cannot express the
+// WHERE clause, so the index MUST NOT be mirrored here as @@unique — a
+// plain @@unique([unitId, phase]) would block repeat COMPLETED jobs, and
+// a unitId-only index would make a RUNNING CONTENT job block a REGENERATE
+// create (P2002), reintroducing the cross-flow resume hijack. The same
+// migration drops the superseded 2026-10-09 unitId-only partial index
+// "UnitGenerationJob_active_unitId_key". The P2002 catch in
+// src/lib/unit-regeneration.ts (and the generate route) relies on this
+// index: same-phase concurrent first-calls collide on it and the second
+// caller gets ALREADY_RUNNING; different phases coexist.
 model UnitGenerationJob {
   id          String   @id @default(cuid())
   unitId      String
