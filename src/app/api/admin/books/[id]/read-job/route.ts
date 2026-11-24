@@ -227,6 +227,7 @@ export async function POST(request: NextRequest, context: Context) {
     if (body?.action === 'STOP' || body?.action === 'RESUME') {
       const current = await db.bookReadJob.findFirst({
         where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } },
+        orderBy: { createdAt: 'desc' },
       })
       if (!current) return NextResponse.json({ error: 'لا توجد مهمة جارية يمكن التحكم بها' }, { status: 409 })
       if (body.action === 'RESUME' && await hasActiveBookRepairJob(id)) return NextResponse.json({
