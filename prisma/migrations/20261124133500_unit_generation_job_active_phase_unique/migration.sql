@@ -1,0 +1,21 @@
+-- Fix 2 (PR #212): the active-job guard must be scoped by PHASE, not by
+-- unit alone. The 2026-10-09 migration created a partial unique index on
+-- ("unitId") WHERE status IN ('QUEUED','RUNNING'); on any database built
+-- from the migration chain that index is LIVE, so it already blocks a
+-- REGENERATE create while a CONTENT job is RUNNING (P2002) — the exact
+-- cross-flow block hole 3 must remove — and it makes the P2002 catch in
+-- runUnitRegeneration fire against the wrong job. Drop it and replace it
+-- with the phase-scoped index below. Same-phase concurrent first-calls
+-- still collide (the P2002 catch is the live guard); CONTENT + REGENERATE
+-- (or GUIDE) can now coexist. Completed/failed/paused history is
+-- unaffected: the predicate only covers QUEUED/RUNNING, so repeat jobs
+-- after completion are still allowed. Index-only change: no rows, no
+-- columns, no data touched; runs inside the migration transaction.
+-- Pre-deploy check (run once before merge): confirm
+-- 20261009191000_add_unit_generation_active_unique_index is marked applied
+-- in production; if it is not, check for duplicate active
+-- (unitId, phase) rows first (SELECT unitId, phase, COUNT(*) FROM
+-- "UnitGenerationJob" WHERE status IN ('QUEUED','RUNNING') GROUP BY
+-- unitId, phase HAVING COUNT(*) > 1) — the CREATE below fails if any exist.
+DROP INDEX IF EXISTS "UnitGenerationJob_active_unitId_key";
+CREATE UNIQUE INDEX "UnitGenerationJob_active_unit_phase_key" ON "UnitGenerationJob" ("unitId", "phase") WHERE "status" IN ('QUEUED', 'RUNNING');

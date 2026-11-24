@@ -545,6 +545,13 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
         if (view === 'admin' && user?.role === 'ADMIN' && !adminTab) return false
         navigate(view as any, adminTab ? { ...routeParams, tab: adminTab } : routeParams)
         if (adminTab) dispatchAdminTab(adminTab, routeParams)
+        if (view === 'supervisor' && routeParams.section === 'review') {
+          // In-app navigation can keep SupervisorView mounted, so URL parsing
+          // on mount alone would not open the newly requested section.
+          ;[80, 250, 600].forEach((delay) => window.setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('aact-supervisor-section', { detail: { section: 'review' } }))
+          }, delay))
+        }
         return true
       }
 

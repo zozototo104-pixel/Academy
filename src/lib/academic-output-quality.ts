@@ -194,6 +194,52 @@ function words(value: string): string[] {
   return String(value || '').split(/\s+/).map((w) => w.trim()).filter(Boolean)
 }
 
+// Page-level garble gate for raw PDF/OCR page text. Unlike
+// looksLikeBrokenGeneratedArabic (tuned for short generated output —
+// forbidden phrases, sub-800-char Latin-mix rules, short-output floors),
+// this judges a whole source page: a clean Arabic page is overwhelmingly
+// Arabic letters, a clean foreign page is coherent Latin words, and a
+// corrupt ToUnicode layer shows up as font-glyph garbage (tofu boxes,
+// Hebrew code points, stray single letters) or fragment soup. Legitimate
+// mixed pages (English terms, tables, numbers) must stay native, so digit
+// tokens never count toward the fragment test and a coherent Latin page is
+// never flagged.
+export function looksLikeBrokenBookPageText(value: unknown): boolean {
+  const raw = String(value ?? '').trim()
+  if (!raw) return true
+  const chars = raw.replace(/\s/g, '')
+  if (!chars.length) return true
+  const letters = countMatches(raw, /[\p{L}]/gu)
+  const arabicLetters = countMatches(raw, /[\u0600-\u06FF]/g)
+  const hebrewLetters = countMatches(raw, /[\u0590-\u05FF]/g)
+  // Glyphs no Arabic book page should contain: tofu/replacement/private-use
+  // and symbols outside ordinary punctuation. Letters and digits never count.
+  const unexpected = [...chars].filter((ch) => {
+    if (/[\p{L}\p{N}]/u.test(ch)) return false
+    if (/[،؛؟.!?,;:()[\]{}"'«»\-–—/\\%+=*_~`|<>@#$&^]/.test(ch)) return false
+    return true
+  }).length
+  const letterWords = words(raw).filter((w) => /[\p{L}]/u.test(w))
+  const veryShort = letterWords.filter((w) => w.replace(/[^\p{L}]/gu, '').length <= 2).length
+  const latinWords = letterWords.filter((w) => /[A-Za-z]/.test(w))
+  const longLatinWords = latinWords.filter((w) => w.replace(/[^A-Za-z]/g, '').length >= 3).length
+  const coherentLatin = latinWords.length > 0 && longLatinWords / latinWords.length >= 0.6
+
+  // 1. No letters at all, only glyph garbage (a pure tofu/symbol page).
+  if (letters === 0 && unexpected > 0) return true
+  // 2. Font-glyph garbage is a visible share of the page.
+  if (chars.length >= 40 && unexpected / chars.length > 0.05) return true
+  // 3. Hebrew dominates the letter mix — a broken ToUnicode layer maps
+  // Arabic glyphs onto Hebrew code points; a stray citation word stays under.
+  if (letters >= 20 && hebrewLetters / letters > 0.1) return true
+  // 4. Fragment soup: mostly one- and two-letter words.
+  if (letterWords.length >= 18 && veryShort / letterWords.length > 0.45) return true
+  // 5. Almost no Arabic, and the Latin present is not coherent words
+  // (a real English page passes: its Latin words are long and coherent).
+  if (letters >= 40 && arabicLetters / letters < 0.2 && !coherentLatin) return true
+  return false
+}
+
 export function looksLikeBrokenGeneratedArabic(value: unknown): boolean {
   const raw = cleanAcademicOutput(value, 5000)
   if (!raw) return true

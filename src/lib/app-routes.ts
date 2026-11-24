@@ -86,7 +86,7 @@ export function pathForView(view: View, params: Record<string, string | null | u
     case 'admin':
       return params.tab ? `/admin?tab=${enc(params.tab)}` : '/admin'
     case 'supervisor':
-      return '/supervisor'
+      return params.section === 'review' ? '/supervisor?section=review' : '/supervisor'
     case 'student-preview': {
       const id = params.studentId
       return id ? `/admin/students/${enc(id)}` : '/admin'

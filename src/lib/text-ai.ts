@@ -36,6 +36,10 @@ export interface CustomTextAiProvider {
   baseUrl: string
   enabled: boolean
   selectedModel: string
+  // Explicit admin consent: when true, this provider's priced models may be
+  // listed and routed (billed to the admin's own subscription with the
+  // provider), instead of the default free-only catalog.
+  allowPaid: boolean
 }
 export function isCustomTextAiProviderId(value: unknown): value is `CUSTOM_${string}` {
   return /^CUSTOM_[A-Z0-9_]{4,32}$/.test(String(value || ''))
@@ -112,7 +116,7 @@ export function parseCustomTextAiProviders(value: unknown): CustomTextAiProvider
     const selectedModel = String(item.selectedModel || '').trim()
     if (selectedModel && !/^[A-Za-z0-9][A-Za-z0-9_.\/:@-]{0,179}$/.test(selectedModel)) return []
     seen.add(id)
-    return [{ id, name, baseUrl, enabled: item.enabled === true, selectedModel }]
+    return [{ id, name, baseUrl, enabled: item.enabled === true, selectedModel, allowPaid: item.allowPaid === true }]
   })
 }
 
@@ -1881,7 +1885,7 @@ async function fetchOpenAiCompatibleModelRows(provider: ConcreteProvider, baseUr
   }
 }
 
-async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string): Promise<string[]> {
+async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string, allowPaid = false): Promise<string[]> {
   const normalizedBaseUrl = provider === 'OPENAI_COMPAT'
     ? normalizeOpenAiCompatibleBaseUrl(baseUrl)
     : (baseUrl || '').replace(/\/$/, '')
@@ -1891,18 +1895,23 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
     const { rows: sourceRows, sourceCount } = await fetchOpenAiCompatibleModelRows(provider, baseUrl, key)
     const rows = sourceRows
       .filter(({ raw, id }) => (
-        provider === 'ALBORIHI'
+        // A custom provider the admin explicitly marked as allowing paid
+        // models behaves like Oxion: every text-like catalog model is a
+        // candidate, billed to the admin's own subscription with the provider.
+        allowPaid
           ? true
-          : provider === 'OXION'
-            // Oxion is a paid-plan gateway: the account key itself defines
-            // access, so every text-like catalog model is a candidate (the
-            // free-model marker check below would drop the whole catalog).
+          : provider === 'ALBORIHI'
             ? true
-            : provider === 'TOPTOOLS'
-              ? isStrongTopToolsTextModel(raw, id)
-              : nvidiaCompat
-                ? isNvidiaFreeTrialTextModel(raw, id)
-                : isCustomTextAiProviderId(provider) ? strictlyFreeCustomModel(raw, id) : isFreeModel(raw, id)
+            : provider === 'OXION'
+              // Oxion is a paid-plan gateway: the account key itself defines
+              // access, so every text-like catalog model is a candidate (the
+              // free-model marker check below would drop the whole catalog).
+              ? true
+              : provider === 'TOPTOOLS'
+                ? isStrongTopToolsTextModel(raw, id)
+                : nvidiaCompat
+                  ? isNvidiaFreeTrialTextModel(raw, id)
+                  : isCustomTextAiProviderId(provider) ? strictlyFreeCustomModel(raw, id) : isFreeModel(raw, id)
       ))
     const orderedRows = provider === 'TOPTOOLS'
       ? rows.sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
@@ -2232,7 +2241,8 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
   } else if (provider === 'APINEX') {
     models = await fetchApinexTextModels(baseUrl, key)
   } else if (isCustomTextAiProviderId(provider) || ['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI', 'CLOUDFLARE', 'OXION'].includes(provider)) {
-    models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
+    const allowPaid = isCustomTextAiProviderId(provider) && s.customProviders?.some((entry) => entry.id === provider && entry.allowPaid === true)
+    models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key, allowPaid)
   }
 
   models = [...new Set(models)]
@@ -2479,7 +2489,8 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
   const alborihiDiscovered = provider === 'ALBORIHI' && freeModelDiscoveryEntry(provider, s)?.discoveryOk === true && discoveredFree.length > 0
-  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered || isCustomTextAiProviderId(provider)
+  const allowPaid = isCustomTextAiProviderId(provider) && s.customProviders?.some((entry) => entry.id === provider && entry.allowPaid === true)
+  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered || (isCustomTextAiProviderId(provider) && !allowPaid)
   const discoveredSet = new Set(discoveredFree.map((model) => model.toLowerCase()))
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
   const selectedPart = selected && !selectedIsAuto && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
@@ -2496,6 +2507,12 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
     .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
   return orderModelsByHealth(provider, sortModelsByFamily(s, provider, allowed, taskLevel), taskLevel, explore, purpose)
+}
+
+export async function __testModelFallbacksForTests(providerValue: unknown, taskLevel: TextAiTaskLevel = 'GENERAL'): Promise<string[]> {
+  const s = await settings()
+  const provider = normalizeProvider(providerValue) as ConcreteProvider
+  return modelFallbacks(s, provider, taskLevel)
 }
 
 const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
@@ -2795,13 +2812,14 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   const nvidiaCompat = concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
   const alborihiDiscovered = concrete === 'ALBORIHI' && freeModelDiscoveryEntry(concrete, s)?.discoveryOk === true && discoveredRaw.length > 0
-  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered || isCustomTextAiProviderId(concrete)
+  const allowPaid = isCustomTextAiProviderId(concrete) && s.customProviders.some((entry) => entry.id === concrete && entry.allowPaid === true)
+  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered || (isCustomTextAiProviderId(concrete) && !allowPaid)
   const discovered = discoveredRaw.filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
   const discoveredSet = new Set(discovered.map((model) => model.toLowerCase()))
   const selected = modelFor(s, concrete)
   const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
   const models = [...new Set([...selectedPart, ...discovered, ...(strictDiscovered ? [] : staticDefaults)].filter(Boolean))]
-  const catalogLabel = isCustomTextAiProviderId(concrete) ? 'نموذج مجاني مؤكد' : concrete === 'ALBORIHI'
+  const catalogLabel = isCustomTextAiProviderId(concrete) ? (allowPaid ? 'نموذج متاح' : 'نموذج مجاني مؤكد') : concrete === 'ALBORIHI'
     ? 'نموذج مسموح للمفتاح'
     : concrete === 'TOPTOOLS'
       ? 'نموذج متاح'
@@ -2819,7 +2837,9 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
         ? 'لم يعرض Alborihi AI نماذج مسموحة عبر /models، لذلك تظهر القائمة الاحتياطية الثابتة فقط.'
         : concrete === 'TOPTOOLS'
           ? 'لم يعرض Top Tools AI نماذج عبر /models، لذلك يظهر النموذج الاحتياطي فقط.'
-          : 'لم يعرض المزود نماذج مجانية عبر API، لذلك تظهر القائمة الاحتياطية الثابتة فقط.',
+          : allowPaid
+            ? 'لم يعرض المزود نماذج عبر API، لذلك لا توجد قائمة للاختيار.'
+            : 'لم يعرض المزود نماذج مجانية عبر API، لذلك تظهر القائمة الاحتياطية الثابتة فقط.',
   }
 }
 
@@ -2829,7 +2849,10 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
 // catalog is empty, so "check all models of the provider" can still probe
 // the models the admin actually sees. It must never feed routing: routing
 // stays on the free catalog (textAiFreeModelsForProvider / modelFallbacks),
-// so no paid model is ever attempted automatically.
+// so no paid model is ever attempted automatically — except a custom provider
+// the admin explicitly marked as allowing paid models, whose full catalog
+// then feeds routing for that provider only (and except a model the admin
+// pinned directly in a stage profile, which routing attempts as ordered).
 export async function textAiDiscoveredModelsForProvider(providerValue: unknown): Promise<{ provider: string; models: string[]; discoveredCount: number }> {
   const s = await settings()
   const provider = normalizeProvider(providerValue)
@@ -2856,6 +2879,8 @@ function isReasoningHealthModel(model: string): boolean {
 }
 
 function healthCheckMaxOutputTokens(provider: ConcreteProvider, model: string): number {
+  // CoArena free reasoning models need room to produce a visible answer.
+  if (provider === 'CUSTOM_421999B38709' && /^(deepseek-v4-1-flash-1017|gemini-3-8-flash|gpt-6-luna)$/i.test(model)) return 1024
   if (isReasoningHealthModel(model)) return 256
   return provider === 'OPENAI' ? 64 : 8
 }
@@ -2885,7 +2910,7 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number; provider
       if (Date.now() >= deadlineMs - 1000) break
       const started = Date.now()
       try {
-        const healthTimeoutMs = provider === 'GEMINI' && /(?:3\.8|pro)/i.test(model) ? 30_000 : 15_000
+        const healthTimeoutMs = (provider === 'GEMINI' && /(?:3\.8|pro)/i.test(model)) || (provider === 'CUSTOM_421999B38709' && healthCheckMaxOutputTokens(provider, model) === 1024) ? 30_000 : 15_000
         await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: healthCheckMaxOutputTokens(provider, model), timeoutMs: healthTimeoutMs, deadlineMs: Math.min(Date.now() + healthTimeoutMs, deadlineMs) })
         const result = { provider, model, ok: true, latencyMs: Date.now() - started }
         results.push(result)
@@ -3528,7 +3553,10 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
     throw err
   }
   if (!text) {
-    const err: any = new Error(`${provider}_EMPTY_RESPONSE`)
+    const finish = String(choice.finish_reason || '').toLowerCase()
+    const safeFinish = /^[a-z_]{1,40}$/.test(finish) ? finish : 'unknown'
+    const diagnostic = provider === 'CUSTOM_421999B38709' ? ` (finish=${safeFinish}, reasoning=${Boolean(message?.reasoning_content || message?.reasoning)}, contentType=${Array.isArray(message?.content) ? 'array' : typeof message?.content})` : ''
+    const err: any = new Error(`${provider}_EMPTY_RESPONSE${diagnostic}`)
     if (isNvidiaChatCompletionsRequest(provider, baseUrl) && message?.reasoning_content) err.code = 'EMPTY_RESPONSE'
     throw err
   }

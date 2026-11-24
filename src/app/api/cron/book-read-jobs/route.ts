@@ -4,6 +4,8 @@ import { claimAiHealthRun } from '@/lib/ai-health'
 import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, claimBookReadLock, releaseBookReadLock, classifyBookReadFailure, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
+import { hasActiveBookRepairJob, runBookRepairScanStep } from '@/lib/book-repair-job'
+import { loadReadableBookPdfBuffer, resumePendingUnitRegenerations } from '@/lib/unit-regeneration-link'
 import { textAiCheckAllModelHealth } from '@/lib/text-ai'
 
 export const runtime = 'nodejs'
@@ -31,10 +33,18 @@ export async function GET(request: NextRequest) {
     ] },
     orderBy: { createdAt: 'asc' },
     take: 100,
-    select: { id: true, phase: true },
+    select: { id: true, bookId: true, phase: true },
   })
   for (const job of jobs) {
     if (Date.now() >= endAt - 48_000) break
+    // Criterion 4 (second direction): skip a job while a scan repair is
+    // active on its book, without taking its lock — the repair owns the
+    // chunks until it finishes or is stopped; the next cron run picks the
+    // job up again.
+    if (await hasActiveBookRepairJob(job.bookId)) {
+      outcomes.push({ jobId: job.id, outcome: 'SKIPPED_REPAIR_ACTIVE' })
+      continue
+    }
     const claimedAt = new Date()
     if (!(await claimBookReadLock(db, job.id, claimedAt))) {
       outcomes.push({ jobId: job.id, outcome: 'LOCKED' })
@@ -92,5 +102,79 @@ export async function GET(request: NextRequest) {
       outcomes.push({ jobId: job.id, outcome: saved.count ? (transient ? 'PAUSED' : 'FAILED') : 'STOPPED_OR_COMPLETED' })
     }
   }
+
+  // Repair-first driver (PR #212): an auto-enqueued repair job would sit
+  // QUEUED forever — no cron drove repair jobs before this — so the cron
+  // advances QUEUED/RUNNING BookRepairJobs one bounded step each, with the
+  // same PDF preflight as the SCAN route and the same endAt budget guard.
+  // A book is skipped while a read job is active on it (the mirror of the
+  // mutual exclusion above: the read job owns the chunks until it
+  // finishes or is stopped). A repair step never fails the cron run, and
+  // neither does this whole driver section: a driver-level failure is
+  // logged and the read-job outcomes above are still returned.
+  try {
+    const repairJobs = await db.bookRepairJob.findMany({
+      where: { status: { in: ['QUEUED', 'RUNNING'] } },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
+      select: { id: true, bookId: true },
+    })
+    for (const repairJob of repairJobs) {
+      if (Date.now() >= endAt - 48_000) break
+      const latestRead = await db.bookReadJob.findFirst({ where: { bookId: repairJob.bookId }, orderBy: { createdAt: 'desc' } })
+      const readActive = latestRead && ['QUEUED', 'RUNNING', 'PAUSED'].includes(latestRead.status)
+      const readStopped = readActive && latestRead.status === 'PAUSED' &&
+        latestRead.retryAt?.getUTCFullYear() === 9999 &&
+        (!latestRead.lockedUntil || latestRead.lockedUntil <= new Date())
+      if (readActive && !readStopped) {
+        outcomes.push({ jobId: repairJob.id, outcome: 'SKIPPED_READ_JOB_ACTIVE' })
+        continue
+      }
+      const book = await db.book.findUnique({
+        where: { id: repairJob.bookId },
+        select: { id: true, storageProvider: true, storageKey: true, fileUrl: true, data: true, mimeType: true },
+      })
+      const buffer = book ? await loadReadableBookPdfBuffer(book) : null
+      if (!buffer) {
+        outcomes.push({ jobId: repairJob.id, outcome: 'SKIPPED_SOURCE_UNREADABLE' })
+        continue
+      }
+      try {
+        const step = await runBookRepairScanStep(repairJob.id, buffer, Math.min(Date.now() + 240_000, endAt))
+        outcomes.push({ jobId: repairJob.id, outcome: step.done ? 'REPAIR_COMPLETED' : 'REPAIR_PROGRESSED' })
+      } catch (error: any) {
+        outcomes.push({ jobId: repairJob.id, outcome: 'REPAIR_STEP_FAILED' })
+      }
+    }
+  } catch (error) {
+    console.warn('Book repair cron driver failed (read-job outcomes unaffected):', error)
+  }
+
+  // Resume backstop: intents whose repair is already COMPLETED get their
+  // generation resumed here — this also heals a resume skipped for budget
+  // in the SCAN route or in an earlier cron run. One book at a time,
+  // under the same budget guard. A backstop-level failure is logged and
+  // never fails the cron run.
+  if (Date.now() < endAt - 48_000) {
+    try {
+      const pendingIntents = await db.unitRegenerationIntent.findMany({
+        where: { status: 'PENDING' },
+        select: { bookId: true },
+        distinct: ['bookId'],
+      })
+      for (const { bookId } of pendingIntents) {
+        if (Date.now() >= endAt - 48_000) break
+        try {
+          const resumed = await resumePendingUnitRegenerations(bookId, { deadlineMs: endAt })
+          outcomes.push({ jobId: `RESUME:${bookId}`, outcome: `RESUMED_${resumed.resolved}_OF_${resumed.results.length}` })
+        } catch (error) {
+          outcomes.push({ jobId: `RESUME:${bookId}`, outcome: 'RESUME_FAILED' })
+        }
+      }
+    } catch (error) {
+      console.warn('Unit regeneration resume backstop failed (read-job outcomes unaffected):', error)
+    }
+  }
+
   return NextResponse.json({ ok: true, processed: outcomes.length, outcomes }, { headers: { 'Cache-Control': 'no-store' } })
 }

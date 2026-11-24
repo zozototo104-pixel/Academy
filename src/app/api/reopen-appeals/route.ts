@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { createReopenAppeal } from '@/lib/reopen-appeals'
-import { assignedSupervisorForStudent } from '@/lib/supervisor-scope'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,14 +13,12 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
     const body = await req.json().catch(() => ({}))
-    const assigned = await assignedSupervisorForStudent(user.id).catch(() => null)
     const result = await createReopenAppeal(db, {
       userId: user.id,
       unitId: body?.unitId ? String(body.unitId) : null,
       programId: body?.programId ? String(body.programId) : null,
       semester: body?.semester != null ? Number(body.semester) : null,
       reason: String(body?.reason || ''),
-      supervisorUserId: (assigned as any)?.supervisorId || null,
     })
     if (!result.ok) {
       const status = result.code === 'SEMESTER_CLOSED' || result.code === 'APPEAL_ALREADY_PENDING' ? 409 : result.code === 'ENROLLMENT_NOT_FOUND' || result.code === 'UNIT_NOT_FOUND' ? 404 : 400

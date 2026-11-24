@@ -608,6 +608,8 @@ model Unit {
   exam       Exam?
   studyGuides ProgramStudyGuide[]
   generationJobs UnitGenerationJob[]
+  regenerationDrafts UnitRegenerationDraft[]
+  regenerationIntents UnitRegenerationIntent[]
   lectureSeries LectureSeries[]
   lectureVideos LectureVideoResource[]
 
@@ -616,6 +618,19 @@ model Unit {
   @@index([sourceBookId])
 }
 
+// Active-job guard (PR #212, fix 2) — partial unique index, SQL ONLY:
+// migration 20261124133500_unit_generation_job_active_phase_unique
+// creates "UnitGenerationJob_active_unit_phase_key" on ("unitId", "phase")
+// WHERE "status" IN ('QUEUED', 'RUNNING'). Prisma 6 cannot express the
+// WHERE clause, so the index MUST NOT be mirrored here as @@unique — a
+// plain @@unique([unitId, phase]) would block repeat COMPLETED jobs, and
+// a unitId-only index would make a RUNNING CONTENT job block a REGENERATE
+// create (P2002), reintroducing the cross-flow resume hijack. The same
+// migration drops the superseded 2026-10-09 unitId-only partial index
+// "UnitGenerationJob_active_unitId_key". The P2002 catch in
+// src/lib/unit-regeneration.ts (and the generate route) relies on this
+// index: same-phase concurrent first-calls collide on it and the second
+// caller gets ALREADY_RUNNING; different phases coexist.
 model UnitGenerationJob {
   id          String   @id @default(cuid())
   unitId      String
@@ -635,6 +650,56 @@ model UnitGenerationJob {
 
   @@index([unitId, status])
   @@index([status, retryAt])
+}
+
+// Damaged-unit regeneration preview (Part 3): a regenerated unit's content
+// is stored here as a PENDING draft, never on the Unit row itself. Only an
+// explicit admin approve copies summary/objectives/content onto the Unit;
+// reject only flips this row to REJECTED. Old rows stay as history — a new
+// regeneration creates a new row (the route replaces the PENDING one only).
+model UnitRegenerationDraft {
+  id                 String   @id @default(cuid())
+  unitId             String
+  unit               Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  programId          String
+  status             String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  summary            String?
+  objectives         String?  // JSON array
+  content            String   // JSON: array of { heading, body, pageRefs, sourceKnowledgeIds, sourceChunkIndexes }
+  gaps               String?  // JSON: UnitRegenerationGaps — skipped chunks/items + healthy counts
+  sourceKnowledgeIds String?  // JSON array of healthy knowledge ids the draft was built from
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  decidedAt          DateTime?
+
+  @@index([unitId, status])
+  @@index([programId])
+}
+
+// Repair-first regeneration intent (PR #212): a damaged unit whose sources
+// are garbled does NOT generate and is NOT refused while a book repair can
+// still fix its sources. Instead the regenerate request defers: it records
+// this PENDING intent (one per unit, via @@unique([unitId, status])) linked
+// to the repair job, and the repair driver / cron resumes generation
+// automatically when the repair finishes. The intent resolves ONLY after a
+// draft is created or a final refusal is recorded; an admin can cancel it.
+// repairJobId is a plain String (NO FK): the repair job is a background
+// driver, and the intent must survive the job row's lifecycle.
+model UnitRegenerationIntent {
+  id         String    @id @default(cuid())
+  unitId     String
+  unit       Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  programId  String
+  bookId     String
+  repairJobId String?
+  status     String    @default("PENDING") // PENDING | RESOLVED | CANCELLED
+  resolution String?   // DRAFT_CREATED | REFUSED_NO_HEALTHY_SOURCES | CANCELLED_BY_ADMIN
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+
+  @@unique([unitId, status])
+  @@index([bookId, status])
 }
 
 model Enrollment {
@@ -1992,6 +2057,7 @@ model Book {
   knowledgeItems BookKnowledgeItem[]
   readChunks BookChunk[]
   readJobs BookReadJob[]
+  repairJobs BookRepairJob[]
   outlines BookOutline[]
   uploadChunks BookUploadChunk[]
 }
@@ -2086,6 +2152,7 @@ model BookReadJob {
   totalChunks    Int       @default(0)
   chunksAnalyzed Int       @default(0)
   chunksFailed   Int       @default(0)
+  enrichmentTarget Int?    // هدف الإثراء لهذه المهمة: 10 افتراضياً، 20 للإثراء الإضافي؛ NULL = 10
   lastError      String?
   retryAt        DateTime?
   lockedUntil    DateTime?
@@ -2096,6 +2163,38 @@ model BookReadJob {
 
   @@index([bookId, status])
   @@index([status, retryAt])
+}
+
+// مهمة إصلاح تشوهات كتاب كامل (فحص انتقائي): تعمل في الخلفية، تستأنف من آخر
+// تقدّم، ولا تحذف أي عنصر معرفة أبداً — التصحيح في المكان نفسه (نفس المعرّف)
+// أو إرسال للمراجعة. العدادات للعرض في لوحة الإدارة، وprogress JSON يحفظ
+// حالة الاستئناف (الفهارس والمُعرّفات المُصلَحة / المحتاجة مراجعة).
+model BookRepairJob {
+  id                String    @id @default(cuid())
+  bookId            String
+  book              Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  programId         String
+  status            String    @default("QUEUED") // QUEUED | RUNNING | PAUSED | COMPLETED | FAILED | STOPPED
+  mode              String    @default("SCAN")
+  chunksTotal       Int       @default(0)
+  chunksHealthy     Int       @default(0)
+  chunksCorrected   Int       @default(0)
+  chunksRemaining   Int       @default(0)
+  chunksNeedsReview Int       @default(0)
+  itemsTotal        Int       @default(0)
+  itemsHealthy      Int       @default(0)
+  itemsCorrected    Int       @default(0)
+  itemsRemaining    Int       @default(0)
+  itemsNeedsReview  Int       @default(0)
+  progress          String?   // JSON: { nextChunkIndex, repairedChunkIds, reviewChunkIds, reviewItemIds }
+  lastError         String?
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([bookId, status])
+  @@index([status])
 }
 
 model BookKnowledgeItem {
