@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { geminiCompleteJson, geminiVisionJson } from '@/lib/gemini'
-import { textAiCompleteJson } from '@/lib/text-ai'
+import { textAiCompleteJson, isTextAiAutoModeEnabled } from '@/lib/text-ai'
 import { hydrateBookContentForExam, type RawBookForHydration } from '@/lib/book-content'
 import { cleanAcademicOutput as sharedCleanAcademicOutput, looksLikeBrokenGeneratedArabic as sharedLooksBrokenAcademicOutput, conciseAcademicLabel, planKnowledgeItemCleanup } from '@/lib/academic-output-quality'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
@@ -900,13 +900,19 @@ ${sample}
 أجب JSON فقط كمصفوفة عناصر.`
 
   // المسار الأساسي: Gemini JSON mode لأنه يفرض application/json ويقلل فشل التحليل.
-  try {
+  // Step 7c: when auto mode is ON the ranking decides — the Gemini-first
+  // attempt is skipped and the router call below (purpose ANALYSIS) runs
+  // first with the auto ranking. When OFF, today's order is unchanged.
+  const autoMode = await isTextAiAutoModeEnabled().catch(() => false)
+  if (!autoMode) try {
     const raw = await Promise.race([
       geminiCompleteJson({
         system: 'أنت محلل مناهج جامعية. أرجع JSON صالحاً فقط على شكل مصفوفة، بلا Markdown ولا شرح خارج JSON.',
         history: [{ role: 'user', text: prompt }],
         temperature: 0.08,
         maxOutputTokens: 12288,
+        purpose: 'ANALYSIS',
+        taskType: 'BOOK_KNOWLEDGE',
       }),
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_GEMINI_JSON_TIMEOUT')), 52000)),
     ])
@@ -1569,6 +1575,8 @@ ${unitText}
         history: [{ role: 'user', text: prompt }],
         temperature: 0.05,
         maxOutputTokens: 8192,
+        purpose: 'ANALYSIS',
+        taskType: 'BOOK_KNOWLEDGE_UNIT',
         taskLevel: 'ACADEMIC_CRITICAL',
         validate: (text) => {
           if (!normalizeUnitItems(text).length) {

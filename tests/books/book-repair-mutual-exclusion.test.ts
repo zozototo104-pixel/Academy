@@ -49,6 +49,14 @@ mock.module('@/lib/text-ai', () => ({
   textAiCompleteJson: async () => ({}),
   textAiCompleteJsonWithMetadata: async () => ({ result: {}, model: 'mock', provider: 'mock' }),
   textAiStreamText: async () => ({}),
+  // Bound by the repair scheduler's import chain at load time (step 6a
+  // auto OCR selection); auto OFF here.
+  isTextAiAutoModeEnabled: async () => false,
+  autoRankingForPurpose: async () => [],
+  // Bound by the chain step 7 pulled in (outline-units → ai-stage-runner →
+  // ai-stage-profiles); values match the real exports (text-ai.ts:33).
+  CUSTOM_AI_PROVIDERS_SETTING: 'AI_CUSTOM_PROVIDERS',
+  parseCustomTextAiProviders: () => [],
 }))
 
 const stepDb: any = {

@@ -218,6 +218,9 @@ ${textEvidence || 'لا يوجد textContent مستخرج؛ اعتمد فقط ع
       temperature: 0.2,
       thinkingBudget: 768,
       maxOutputTokens: 9000,
+      // Step 7i: explicit purpose so the auto ranking for ANALYSIS applies.
+      purpose: 'ANALYSIS',
+      taskType: 'PROGRAM_UNIT_ANALYSIS',
     }, trace, { stage: 'BOOK_ANALYSIS', bookTitle: book.title })
     const parsed = parseJsonObject(raw)
     return {
@@ -403,6 +406,9 @@ ${sourceUnitDrafts}
       temperature: 0.18,
       thinkingBudget: 512,
       maxOutputTokens: 9000,
+      // Step 7i: explicit purpose so the auto ranking for GENERATION applies.
+      purpose: 'GENERATION',
+      taskType: 'PROGRAM_UNIT_SYNTHESIS',
     }, trace, { stage: 'SYNTHESIS' })
     const parsed = parseJsonArray(raw)
     const normalized = Array.isArray(parsed)

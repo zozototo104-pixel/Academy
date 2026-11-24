@@ -411,7 +411,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         ? 'AI_VERIFIER_UNAVAILABLE'
         : error?.code === 'AI_VERIFIER_SAME_FAMILY'
           ? 'VERIFIER_SAME_FAMILY'
-          : error?.code === 'AI_DEADLINE_EXCEEDED'
+          : error?.code === 'AI_DEADLINE_EXCEEDED' || error?.code === 'TEXT_AI_RUN_TIMEOUT'
             ? 'VERIFIER_TIME_BUDGET_EXCEEDED'
             : `VERIFICATION_PENDING:${String(error?.reason || error?.code || error?.message || error).slice(0, 180)}`
       for (const item of prepared) {

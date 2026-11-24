@@ -140,6 +140,8 @@ async function analyze(thesisId: string, deadlineMs: number) {
         temperature: 0.2,
         maxOutputTokens: 900,
         deadlineMs,
+        purpose: 'ANALYSIS',
+        taskType: 'THESIS_CHUNK_SUMMARY',
         system: 'لخص مقطعاً من بحث تخرج أكاديمي بالعربية بوضوح وبدون اختلاق.',
         history: [{ role: 'user', text: `لخص هذا المقطع في 150-250 كلمة، مع ذكر: الفكرة، المنهج، النتائج، والادعاءات إن وجدت.\n\n${chunk.text.slice(0, 6000)}` }],
       })
@@ -163,6 +165,8 @@ async function digest(thesisId: string, deadlineMs: number) {
     temperature: 0.1,
     maxOutputTokens: 2800,
     deadlineMs,
+    purpose: 'ANALYSIS',
+    taskType: 'THESIS_DIGEST',
     system: 'أنت محلل أبحاث أكاديمية. أرجع JSON فقط مطابقاً للمخطط المطلوب.',
     history: [{ role: 'user', text: `من ملخصات مقاطع بحث التخرج التالية، استخرج digest JSON بالمفاتيح: problem, objectives[], methodology, sample, tools[], keyFindings[], contributions[], literatureCoverage, referencesCount, weaknesses[], sectionMap[{title, chunkFrom, chunkTo}].\n\n${summaries}` }],
   })

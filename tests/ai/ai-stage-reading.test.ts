@@ -7,11 +7,13 @@ let visionRouterCall: (opts: any) => Promise<{ text: string; provider: string; m
 mock.module('@/lib/db', () => ({ db: { aiPipelineOperationLog: { create: async () => ({}) } } }))
 mock.module('@/lib/text-ai', () => ({
   pipelineConfigSnapshot: async () => ({ policy: 'balanced', allowedModels: ['GEMINI:g'], verifierPreferred: [] }),
-  textAiAutomaticManagementEnabled: async () => false,
-
   CUSTOM_AI_PROVIDERS_SETTING: 'AI_CUSTOM_PROVIDERS',
   parseCustomTextAiProviders: () => [],
   textAiCompleteJsonWithMetadata: async (opts: any) => visionRouterCall(opts),
+  // Bound by book-reader at load time (step 6a auto OCR selection);
+  // auto OFF here, so the reader keeps its stage-profile/global path.
+  isTextAiAutoModeEnabled: async () => false,
+  autoRankingForPurpose: async () => [],
 }))
 
 const { buildStageRoutingOverrides, validateStageProfileSnapshot, __setStageProfileStoreForTests } = await import('@/lib/ai-stage-profiles')

@@ -230,6 +230,32 @@ model AiPipelineOperationLog {
   @@index([profileVersion, createdAt])
 }
 
+// Auto AI provider/model management (steps 5-6): durable router-level
+// failover history. Pipeline runs already have AiPipelineOperationLog;
+// this covers non-pipeline router calls too. failureKind is an enum
+// stored as a string: QUOTA_EXHAUSTED | DEAD_KEY | PROVIDER_DOWN |
+// UNSUPPORTED_CAPABILITY | TIMEOUT | OUTPUT_QUALITY | AUTH | NO_BALANCE
+// | SCHEMA. Written by the failover path only, never on the request
+// path's hot loop beyond one best-effort insert. AiDiscoveredModel and
+// AiTaskRanking stay Setting JSON (AI_AUTO_RANKING:*), not tables.
+model AiAutoFailoverEvent {
+  id            String   @id @default(cuid())
+  provider      String
+  model         String?
+  keyIndex      Int?
+  purpose       String?
+  taskType      String?
+  failureKind   String
+  cooldownScope String?
+  cooldownUntil DateTime?
+  nextModel     String?
+  detail        Json?
+  createdAt     DateTime @default(now())
+
+  @@index([provider, createdAt])
+  @@index([purpose, createdAt])
+}
+
 // D1: per-stage pipeline profiles with append-only versioning.
 // The profile row is only a pointer (stage + currentVersion); the full
 // configuration lives in immutable version rows — an admin edit always

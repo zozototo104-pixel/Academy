@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/store'
-import { AutomaticAiManagement } from '@/components/aact/AutomaticAiManagement'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -1475,8 +1474,6 @@ export function AdminSystemTab() {
               </div>
               <Badge className={textAiDiag?.externalConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}>{textAiDiag?.externalConfigured ? `نشط: ${textAiDiag.activeProvider}` : 'Gemini / غير خارجي'}</Badge>
             </div>
-            <AutomaticAiManagement enabled={form.AI_AUTO_MANAGEMENT_ENABLED === 'true' || form.AI_AUTO_MANAGEMENT_ENABLED === '1'} onChange={(value) => set('AI_AUTO_MANAGEMENT_ENABLED', value ? 'true' : 'false')} />
-            <p className="text-xs text-indigo-700">الاختيارات اليدوية التالية محفوظة، وتعود للعمل عند تعطيل الإدارة التلقائية وحفظ الإعدادات.</p>
             {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', allTextProviderChoices, textProviderHelp)}
             {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, routerPolicyHelp)}
             {SelectF('AI_ROUTER_POLICY_SOURCE', 'مصدر سياسة الراوتر', ROUTER_POLICY_SOURCE_CHOICES, 'افتراضي النظام يحافظ على balanced/primary_first المكتوبة في الكود. سياسة لوحة الإدارة تجعل المسارات تستخدم AI_ROUTER_POLICY.')}
@@ -1492,6 +1489,13 @@ export function AdminSystemTab() {
             {F('AI_FAMILY_QUALITY_ORDER', 'ترتيب عائلات الجودة AI_FAMILY_QUALITY_ORDER', DEFAULT_FAMILY_QUALITY_ORDER, 'text', 'اختياري. اتركه فارغاً لاستخدام الترتيب الافتراضي.')}
             {F('AI_FAMILY_COST_ORDER', 'ترتيب عائلات التوفير AI_FAMILY_COST_ORDER', DEFAULT_FAMILY_COST_ORDER, 'text', 'اختياري. اتركه فارغاً لاستخدام الترتيب الافتراضي.')}
             {F('AI_ROUTER_COOLDOWN_MINUTES', 'مدة التبريد الافتراضية (دقائق)', '15', 'number', 'رقم من 1 إلى 120. إذا تُرك فارغاً أو خارج النطاق يعود إلى 15 دقيقة.')}
+            <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
+              <div>
+                <p className="text-xs font-black text-indigo-900">الوضع التلقائي لاختيار المزود والنموذج</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل يختار النظام المزود والنموذج الأفضل لكل مهمة تلقائياً بدل ترتيبك اليدوي — وترتيبك اليدوي يبقى محفوظاً كما هو، وإطفاء المفتاح يعيده فوراً دون أي تغيير. المدفوع يبقى محظوراً إلا بإذنك، والمدقق لا يأخذ أبداً نفس مزود أو عائلة المولّد.</p>
+              </div>
+              <Switch checked={form.AI_AUTO_MODE_ENABLED === '1' || form.AI_AUTO_MODE_ENABLED === 'true'} onCheckedChange={(v) => set('AI_AUTO_MODE_ENABLED', v ? '1' : '0')} />
+            </div>
             <div className="rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>

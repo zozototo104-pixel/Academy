@@ -35,6 +35,10 @@ mock.module('@/lib/text-ai', () => ({
     opts?.validate?.(result.text)
     return result
   },
+  // Bound by book-reader at load time (step 6a auto OCR selection);
+  // auto OFF here, so the reader keeps its stage-profile/global path.
+  isTextAiAutoModeEnabled: async () => false,
+  autoRankingForPurpose: async () => [],
   CUSTOM_AI_PROVIDERS_SETTING: 'AI_CUSTOM_PROVIDERS',
   parseCustomTextAiProviders: () => [],
   pipelineConfigSnapshot: () => ({}),

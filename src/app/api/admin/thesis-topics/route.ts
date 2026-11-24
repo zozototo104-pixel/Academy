@@ -91,6 +91,9 @@ export async function POST(req: NextRequest) {
         history: [{ role: 'user', text: prompt }],
         temperature: 0.45,
         maxOutputTokens: 3000,
+        // Step 7i: explicit purpose so the auto ranking for GENERATION applies.
+        purpose: 'GENERATION',
+        taskType: 'THESIS_TOPICS',
       })
       const parsed = parseAiJson(text)
       const topics = Array.isArray(parsed?.topics) ? parsed.topics : Array.isArray(parsed) ? parsed : []

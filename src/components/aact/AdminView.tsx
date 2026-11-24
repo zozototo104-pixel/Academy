@@ -77,6 +77,7 @@ const AdminAnnouncementsTab = dynamic(() => loadAdminAnnouncementsModule().then(
 const AdminLectures = dynamic(() => import('@/components/aact/AdminLectures').then((m) => m.AdminLectures), { ssr: false, loading: AdminTabLoader })
 const AdminMeetings = dynamic(() => import('@/components/aact/AdminMeetings').then((m) => m.AdminMeetings), { ssr: false, loading: AdminTabLoader })
 const AdminAiStageProfiles = dynamic(() => import('@/components/aact/AdminAiStageProfiles').then((m) => m.AdminAiStageProfiles), { ssr: false, loading: AdminTabLoader })
+const AdminAiMonitoring = dynamic(() => import('@/components/aact/AdminAiMonitoring').then((m) => m.AdminAiMonitoring), { ssr: false, loading: AdminTabLoader })
 
 interface Stats {
   stats: {
@@ -488,7 +489,7 @@ export function AdminView() {
       'admissions', 'service-requests', 'rules', 'students', 'supervisors', 'agents',
       'representatives', 'books', 'knowledge-ai-repair', 'study-schedule', 'quality', 'attempts',
       'grading-review', 'thesis', 'ai', 'finance', 'certs', 'legacy-graduates',
-      'system', 'announcements', 'lectures', 'meetings', 'ai-stage-profiles',
+      'system', 'announcements', 'lectures', 'meetings', 'ai-stage-profiles', 'ai-monitoring',
       'settings', 'admins', 'audit', 'messages', 'admin-messages',
       'student-follow-up', 'whatsapp-inbox',
     ])
@@ -2062,6 +2063,7 @@ export function AdminView() {
               <TabsTrigger value="lectures" className="gap-1 text-[10px] font-bold sm:text-xs">المحاضرات واللقاءات</TabsTrigger>
               <TabsTrigger value="meetings" className="gap-1 text-[10px] font-bold sm:text-xs">قاعة الاجتماعات</TabsTrigger>
               <TabsTrigger value="ai-stage-profiles" className="gap-1 text-[10px] font-bold sm:text-xs">بروفايلات الذكاء</TabsTrigger>
+              <TabsTrigger value="ai-monitoring" className="gap-1 text-[10px] font-bold sm:text-xs">مراقبة الذكاء</TabsTrigger>
               <TabsTrigger value="settings" className="gap-1 text-[10px] font-bold sm:text-xs">الرسوم والقواعد</TabsTrigger>
               <TabsTrigger value="admins" className="gap-1 text-[10px] font-bold sm:text-xs">مدراء النظام</TabsTrigger>
               <TabsTrigger value="audit" className="gap-1 text-[10px] font-bold sm:text-xs">سجل التدقيق</TabsTrigger>
@@ -2737,6 +2739,11 @@ export function AdminView() {
         {/* بروفايلات مراحل الذكاء */}
         <TabsContent value="ai-stage-profiles" className="w-full min-w-0 max-w-full overflow-x-hidden">
           <AdminAiStageProfiles />
+        </TabsContent>
+
+        {/* مراقبة الوضع التلقائي للمزودين والنماذج */}
+        <TabsContent value="ai-monitoring" className="w-full min-w-0 max-w-full overflow-x-hidden">
+          <AdminAiMonitoring />
         </TabsContent>
 
         {/* سجل التدقيق */}

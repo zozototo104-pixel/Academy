@@ -1,9 +1,9 @@
-import { AI_AUTO_SETTING, automaticManagementEnabled, automaticModelScore, automaticSelectionReason } from '@/lib/ai-auto-policy'
 import { createHash } from 'crypto'
 import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
 import { request as httpsRequest } from 'node:https'
 import { db } from '@/lib/db'
+import { AI_AUTO_MODE_CONFIG_KEY, AI_AUTO_MODE_ENABLED_KEY, AI_AUTO_RANKING_ASR_KEY, AUTO_PURPOSES, autoRankingKey, classifyAutoFailure, emptyProviderDownState, filterVoiceModelsFromTextRanking, isAutoModeEnabled, isProviderDownLike, parseAsrRanking, parseAutoModeConfig, parseAutoRanking, recordProviderDownHit, reconcileDiscoveryCatalog, resolveAutoCandidates, stickyOrderUnderAuto, TEXT_AI_RUN_TIMEOUT, type AsrRankingEntry, type AutoCandidate, type ProviderDownState } from '@/lib/ai-auto-mode'
 import { enforceAiUserDailyCostCap, estimateAiCostCents, estimatePromptTokens, recordAiUsage } from '@/lib/ai-usage-accounting'
 import { decryptSecret, isEncryptedSecret, isSecretKeyName, keyHashForRateLimit, redactSecrets, unsealSettingSecret } from '@/lib/secret-crypto'
 
@@ -156,7 +156,7 @@ export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' 
 export type TextAiRouterPolicySource = 'legacy' | 'admin'
 export type TextAiPolicyRankBy = 'provider' | 'family'
 export type TextAiTaskLevel = 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
-export type TextAiProviderTier = 'FREE' | 'PAID' | 'UNKNOWN'
+export type TextAiProviderTier = 'FREE' | 'PAID'
 export type TextAiPaidUsageMode = 'off' | 'last_resort' | 'critical_first'
 export type TextAiPurpose = 'CHAT' | 'ANALYSIS' | 'GENERATION' | 'GRADING' | 'VISION' | 'LONG_CONTEXT' | 'REVIEW'
 export type TextAiPreferredModel = { provider: Exclude<TextAiProvider, 'AUTO'>; model: string }
@@ -383,13 +383,43 @@ const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 
 
 const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
 const providerRateLimitHits = new Map<string, number[]>()
+// Step 5 — PROVIDER_DOWN tracking: 5xx / network / DNS hits per
+// provider (pure counting lives in ai-auto-mode.ts). A provider is
+// declared down only after 3 hits in 60s across >= 2 distinct models;
+// the provider-level cooldown then blocks all its keys at once.
+let providerDownState: ProviderDownState = emptyProviderDownState()
 const modelRateLimitHits = new Map<string, Array<{ model: string; at: number }>>()
 const nvidiaHardModelFailureHits = new Map<string, number[]>()
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
-type ModelCapability = { contextLength?: number; vision?: boolean; modalities?: string[]; supportedParameters?: string[]; family?: string }
-type FreeModelsCacheEntry = { at: number; models: string[]; capabilities?: Record<string, ModelCapability>; discoveryOk?: boolean; sourceCount?: number }
+type ModelCapability = {
+  contextLength?: number; vision?: boolean; modalities?: string[]; supportedParameters?: string[]; family?: string;
+  // Step 4 — capability classification beyond vision/modalities. Every flag
+  // below comes ONLY from provider /models metadata (see
+  // capabilityFromModelRow) or from a real background probe / run-result
+  // feedback (ai-capability-probes.ts, ai-auto-mode.ts). Name-based
+  // inference is a last resort and is labelled `inferred: true` — it is
+  // never presented as provider fact. `costTier` is 'unknown' unless the
+  // row declares pricing: there is no balance API anywhere, so remaining
+  // balance is never assumed (recorded as 'unknown').
+  pdf?: boolean; ocr?: boolean; academic?: boolean; extraction?: boolean;
+  enrichment?: boolean; audit?: boolean; tools?: boolean; voice?: boolean;
+  maxOutputTokens?: number; costTier?: 'free' | 'paid' | 'unknown';
+  inferred?: boolean;
+}
+export type { ModelCapability }
+type FreeModelsCacheEntry = {
+  at: number; models: string[]; capabilities?: Record<string, ModelCapability>; discoveryOk?: boolean; sourceCount?: number;
+  // Step 3 — discovery freshness + retirement state, persisted in the SAME
+  // AI_MODELS_AVAILABLE:<cacheKey> payload (no second cache).
+  // discoveredAt: first time this provider's catalog was seen.
+  // lastError: set only when the last refresh FAILED (transient rule).
+  // retired/renamed/missedCounts: reconciliation state from
+  // reconcileDiscoveryCatalog (ai-auto-mode.ts). A failed refresh never
+  // touches these — retirement needs 2 consecutive SUCCESSFUL refreshes.
+  discoveredAt?: number; lastError?: string; retired?: string[]; renamed?: Record<string, string>; missedCounts?: Record<string, number>;
+}
 const freeModelsCache = new Map<string, FreeModelsCacheEntry>()
 
 type TextAiSettingStore = {
@@ -459,6 +489,7 @@ export function __setTextAiSettingStoreForTests(store: TextAiSettingStore | null
 
 export function __resetTextAiStateForTests() {
   cooldowns.clear()
+  providerDownState = emptyProviderDownState()
   modelRateLimitHits.clear()
   nvidiaHardModelFailureHits.clear()
   roundRobin = 0
@@ -584,10 +615,10 @@ export function parseProviderTiers(value: unknown): Partial<Record<ConcreteProvi
   for (const raw of String(value || '').split(',')) {
     const item = raw.trim()
     if (!item) continue
-    const [providerText, tierText, extra] = item.split(/[=:]/)
+    const [providerText, tierText, extra] = item.split(':')
     const provider = normalizeProvider(providerText)
     const tier = clean(tierText).toUpperCase()
-    if (extra !== undefined || provider === 'AUTO' || provider !== clean(providerText).toUpperCase() || (tier !== 'PAID' && tier !== 'FREE' && tier !== 'UNKNOWN')) continue
+    if (extra !== undefined || provider === 'AUTO' || provider !== clean(providerText).toUpperCase() || (tier !== 'PAID' && tier !== 'FREE')) continue
     out[provider as ConcreteProvider] = tier as TextAiProviderTier
   }
   return out
@@ -887,8 +918,14 @@ function aiDiscoveryTimeoutMs(): number {
 }
 
 function deadlineExceeded(): Error {
+  // Step 5 — a run timeout is its own code, TEXT_AI_RUN_TIMEOUT,
+  // distinct from TEXT_AI_ROUTER_FAILED: background jobs treat it as
+  // pausable/resumable (retryAt preserved, progress kept), never as
+  // "all models exhausted". The message stays AI_DEADLINE_EXCEEDED so
+  // existing message-based checks keep working; question-verifier.ts
+  // accepts both codes.
   const err: any = new Error('AI_DEADLINE_EXCEEDED')
-  err.code = 'AI_DEADLINE_EXCEEDED'
+  err.code = TEXT_AI_RUN_TIMEOUT
   err.status = 504
   return err
 }
@@ -1195,8 +1232,8 @@ async function readSettings(keys: string[]): Promise<Record<string, string>> {
 
 async function settings() {
   const rows = await readSettings([
-    AI_AUTO_SETTING,
     'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES', 'AI_PROVIDER_FALLBACK_ORDER', 'AI_PROVIDER_FALLBACK_ORDER_ENABLED',
+    AI_AUTO_MODE_ENABLED_KEY, AI_AUTO_MODE_CONFIG_KEY, ...AUTO_PURPOSES.map((purpose) => autoRankingKey(purpose)), AI_AUTO_RANKING_ASR_KEY,
     'AI_PAID_USAGE_MODE', 'AI_PAID_MODELS', 'AI_PAID_DAILY_LIMIT_USD', 'AI_PAID_MONTHLY_LIMIT_USD', 'AI_PROVIDER_TIER_OPENAI_COMPAT', CUSTOM_AI_PROVIDERS_SETTING,
     'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL',
     'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
@@ -1221,9 +1258,8 @@ async function settings() {
   const customProviderKeys: Record<string, string[]> = Object.fromEntries(customProviders.map((entry) => [
     entry.id, parseKeys(customKeyRows[customTextAiKeySetting(entry.id)]),
   ]))
-  const automaticManagement = automaticManagementEnabled(rows[AI_AUTO_SETTING] || env(AI_AUTO_SETTING))
-  const provider = automaticManagement ? 'AUTO' as const : normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
-  const policy = automaticManagement ? 'cost_saver' as const : normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
+  const provider = normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
+  const policy = normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
   const routerCooldownMinutes = __testResolveRouterCooldownMinutesForTests(rows.AI_ROUTER_COOLDOWN_MINUTES, env('AI_ROUTER_COOLDOWN_MINUTES'))
   cachedRouterCooldownMinutes = routerCooldownMinutes
   // The manual fallback order's on/off switch (AI_PROVIDER_FALLBACK_ORDER_ENABLED,
@@ -1231,21 +1267,20 @@ async function settings() {
   // it exists (the PR #159 semantics); an explicit 'false' parks the saved
   // order and hands routing back to the coded policies/families/paid-first.
   const manualOrderEnabledRaw = rows.AI_PROVIDER_FALLBACK_ORDER_ENABLED || env('AI_PROVIDER_FALLBACK_ORDER_ENABLED')
-  const manualProviderOrderEnabled = !automaticManagement && (manualOrderEnabledRaw === '' ? true : booleanSetting(manualOrderEnabledRaw))
+  const manualProviderOrderEnabled = manualOrderEnabledRaw === '' ? true : booleanSetting(manualOrderEnabledRaw)
   const openaiCompatBaseUrl = normalizeOpenAiCompatibleBaseUrl(rows.OPENAI_COMPAT_BASE_URL || env('OPENAI_COMPAT_BASE_URL') || '')
   const openaiCompatDefaults = isNvidiaOpenAiCompatibleBaseUrl(openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   return {
-    automaticManagement,
     provider,
     customProviders,
     customProviderKeys,
     policy,
-    policySource: automaticManagement ? 'legacy' as const : normalizePolicySource(rows.AI_ROUTER_POLICY_SOURCE || env('AI_ROUTER_POLICY_SOURCE') || 'legacy'),
+    policySource: normalizePolicySource(rows.AI_ROUTER_POLICY_SOURCE || env('AI_ROUTER_POLICY_SOURCE') || 'legacy'),
     policyRankBy: normalizePolicyRankBy(rows.AI_POLICY_RANK_BY || env('AI_POLICY_RANK_BY') || 'provider'),
     familyQualityOrder: parseFamilyOrder(rows.AI_FAMILY_QUALITY_ORDER || env('AI_FAMILY_QUALITY_ORDER'), DEFAULT_FAMILY_QUALITY_ORDER),
     familyCostOrder: parseFamilyOrder(rows.AI_FAMILY_COST_ORDER || env('AI_FAMILY_COST_ORDER'), DEFAULT_FAMILY_COST_ORDER),
     providerTiers: parseProviderTiers(rows.AI_PROVIDER_TIERS || env('AI_PROVIDER_TIERS') || ''),
-    paidFirst: !automaticManagement && booleanSetting(rows.AI_PAID_FIRST || env('AI_PAID_FIRST')),
+    paidFirst: booleanSetting(rows.AI_PAID_FIRST || env('AI_PAID_FIRST')),
     routerCooldownMinutes,
     allowPublicGateways: booleanSetting(rows.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS || env('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS')),
     academicAllowlist: parseAcademicAllowlist(rows.AI_ACADEMIC_ALLOWLIST || env('AI_ACADEMIC_ALLOWLIST') || DEFAULT_ACADEMIC_ALLOWLIST),
@@ -1257,7 +1292,7 @@ async function settings() {
     paidModels: parseKeys(rows.AI_PAID_MODELS || env('AI_PAID_MODELS')).filter((model) => validModelName(model) && academicModelAllowed('OPENAI_COMPAT', model)),
     paidDailyLimitUsd: Math.max(0, Number(rows.AI_PAID_DAILY_LIMIT_USD || env('AI_PAID_DAILY_LIMIT_USD') || 0) || 0),
     paidMonthlyLimitUsd: Math.max(0, Number(rows.AI_PAID_MONTHLY_LIMIT_USD || env('AI_PAID_MONTHLY_LIMIT_USD') || 0) || 0),
-    openaiCompatTier: String(rows.AI_PROVIDER_TIER_OPENAI_COMPAT || env('AI_PROVIDER_TIER_OPENAI_COMPAT') || 'FREE').toUpperCase() === 'PAID' ? 'PAID' as TextAiProviderTier : String(rows.AI_PROVIDER_TIER_OPENAI_COMPAT || env('AI_PROVIDER_TIER_OPENAI_COMPAT') || '').toUpperCase() === 'UNKNOWN' ? 'UNKNOWN' as TextAiProviderTier : 'FREE' as TextAiProviderTier,
+    openaiCompatTier: String(rows.AI_PROVIDER_TIER_OPENAI_COMPAT || env('AI_PROVIDER_TIER_OPENAI_COMPAT') || 'FREE').toUpperCase() === 'PAID' ? 'PAID' as TextAiProviderTier : 'FREE' as TextAiProviderTier,
     // Vision/text routing: env Gemini key first, then all configured DB keys with the existing key rotation/cooldown policy.
     geminiKeys: parseKeys(env('GEMINI_API_KEY'), env('GEMINI_API_KEYS'), rows.GEMINI_API_KEY, rows.GEMINI_API_KEYS),
     geminiModel: normalizeGeminiTextModel(rows.GEMINI_TEXT_MODEL || env('GEMINI_TEXT_MODEL')),
@@ -1309,6 +1344,21 @@ async function settings() {
     oxionBaseUrl: (rows.OXION_BASE_URL || env('OXION_BASE_URL') || OXION_DEFAULT_BASE_URL).replace(/\/$/, ''),
     manualProviderOrder: parseProviderOrder(rows.AI_PROVIDER_FALLBACK_ORDER || env('AI_PROVIDER_FALLBACK_ORDER')),
     manualProviderOrderEnabled,
+    // Auto provider/model management (step 1): OFF by default. The flag is
+    // threaded through this object so router decisions can branch on it
+    // without re-reading the DB. Manual keys are never written from auto
+    // code — the ranking only wins at call time, when ON.
+    autoMode: isAutoModeEnabled(rows[AI_AUTO_MODE_ENABLED_KEY] || env(AI_AUTO_MODE_ENABLED_KEY)),
+    autoConfig: parseAutoModeConfig(rows[AI_AUTO_MODE_CONFIG_KEY] || env(AI_AUTO_MODE_CONFIG_KEY) || ''),
+    autoRankings: Object.fromEntries(
+      // Step 7h: a live/TTS model id can never enter text routing, even
+      // if a stored ranking row lists one — it is dropped here, at the
+      // single seam where rankings are read.
+      AUTO_PURPOSES.map((purpose) => [purpose, filterVoiceModelsFromTextRanking(parseAutoRanking(rows[autoRankingKey(purpose)] || ''))]),
+    ) as Record<TextAiPurpose, AutoCandidate[]>,
+    // Step 7g: ASR selection reads its own ranking key (backends, not
+    // text models); the text router never consumes it.
+    autoAsrRanking: parseAsrRanking(rows[AI_AUTO_RANKING_ASR_KEY] || ''),
     openaiCompatKeys: parseKeys(rows.OPENAI_COMPAT_API_KEY, rows.OPENAI_COMPAT_API_KEYS, env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS')),
     openaiCompatModel: normalizeModel(rows.OPENAI_COMPAT_TEXT_MODEL || env('OPENAI_COMPAT_TEXT_MODEL'), openaiCompatDefaults),
     openaiCompatBaseUrl,
@@ -1317,63 +1367,6 @@ async function settings() {
 
 type Settings = Awaited<ReturnType<typeof settings>>
 type ConcreteProvider = Exclude<TextAiProvider, 'AUTO'>
-
-export async function textAiAutomaticManagementEnabled(): Promise<boolean> {
-  const rows = await readSettings([AI_AUTO_SETTING])
-  return automaticManagementEnabled(rows[AI_AUTO_SETTING] || env(AI_AUTO_SETTING))
-}
-
-async function automaticCandidates(s: Settings, providers: ConcreteProvider[], taskLevel: TextAiTaskLevel, purpose: TextAiPurpose, cooldowns: Record<string, string>) {
-  const candidates = (await Promise.all(providers.map(async (provider) => {
-    const models = await modelFallbacks(s, provider, taskLevel, false, purpose)
-    const health = await readModelHealth(provider, models)
-    const rows = await settingStore().read(models.map((model) => purposeModelStatsKey(purpose, provider, model)))
-    const keys = providerKeys(s, provider)
-    return Promise.all(models.map(async (model) => {
-      const raw = rows[purposeModelStatsKey(purpose, provider, model)]
-      const stats = raw ? parseModelStats(raw) : null
-      const dead = isPersistentModelDead(cooldowns, provider, model)
-      const cooling = Boolean(activeProviderCooldown(provider)) || keys.every((key, index) => Boolean(isPersistentNoBalance(cooldowns, provider, index) || persistentCooldown(cooldowns, provider, index, model) || activeMemoryCooldown(provider, key) || activeMemoryModelCooldown(provider, key, model)))
-      const healthy = !recentFailedHealth(health.get(model) || null)
-      const capabilities = modelCapabilitiesFor(provider, s, model) || {}
-      const capable = purpose === 'VISION' ? modelSupportsVisionAttachment(provider, model, capabilities, [{ mimeType: 'image/png', base64: '' }]) : purpose === 'LONG_CONTEXT' ? (capabilities.contextLength || 0) >= 100_000 : true
-      const tier = providerTierFor(s, provider) || 'UNKNOWN'
-      const paidAllowed = tier === 'FREE' || (provider === 'OPENAI_COMPAT' && tier === 'PAID' && await paidBudgetAvailable(s, estimatedPaidCostUsd({ system: '', history: [] })))
-      const reason = dead ? 'النموذج غير متاح وفق آخر استجابة' : cooling ? 'تبريد مؤقت بعد خطأ أو نفاد الحصة' : !healthy ? 'فشل فحص الصحة الأخير' : !capable ? 'القدرات المطلوبة غير مثبتة' : !paidAllowed ? 'التكلفة غير موثقة أو المدفوع معطل أو الميزانية غير متاحة لهذا المزود' : automaticSelectionReason(stats)
-      return { provider, model, score: automaticModelScore(stats), reason, eligible: !dead && !cooling && healthy && capable && paidAllowed, measured: Boolean(stats), tier, capabilities }
-    }))
-  }))).flat()
-  return candidates.sort((a, b) => Number(b.eligible) - Number(a.eligible) || (a.tier === 'FREE' ? 0 : 1) - (b.tier === 'FREE' ? 0 : 1) || b.score - a.score)
-}
-
-export async function textAiAutomaticSnapshot() {
-  const s = await settings()
-  const transitionsRow = await settingStore().read(['AI_AUTO_TRANSITIONS']).then((rows) => rows.AI_AUTO_TRANSITIONS || '[]')
-  let transitions: Array<{ at: string; from: string; to: string }> = []
-  try { transitions = JSON.parse(transitionsRow); if (!Array.isArray(transitions)) transitions = [] } catch { transitions = [] }
-  transitions = transitions.slice(0, 10)
-  const cooldowns = await loadPersistentCooldowns()
-  const purposes: TextAiPurpose[] = ['CHAT', 'ANALYSIS', 'VISION', 'GENERATION', 'GRADING', 'LONG_CONTEXT', 'REVIEW']
-  type Candidate = Awaited<ReturnType<typeof automaticCandidates>>[number]
-  const stages: Array<{ purpose: TextAiPurpose; primary: Candidate | null; fallback: Candidate[]; excluded: Candidate[] }> = []
-  for (const purpose of purposes) {
-    const taskLevel = purpose === 'CHAT' ? 'GENERAL' : 'ACADEMIC_DRAFT'
-    const candidates = await automaticCandidates(s, providerOrder(s, taskLevel), taskLevel, purpose, cooldowns)
-    stages.push({ purpose, primary: candidates.find((candidate) => candidate.eligible) || null, fallback: candidates.filter((candidate) => candidate.eligible).slice(1, 4), excluded: candidates.filter((candidate) => !candidate.eligible).slice(0, 20) })
-  }
-  return { enabled: s.automaticManagement, checkedAt: new Date().toISOString(), stages, transitions, note: 'درجات إرشادية من الاستخدام الفعلي وليست نسبة دقة. تُطبّق قيود الطلب والميزانية والأدلة واستقلال المدقق عند التنفيذ. UNKNOWN تعني أن التكلفة غير معروفة وليست مجانية. الصوت المباشر والتفريغ يستخدمان مسارهما المتخصص.' }
-}
-
-export async function textAiRefreshAutomaticCatalog() {
-  const s = await settings()
-  if (!s.automaticManagement) return { enabled: false, providers: 0 }
-  const providers = [...new Set([...providerOrder(s), ...providerOrder(s, 'ACADEMIC_DRAFT')])]
-  for (let index = 0; index < providers.length; index += 3) {
-    await Promise.all(providers.slice(index, index + 3).map((provider) => liveFreeModels(provider, s, true)))
-  }
-  await settingStore().write('AI_AUTO_CATALOG_UPDATED_AT', new Date().toISOString())
-  return { enabled: true, providers: providers.length }
-}
 
 function limitProviderModels(provider: Exclude<TextAiProvider, 'AUTO'>, models: string[], maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>) {
   const limit = Math.max(0, Math.floor(Number(maxProviderModels?.[provider] || 0)))
@@ -1754,13 +1747,15 @@ function capabilityFromModelRow(row: any): ModelCapability {
   // `modalities` field. Map those flags into modalities so the vision gate
   // sees them; every existing source below keeps merging untouched.
   const capabilities = row?.capabilities
+  const capsObj = capabilities && typeof capabilities === 'object' && !Array.isArray(capabilities) ? capabilities : undefined
+  const boolCap = (name: string): boolean | undefined => capsObj?.[name] === true ? true : capsObj?.[name] === false ? false : undefined
   const capabilityModalities: unknown[] = Array.isArray(capabilities)
     ? capabilities
-    : capabilities && typeof capabilities === 'object'
+    : capsObj
       ? [
-          capabilities.vision === true ? 'image' : null,
-          capabilities.image_url === true ? 'image_url' : null,
-          capabilities.image_base64 === true ? 'image' : null,
+          capsObj.vision === true ? 'image' : null,
+          capsObj.image_url === true ? 'image_url' : null,
+          capsObj.image_base64 === true ? 'image' : null,
         ]
       : []
   const modalities = [
@@ -1775,13 +1770,50 @@ function capabilityFromModelRow(row: any): ModelCapability {
     ...(Array.isArray(row?.supported_parameters) ? row.supported_parameters : []),
     ...(Array.isArray(row?.supportedParameters) ? row.supportedParameters : []),
   ].map((v: unknown) => String(v))
-  const haystack = `${modelId(row)} ${modalities.join(' ')}`.toLowerCase()
+  const modalityHaystack = modalities.join(' ').toLowerCase()
+  const paramHaystack = supportedParameters.join(' ').toLowerCase()
+  // Step 4 — vision is decided from provider metadata ONLY. A model named
+  // `*-vision-*` with explicit text-only metadata is NOT vision-capable.
+  // Name-based inference survives only as a last resort when the row
+  // carries no metadata at all, and is then labelled `inferred: true`.
+  const hasMetadata = modalities.length > 0 || !!capsObj || Array.isArray(capabilities)
+    || row?.architecture != null || Number.isFinite(contextLength) || supportedParameters.length > 0
+  const visionFromMetadata = /vision|image|multimodal|input_image|image_url/.test(modalityHaystack)
+    || boolCap('vision') === true || boolCap('image_url') === true || boolCap('image_base64') === true
+  let vision: boolean | undefined
+  let inferred: boolean | undefined
+  if (visionFromMetadata) vision = true
+  else if (!hasMetadata) {
+    if (/vision|image/.test(modelId(row).toLowerCase())) { vision = true; inferred = true }
+  } else vision = false
+  // Step 4 — further flags, each from explicit provider metadata only.
+  // No name heuristic feeds these: a name is never proof of a capability.
+  const pricing = row?.pricing ?? row?.price ?? row?.cost
+  const pricedFields = pricing && typeof pricing === 'object' && !Array.isArray(pricing)
+    ? [pricing.prompt ?? pricing.input ?? pricing.prompt_tokens ?? pricing.input_tokens,
+       pricing.completion ?? pricing.output ?? pricing.completion_tokens ?? pricing.output_tokens]
+    : []
+  const costTier: ModelCapability['costTier'] = pricedFields.length && pricedFields.every((v: unknown) => v !== undefined)
+    ? (pricedFields.every((v: unknown) => zeroish(v)) ? 'free' : 'paid')
+    : (modelId(row).endsWith(':free') || row?.is_free === true || row?.free === true ? 'free' : 'unknown')
+  const maxOutputTokens = Number(row?.max_output_tokens ?? row?.max_completion_tokens ?? capsObj?.max_output_tokens ?? NaN)
   return {
     contextLength: Number.isFinite(contextLength) ? contextLength : undefined,
-    vision: /vision|image|multimodal|input_image|image_url/.test(haystack),
+    vision,
     modalities,
     supportedParameters,
     family: typeof row?.family === 'string' ? row.family : undefined,
+    pdf: boolCap('pdf') === true || boolCap('document') === true || /pdf|document/.test(modalityHaystack) ? true : undefined,
+    ocr: boolCap('ocr') === true ? true : undefined,
+    academic: boolCap('academic') === true ? true : undefined,
+    extraction: boolCap('extraction') === true || boolCap('json_schema') === true || boolCap('structured_outputs') === true || boolCap('response_format') === true || /json_schema|structured_outputs|response_format|json_object/.test(paramHaystack) ? true : undefined,
+    enrichment: boolCap('enrichment') === true ? true : undefined,
+    audit: boolCap('audit') === true || boolCap('review') === true ? true : undefined,
+    tools: boolCap('tools') === true || boolCap('function_calling') === true || supportedParameters.some((p) => /^(tools|function_calling|tool_choice)$/i.test(p)) ? true : undefined,
+    voice: boolCap('voice') === true ? true : undefined,
+    maxOutputTokens: Number.isFinite(maxOutputTokens) ? maxOutputTokens : undefined,
+    costTier,
+    inferred,
   }
 }
 
@@ -1931,31 +1963,78 @@ function normalizeFreeModelName(provider: ConcreteProvider, name: string): strin
   return name
 }
 
+// Step 3 — per-provider discovery adapters for the OpenAI-compatible
+// family. A future provider is added by ONE row here, not a new `if`
+// branch in liveFreeModels / fetchOpenAiCompatibleFreeModels.
+// - kind 'openai-compat': the provider publishes a `/models` catalog.
+// - kind 'static': the provider publishes NO /models endpoint — the
+//   curated static list IS the catalog (Cloudflare Workers AI: only
+//   /v1/chat/completions and /v1/embeddings exist).
+// - freeFilter: which catalog filter applies (the old inline if-chain,
+//   moved here verbatim). 'generic' = isFreeModel; 'nvidia' resolves at
+//   call time from the base URL (Nvidia trial catalog vs plain compat).
+// - timeoutMs: per-provider /models timeout override; unset inherits
+//   aiDiscoveryTimeoutMs() (5 s default, AI_DISCOVERY_TIMEOUT_MS env).
+export type DiscoveryFreeFilter = 'generic' | 'alborihi' | 'oxion' | 'toptools' | 'nvidia' | 'strict-free'
+export interface DiscoveryAdapter {
+  provider: string
+  kind: 'openai-compat' | 'static'
+  freeFilter: DiscoveryFreeFilter
+  timeoutMs?: number
+}
+export const DISCOVERY_ADAPTERS: Record<string, DiscoveryAdapter> = {
+  ZAI: { provider: 'ZAI', kind: 'openai-compat', freeFilter: 'generic' },
+  CLOUDFLARE: { provider: 'CLOUDFLARE', kind: 'static', freeFilter: 'generic' },
+  OXION: { provider: 'OXION', kind: 'openai-compat', freeFilter: 'oxion' },
+  TOPTOOLS: { provider: 'TOPTOOLS', kind: 'openai-compat', freeFilter: 'toptools' },
+  DEEPINFRA: { provider: 'DEEPINFRA', kind: 'openai-compat', freeFilter: 'generic' },
+  TOGETHER: { provider: 'TOGETHER', kind: 'openai-compat', freeFilter: 'generic' },
+  RELAYROUTER: { provider: 'RELAYROUTER', kind: 'openai-compat', freeFilter: 'generic' },
+  OPENROUTER: { provider: 'OPENROUTER', kind: 'openai-compat', freeFilter: 'generic' },
+  ALBORIHI: { provider: 'ALBORIHI', kind: 'openai-compat', freeFilter: 'alborihi' },
+  OPENAI_COMPAT: { provider: 'OPENAI_COMPAT', kind: 'openai-compat', freeFilter: 'nvidia' },
+}
+
+export function discoveryAdapterFor(provider: string): DiscoveryAdapter | null {
+  return DISCOVERY_ADAPTERS[String(provider || '').toUpperCase()] || null
+}
+
+export function __testDiscoveryAdapterForTests(provider: string): DiscoveryAdapter | null {
+  return discoveryAdapterFor(provider)
+}
+
+export function __testGenericDiscoveryProvidersForTests(): string[] {
+  return Object.keys(DISCOVERY_ADAPTERS)
+}
+
 // Shared /models fetch for the OpenAI-compatible family: returns the raw
 // text-like catalog rows WITHOUT any free filter. The free catalog
 // (fetchOpenAiCompatibleFreeModels) and the full discovered catalog used by
 // the provider health check (textAiDiscoveredModelsForProvider) both read
 // from here, so a provider whose models carry no free marking is still
 // discoverable for diagnostics — the free filter only ever narrows routing.
-async function fetchOpenAiCompatibleModelRows(provider: ConcreteProvider, baseUrl: string, key?: string): Promise<{ rows: Array<{ raw: any; id: string }>; sourceCount: number; discoveryOk: boolean }> {
+async function fetchOpenAiCompatibleModelRows(provider: ConcreteProvider, baseUrl: string, key?: string, timeoutMs?: number): Promise<{ rows: Array<{ raw: any; id: string }>; sourceCount: number; ok: boolean; status?: number }> {
   const normalizedBaseUrl = provider === 'OPENAI_COMPAT'
     ? normalizeOpenAiCompatibleBaseUrl(baseUrl)
     : (baseUrl || '').replace(/\/$/, '')
-  if (!normalizedBaseUrl) return { rows: [], sourceCount: 0, discoveryOk: false }
+  if (!normalizedBaseUrl) return { rows: [], sourceCount: 0, ok: false }
   try {
     if (isCustomTextAiProviderId(provider)) await assertPublicCustomTextAiUrl(normalizedBaseUrl)
     const response = await fetchWithTimeout(provider, `${normalizedBaseUrl}/models`, {
       cache: 'no-store',
       ...(isCustomTextAiProviderId(provider) ? { redirect: 'error' as const } : {}),
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
-    }, aiDiscoveryTimeoutMs())
-    if (!response.ok) return { rows: [], sourceCount: 0, discoveryOk: false }
-    const data = await response.json()
-    if (![data, data?.models, data?.data, data?.results].some(Array.isArray)) return { rows: [], sourceCount: 0, discoveryOk: false }
+    }, timeoutMs ?? aiDiscoveryTimeoutMs())
+    // Step 3 — a non-2xx /models answer is a FAILED refresh, not an empty
+    // catalog. Callers must keep the last good catalog (transient rule);
+    // only `ok: true` may feed retirement detection.
+    if (!response.ok) return { rows: [], sourceCount: 0, ok: false, status: response.status }
+    const data = await response.json().catch(() => ({}))
     const sourceRows = rowsFromModelPayload(data)
     return {
-      discoveryOk: true,
       sourceCount: sourceRows.length,
+      ok: true,
+      status: response.status,
       rows: sourceRows
         .filter((m) => m?.online !== false)
         .filter((m) => provider === 'ALBORIHI' ? isAlborihiChatCapableModel(m) : isTextLikeModel(m))
@@ -1963,19 +2042,23 @@ async function fetchOpenAiCompatibleModelRows(provider: ConcreteProvider, baseUr
         .filter(({ id }) => validModelName(id)),
     }
   } catch {
-    return { rows: [], sourceCount: 0, discoveryOk: false }
+    return { rows: [], sourceCount: 0, ok: false }
   }
 }
 
-async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string, allowPaid = false): Promise<string[]> {
+async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string, allowPaid = false): Promise<{ models: string[]; discoveryOk: boolean; sourceCount: number; lastError?: string }> {
   const normalizedBaseUrl = provider === 'OPENAI_COMPAT'
     ? normalizeOpenAiCompatibleBaseUrl(baseUrl)
     : (baseUrl || '').replace(/\/$/, '')
-  if (!normalizedBaseUrl) return []
+  if (!normalizedBaseUrl) return { models: [], discoveryOk: false, sourceCount: 0, lastError: 'DISCOVERY_NO_BASE_URL' }
   const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(normalizedBaseUrl)
+  const adapter = discoveryAdapterFor(provider)
+  const timeoutMs = adapter?.timeoutMs
   try {
-    const { rows: sourceRows, sourceCount, discoveryOk } = await fetchOpenAiCompatibleModelRows(provider, baseUrl, key)
-    if (!discoveryOk) return []
+    const { rows: sourceRows, sourceCount, ok, status } = await fetchOpenAiCompatibleModelRows(provider, baseUrl, key, timeoutMs)
+    // Transient failure: do NOT touch the cache — liveFreeModels keeps the
+    // last good catalog and records discoveryOk:false + lastError.
+    if (!ok) return { models: [], discoveryOk: false, sourceCount, lastError: `DISCOVERY_HTTP_${status || 'ERROR'}` }
     const rows = sourceRows
       .filter(({ raw, id }) => (
         // A custom provider the admin explicitly marked as allowing paid
@@ -2004,18 +2087,18 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
     const models = orderedRows.map(({ id }) => id)
     const capabilities = Object.fromEntries(orderedRows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
     freeModelsCache.set(cacheKeyForFreeModels(provider, normalizedBaseUrl, key), { at: Date.now(), models, capabilities, discoveryOk: true, sourceCount: nvidiaCompat ? sourceCount : undefined })
-    return models
+    return { models, discoveryOk: true, sourceCount }
   } catch {
-    return []
+    return { models: [], discoveryOk: false, sourceCount: 0, lastError: 'DISCOVERY_ERROR' }
   }
 }
 
 export async function __testDiscoverOpenAiCompatibleFreeModelsForTests(baseUrl: string, key?: string): Promise<string[]> {
-  return fetchOpenAiCompatibleFreeModels('OPENAI_COMPAT', baseUrl, key)
+  return (await fetchOpenAiCompatibleFreeModels('OPENAI_COMPAT', baseUrl, key)).models
 }
 
 export async function __testDiscoverAlborihiModelsForTests(baseUrl = ALBORIHI_DEFAULT_BASE_URL, key?: string): Promise<string[]> {
-  return fetchOpenAiCompatibleFreeModels('ALBORIHI', baseUrl, key)
+  return (await fetchOpenAiCompatibleFreeModels('ALBORIHI', baseUrl, key)).models
 }
 
 export function __testNormalizeOpenAiCompatibleBaseUrlForTests(baseUrl: string): string {
@@ -2272,35 +2355,50 @@ async function discoveryKey(provider: ConcreteProvider, s: Settings): Promise<st
   return keys[0]
 }
 
-async function liveFreeModels(provider: ConcreteProvider, s: Settings, force = false): Promise<string[]> {
+async function liveFreeModels(provider: ConcreteProvider, s: Settings, opts?: { forceRefresh?: boolean }): Promise<string[]> {
   const baseUrl = baseFor(s, provider)
   const key = await discoveryKey(provider, s)
   const cacheKey = cacheKeyForFreeModels(provider, baseUrl, key)
   const now = Date.now()
   const cached = freeModelsCache.get(cacheKey)
-  let lastGood = cached
-  if (!force && cached && now - cached.at < freeModelsMemoryCacheMs(provider)) return cached.models
+  if (cached && now - cached.at < freeModelsMemoryCacheMs(provider)) return cached.models
+  // Previous persistent catalog (stale or absent): the transient-failure
+  // rule and the retirement reconciler both read from it. It is captured
+  // BEFORE the fetch so a failed fetch can restore it verbatim.
+  let previous: FreeModelsCacheEntry | null = null
   try {
     const persisted = (await settingStore().read([persistentModelsCacheKey(cacheKey)]))[persistentModelsCacheKey(cacheKey)]
     const parsed = persisted ? JSON.parse(persisted) : null
-    if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0) {
-      const models = parsed.models.map(String).filter(validModelName)
-      const capabilities = parsed.capabilities && typeof parsed.capabilities === 'object' ? parsed.capabilities as Record<string, ModelCapability> : undefined
-      const discoveryOk = parsed.discoveryOk === true || models.length > 0
-      const sourceCount = Number(parsed.sourceCount ?? parsed.discoveredCount ?? NaN)
-      const entry = { at: Number(parsed.at), models, capabilities, discoveryOk, sourceCount: Number.isFinite(sourceCount) ? sourceCount : undefined }
-      if (!lastGood || entry.at > lastGood.at) lastGood = entry
-      if (!force && now - entry.at < freeModelsPersistentCacheMs(provider)) {
-        freeModelsCache.set(cacheKey, entry)
+    if (parsed && typeof parsed === 'object') {
+      previous = {
+        at: Number(parsed.at || 0) || now,
+        models: Array.isArray(parsed.models) ? parsed.models.map(String).filter(validModelName) : [],
+        capabilities: parsed.capabilities && typeof parsed.capabilities === 'object' ? parsed.capabilities as Record<string, ModelCapability> : undefined,
+        discoveryOk: parsed.discoveryOk === true,
+        sourceCount: Number.isFinite(Number(parsed.sourceCount ?? parsed.discoveredCount)) ? Number(parsed.sourceCount ?? parsed.discoveredCount) : undefined,
+        discoveredAt: Number.isFinite(Number(parsed.discoveredAt)) ? Number(parsed.discoveredAt) : undefined,
+        lastError: typeof parsed.lastError === 'string' ? parsed.lastError : undefined,
+        retired: Array.isArray(parsed.retired) ? parsed.retired.map(String) : undefined,
+        renamed: parsed.renamed && typeof parsed.renamed === 'object' ? parsed.renamed as Record<string, string> : undefined,
+        missedCounts: parsed.missedCounts && typeof parsed.missedCounts === 'object' ? parsed.missedCounts as Record<string, number> : undefined,
+      }
+      if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < freeModelsPersistentCacheMs(provider) && !opts?.forceRefresh) {
+        const models = previous.models
+        freeModelsCache.set(cacheKey, { ...previous, at: now, discoveryOk: previous.discoveryOk === true || models.length > 0 })
         return models
       }
     }
   } catch {
     // Persistent model discovery cache is best-effort.
   }
-  freeModelsCache.delete(cacheKey)
 
   let models: string[] = []
+  // Did this refresh SUCCEED? Dedicated fetchers only write the in-memory
+  // cache on HTTP success (they return [] without touching it on !ok /
+  // exception), so a fresh cache entry is the success signal for them.
+  // The generic branch reports ok explicitly. A failed refresh is NOT an
+  // empty catalog — see the transient rule below.
+  let genericResult: { discoveryOk: boolean; lastError?: string } | null = null
   if (provider === 'UNOROUTER') {
     const root = apiRootFromBase(s.unorouterBaseUrl, 'https://api.unorouter.com/v1')
     try {
@@ -2329,25 +2427,126 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings, force = f
     models = await fetchMistralTextModels(baseUrl, key)
   } else if (provider === 'APINEX') {
     models = await fetchApinexTextModels(baseUrl, key)
-  } else if (isCustomTextAiProviderId(provider) || ['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI', 'CLOUDFLARE', 'OXION'].includes(provider)) {
-    const allowPaid = isCustomTextAiProviderId(provider) && s.customProviders?.some((entry) => entry.id === provider && entry.allowPaid === true)
-    models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key, allowPaid)
+  } else if (isCustomTextAiProviderId(provider) || discoveryAdapterFor(provider)) {
+    const adapter = discoveryAdapterFor(provider)
+    if (adapter?.kind === 'static') {
+      // Cloudflare Workers AI publishes no /models endpoint: the curated
+      // static list IS the discovered catalog for this provider.
+      models = staticTextModelsForProvider(provider, s)
+      freeModelsCache.set(cacheKey, { at: now, models, capabilities: {}, discoveryOk: true, sourceCount: models.length })
+    } else {
+      const allowPaid = isCustomTextAiProviderId(provider) && s.customProviders?.some((entry) => entry.id === provider && entry.allowPaid === true)
+      const result = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key, allowPaid)
+      genericResult = result
+      models = result.models
+    }
   }
 
   models = [...new Set(models)]
   const cachedWithCapabilities = freeModelsCache.get(cacheKey)
   const capabilities = cachedWithCapabilities?.capabilities
-  const discoveryOk = cachedWithCapabilities?.discoveryOk
   const sourceCount = cachedWithCapabilities?.sourceCount
-  if (!models.length && !discoveryOk && lastGood) {
-    freeModelsCache.set(cacheKey, lastGood)
-    return lastGood.models
+  const fetchSucceeded = genericResult !== null
+    ? genericResult.discoveryOk === true
+    : (cachedWithCapabilities !== undefined && cachedWithCapabilities.at >= now)
+  const discoveredAt = previous?.discoveredAt ?? (models.length ? now : undefined)
+  let discoveryOk: boolean | undefined
+  let lastError: string | undefined
+  let retired = previous?.retired
+  let renamed = previous?.renamed
+  let missedCounts = previous?.missedCounts
+  if (!fetchSucceeded) {
+    // TRANSIENT-FAILURE RULE: keep the last good catalog, mark the refresh
+    // failed, never empty the candidate pool, never mark anything retired.
+    // Retirement requires 2 consecutive SUCCESSFUL refreshes (reconciler).
+    if (previous && previous.models.length) {
+      models = previous.models
+      discoveryOk = false
+      lastError = genericResult?.lastError || 'DISCOVERY_FAILED'
+      freeModelsCache.set(cacheKey, { at: now, models, capabilities: previous.capabilities, discoveryOk, sourceCount: previous.sourceCount, discoveredAt: previous.discoveredAt, lastError, retired, renamed, missedCounts })
+      settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models, capabilities: previous.capabilities, discoveryOk, sourceCount: previous.sourceCount, discoveredAt: previous.discoveredAt, lastError, retired, renamed, missedCounts })).catch(() => {})
+      return models
+    }
+    discoveryOk = false
+    lastError = genericResult?.lastError || 'DISCOVERY_FAILED'
+  } else {
+    // Successful refresh: reconcile against the previous catalog.
+    const reconciled = reconcileDiscoveryCatalog(
+      previous ? { models: previous.models, capabilities: previous.capabilities, missedCounts: previous.missedCounts, retired: previous.retired } : null,
+      { models, capabilities },
+      { provider, nowMs: now, familyOf: (model) => modelFamily(model) },
+    )
+    discoveryOk = true
+    retired = reconciled.retired.length ? reconciled.retired : undefined
+    renamed = Object.keys(reconciled.renamed).length ? reconciled.renamed : undefined
+    missedCounts = Object.keys(reconciled.missedCounts).length ? reconciled.missedCounts : undefined
   }
-  freeModelsCache.set(cacheKey, { at: now, models, capabilities, discoveryOk, sourceCount })
+  freeModelsCache.set(cacheKey, { at: now, models, capabilities, discoveryOk, sourceCount, discoveredAt, lastError, retired, renamed, missedCounts })
   if (models.length || discoveryOk) {
-    settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models, capabilities, discoveryOk, sourceCount })).catch(() => {})
+    settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models, capabilities, discoveryOk, sourceCount, discoveredAt, lastError, retired, renamed, missedCounts })).catch(() => {})
   }
   return models
+}
+
+// Manual / background refresh of one provider's discovery catalog.
+// Evicts the in-memory + persistent entries first so the fetch below is a
+// real refresh (not a cache hit), then returns the reconciled outcome.
+// Used by the auto-refresh cron and the admin "refresh now" action.
+// Never writes to manual keys (AI_PROVIDER_FALLBACK_ORDER,
+// {PROVIDER}_TEXT_MODEL, stage profiles) — discovery only reads them.
+export interface DiscoveryRefreshResult {
+  provider: string
+  models: string[]
+  discoveryOk: boolean
+  sourceCount?: number
+  lastError?: string
+  retired?: string[]
+  renamed?: Record<string, string>
+}
+export async function refreshDiscoveryForProvider(providerValue: unknown): Promise<DiscoveryRefreshResult> {
+  const provider = normalizeProvider(providerValue)
+  if (provider === 'AUTO') throw new Error('INVALID_DISCOVERY_PROVIDER')
+  const concrete = provider as ConcreteProvider
+  if (isCustomTextAiProviderId(concrete)) {
+    const catalog = await refreshCustomTextAiFreeModels(concrete)
+    return { provider: concrete, models: catalog.models, discoveryOk: catalog.discoveredCount > 0, sourceCount: catalog.discoveredCount }
+  }
+  const s = await settings()
+  const key = await discoveryKey(concrete, s)
+  const cacheKey = cacheKeyForFreeModels(concrete, baseFor(s, concrete), key)
+  freeModelsCache.delete(cacheKey)
+  // The persistent row is NOT deleted: liveFreeModels reads it as the
+  // reconciliation baseline (previous catalog) and overwrites it with the
+  // fresh result. Deleting it would erase retirement history.
+  const models = await liveFreeModels(concrete, s, { forceRefresh: true })
+  const entry = freeModelsCache.get(cacheKey)
+  return {
+    provider: concrete,
+    models,
+    discoveryOk: entry?.discoveryOk === true,
+    sourceCount: entry?.sourceCount,
+    lastError: entry?.lastError,
+    retired: entry?.retired,
+    renamed: entry?.renamed,
+  }
+}
+
+export function __testStaticTextModelsForTests(provider: string): string[] {
+  return staticTextModelsForProvider(normalizeProvider(provider) as ConcreteProvider)
+}
+
+// Public read of the hardcoded fallback list for one provider (used by the
+// auto-refresh reconciler to warn when a hardcoded model vanishes from
+// discovery). Read-only: discovery never edits this list.
+export function textAiStaticTextModels(providerValue: unknown): string[] {
+  return staticTextModelsForProvider(normalizeProvider(providerValue) as ConcreteProvider)
+}
+
+export function __testDiscoveryEntryForTests(provider: string): FreeModelsCacheEntry | null {
+  for (const [key, entry] of freeModelsCache) {
+    if (key.startsWith(`${String(provider || '').toUpperCase()}:`)) return entry
+  }
+  return null
 }
 
 function academicModelAllowed(provider: ConcreteProvider, model: string): boolean {
@@ -2583,7 +2782,7 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
   const alborihiDiscovered = provider === 'ALBORIHI' && freeModelDiscoveryEntry(provider, s)?.discoveryOk === true && discoveredFree.length > 0
   const allowPaid = isCustomTextAiProviderId(provider) && s.customProviders?.some((entry) => entry.id === provider && entry.allowPaid === true)
-  const strictDiscovered = s.automaticManagement || nvidiaDiscovered || alborihiDiscovered || (isCustomTextAiProviderId(provider) && !allowPaid)
+  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered || (isCustomTextAiProviderId(provider) && !allowPaid)
   const discoveredSet = new Set(discoveredFree.map((model) => model.toLowerCase()))
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
   const selectedPart = selected && !selectedIsAuto && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
@@ -2599,15 +2798,7 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
     .filter(modelCapabilityAllowed)
     .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
-  const ordered = await orderModelsByHealth(provider, sortModelsByFamily(s, provider, allowed, taskLevel), taskLevel, explore, purpose)
-  // Manual-first only for an explicit non-default choice. A configured
-  // 'auto' normalises to the provider's first static model, so forcing
-  // defaults[0] first would let an unproven default jump ahead of a
-  // healthy proven model and break sticky preference (router-health).
-  if (!s.automaticManagement && selectedPart[0] && selectedPart[0] !== staticDefaults[0] && ordered.includes(selectedPart[0])) {
-    return [selectedPart[0], ...ordered.filter((model) => model !== selectedPart[0])]
-  }
-  return ordered
+  return orderModelsByHealth(provider, sortModelsByFamily(s, provider, allowed, taskLevel), taskLevel, explore, purpose)
 }
 
 export async function __testModelFallbacksForTests(providerValue: unknown, taskLevel: TextAiTaskLevel = 'GENERAL'): Promise<string[]> {
@@ -2840,6 +3031,31 @@ export async function hasExternalTextAi(): Promise<boolean> {
   return providerOrder(s).length > 0
 }
 
+// Auto mode (steps 1-2): the toggle and the stored ranking for a purpose,
+// for the governed Gemini shim and the stage runner. Read-only — these
+// never write a Setting.
+export async function isTextAiAutoModeEnabled(): Promise<boolean> {
+  const s = await settings()
+  return s.autoMode
+}
+
+export async function autoRankingForPurpose(purpose?: TextAiPurpose): Promise<AutoCandidate[]> {
+  const s = await settings()
+  return [...(s.autoRankings[purpose || 'CHAT'] || [])]
+}
+
+// Step 7g: the ASR backend ranking (AI_AUTO_RANKING:ASR), for asr.ts.
+// Read-only; the text router never consumes this key.
+export async function autoAsrRanking(): Promise<AsrRankingEntry[]> {
+  const s = await settings()
+  return [...(s.autoAsrRanking || [])]
+}
+
+export async function __testModelCapabilitiesForTests(provider: string, model: string): Promise<ReturnType<typeof modelCapabilitiesFor>> {
+  const s = await settings()
+  return modelCapabilitiesFor(normalizeProvider(provider) as ConcreteProvider, s, model)
+}
+
 async function recordQuestionVerifierNoCandidate(lines: string[]) {
   if (!lines.length) return
   const summary = lines.slice(0, 80).join('\n').slice(0, 5000)
@@ -2884,11 +3100,13 @@ export async function refreshCustomTextAiFreeModels(providerId: string): Promise
   const key = await discoveryKey(providerId, s)
   const cacheKey = cacheKeyForFreeModels(providerId, config.baseUrl, key)
   freeModelsCache.delete(cacheKey)
-  await settingStore().delete?.(persistentModelsCacheKey(cacheKey))
-  return textAiFreeModelsForProvider(providerId)
+  // The persistent row stays: it is the reconciliation baseline. Only the
+  // in-memory entry is evicted; the force flag below skips the fresh
+  // persistent early return so the fetch below is a real refresh.
+  return textAiFreeModelsForProvider(providerId, { forceRefresh: true })
 }
 
-export async function textAiFreeModelsForProvider(providerValue: unknown): Promise<{ provider: string; models: string[]; discoveredCount: number; staticCount: number; message: string }> {
+export async function textAiFreeModelsForProvider(providerValue: unknown, opts?: { forceRefresh?: boolean }): Promise<{ provider: string; models: string[]; discoveredCount: number; staticCount: number; message: string }> {
   const s = await settings()
   const provider = normalizeProvider(providerValue)
   if (provider === 'AUTO') {
@@ -2909,7 +3127,7 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
     return { provider: concrete, models: [], discoveredCount: 0, staticCount: 0, message: 'المزوّد غير مفعل أو غير موجود.' }
   }
   const staticDefaults = staticTextModelsForProvider(concrete, s)
-  const discoveredRaw = await liveFreeModels(concrete, s)
+  const discoveredRaw = await liveFreeModels(concrete, s, opts?.forceRefresh ? { forceRefresh: true } : undefined)
   const nvidiaCompat = concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
   const alborihiDiscovered = concrete === 'ALBORIHI' && freeModelDiscoveryEntry(concrete, s)?.discoveryOk === true && discoveredRaw.length > 0
@@ -3791,6 +4009,10 @@ function routerReasonBucket(attempt: TextAiAttemptDiagnostics): string {
   if (attempt.status === 429 || /rate.?limit|too many requests|resource exhausted|quota/.test(msg)) return 'rate_limit'
   if (attempt.status === 504 || /timeout|deadline|abort/.test(msg)) return 'timeout'
   if (attempt.status === 503 || /high demand|overloaded|capacity/.test(msg)) return 'high_demand'
+  // Step 5/6b — the OCR quality gate is a distinct failure bucket so the
+  // scorer can demote a model in VISION rank for failing the gate
+  // (validate() garbage / empty OCR output), not just for HTTP errors.
+  if (/ocr_text_failed_verification|ocr_all_pages_empty|ocr_returned_no_text/.test(msg)) return 'ocr_gate_failed'
   if (/validation_rejected|invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod/.test(msg)) return 'schemaFail'
   if (/invalid|json/.test(msg)) return 'invalid_response'
   return attempt.ok ? 'ok' : 'other'
@@ -4103,12 +4325,11 @@ async function keyRateAllowed(provider: ConcreteProvider, key: string): Promise<
 }
 
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
-  const baseSettings = await settings()
-  const routingOpts = baseSettings.automaticManagement ? { ...opts, preferredModels: undefined, preferredProviders: undefined, routerPolicy: undefined } : opts
-  const attachments = normalizedAttachments(routingOpts)
+  const attachments = normalizedAttachments(opts)
   const visionCall = attachments.length > 0
-  const effectiveOpts = visionCall ? { ...routingOpts, attachments, purpose: routingOpts.purpose || 'VISION' as const, deadlineMs: routingOpts.deadlineMs || Date.now() + VISION_ATTEMPT_TIMEOUT_MS } : routingOpts
-  const resolvedPolicy = baseSettings.automaticManagement ? baseSettings.policy : resolveRouterPolicy(effectiveOpts.purpose, baseSettings, effectiveOpts.routerPolicy)
+  const effectiveOpts = visionCall ? { ...opts, attachments, purpose: opts.purpose || 'VISION', deadlineMs: opts.deadlineMs || Date.now() + VISION_ATTEMPT_TIMEOUT_MS } : opts
+  const baseSettings = await settings()
+  const resolvedPolicy = resolveRouterPolicy(effectiveOpts.purpose, baseSettings, effectiveOpts.routerPolicy)
   const s: Settings = resolvedPolicy === baseSettings.policy ? baseSettings : { ...baseSettings, policy: resolvedPolicy }
   const taskLevel = effectiveOpts.taskLevel || 'GENERAL'
   const excluded = excludedConcreteProviders(effectiveOpts.excludeProviders)
@@ -4122,11 +4343,35 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   if (allowAlborihiCrossFamilyVerifier) excluded.delete('ALBORIHI')
   const verifierCall = isVerifierCall(effectiveOpts)
   const stickyScope = stickyScopeForRequest(s, effectiveOpts, verifierCall, taskLevel)
-  const preferredModels = verifierCall
+  let preferredModels = verifierCall
     ? (s.verifierStrict ? s.verifierPreferred : [...(effectiveOpts.preferredModels || []), ...s.verifierPreferred])
     : (effectiveOpts.preferredModels || [])
   const preferredModelProviders = preferredModels.map((item) => item.provider).filter(Boolean)
-  const preferredProviders = [...new Set([...(effectiveOpts.preferredProviders || []).filter(Boolean), ...preferredModelProviders])]
+  let preferredProviders = [...new Set([...(effectiveOpts.preferredProviders || []).filter(Boolean), ...preferredModelProviders])]
+  // Auto mode choke point (step 2): when ON, the auto ranking for this
+  // purpose replaces the preferred/restrict inputs. Exclusions are
+  // preserved — the ranking can never re-admit an excluded provider or
+  // family — and paid-blocked models are dropped. When OFF, or when the
+  // ranking is empty, this is a passthrough and the manual behaviour
+  // below runs unchanged (admin global model still seeds fallbacks).
+  const autoResolution = resolveAutoCandidates({
+    autoMode: s.autoMode,
+    ranking: s.autoRankings[effectiveOpts.purpose || 'CHAT'] || [],
+    purpose: effectiveOpts.purpose,
+    taskType: effectiveOpts.taskType,
+    excludeProviders: [...excluded],
+    excludeModelFamilies: [...excludedFamilies],
+    modelFamily: (_provider, model) => modelFamily(model),
+    preferredProviders,
+    preferredModels,
+    restrictToModels: effectiveOpts.restrictToModels,
+    paidBlockedModels: s.paidUsageMode === 'off' ? s.paidModels : [],
+  })
+  if (autoResolution.autoOverride) {
+    preferredModels = autoResolution.preferredModels
+    preferredProviders = autoResolution.preferredProviders
+  }
+  const effectiveRestrictToModels = autoResolution.autoOverride ? undefined : effectiveOpts.restrictToModels
   const baseOrderedProviders = providerOrder(s, taskLevel)
     .filter((provider) => !excluded.has(provider))
     .filter((provider) => !visionCall || isCustomTextAiProviderId(provider) || providerSupportsVisionAttachments(provider))
@@ -4142,8 +4387,8 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     })
     : visionOrderedProviders
   let providers = orderedProviders
-  const restrictSet = (effectiveOpts.restrictToModels?.length)
-    ? new Set(effectiveOpts.restrictToModels.map((m) => m.provider as string))
+  const restrictSet = (effectiveRestrictToModels?.length)
+    ? new Set(effectiveRestrictToModels.map((m) => m.provider as string))
     : null
   if (restrictSet) providers = providers.filter((provider) => restrictSet.has(provider))
   if (!providers.length) {
@@ -4156,13 +4401,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const persistentCooldowns = await loadPersistentCooldowns()
   const exploreModels = ++routerRequestSeq % 5 === 0
   const estimatedPaidCost = estimatedPaidCostUsd(effectiveOpts)
-  const automaticPlan = s.automaticManagement
-    ? await automaticCandidates(s, providers, taskLevel, effectiveOpts.purpose || 'CHAT', persistentCooldowns)
-    : null
-  if (automaticPlan) {
-    providers = [...new Set(automaticPlan.filter((candidate) => candidate.eligible).map((candidate) => candidate.provider))]
-  }
-  const stickyResolution = s.automaticManagement ? null : await resolveUsableStickyModel({
+  const stickyResolution = await resolveUsableStickyModel({
     s,
     opts: effectiveOpts,
     scope: stickyScope,
@@ -4177,9 +4416,20 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     allowAlborihiCrossFamilyVerifier,
     estimatedPaidCost,
   })
-  if (stickyScope && stickyResolution?.deleteSticky) stickyModels.delete(stickyScope)
-  const usableSticky = stickyResolution?.sticky
-  if (usableSticky) providers = [usableSticky.provider, ...providers.filter((provider) => provider !== usableSticky.provider)]
+  if (stickyScope && stickyResolution.deleteSticky) stickyModels.delete(stickyScope)
+  const usableSticky = stickyResolution.sticky
+  // Step 5 — sticky-as-hint (plan risk 3, decided): when auto is ON
+  // with a ranking, the sticky pin is a hint, not a pin — it goes
+  // first only when it is already the top auto-ranked candidate.
+  // Otherwise the auto ranking order wins. When auto is OFF (or the
+  // ranking is empty) today's sticky-first behaviour is unchanged.
+  const stickyFirst = !usableSticky || stickyOrderUnderAuto({
+    autoMode: s.autoMode,
+    autoOverride: autoResolution.autoOverride,
+    autoTop: autoResolution.autoCandidates[0] || null,
+    sticky: usableSticky,
+  }) === 'sticky-first'
+  if (usableSticky && stickyFirst) providers = [usableSticky.provider, ...providers.filter((provider) => provider !== usableSticky.provider)]
   if (restrictSet) providers = providers.filter((provider) => restrictSet.has(provider))
   const estimatedInputTokens = estimatePromptTokens(effectiveOpts.system, effectiveOpts.history)
   const estimatedOutputTokens = Number(effectiveOpts.maxOutputTokens || (effectiveOpts.json ? 4096 : 2048))
@@ -4212,10 +4462,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     }
   }
 
-  const routingTargets = automaticPlan
-    ? automaticPlan.filter((candidate) => candidate.eligible).map(({ provider, model }) => ({ provider, model }))
-    : providers.map((provider) => ({ provider, model: '' }))
-  for (const { provider, model: automaticModel } of routingTargets) {
+  for (const provider of providers) {
     if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') {
       if (paidAvailable == null) paidAvailable = await paidBudgetAvailable(s, estimatedPaidCost)
       if (!paidAvailable) {
@@ -4231,7 +4478,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     const fallbackModels = verifierCall && s.verifierStrict ? [] : await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
     const sameProviderAlborihiReview = allowAlborihiCrossFamilyVerifier && provider === 'ALBORIHI'
     const discoveredAlborihiModels = sameProviderAlborihiReview ? freeModelDiscoveryEntry('ALBORIHI', s) : null
-    const candidateModels = applyModelRestriction(strictCandidateModelsForRequest(s, provider, [...new Set([...providerPreferredModels, ...fallbackModels])], taskLevel, verifierCall), provider, effectiveOpts.restrictToModels)
+    const candidateModels = applyModelRestriction(strictCandidateModelsForRequest(s, provider, [...new Set([...providerPreferredModels, ...fallbackModels])], taskLevel, verifierCall), provider, effectiveRestrictToModels)
       .filter((model) => !discoveredAlborihiModels?.discoveryOk || discoveredAlborihiModels.models.some((id) => id.toLowerCase() === model.toLowerCase()))
     const eligibleFamily = (model: string) => {
       if (!sameProviderAlborihiReview) return modelFamilyAllowed(model, excludedFamilies)
@@ -4244,11 +4491,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     const baseModels = candidateModels
       .filter(eligibleFamily)
       .filter((model) => modelSupportsVisionAttachment(provider, model, modelCapabilitiesFor(provider, s, model), attachments))
-    const orderedModels = automaticPlan
-      ? (baseModels.includes(automaticModel) ? [automaticModel] : [])
-      : usableSticky && usableSticky.provider === provider && baseModels.includes(usableSticky.model)
-        ? [usableSticky.model, ...baseModels.filter((model) => model !== usableSticky.model)]
-        : baseModels
+    const orderedModels = stickyFirst && usableSticky && usableSticky.provider === provider && baseModels.includes(usableSticky.model)
+      ? [usableSticky.model, ...baseModels.filter((model) => model !== usableSticky.model)]
+      : baseModels
     const health = await readModelHealth(provider, orderedModels)
     for (const model of orderedModels) {
       if (recentFailedHealth(health.get(model) || null)) {
@@ -4259,7 +4504,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
     const stickyEligibleModels = healthFilteredModels.length ? healthFilteredModels : orderedModels
     const routedModels = providerModelsForRequest(provider, s, stickyEligibleModels, routerRequestSeq, effectiveOpts.maxProviderModels)
-    const models = usableSticky && usableSticky.provider === provider && stickyEligibleModels.includes(usableSticky.model)
+    const models = stickyFirst && usableSticky && usableSticky.provider === provider && stickyEligibleModels.includes(usableSticky.model)
       ? [usableSticky.model, ...routedModels.filter((model) => model !== usableSticky.model)].slice(0, routedModels.length)
       : routedModels
     if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
@@ -4353,6 +4598,28 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           noteNoCandidate(provider, model, `REQUEST_FAILED(${status || 'unknown'}, ${msg})`)
           if (stickyScope && usableSticky && usableSticky.provider === provider && usableSticky.model === model && usableSticky.key === currentKey) stickyModels.delete(stickyScope)
           await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: effectiveOpts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, effectiveOpts.purpose)
+          // Step 5 — OUTPUT_QUALITY: a validate() / OCR-gate rejection
+          // or empty output skips THIS model for this purpose only. The
+          // key is untouched (garbage output is not evidence about the
+          // key) and no cooldown is set; the next model is tried now.
+          const autoFailure = classifyAutoFailure(e, status)
+          if (autoFailure.failureKind === 'OUTPUT_QUALITY') {
+            skipModelsThisRequest.add(`${provider}:${model}`)
+            break
+          }
+          // Step 5 — PROVIDER_DOWN: repeated 5xx / network / DNS errors
+          // across models of one provider cool the WHOLE provider once
+          // the threshold is met, instead of hammering each model in turn.
+          if (autoFailure.failureKind === 'PROVIDER_DOWN' || isProviderDownLike(e, status)) {
+            const down = recordProviderDownHit(providerDownState, provider, model)
+            providerDownState = down.state
+            skipModelsThisRequest.add(`${provider}:${model}`)
+            if (down.providerDown) {
+              markProviderCooldown(provider, msg, 15, status)
+              noteSkip(provider, model, 'PROVIDER_DOWN')
+            }
+            break
+          }
           if (provider === 'ALBORIHI') {
             const action = await handleAlborihiFailure({ key: currentKey, keyIndex, model, error: e, message: msg, status })
             if (action === 'break') {

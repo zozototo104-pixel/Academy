@@ -1,4 +1,6 @@
 import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRoutingOverrides } from '@/lib/ai-stage-profiles'
+import { autoOverrideDetail } from '@/lib/ai-auto-mode'
+import { isTextAiAutoModeEnabled } from '@/lib/text-ai'
 import type { PipelineProfileStamp, PipelineStageName } from '@/lib/ai-pipeline-log'
 
 // D2.3: منفّذ المرحلة المشترك — يحسم بروفايل المرحلة مرة واحدة، ثم
@@ -39,6 +41,13 @@ export async function prepareStageRun(stage: PipelineStageName): Promise<StageRu
   if (overrides.kind === 'global') detail.fallbackReason = overrides.reason
   if (overrides.kind === 'invalid') { detail.profileInvalid = true; detail.invalidReason = overrides.reason }
   if (overrides.kind !== 'stage') return { routing: null, isStage: false, detail }
+  // Auto mode (step 1): the stage profile is NOT rewritten and no new
+  // version row is created — versions are admin history. The profile's
+  // restrictToModels is ignored for ranking at call time (the router's
+  // auto choke point replaces it), but the override is recorded here so
+  // it lands in AiPipelineOperationLog.detail.autoOverride and an admin
+  // can see exactly which manual list lost.
+  const autoMode = await isTextAiAutoModeEnabled().catch(() => false)
   // D2.4: لمرحلة التدقيق، قائمة المدقق داخل البروفايل هي المصدر الأول
   // للموديلات؛ إن غابت تُستخدم قائمة الموديلات العادية للمرحلة.
   let effectiveModels = overrides.preferredModels
@@ -65,7 +74,16 @@ export async function prepareStageRun(stage: PipelineStageName): Promise<StageRu
       allowedModels: effectiveModels.map((m) => `${m.provider}:${m.model}`),
     },
     isStage: true,
-    detail,
+    detail: autoMode
+      ? {
+          ...detail,
+          autoOverride: autoOverrideDetail({
+            autoOverride: true,
+            overriddenRestrictToModels: effectiveModels.map((m) => ({ provider: m.provider, model: m.model })),
+            stageProfile: { profileId: overrides.profileId, version: overrides.version },
+          }),
+        }
+      : detail,
   }
 }
 

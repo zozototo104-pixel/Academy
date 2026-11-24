@@ -1,6 +1,6 @@
 import ZAI from 'z-ai-web-dev-sdk'
 import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnavailableError, isInvalidArgumentError } from '@/lib/gemini'
-import { textAiAutomaticManagementEnabled, textAiComplete, textAiCompleteJson, type TextAiRouterPolicy } from '@/lib/text-ai'
+import { textAiComplete, textAiCompleteJson, isTextAiAutoModeEnabled, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { db } from '@/lib/db'
 import { getSettings } from '@/lib/settings'
 
@@ -471,7 +471,13 @@ export async function chatComplete(
 
   if (!options.requireModelResponse && shouldAnswerLocally(lastUserText)) return localSupervisorFallback(messages, runtime)
 
-  const geminiReady = !await textAiAutomaticManagementEnabled() && !options.skipGemini && await ensureGeminiKey().catch(() => false)
+  // Step 7e: when auto mode is ON, there is ONE model path — a single
+  // router call with purpose CHAT and the auto ranking. No Gemini-first
+  // (B5) and no direct ZAI SDK last resort (B4): the router already
+  // ranks Gemini and ZAI as providers, so a hard-coded order would
+  // defeat the ranking. When OFF, today's order is unchanged.
+  const autoMode = await isTextAiAutoModeEnabled().catch(() => false)
+  const geminiReady = !autoMode && !options.skipGemini && await ensureGeminiKey().catch(() => false)
   if (geminiReady) {
     try {
       const history = messages.map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content }))
@@ -491,12 +497,21 @@ export async function chatComplete(
       history: messages.map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
       temperature: 0.45,
       maxOutputTokens: 900,
+      purpose: 'CHAT',
       routerPolicy: options.routerPolicy,
       userId: options.userId,
       taskType: options.taskType || 'CHAT',
     }), timeoutMs, 'Text AI router chatComplete timed out')
   } catch (e: any) {
     console.error('Text AI router chatComplete failed:', String(e?.message || e).slice(0, 500))
+  }
+
+  // Auto ON: the router error stands — no direct ZAI SDK attempt (B4).
+  // The local fallback below is the only remaining path, exactly as the
+  // single-router contract requires.
+  if (autoMode) {
+    if (options.requireModelResponse) throw new Error('AI_PROVIDER_UNAVAILABLE: all configured model providers failed before local fallback')
+    return localSupervisorFallback(messages, runtime)
   }
 
   try {
@@ -547,6 +562,8 @@ ${studentAcademicContext ? `سياق ملف الطالب للقياس العاد
     history: [{ role: 'user', text: prompt }],
     temperature: 0.1,
     maxOutputTokens: 1200,
+    purpose: 'GRADING',
+    taskType: 'ESSAY_GRADING_SUPERVISOR',
     taskLevel: 'ACADEMIC_CRITICAL',
   })
   try {

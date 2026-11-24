@@ -483,6 +483,7 @@ export async function askMeetingAssistant(
           : '') + '\n\n' + context,
       history: [{ role: 'user', text: clean }],
       purpose: 'CHAT',
+      taskType: 'MEETING_ASSISTANT',
       maxOutputTokens: 700,
     })
     answer = String(answer || '').trim()

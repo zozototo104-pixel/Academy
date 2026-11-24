@@ -306,16 +306,12 @@ export async function runBookRepairScanStep(
     const pages = Array.from({ length: chunk.pageEnd - chunk.pageStart + 1 }, (_, i) => chunk.pageStart + i)
     let ocrText = ''
     let ocrReason: string | null = null
+    const ocrPages: { page: number; text: string }[] = []
     try {
-      const ocrPages: { page: number; text: string }[] = []
       for (let offset = 0; offset < pages.length; offset += 8) {
         const part = await ocr(buffer, pages.slice(offset, offset + 8), deadlineMs)
         ocrPages.push(...part)
       }
-      if (pages.some((page) => {
-        const text = ocrPages.find((item) => item.page === page)?.text?.trim()
-        return !text || looksLikeBrokenBookPageText(text)
-      })) ocrReason = 'OCR_INCOMPLETE_OR_INVALID_PAGES'
       ocrText = pages
         .map((page) => ocrPages.find((item) => item.page === page)?.text?.trim() || '')
         .filter(Boolean)
@@ -326,6 +322,20 @@ export async function runBookRepairScanStep(
     }
     if (!ocrReason && (!ocrText || looksLikeBrokenBookPageText(ocrText))) {
       ocrReason = ocrText ? 'OCR_TEXT_FAILED_VERIFICATION' : 'OCR_RETURNED_NO_TEXT'
+    }
+    // Step 9 (d) — OCR-incomplete flag: the JOINED text can pass
+    // verification while individual pages came back empty or broken
+    // (e.g. one page of a chunk unreadable). Without a flag the chunk
+    // is "repaired" from the surviving pages and the lost page is
+    // silently dropped. Record the scan-level reason so the per-page
+    // UNREADABLE issues below carry it — only for the bad pages.
+    let incompletePages: number[] = []
+    if (!ocrReason) {
+      incompletePages = pages.filter((page) => {
+        const text = (ocrPages.find((item) => item.page === page)?.text || '').trim()
+        return !text || looksLikeBrokenBookPageText(text)
+      })
+      if (incompletePages.length > 0) ocrReason = 'OCR_INCOMPLETE_OR_INVALID_PAGES'
     }
     if (ocrReason) {
       // A stuck chunk never halts the book: record it for review (progress
@@ -339,9 +349,13 @@ export async function runBookRepairScanStep(
         if (latest) {
           const row = await db.bookReadJob.findUnique({ where: { id: latest.id }, select: { lastError: true } })
           if (row) {
+            // An incomplete scan flags only its bad pages; a whole-chunk
+            // OCR failure (OCR_FAILED / verification / no text) flags
+            // every page, as before.
+            const issuePages = incompletePages.length > 0 ? incompletePages : pages
             await db.bookReadJob.update({
               where: { id: latest.id },
-              data: { lastError: mergeBookPageReadIssues(row.lastError, [], pages.map((page) => ({ page, kind: 'UNREADABLE' as const, reason: (ocrReason as string).slice(0, 160) }))) },
+              data: { lastError: mergeBookPageReadIssues(row.lastError, [], issuePages.map((page) => ({ page, kind: 'UNREADABLE' as const, reason: (ocrReason as string).slice(0, 160) }))) },
             })
           }
         }

@@ -130,6 +130,9 @@ export const BOOK_READ_RETRY_MS = 5 * 60_000
 export const BOOK_READ_TRANSIENT_RETRY_MS = 60_000
 
 const BOOK_READ_TRANSIENT_TERMS = [
+  // Step 5: a run timeout (TEXT_AI_RUN_TIMEOUT) is pausable/resumable —
+  // the job keeps its progress and retryAt, never FAILED as exhausted.
+  'text_ai_run_timeout',
   'ai_deadline_exceeded',
   'deadline',
   'timeout',

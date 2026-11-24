@@ -231,6 +231,10 @@ export async function analyzeHumanHandoffIntent(message: string, context?: {
       }],
       temperature: 0,
       maxOutputTokens: 400,
+      // Step 7i: explicit purpose so the auto ranking for ANALYSIS
+      // applies to the handoff classifier (governed shim).
+      purpose: 'ANALYSIS',
+      taskType: 'HANDOFF_INTENT',
     })
     const parsed = parseJsonObject(result)
     if (!parsed) return fallback

@@ -8,8 +8,6 @@ mock.module('@/lib/db', () => ({
 }))
 mock.module('@/lib/text-ai', () => ({
   pipelineConfigSnapshot: async () => ({ policy: 'balanced', allowedModels: [], verifierPreferred: [] }),
-  textAiAutomaticManagementEnabled: async () => false,
-
   CUSTOM_AI_PROVIDERS_SETTING: 'AI_CUSTOM_PROVIDERS',
   parseCustomTextAiProviders: (value: string) => JSON.parse(value || '[]'),
 }))
