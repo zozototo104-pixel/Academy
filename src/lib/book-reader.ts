@@ -219,7 +219,7 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
       preferredModels: overrides.preferredModels,
       preferredProviders: overrides.preferredProviders,
       policy: overrides.policy,
-      allowGlobalFallback: false,
+      allowGlobalFallback: overrides.allowGlobalFallback,
     })).pages
     if (rescued.every((page) => !page.text.trim())) throw originalError
     return rescued
