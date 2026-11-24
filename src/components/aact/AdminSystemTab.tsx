@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/store'
+import { AutomaticAiManagement } from '@/components/aact/AutomaticAiManagement'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -1474,6 +1475,8 @@ export function AdminSystemTab() {
               </div>
               <Badge className={textAiDiag?.externalConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}>{textAiDiag?.externalConfigured ? `نشط: ${textAiDiag.activeProvider}` : 'Gemini / غير خارجي'}</Badge>
             </div>
+            <AutomaticAiManagement enabled={form.AI_AUTO_MANAGEMENT_ENABLED === 'true' || form.AI_AUTO_MANAGEMENT_ENABLED === '1'} onChange={(value) => set('AI_AUTO_MANAGEMENT_ENABLED', value ? 'true' : 'false')} />
+            <p className="text-xs text-indigo-700">الاختيارات اليدوية التالية محفوظة، وتعود للعمل عند تعطيل الإدارة التلقائية وحفظ الإعدادات.</p>
             {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', allTextProviderChoices, textProviderHelp)}
             {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, routerPolicyHelp)}
             {SelectF('AI_ROUTER_POLICY_SOURCE', 'مصدر سياسة الراوتر', ROUTER_POLICY_SOURCE_CHOICES, 'افتراضي النظام يحافظ على balanced/primary_first المكتوبة في الكود. سياسة لوحة الإدارة تجعل المسارات تستخدم AI_ROUTER_POLICY.')}

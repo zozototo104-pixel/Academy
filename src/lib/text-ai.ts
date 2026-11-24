@@ -1,3 +1,4 @@
+import { AI_AUTO_SETTING, automaticManagementEnabled, automaticModelScore, automaticSelectionReason } from '@/lib/ai-auto-policy'
 import { createHash } from 'crypto'
 import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
@@ -155,7 +156,7 @@ export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' 
 export type TextAiRouterPolicySource = 'legacy' | 'admin'
 export type TextAiPolicyRankBy = 'provider' | 'family'
 export type TextAiTaskLevel = 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
-export type TextAiProviderTier = 'FREE' | 'PAID'
+export type TextAiProviderTier = 'FREE' | 'PAID' | 'UNKNOWN'
 export type TextAiPaidUsageMode = 'off' | 'last_resort' | 'critical_first'
 export type TextAiPurpose = 'CHAT' | 'ANALYSIS' | 'GENERATION' | 'GRADING' | 'VISION' | 'LONG_CONTEXT' | 'REVIEW'
 export type TextAiPreferredModel = { provider: Exclude<TextAiProvider, 'AUTO'>; model: string }
@@ -583,10 +584,10 @@ export function parseProviderTiers(value: unknown): Partial<Record<ConcreteProvi
   for (const raw of String(value || '').split(',')) {
     const item = raw.trim()
     if (!item) continue
-    const [providerText, tierText, extra] = item.split(':')
+    const [providerText, tierText, extra] = item.split(/[=:]/)
     const provider = normalizeProvider(providerText)
     const tier = clean(tierText).toUpperCase()
-    if (extra !== undefined || provider === 'AUTO' || provider !== clean(providerText).toUpperCase() || (tier !== 'PAID' && tier !== 'FREE')) continue
+    if (extra !== undefined || provider === 'AUTO' || provider !== clean(providerText).toUpperCase() || (tier !== 'PAID' && tier !== 'FREE' && tier !== 'UNKNOWN')) continue
     out[provider as ConcreteProvider] = tier as TextAiProviderTier
   }
   return out
@@ -1194,6 +1195,7 @@ async function readSettings(keys: string[]): Promise<Record<string, string>> {
 
 async function settings() {
   const rows = await readSettings([
+    AI_AUTO_SETTING,
     'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES', 'AI_PROVIDER_FALLBACK_ORDER', 'AI_PROVIDER_FALLBACK_ORDER_ENABLED',
     'AI_PAID_USAGE_MODE', 'AI_PAID_MODELS', 'AI_PAID_DAILY_LIMIT_USD', 'AI_PAID_MONTHLY_LIMIT_USD', 'AI_PROVIDER_TIER_OPENAI_COMPAT', CUSTOM_AI_PROVIDERS_SETTING,
     'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL',
@@ -1219,8 +1221,9 @@ async function settings() {
   const customProviderKeys: Record<string, string[]> = Object.fromEntries(customProviders.map((entry) => [
     entry.id, parseKeys(customKeyRows[customTextAiKeySetting(entry.id)]),
   ]))
-  const provider = normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
-  const policy = normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
+  const automaticManagement = automaticManagementEnabled(rows[AI_AUTO_SETTING] || env(AI_AUTO_SETTING))
+  const provider = automaticManagement ? 'AUTO' as const : normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
+  const policy = automaticManagement ? 'cost_saver' as const : normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
   const routerCooldownMinutes = __testResolveRouterCooldownMinutesForTests(rows.AI_ROUTER_COOLDOWN_MINUTES, env('AI_ROUTER_COOLDOWN_MINUTES'))
   cachedRouterCooldownMinutes = routerCooldownMinutes
   // The manual fallback order's on/off switch (AI_PROVIDER_FALLBACK_ORDER_ENABLED,
@@ -1228,20 +1231,21 @@ async function settings() {
   // it exists (the PR #159 semantics); an explicit 'false' parks the saved
   // order and hands routing back to the coded policies/families/paid-first.
   const manualOrderEnabledRaw = rows.AI_PROVIDER_FALLBACK_ORDER_ENABLED || env('AI_PROVIDER_FALLBACK_ORDER_ENABLED')
-  const manualProviderOrderEnabled = manualOrderEnabledRaw === '' ? true : booleanSetting(manualOrderEnabledRaw)
+  const manualProviderOrderEnabled = !automaticManagement && (manualOrderEnabledRaw === '' ? true : booleanSetting(manualOrderEnabledRaw))
   const openaiCompatBaseUrl = normalizeOpenAiCompatibleBaseUrl(rows.OPENAI_COMPAT_BASE_URL || env('OPENAI_COMPAT_BASE_URL') || '')
   const openaiCompatDefaults = isNvidiaOpenAiCompatibleBaseUrl(openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   return {
+    automaticManagement,
     provider,
     customProviders,
     customProviderKeys,
     policy,
-    policySource: normalizePolicySource(rows.AI_ROUTER_POLICY_SOURCE || env('AI_ROUTER_POLICY_SOURCE') || 'legacy'),
+    policySource: automaticManagement ? 'legacy' as const : normalizePolicySource(rows.AI_ROUTER_POLICY_SOURCE || env('AI_ROUTER_POLICY_SOURCE') || 'legacy'),
     policyRankBy: normalizePolicyRankBy(rows.AI_POLICY_RANK_BY || env('AI_POLICY_RANK_BY') || 'provider'),
     familyQualityOrder: parseFamilyOrder(rows.AI_FAMILY_QUALITY_ORDER || env('AI_FAMILY_QUALITY_ORDER'), DEFAULT_FAMILY_QUALITY_ORDER),
     familyCostOrder: parseFamilyOrder(rows.AI_FAMILY_COST_ORDER || env('AI_FAMILY_COST_ORDER'), DEFAULT_FAMILY_COST_ORDER),
     providerTiers: parseProviderTiers(rows.AI_PROVIDER_TIERS || env('AI_PROVIDER_TIERS') || ''),
-    paidFirst: booleanSetting(rows.AI_PAID_FIRST || env('AI_PAID_FIRST')),
+    paidFirst: !automaticManagement && booleanSetting(rows.AI_PAID_FIRST || env('AI_PAID_FIRST')),
     routerCooldownMinutes,
     allowPublicGateways: booleanSetting(rows.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS || env('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS')),
     academicAllowlist: parseAcademicAllowlist(rows.AI_ACADEMIC_ALLOWLIST || env('AI_ACADEMIC_ALLOWLIST') || DEFAULT_ACADEMIC_ALLOWLIST),
@@ -1253,7 +1257,7 @@ async function settings() {
     paidModels: parseKeys(rows.AI_PAID_MODELS || env('AI_PAID_MODELS')).filter((model) => validModelName(model) && academicModelAllowed('OPENAI_COMPAT', model)),
     paidDailyLimitUsd: Math.max(0, Number(rows.AI_PAID_DAILY_LIMIT_USD || env('AI_PAID_DAILY_LIMIT_USD') || 0) || 0),
     paidMonthlyLimitUsd: Math.max(0, Number(rows.AI_PAID_MONTHLY_LIMIT_USD || env('AI_PAID_MONTHLY_LIMIT_USD') || 0) || 0),
-    openaiCompatTier: String(rows.AI_PROVIDER_TIER_OPENAI_COMPAT || env('AI_PROVIDER_TIER_OPENAI_COMPAT') || 'FREE').toUpperCase() === 'PAID' ? 'PAID' as TextAiProviderTier : 'FREE' as TextAiProviderTier,
+    openaiCompatTier: String(rows.AI_PROVIDER_TIER_OPENAI_COMPAT || env('AI_PROVIDER_TIER_OPENAI_COMPAT') || 'FREE').toUpperCase() === 'PAID' ? 'PAID' as TextAiProviderTier : String(rows.AI_PROVIDER_TIER_OPENAI_COMPAT || env('AI_PROVIDER_TIER_OPENAI_COMPAT') || '').toUpperCase() === 'UNKNOWN' ? 'UNKNOWN' as TextAiProviderTier : 'FREE' as TextAiProviderTier,
     // Vision/text routing: env Gemini key first, then all configured DB keys with the existing key rotation/cooldown policy.
     geminiKeys: parseKeys(env('GEMINI_API_KEY'), env('GEMINI_API_KEYS'), rows.GEMINI_API_KEY, rows.GEMINI_API_KEYS),
     geminiModel: normalizeGeminiTextModel(rows.GEMINI_TEXT_MODEL || env('GEMINI_TEXT_MODEL')),
@@ -1313,6 +1317,59 @@ async function settings() {
 
 type Settings = Awaited<ReturnType<typeof settings>>
 type ConcreteProvider = Exclude<TextAiProvider, 'AUTO'>
+
+export async function textAiAutomaticManagementEnabled(): Promise<boolean> {
+  const rows = await readSettings([AI_AUTO_SETTING])
+  return automaticManagementEnabled(rows[AI_AUTO_SETTING] || env(AI_AUTO_SETTING))
+}
+
+async function automaticCandidates(s: Settings, providers: ConcreteProvider[], taskLevel: TextAiTaskLevel, purpose: TextAiPurpose, cooldowns: Record<string, string>) {
+  const candidates = (await Promise.all(providers.map(async (provider) => {
+    const models = await modelFallbacks(s, provider, taskLevel, false, purpose)
+    const health = await readModelHealth(provider, models)
+    const rows = await settingStore().read(models.map((model) => purposeModelStatsKey(purpose, provider, model)))
+    const keys = providerKeys(s, provider)
+    return Promise.all(models.map(async (model) => {
+      const raw = rows[purposeModelStatsKey(purpose, provider, model)]
+      const stats = raw ? parseModelStats(raw) : null
+      const dead = isPersistentModelDead(cooldowns, provider, model)
+      const cooling = Boolean(activeProviderCooldown(provider)) || keys.every((key, index) => Boolean(isPersistentNoBalance(cooldowns, provider, index) || persistentCooldown(cooldowns, provider, index, model) || activeMemoryCooldown(provider, key) || activeMemoryModelCooldown(provider, key, model)))
+      const healthy = !recentFailedHealth(health.get(model) || null)
+      const capabilities = modelCapabilitiesFor(provider, s, model) || {}
+      const capable = purpose === 'VISION' ? modelSupportsVisionAttachment(provider, model, capabilities, [{ mimeType: 'image/png', base64: '' }]) : purpose === 'LONG_CONTEXT' ? (capabilities.contextLength || 0) >= 100_000 : true
+      const tier = providerTierFor(s, provider) || 'UNKNOWN'
+      const paidAllowed = tier === 'FREE' || (provider === 'OPENAI_COMPAT' && tier === 'PAID' && await paidBudgetAvailable(s, estimatedPaidCostUsd({ system: '', history: [] })))
+      const reason = dead ? 'النموذج غير متاح وفق آخر استجابة' : cooling ? 'تبريد مؤقت بعد خطأ أو نفاد الحصة' : !healthy ? 'فشل فحص الصحة الأخير' : !capable ? 'القدرات المطلوبة غير مثبتة' : !paidAllowed ? 'التكلفة غير موثقة أو المدفوع معطل أو الميزانية غير متاحة لهذا المزود' : automaticSelectionReason(stats)
+      return { provider, model, score: automaticModelScore(stats), reason, eligible: !dead && !cooling && healthy && capable && paidAllowed, measured: Boolean(stats), tier, capabilities }
+    }))
+  }))).flat()
+  return candidates.sort((a, b) => Number(b.eligible) - Number(a.eligible) || (a.tier === 'FREE' ? 0 : 1) - (b.tier === 'FREE' ? 0 : 1) || b.score - a.score)
+}
+
+export async function textAiAutomaticSnapshot() {
+  const s = await settings()
+  const cooldowns = await loadPersistentCooldowns()
+  const purposes: TextAiPurpose[] = ['CHAT', 'ANALYSIS', 'VISION', 'GENERATION', 'GRADING', 'LONG_CONTEXT', 'REVIEW']
+  type Candidate = Awaited<ReturnType<typeof automaticCandidates>>[number]
+  const stages: Array<{ purpose: TextAiPurpose; primary: Candidate | null; fallback: Candidate[]; excluded: Candidate[] }> = []
+  for (const purpose of purposes) {
+    const taskLevel = purpose === 'CHAT' ? 'GENERAL' : 'ACADEMIC_DRAFT'
+    const candidates = await automaticCandidates(s, providerOrder(s, taskLevel), taskLevel, purpose, cooldowns)
+    stages.push({ purpose, primary: candidates.find((candidate) => candidate.eligible) || null, fallback: candidates.filter((candidate) => candidate.eligible).slice(1, 4), excluded: candidates.filter((candidate) => !candidate.eligible).slice(0, 20) })
+  }
+  return { enabled: s.automaticManagement, checkedAt: new Date().toISOString(), stages, note: 'درجات إرشادية من الاستخدام الفعلي وليست نسبة دقة. تُطبّق قيود الطلب والميزانية والأدلة واستقلال المدقق عند التنفيذ. UNKNOWN تعني أن التكلفة غير معروفة وليست مجانية. الصوت المباشر والتفريغ يستخدمان مسارهما المتخصص.' }
+}
+
+export async function textAiRefreshAutomaticCatalog() {
+  const s = await settings()
+  if (!s.automaticManagement) return { enabled: false, providers: 0 }
+  const providers = [...new Set([...providerOrder(s), ...providerOrder(s, 'ACADEMIC_DRAFT')])]
+  for (let index = 0; index < providers.length; index += 3) {
+    await Promise.all(providers.slice(index, index + 3).map((provider) => liveFreeModels(provider, s, true)))
+  }
+  await settingStore().write('AI_AUTO_CATALOG_UPDATED_AT', new Date().toISOString())
+  return { enabled: true, providers: providers.length }
+}
 
 function limitProviderModels(provider: Exclude<TextAiProvider, 'AUTO'>, models: string[], maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>) {
   const limit = Math.max(0, Math.floor(Number(maxProviderModels?.[provider] || 0)))
@@ -1876,11 +1933,11 @@ function normalizeFreeModelName(provider: ConcreteProvider, name: string): strin
 // the provider health check (textAiDiscoveredModelsForProvider) both read
 // from here, so a provider whose models carry no free marking is still
 // discoverable for diagnostics — the free filter only ever narrows routing.
-async function fetchOpenAiCompatibleModelRows(provider: ConcreteProvider, baseUrl: string, key?: string): Promise<{ rows: Array<{ raw: any; id: string }>; sourceCount: number }> {
+async function fetchOpenAiCompatibleModelRows(provider: ConcreteProvider, baseUrl: string, key?: string): Promise<{ rows: Array<{ raw: any; id: string }>; sourceCount: number; discoveryOk: boolean }> {
   const normalizedBaseUrl = provider === 'OPENAI_COMPAT'
     ? normalizeOpenAiCompatibleBaseUrl(baseUrl)
     : (baseUrl || '').replace(/\/$/, '')
-  if (!normalizedBaseUrl) return { rows: [], sourceCount: 0 }
+  if (!normalizedBaseUrl) return { rows: [], sourceCount: 0, discoveryOk: false }
   try {
     if (isCustomTextAiProviderId(provider)) await assertPublicCustomTextAiUrl(normalizedBaseUrl)
     const response = await fetchWithTimeout(provider, `${normalizedBaseUrl}/models`, {
@@ -1888,10 +1945,12 @@ async function fetchOpenAiCompatibleModelRows(provider: ConcreteProvider, baseUr
       ...(isCustomTextAiProviderId(provider) ? { redirect: 'error' as const } : {}),
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
     }, aiDiscoveryTimeoutMs())
-    if (!response.ok) return { rows: [], sourceCount: 0 }
-    const data = await response.json().catch(() => ({}))
+    if (!response.ok) return { rows: [], sourceCount: 0, discoveryOk: false }
+    const data = await response.json()
+    if (![data, data?.models, data?.data, data?.results].some(Array.isArray)) return { rows: [], sourceCount: 0, discoveryOk: false }
     const sourceRows = rowsFromModelPayload(data)
     return {
+      discoveryOk: true,
       sourceCount: sourceRows.length,
       rows: sourceRows
         .filter((m) => m?.online !== false)
@@ -1900,7 +1959,7 @@ async function fetchOpenAiCompatibleModelRows(provider: ConcreteProvider, baseUr
         .filter(({ id }) => validModelName(id)),
     }
   } catch {
-    return { rows: [], sourceCount: 0 }
+    return { rows: [], sourceCount: 0, discoveryOk: false }
   }
 }
 
@@ -1911,7 +1970,8 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
   if (!normalizedBaseUrl) return []
   const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(normalizedBaseUrl)
   try {
-    const { rows: sourceRows, sourceCount } = await fetchOpenAiCompatibleModelRows(provider, baseUrl, key)
+    const { rows: sourceRows, sourceCount, discoveryOk } = await fetchOpenAiCompatibleModelRows(provider, baseUrl, key)
+    if (!discoveryOk) return []
     const rows = sourceRows
       .filter(({ raw, id }) => (
         // A custom provider the admin explicitly marked as allowing paid
@@ -2208,27 +2268,31 @@ async function discoveryKey(provider: ConcreteProvider, s: Settings): Promise<st
   return keys[0]
 }
 
-async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<string[]> {
+async function liveFreeModels(provider: ConcreteProvider, s: Settings, force = false): Promise<string[]> {
   const baseUrl = baseFor(s, provider)
   const key = await discoveryKey(provider, s)
   const cacheKey = cacheKeyForFreeModels(provider, baseUrl, key)
   const now = Date.now()
   const cached = freeModelsCache.get(cacheKey)
-  if (cached && now - cached.at < freeModelsMemoryCacheMs(provider)) return cached.models
+  let lastGood = cached
+  if (!force && cached && now - cached.at < freeModelsMemoryCacheMs(provider)) return cached.models
   try {
     const persisted = (await settingStore().read([persistentModelsCacheKey(cacheKey)]))[persistentModelsCacheKey(cacheKey)]
     const parsed = persisted ? JSON.parse(persisted) : null
-    if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < freeModelsPersistentCacheMs(provider)) {
+    if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0) {
       const models = parsed.models.map(String).filter(validModelName)
       const capabilities = parsed.capabilities && typeof parsed.capabilities === 'object' ? parsed.capabilities as Record<string, ModelCapability> : undefined
       const discoveryOk = parsed.discoveryOk === true || models.length > 0
       const sourceCount = Number(parsed.sourceCount ?? parsed.discoveredCount ?? NaN)
-      freeModelsCache.set(cacheKey, { at: now, models, capabilities, discoveryOk, sourceCount: Number.isFinite(sourceCount) ? sourceCount : undefined })
-      return models
+      const entry = { at: Number(parsed.at), models, capabilities, discoveryOk, sourceCount: Number.isFinite(sourceCount) ? sourceCount : undefined }
+      if (!lastGood || entry.at > lastGood.at) lastGood = entry
+      if (!force && now - entry.at < freeModelsPersistentCacheMs(provider)) {
+        freeModelsCache.set(cacheKey, entry)
+        return models
+      }
     }
-  } catch {
-    // Persistent model discovery cache is best-effort.
-  }
+  } catch {}
+  freeModelsCache.delete(cacheKey)
 
   let models: string[] = []
   if (provider === 'UNOROUTER') {
@@ -2269,6 +2333,10 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
   const capabilities = cachedWithCapabilities?.capabilities
   const discoveryOk = cachedWithCapabilities?.discoveryOk
   const sourceCount = cachedWithCapabilities?.sourceCount
+  if (!models.length && !discoveryOk && lastGood) {
+    freeModelsCache.set(cacheKey, lastGood)
+    return lastGood.models
+  }
   freeModelsCache.set(cacheKey, { at: now, models, capabilities, discoveryOk, sourceCount })
   if (models.length || discoveryOk) {
     settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models, capabilities, discoveryOk, sourceCount })).catch(() => {})
@@ -2509,7 +2577,7 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
   const alborihiDiscovered = provider === 'ALBORIHI' && freeModelDiscoveryEntry(provider, s)?.discoveryOk === true && discoveredFree.length > 0
   const allowPaid = isCustomTextAiProviderId(provider) && s.customProviders?.some((entry) => entry.id === provider && entry.allowPaid === true)
-  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered || (isCustomTextAiProviderId(provider) && !allowPaid)
+  const strictDiscovered = s.automaticManagement || nvidiaDiscovered || alborihiDiscovered || (isCustomTextAiProviderId(provider) && !allowPaid)
   const discoveredSet = new Set(discoveredFree.map((model) => model.toLowerCase()))
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
   const selectedPart = selected && !selectedIsAuto && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
@@ -2525,7 +2593,11 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
     .filter(modelCapabilityAllowed)
     .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
-  return orderModelsByHealth(provider, sortModelsByFamily(s, provider, allowed, taskLevel), taskLevel, explore, purpose)
+  const ordered = await orderModelsByHealth(provider, sortModelsByFamily(s, provider, allowed, taskLevel), taskLevel, explore, purpose)
+  if (!s.automaticManagement && selectedPart[0] && ordered.includes(selectedPart[0])) {
+    return [selectedPart[0], ...ordered.filter((model) => model !== selectedPart[0])]
+  }
+  return ordered
 }
 
 export async function __testModelFallbacksForTests(providerValue: unknown, taskLevel: TextAiTaskLevel = 'GENERAL'): Promise<string[]> {
@@ -4021,11 +4093,12 @@ async function keyRateAllowed(provider: ConcreteProvider, key: string): Promise<
 }
 
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
-  const attachments = normalizedAttachments(opts)
-  const visionCall = attachments.length > 0
-  const effectiveOpts = visionCall ? { ...opts, attachments, purpose: opts.purpose || 'VISION', deadlineMs: opts.deadlineMs || Date.now() + VISION_ATTEMPT_TIMEOUT_MS } : opts
   const baseSettings = await settings()
-  const resolvedPolicy = resolveRouterPolicy(effectiveOpts.purpose, baseSettings, effectiveOpts.routerPolicy)
+  const routingOpts = baseSettings.automaticManagement ? { ...opts, preferredModels: undefined, preferredProviders: undefined, routerPolicy: undefined } : opts
+  const attachments = normalizedAttachments(routingOpts)
+  const visionCall = attachments.length > 0
+  const effectiveOpts = visionCall ? { ...routingOpts, attachments, purpose: routingOpts.purpose || 'VISION' as const, deadlineMs: routingOpts.deadlineMs || Date.now() + VISION_ATTEMPT_TIMEOUT_MS } : routingOpts
+  const resolvedPolicy = baseSettings.automaticManagement ? baseSettings.policy : resolveRouterPolicy(effectiveOpts.purpose, baseSettings, effectiveOpts.routerPolicy)
   const s: Settings = resolvedPolicy === baseSettings.policy ? baseSettings : { ...baseSettings, policy: resolvedPolicy }
   const taskLevel = effectiveOpts.taskLevel || 'GENERAL'
   const excluded = excludedConcreteProviders(effectiveOpts.excludeProviders)
@@ -4073,7 +4146,13 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const persistentCooldowns = await loadPersistentCooldowns()
   const exploreModels = ++routerRequestSeq % 5 === 0
   const estimatedPaidCost = estimatedPaidCostUsd(effectiveOpts)
-  const stickyResolution = await resolveUsableStickyModel({
+  const automaticPlan = s.automaticManagement
+    ? await automaticCandidates(s, providers, taskLevel, effectiveOpts.purpose || 'CHAT', persistentCooldowns)
+    : null
+  if (automaticPlan) {
+    providers = [...new Set(automaticPlan.filter((candidate) => candidate.eligible).map((candidate) => candidate.provider))]
+  }
+  const stickyResolution = s.automaticManagement ? null : await resolveUsableStickyModel({
     s,
     opts: effectiveOpts,
     scope: stickyScope,
@@ -4088,8 +4167,8 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     allowAlborihiCrossFamilyVerifier,
     estimatedPaidCost,
   })
-  if (stickyScope && stickyResolution.deleteSticky) stickyModels.delete(stickyScope)
-  const usableSticky = stickyResolution.sticky
+  if (stickyScope && stickyResolution?.deleteSticky) stickyModels.delete(stickyScope)
+  const usableSticky = stickyResolution?.sticky
   if (usableSticky) providers = [usableSticky.provider, ...providers.filter((provider) => provider !== usableSticky.provider)]
   if (restrictSet) providers = providers.filter((provider) => restrictSet.has(provider))
   const estimatedInputTokens = estimatePromptTokens(effectiveOpts.system, effectiveOpts.history)
@@ -4123,7 +4202,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     }
   }
 
-  for (const provider of providers) {
+  const routingTargets = automaticPlan
+    ? automaticPlan.filter((candidate) => candidate.eligible).map(({ provider, model }) => ({ provider, model }))
+    : providers.map((provider) => ({ provider, model: '' }))
+  for (const { provider, model: automaticModel } of routingTargets) {
     if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') {
       if (paidAvailable == null) paidAvailable = await paidBudgetAvailable(s, estimatedPaidCost)
       if (!paidAvailable) {
@@ -4152,9 +4234,11 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     const baseModels = candidateModels
       .filter(eligibleFamily)
       .filter((model) => modelSupportsVisionAttachment(provider, model, modelCapabilitiesFor(provider, s, model), attachments))
-    const orderedModels = usableSticky && usableSticky.provider === provider && baseModels.includes(usableSticky.model)
-      ? [usableSticky.model, ...baseModels.filter((model) => model !== usableSticky.model)]
-      : baseModels
+    const orderedModels = automaticPlan
+      ? (baseModels.includes(automaticModel) ? [automaticModel] : [])
+      : usableSticky && usableSticky.provider === provider && baseModels.includes(usableSticky.model)
+        ? [usableSticky.model, ...baseModels.filter((model) => model !== usableSticky.model)]
+        : baseModels
     const health = await readModelHealth(provider, orderedModels)
     for (const model of orderedModels) {
       if (recentFailedHealth(health.get(model) || null)) {

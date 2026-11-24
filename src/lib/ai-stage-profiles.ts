@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import type { PipelineStageName } from '@/lib/ai-pipeline-log'
-import { CUSTOM_AI_PROVIDERS_SETTING, parseCustomTextAiProviders } from '@/lib/text-ai'
+import { CUSTOM_AI_PROVIDERS_SETTING, parseCustomTextAiProviders, textAiAutomaticManagementEnabled } from '@/lib/text-ai'
 
 // D1 — تخزين بروفايلات المراحل مع ترقيم نسخ لا يُكتب فوقه.
 // قواعد ملزمة من تصميم المرحلة:
@@ -80,7 +80,7 @@ export function stageProfileModelCount(snapshot: StageProfileSnapshot): number {
 
 export type EffectiveStageProfile =
   | { kind: 'stage'; profileId: string; version: number; snapshot: StageProfileSnapshot; allowedCustomProviders?: string[] }
-  | { kind: 'global'; reason: 'missing' | 'disabled' | 'empty-models' }
+  | { kind: 'global'; reason: 'missing' | 'disabled' | 'empty-models' | 'automatic-management' }
 
 // حسم البروفايل الفعّال لمرحلة: بروفايل المرحلة أو الرجوع للعام مع السبب.
 export function resolveEffectiveFromSnapshot(
@@ -127,7 +127,7 @@ export function validateStageProviderChoices(snapshot: StageProfileSnapshot, pro
 }
 
 export type StageRoutingOverrides =
-  | { kind: 'global'; reason: 'missing' | 'disabled' | 'empty-models' }
+  | { kind: 'global'; reason: 'missing' | 'disabled' | 'empty-models' | 'automatic-management' }
   | { kind: 'invalid'; reason: string }
   | {
       kind: 'stage'
@@ -247,6 +247,7 @@ export async function getCurrentStageProfile(stage: PipelineStageName) {
 }
 
 export async function resolveEffectiveStageProfile(stage: PipelineStageName): Promise<EffectiveStageProfile> {
+  if (await textAiAutomaticManagementEnabled()) return { kind: 'global', reason: 'automatic-management' }
   const resolution = resolveEffectiveFromSnapshot(await store.loadCurrent(stage))
   if (resolution.kind !== 'stage') return resolution
   const snapshot = resolution.snapshot

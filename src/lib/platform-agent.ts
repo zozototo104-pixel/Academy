@@ -11,7 +11,7 @@ import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
 import { getOfficialContact } from '@/lib/settings'
 import { ensureGeminiKey, geminiActiveTextModel, geminiComplete, geminiCompleteJson, geminiDiscussionThinkingLevel, geminiStreamText, type GeminiThinkingLevel } from '@/lib/gemini'
-import { textAiComplete, textAiDiagnostics, textAiModelHealthSnapshot, type TextAiProvider } from '@/lib/text-ai'
+import { textAiComplete, textAiDiagnostics, textAiModelHealthSnapshot, textAiAutomaticManagementEnabled, type TextAiProvider } from '@/lib/text-ai'
 import { assertWithinDeadline, remainingDeadlineMs } from '@/lib/prod-safety'
 
 export type PlatformAgentKind =
@@ -963,6 +963,10 @@ export async function platformPublicAgentComplete(opts: {
   const isWhatsApp = opts.channel === 'WHATSAPP'
   const timeoutMs = isWhatsApp ? platformAiTimeoutMs(42_000) : remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(22_000))
   if (!isWhatsApp && timeoutMs <= 0) throw new Error('Public platform agent deadline exceeded')
+  if (await textAiAutomaticManagementEnabled()) {
+    const reply = await textAiComplete({ system, history: opts.messages.map((message) => ({ role: message.role === 'assistant' ? 'model' : 'user', text: message.content })), purpose: 'CHAT', taskType: 'platform-public-agent', deadlineMs: Date.now() + timeoutMs })
+    return { reply: annotateReply(agent, reply, 'MODEL_ROUTER_OR_FALLBACK'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
+  }
 
   const runGemini = async () => {
     const geminiReady = await ensureGeminiKey().catch(() => false)
@@ -1079,7 +1083,7 @@ export async function platformAgentComplete(opts: {
   const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000))
   if (timeoutMs <= 0) throw new Error('Platform agent deadline exceeded')
   const routerPolicySource = await getSettings().catch(() => ({} as Record<string, string>))
-  const useAdminRouterPolicy = String(routerPolicySource.AI_ROUTER_POLICY_SOURCE || process.env.AI_ROUTER_POLICY_SOURCE || '').trim().toLowerCase() === 'admin'
+  const useAdminRouterPolicy = await textAiAutomaticManagementEnabled() || String(routerPolicySource.AI_ROUTER_POLICY_SOURCE || process.env.AI_ROUTER_POLICY_SOURCE || '').trim().toLowerCase() === 'admin'
   const shouldPreferGemini = !useAdminRouterPolicy && (user?.role === 'STUDENT'
     || agent === 'ACADEMIC_SUPERVISOR'
     || agent === 'EXAMS'
@@ -1222,7 +1226,7 @@ export async function platformAgentStream(opts: {
   if (timeoutMs <= 0) throw new Error('Platform agent stream deadline exceeded')
   const providerDeadlineMs = Date.now() + timeoutMs
   const routerPolicySource = await getSettings().catch(() => ({} as Record<string, string>))
-  const useAdminRouterPolicy = String(routerPolicySource.AI_ROUTER_POLICY_SOURCE || process.env.AI_ROUTER_POLICY_SOURCE || '').trim().toLowerCase() === 'admin'
+  const useAdminRouterPolicy = await textAiAutomaticManagementEnabled() || String(routerPolicySource.AI_ROUTER_POLICY_SOURCE || process.env.AI_ROUTER_POLICY_SOURCE || '').trim().toLowerCase() === 'admin'
   const shouldPreferGemini = !useAdminRouterPolicy && (user?.role === 'STUDENT'
     || agent === 'ACADEMIC_SUPERVISOR'
     || agent === 'EXAMS'

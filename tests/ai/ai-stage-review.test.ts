@@ -9,6 +9,8 @@ let responseContext: { provider: string; model: string; family?: string } = { pr
 let generatorFamilyOverride = 'gemini'
 mock.module('@/lib/text-ai', () => ({
   pipelineConfigSnapshot: async () => ({ policy: 'balanced', allowedModels: [], verifierPreferred: [] }),
+  textAiAutomaticManagementEnabled: async () => false,
+
   CUSTOM_AI_PROVIDERS_SETTING: 'AI_CUSTOM_PROVIDERS',
   parseCustomTextAiProviders: () => [],
   modelFamily: (model: string) => {

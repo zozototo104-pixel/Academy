@@ -17,6 +17,12 @@ export async function GET(request: NextRequest) {
   }
   const claimed = await claimAiHealthRun()
   if (!claimed) return NextResponse.json(redactDeep({ ok: true, skipped: true }))
+  try {
+    const { refreshAutomaticCatalog } = await import('@/lib/ai-auto-refresh')
+    await refreshAutomaticCatalog()
+  } catch (error) {
+    console.warn('Automatic AI catalog refresh failed', error instanceof Error ? error.name : 'unknown')
+  }
   const expired = await db.paymentWaiverCode.updateMany({
     where: { status: 'ISSUED', expiresAt: { lt: new Date() } },
     data: { status: 'EXPIRED' },

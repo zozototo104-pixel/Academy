@@ -1,6 +1,6 @@
 import ZAI from 'z-ai-web-dev-sdk'
 import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnavailableError, isInvalidArgumentError } from '@/lib/gemini'
-import { textAiComplete, textAiCompleteJson, type TextAiRouterPolicy } from '@/lib/text-ai'
+import { textAiAutomaticManagementEnabled, textAiComplete, textAiCompleteJson, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { db } from '@/lib/db'
 import { getSettings } from '@/lib/settings'
 
@@ -471,7 +471,7 @@ export async function chatComplete(
 
   if (!options.requireModelResponse && shouldAnswerLocally(lastUserText)) return localSupervisorFallback(messages, runtime)
 
-  const geminiReady = !options.skipGemini && await ensureGeminiKey().catch(() => false)
+  const geminiReady = !await textAiAutomaticManagementEnabled() && !options.skipGemini && await ensureGeminiKey().catch(() => false)
   if (geminiReady) {
     try {
       const history = messages.map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content }))

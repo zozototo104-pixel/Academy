@@ -556,8 +556,9 @@ export async function runNextKnowledgeAiRepairStep(overrides: KnowledgeAiRepairO
     select: { key: true, value: true },
   })
   const config = Object.fromEntries(repairSettings.map((item) => [item.key, item.value]))
-  const repairProvider = String(config.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO').toUpperCase() as TextAiProvider
-  const repairModel = String(config.AI_KNOWLEDGE_REPAIR_MODEL || '').trim()
+  const automaticManagement = await (await import('@/lib/text-ai')).textAiAutomaticManagementEnabled()
+  const repairProvider = String(automaticManagement ? 'AUTO' : config.AI_KNOWLEDGE_REPAIR_PROVIDER || 'AUTO').toUpperCase() as TextAiProvider
+  const repairModel = automaticManagement ? '' : String(config.AI_KNOWLEDGE_REPAIR_MODEL || '').trim()
   // The independent optional repair control accepts the SAME enabled custom
   // providers shown in its admin selector; disabled/deleted IDs stay blocked.
   const customRepairProviders = parseCustomTextAiProviders(config[CUSTOM_AI_PROVIDERS_SETTING])

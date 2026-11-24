@@ -16,6 +16,7 @@ const NextResponse = {
 }
 
 const SYSTEM_KEYS = [
+  'AI_AUTO_MANAGEMENT_ENABLED',
   'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_NAME', 'SMTP_ENABLED',
   'RESEND_API_KEY', 'MAIL_FROM', 'RESEND_FROM',
   'PAYMENT_MODE', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET',
@@ -100,7 +101,7 @@ function sanitizeTextAiProviderTiers(value: string, addedIds: string[] = []): st
     const parts = item.split(':')
     const provider = (parts[0] || '').trim().toUpperCase()
     const tier = (parts[1] || '').trim().toUpperCase()
-    if (parts.length !== 2 || !(TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider) || addedIds.includes(provider)) || (tier !== 'PAID' && tier !== 'FREE')) return null
+    if (parts.length !== 2 || !(TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider) || addedIds.includes(provider)) || (tier !== 'PAID' && tier !== 'FREE' && tier !== 'UNKNOWN')) return null
   }
   return items.map((item) => {
     const [provider, tier] = item.split(':')
@@ -269,6 +270,9 @@ export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json()
+    if (body.AI_AUTO_MANAGEMENT_ENABLED !== undefined && !['true', 'false', '1', '0'].includes(body.AI_AUTO_MANAGEMENT_ENABLED)) {
+      return NextResponse.json({ error: 'قيمة تفعيل الإدارة التلقائية غير صالحة' }, { status: 400 })
+    }
     const addedIds = (await adminCustomTextAiProviders()).map((entry) => entry.id)
     // Independent model choice for knowledge repair. Never alter global routing
     // for students, books, exams or other AI consumers.

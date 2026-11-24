@@ -312,6 +312,10 @@ export async function runBookRepairScanStep(
         const part = await ocr(buffer, pages.slice(offset, offset + 8), deadlineMs)
         ocrPages.push(...part)
       }
+      if (pages.some((page) => {
+        const text = ocrPages.find((item) => item.page === page)?.text?.trim()
+        return !text || looksLikeBrokenBookPageText(text)
+      })) ocrReason = 'OCR_INCOMPLETE_OR_INVALID_PAGES'
       ocrText = pages
         .map((page) => ocrPages.find((item) => item.page === page)?.text?.trim() || '')
         .filter(Boolean)
