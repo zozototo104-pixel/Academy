@@ -304,6 +304,19 @@ describe('paid models are never ranked when paid is off — router end to end', 
   })
 })
 
+describe('quota-safe periodic catalog updates', () => {
+  test('unconfigured providers are skipped while active providers remain discoverable', async () => {
+    process.env.GROQ_API_KEY = 'test-configured-key'
+    const configured = await textAi.textAiAutoConfiguredProviders()
+    expect(configured).toContain('GROQ')
+    expect(configured).not.toContain('OPENAI')
+    expect(configured).not.toContain('ANTHROPIC')
+    const cron = readFileSync('src/app/api/cron/ai-auto-refresh/route.ts', 'utf8')
+    expect(cron).toContain('textAiAutoConfiguredProviders()')
+    expect(cron).toContain('configured.has(provider)')
+  })
+})
+
 describe('no permission change — auto ON/OFF does not change who can call admin routes', () => {
   test('the auto cron route is CRON_SECRET gated and the check precedes any auto logic', () => {
     const route = readFileSync('src/app/api/cron/ai-auto-refresh/route.ts', 'utf8')
