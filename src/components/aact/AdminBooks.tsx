@@ -710,7 +710,7 @@ export function AdminBooksTab() {
     totalChunks: number; saturatedChunks: number; addedItems: number
     capacitySaturatedChunks?: number; exhaustedChunks?: number
     storedChunks?: number; failedChunks?: number; knowledgeTotal?: number
-    sourcePages?: number; pagesSaved?: number
+    sourcePages?: number; pagesSaved?: number; corruptChunks?: number
   }>>({})
   const [programKnowledgeV2States, setProgramKnowledgeV2States] = useState<Record<string, { state: 'READING' | 'ENRICHING' | 'COMPLETED' | 'PAUSED' | 'FAILED'; retryAt?: string | null }>>({})
   const [bookReadBusyId, setBookReadBusyId] = useState<string | null>(null)
@@ -2592,6 +2592,26 @@ export function AdminBooksTab() {
     }
   }
 
+  const repairCorruptBookPages = async (bookId: string) => {
+    const ok = await askAdminConfirm({
+      title: 'إعادة قراءة الصفحات التالفة',
+      description: 'سيعيد النظام قراءة المقاطع ذات النص المكسّر من ملف PDF الأصلي عبر OCR، ويعيد تحليلها فقط. لا يُحذف أي مقطع سليم ولا أي عنصر معرفة مرتبط بوحدة أو سؤال أو دليل — المقاطع المرتبطة تُترك للمراجعة.',
+      confirmLabel: 'إعادة القراءة',
+    })
+    if (!ok) return
+    setBookReadBusyId(bookId)
+    try {
+      const response = await api<{ repairedChunks: { index: number }[]; stillUnreadable: { index: number }[]; skippedLinked: { index: number }[]; remainingCorruptChunks: number; jobRequeued: boolean }>(`/api/admin/books/${bookId}/repair-corrupt-pages`, { method: 'POST' })
+      toast({ title: 'تمت إعادة قراءة الصفحات التالفة', description: `أُصلح ${response.repairedChunks.length} مقطع · بقي غير مقروء ${response.stillUnreadable.length} · تُخطّى لارتباط ${response.skippedLinked.length} · بقي ${response.remainingCorruptChunks} مقطع تالف${response.jobRequeued ? ' · أعيد التحليل إلى الانتظار' : ''}` })
+      await fetchBookReadJob(bookId)
+      if (response.jobRequeued) void advanceBookReadJob(bookId)
+    } catch (error: any) {
+      toast({ title: 'تعذر إصلاح الصفحات التالفة', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setBookReadBusyId(null)
+    }
+  }
+
   const startBookEnrichment = async (bookId: string) => {
     setBookReadBusyId(bookId)
     delete bookReadRetryRef.current[bookId]
@@ -3641,6 +3661,8 @@ export function AdminBooksTab() {
                               {(['QUEUED', 'RUNNING'].includes(job.status) || (job.status === 'PAUSED' && !manuallyStopped)) && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => void controlBookReadJob(b.id, 'STOP')}>إيقاف هذا الكتاب</Button>}
                               {job.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => void controlBookReadJob(b.id, 'RESUME')}>استكمال الآن</Button>}
                               {(job.status === 'FAILED' || (job.status === 'COMPLETED' && chunksFailed > 0)) && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => job.phase === 'ENRICH' ? startBookEnrichment(b.id) : (job.phase === 'ANALYZE' || job.status === 'COMPLETED') && chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)}>{job.phase === 'ENRICH' ? 'إعادة محاولة استخراج المزيد' : (job.phase === 'ANALYZE' || job.status === 'COMPLETED') && chunksFailed > 0 ? 'إعادة المحاولة للمقاطع الفاشلة' : 'إعادة محاولة قراءة الكتاب'}</Button>}
+                              {(saved?.corruptChunks ?? 0) > 0 && <p className="text-amber-700">مقاطع بنص مكسّر تحتاج إعادة قراءة: {saved?.corruptChunks}</p>}
+                              {(saved?.corruptChunks ?? 0) > 0 && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => void repairCorruptBookPages(b.id)}>إعادة قراءة الصفحات التالفة</Button>}
                             </div>
                           })()}
                         </div>

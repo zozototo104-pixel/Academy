@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 import { audit } from '@/lib/notify'
+import { looksLikeBrokenBookPageText } from '@/lib/academic-output-quality'
 
 export const runtime = 'nodejs'
 type Context = { params: Promise<{ id: string }> }
@@ -29,7 +30,7 @@ export async function GET(_request: NextRequest, context: Context) {
     const job = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
     // Retried/enrichment jobs start with zero local counters. Report persisted
     // book totals separately so the UI never mistakes a retry for lost work.
-    const [storedChunks, analyzedChunks, failedChunks, capacitySaturatedChunks, exhaustedChunks, knowledgeTotal, previousRead] = await Promise.all([
+    const [storedChunks, analyzedChunks, failedChunks, capacitySaturatedChunks, exhaustedChunks, knowledgeTotal, previousRead, corruptChunkTexts] = await Promise.all([
       db.bookChunk.count({ where: { bookId: id } }),
       db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
       db.bookChunk.count({ where: { bookId: id, status: 'FAILED' } }),
@@ -37,12 +38,15 @@ export async function GET(_request: NextRequest, context: Context) {
       db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', saturatedAt: null, analysisPasses: { gte: 3 } } }),
       db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2 } }),
       db.bookReadJob.findFirst({ where: { bookId: id, totalPages: { gt: 0 } }, orderBy: { createdAt: 'desc' }, select: { totalPages: true, pagesDone: true } }),
+      db.bookChunk.findMany({ where: { bookId: id }, select: { text: true } }),
     ])
+    const corruptChunks = corruptChunkTexts.filter((chunk) => looksLikeBrokenBookPageText(chunk.text)).length
     const saturatedChunks = capacitySaturatedChunks + exhaustedChunks
     const enrichment = {
       totalChunks: analyzedChunks,
       storedChunks,
       failedChunks,
+      corruptChunks,
       knowledgeTotal,
       sourcePages: previousRead?.totalPages || 0,
       pagesSaved: previousRead?.pagesDone || 0,
