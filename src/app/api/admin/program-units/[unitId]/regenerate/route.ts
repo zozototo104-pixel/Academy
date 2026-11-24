@@ -89,15 +89,15 @@ export async function POST(req: NextRequest, context: Context) {
     })
     const draftData = buildUnitRegenerationDraftData(generated, assessment.gaps)
     const draft = await db.$transaction(async (tx) => {
-      await tx.unitRegenerationDraft.deleteMany({ where: { unitId: unit.id, status: 'PENDING' } })
-      const created = await tx.unitRegenerationDraft.create({
-        data: { unitId: unit.id, programId: unit.programId, status: 'PENDING', ...draftData },
-      })
-      await tx.unitGenerationJob.update({
-        where: { id: job!.id },
+      const claimed = await tx.unitGenerationJob.updateMany({
+        where: { id: job!.id, unitId: unit.id, status: 'RUNNING', phase: 'REGENERATE', lockedUntil: { gt: new Date() } },
         data: { status: 'COMPLETED', phase: 'REGENERATE', unitsDone: 1, finishedAt: new Date(), lockedUntil: null, lastError: null },
       })
-      return created
+      if (claimed.count !== 1) return null
+      await tx.unitRegenerationDraft.deleteMany({ where: { unitId: unit.id, status: 'PENDING' } })
+      return tx.unitRegenerationDraft.create({
+        data: { unitId: unit.id, programId: unit.programId, status: 'PENDING', ...draftData },
+      })
     }, { maxWait: 20000, timeout: 30000 })
     await audit(admin, 'REGENERATE_DAMAGED_UNIT_PREVIEW', 'Unit', unit.id,
       `إعادة توليد محتوى الوحدة المتضررة كمسودة معاينة (لم يُمس المحتوى المنشور): ${unit.title}`
