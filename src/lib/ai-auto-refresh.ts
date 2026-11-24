@@ -147,6 +147,96 @@ export interface RunAutoRefreshResult {
   probes: ProbeResult[]
   probedModels: string[]
   skippedProbeModels: string[]
+  rankedPurposes?: string[]
+}
+
+function parseRecord(raw: unknown): Record<string, any> {
+  try {
+    const value = typeof raw === 'string' ? JSON.parse(raw || '{}') : raw
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {}
+  } catch { return {} }
+}
+
+// A changed provider replaces only its own entries. Other providers keep
+// their most recent known-good scores until their round-robin turn arrives.
+// At most three qualified candidates from each provider survive, so one
+// gateway with hundreds of models cannot hide every alternative provider.
+export function mergeProviderRanking(previous: AutoCandidate[], provider: string, fresh: AutoCandidate[]): AutoCandidate[] {
+  const retained = previous.filter((item) => item.provider !== provider)
+  const eligible = fresh.filter((item) => !item.excludedReason).slice(0, 3)
+  const rejected = fresh.filter((item) => item.excludedReason).slice(0, 3)
+  const combined = [...retained, ...eligible, ...rejected]
+  combined.sort((a, b) => {
+    if (!!a.excludedReason !== !!b.excludedReason) return a.excludedReason ? 1 : -1
+    return (b.score ?? 0) - (a.score ?? 0) || a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model)
+  })
+  return combined.slice(0, 64)
+}
+
+async function computeAndPersistRankings(args: {
+  store: AutoRefreshStore
+  provider: string
+  models: string[]
+  capabilities: Record<string, ModelCapability>
+  nowMs: number
+}): Promise<string[]> {
+  const { store, provider, models, capabilities, nowMs } = args
+  if (!models.length) return []
+  const rankingKeys = AUTO_PURPOSES.map(autoRankingKey)
+  const statsKeys = models.flatMap((model) => [
+    `AI_MODEL_STATS:${provider}:${model}`,
+    `AI_MODEL_HEALTH:${provider}:${model}`,
+    ...AUTO_PURPOSES.map((purpose) => `AI_MODEL_STATS:${purpose}:${provider}:${model}`),
+  ])
+  const rows = await store.read([...rankingKeys, ...statsKeys, 'AI_PAID_USAGE_MODE', 'AI_PROVIDER_TIERS'])
+  const tiers = String(rows.AI_PROVIDER_TIERS || '').split(',').map((item) => item.split(':'))
+  const providerTier = tiers.find(([id]) => id?.toUpperCase() === provider)?.[1]?.toLowerCase()
+  const allowPaid = ['last_resort', 'critical_first'].includes(String(rows.AI_PAID_USAGE_MODE || '').toLowerCase())
+  for (const purpose of AUTO_PURPOSES) {
+    const ranked = rankModelsForTask(models.map((model) => {
+      const global = parseRecord(rows[`AI_MODEL_STATS:${provider}:${model}`])
+      const specific = parseRecord(rows[`AI_MODEL_STATS:${purpose}:${provider}:${model}`])
+      const count = (Number(specific.success) || 0) + Object.values(specific.fail || {}).reduce((n: number, v) => n + (Number(v) || 0), 0)
+      const rawStats = count >= 5 ? specific : global
+      const stats = {
+        success: Number(rawStats.success) || 0,
+        fail: parseRecord(rawStats.fail),
+        avgMs: Number(rawStats.avgMs) || 0,
+        jsonOk: Number(rawStats.jsonOk) || 0,
+        jsonTotal: Number(rawStats.jsonTotal) || 0,
+        evidenceOk: Number(rawStats.evidenceOk) || 0,
+        evidenceTotal: Number(rawStats.evidenceTotal) || 0,
+      }
+      const health = parseRecord(rows[`AI_MODEL_HEALTH:${provider}:${model}`])
+      const capability = capabilities[model] || null
+      const costTier = capability?.costTier === 'paid' || providerTier === 'paid'
+        ? 'paid' as const
+        : capability?.costTier === 'free' || providerTier === 'free' ? 'free' as const : 'unknown' as const
+      // A recent explicit provider 402 is useful negative evidence. An
+      // unknown balance stays unknown; 429 only reduces the quota score.
+      const noBalance = health.status === 402 && /balance|credit|quota|insufficient/i.test(String(health.error || ''))
+      return {
+        provider, model, purpose, stats,
+        health: typeof health.ok === 'boolean'
+          ? {
+            ok: health.ok as boolean,
+            latencyMs: Number(health.latencyMs) || undefined,
+            checkedAt: typeof health.checkedAt === 'string' ? health.checkedAt : undefined,
+            status: Number(health.status) || undefined,
+            error: typeof health.error === 'string' ? health.error : undefined,
+          } : null,
+        capability,
+        quotaState: { noBalance, rate429Count: health.status === 429 ? 1 : 0 },
+        contextNeededTokens: purpose === 'LONG_CONTEXT' ? 64_000 : undefined,
+        costState: { costTier, allowPaid },
+      }
+    }))
+    const key = autoRankingKey(purpose)
+    const fresh = buildAutoRankingPayload({ purpose, ranked, computedAtMs: nowMs }).candidates as AutoCandidate[]
+    const combined = mergeProviderRanking(parseAutoRanking(rows[key]), provider, fresh)
+    await store.write(key, JSON.stringify({ purpose, computedAt: new Date(nowMs).toISOString(), candidates: combined }))
+  }
+  return [...AUTO_PURPOSES]
 }
 
 async function defaultDiscover(provider: string): Promise<DiscoveryResult> {
