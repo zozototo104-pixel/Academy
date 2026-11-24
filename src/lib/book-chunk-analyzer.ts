@@ -526,9 +526,11 @@ export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt
         // not keep the job open once every readable chunk is done.
         const stillOpen = pending.filter((chunk) => !looksLikeBrokenBookPageText(chunk.text)).length
         if (stillOpen) return
+        const blocked = pending.length
+        const previous = blocked ? await tx.bookReadJob.findUnique({ where: { id }, select: { lastError: true } }) : null
         await tx.bookReadJob.updateMany({
           where: { id, status: 'RUNNING', startedAt: claimedAt },
-          data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null },
+          data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null, ...(blocked ? { lastError: preserveBookPageReadIssues(previous?.lastError, `BOOK_ENRICH_PARTIAL: ${blocked} مقطع مشوه يحتاج إصلاح القراءة قبل الإثراء.`) } : {}) },
         })
       })
     },
