@@ -419,6 +419,7 @@ export const __testExtractPdfBatchInnerForTests = extractPdfBatchInner
 /** Test-only seam: the single OCR call, so its result verification can be
  *  exercised with a stubbed router instead of a live provider. */
 export const __testTranscribeOnceForTests = transcribeOnce
+export const __testTranscribeWithMetaForTests = transcribeWithMeta
 
 // D0+D2.1: كل دفعة استخراج تُسجَّل كتشغيلة قراءة. بروفايل القراءة
 // الفعّال يُحسم أولًا: بروفايل مرحلة صالح يقود نداءات OCR ويُختم به
