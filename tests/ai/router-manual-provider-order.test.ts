@@ -166,7 +166,7 @@ describe('administrator-registered OpenAI-compatible providers', () => {
       { id: 'CUSTOM_LOCAL', name: 'Unsafe', baseUrl: 'http://127.0.0.1/v1', enabled: true },
     ])
     expect(textAi.parseCustomTextAiProviders(registry)).toEqual([{
-      id, name: 'My Gateway', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true, selectedModel: 'sample-model:free',
+      id, name: 'My Gateway', baseUrl: 'https://api.real-gateway.ai/v1', enabled: true, selectedModel: 'sample-model:free', allowPaid: false,
     }])
     expect(textAi.customTextAiKeySetting(id)).toBe('AI_CUSTOM_KEY_CUSTOM_EXTRAA')
     expect(textAi.isCustomTextAiProviderId('OPENAI')).toBe(false)
