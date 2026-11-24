@@ -229,6 +229,7 @@ export async function runAutoRefresh(input: RunAutoRefreshInput): Promise<RunAut
     probes,
     probedModels,
     skippedProbeModels,
+    rankedPurposes,
   }
 }
 
