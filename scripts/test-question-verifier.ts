@@ -396,7 +396,7 @@ async function main() {
   await runCase('generatorProviderUnknownFailsClosed', generatorProviderUnknownFailsClosed)
   await runCase('generatorModelUnknownFailsClosed', generatorModelUnknownFailsClosed)
   await runCase('generatorFamilyUnknownFailsClosed', generatorFamilyUnknownFailsClosed)
-  await runCase('generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly', generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly)
+  await runCase('generatorGeminiFamilyIsExcludedAndPromptUsesSelectedSourceOnly', generatorGeminiFamilyIsExcludedAndPromptUsesSelectedSourceOnly)
   await runCase('unknownFamilyVerifierFromDifferentProviderCanGround', unknownFamilyVerifierFromDifferentProviderCanGround)
   await runCase('gemmaVerifierIsBlockedAsGeminiFamily', gemmaVerifierIsBlockedAsGeminiFamily)
   await runCase('verifierRejectionKeepsHumanReview', verifierRejectionKeepsHumanReview)
