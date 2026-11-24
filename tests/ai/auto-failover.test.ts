@@ -287,8 +287,8 @@ describe('router level — quota, provider-down, quality, timeout', () => {
       preferredModels: [{ provider: 'GROQ', model: 'groq-model-a' }],
     })
     expect(first).toContain('groq-model-a')
-    // Call 2 (auto ON): ranking puts groq-model-b on top. Sticky is a
-    // hint, not a pin — the ranking order wins and B is attempted first.
+    // Call 2 (auto ON): B scores higher, but A has proven reliable and
+    // remains qualified, so the stable pin stays ahead of B.
     values.set('AI_AUTO_MODE_ENABLED', '1')
     values.set('AI_AUTO_RANKING:CHAT', JSON.stringify({ candidates: [
       { provider: 'GROQ', model: 'groq-model-b' },
@@ -296,7 +296,7 @@ describe('router level — quota, provider-down, quality, timeout', () => {
     ] }))
     const before = calls.length
     const second = await textAi.textAiCompleteJson({ system: 't', history: [{ role: 'user', text: 'hi' }], taskLevel })
-    expect(second).toContain('groq-model-b')
-    expect(calls[before].model).toBe('groq-model-b')
+    expect(second).toContain('groq-model-a')
+    expect(calls[before].model).toBe('groq-model-a')
   })
 })
