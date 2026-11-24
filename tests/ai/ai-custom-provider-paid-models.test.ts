@@ -40,9 +40,10 @@ mock.module('node:dns/promises', () => ({ lookup: async () => [{ address: '93.18
 // run in this sandbox, so routing is asserted at the modelFallbacks level.
 mock.module('node:https', () => ({
   request: (_url: any, _options: any, callback: any) => {
-    const handlers: Record<string, Function[]> = {}
+    type HttpsListener = (...args: any[]) => void
+    const handlers: Record<string, HttpsListener[]> = {}
     const req: any = {
-      on: (event: string, fn: Function) => { (handlers[event] ||= []).push(fn); return req },
+      on: (event: string, fn: HttpsListener) => { (handlers[event] ||= []).push(fn); return req },
       end: () => {
         queueMicrotask(() => {
           const body = JSON.stringify({ object: 'list', data: mockRows ?? MODEL_ROWS })
@@ -50,7 +51,7 @@ mock.module('node:https', () => ({
             statusCode: 200,
             headers: { 'content-type': 'application/json' },
             resume: () => {},
-            on: (event: string, fn: Function) => {
+            on: (event: string, fn: HttpsListener) => {
               if (event === 'data') queueMicrotask(() => fn(Buffer.from(body)))
               if (event === 'end') queueMicrotask(() => fn())
               return res
