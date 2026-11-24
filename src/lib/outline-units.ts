@@ -6,6 +6,15 @@ import {
   isQuotaError,
   isTransientGeminiError,
 } from '@/lib/gemini'
+import { cleanAcademicOutput } from '@/lib/academic-output-quality'
+import { isKnowledgeItemPendingReview } from '@/lib/knowledge-bank'
+
+// Clean one guide field the same way the bank display cleans it, without
+// truncating a long field mid-repair: rule-fixable garbling bakes its cleaned
+// form, never the raw garbled text.
+function cleanGuideField(value: string): string {
+  return cleanAcademicOutput(value, Math.max(1800, value.length + 128))
+}
 
 export type OutlineUnitSectionInput = {
   id: string
@@ -421,7 +430,7 @@ ${sourceChunkLines(params.chunks)}
   return { summary, objectives, content }
 }
 
-function firstSentence(value: unknown, max = 240) {
+export function firstSentence(value: unknown, max = 240) {
   return cleanOutlineUnitText(value, max).split(/[.!؟]/)[0]?.trim() || cleanOutlineUnitText(value, max)
 }
 
@@ -433,7 +442,20 @@ export function buildUnitStudyGuideDraft(params: {
   knowledge: UnitSourceKnowledge[]
   unitContent?: UnitContentSection[]
 }): UnitStudyGuideDraft {
-  const knowledge = params.knowledge.filter((item) => item.id)
+  // Generation-time garble filter (criterion 3): an item awaiting review
+  // (REVIEW / DELETE_EMPTY by the same predicate as the manual review queue)
+  // never enters a new guide — it is skipped here, at the single choke point
+  // both guide paths share. Kept items bake their cleaned fields, the same
+  // text the bank displays, so rule-fixable garbling never enters either.
+  const knowledge = params.knowledge
+    .filter((item) => item.id)
+    .filter((item) => !isKnowledgeItemPendingReview(item))
+    .map((item) => ({
+      ...item,
+      title: cleanGuideField(item.title || ''),
+      summary: cleanGuideField(item.summary || ''),
+      excerpt: item.excerpt == null ? item.excerpt : cleanGuideField(item.excerpt),
+    }))
   const sourceKnowledgeIds = validateStudyGuideSources(knowledge.map((item) => item.id), knowledge.map((item) => item.id))
   const definitions = knowledge.filter((item) => String(item.category || '').toUpperCase() === 'DEFINITION')
   const concepts = knowledge.filter((item) => String(item.category || '').toUpperCase() !== 'QUESTION_SEED')

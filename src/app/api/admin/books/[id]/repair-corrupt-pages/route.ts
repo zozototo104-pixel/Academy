@@ -8,10 +8,29 @@ import { audit } from '@/lib/notify'
 import { transcribeScannedDocumentWithVision } from '@/lib/book-reader'
 import { looksLikeBrokenBookPageText } from '@/lib/academic-output-quality'
 import { mergeBookPageReadIssues } from '@/lib/book-read-job-control'
+import { correctKnowledgeItemFromSource } from '@/lib/book-repair-scan'
+import { hasActiveBookRepairJob, runBookRepairScanStep } from '@/lib/book-repair-job'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
 type Context = { params: Promise<{ id: string }> }
+
+// Latest scan-repair job + counters for the book (the «فحص وإصلاح تشوهات
+// الكتاب» button polls this after each step).
+export async function GET(_request: NextRequest, context: Context) {
+  try {
+    await requireAdmin()
+    const { id } = await context.params
+    const book = await db.book.findUnique({ where: { id }, select: { id: true } })
+    if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
+    const job = await db.bookRepairJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
+    return NextResponse.json({ ok: true, job })
+  } catch (error: any) {
+    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    console.error('repair job GET error:', error)
+    return NextResponse.json({ error: 'تعذر تحميل حالة إصلاح الكتاب' }, { status: 500 })
+  }
+}
 
 // Repair at most this many corrupt chunks per call: each needs a vision OCR
 // round-trip, and one serverless request must not swallow the whole book.
@@ -56,6 +75,24 @@ export async function POST(request: NextRequest, context: Context) {
       select: { id: true, programId: true, title: true, storageProvider: true, storageKey: true, fileUrl: true, data: true, mimeType: true },
     })
     if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
+    const body = await request.json().catch(() => ({}))
+
+    // Pause / resume the book-wide scan job (it is resumable by design; the
+    // single-shot repair below is synchronous and has nothing to stop).
+    if (body?.action === 'STOP' || body?.action === 'RESUME') {
+      const repairJob = await db.bookRepairJob.findFirst({
+        where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (!repairJob) return NextResponse.json({ error: 'لا توجد مهمة إصلاح جارية يمكن التحكم بها' }, { status: 409 })
+      if (body.action === 'STOP' && repairJob.status !== 'PAUSED') {
+        await db.bookRepairJob.update({ where: { id: repairJob.id }, data: { status: 'PAUSED' } })
+      } else if (body.action === 'RESUME' && repairJob.status === 'PAUSED') {
+        await db.bookRepairJob.update({ where: { id: repairJob.id }, data: { status: 'QUEUED' } })
+      }
+      const job = await db.bookRepairJob.findUniqueOrThrow({ where: { id: repairJob.id } })
+      return NextResponse.json({ ok: true, job })
+    }
 
     // Verify the original PDF is still readable BEFORE changing stored work.
     let buffer: Buffer | null = null
@@ -75,6 +112,54 @@ export async function POST(request: NextRequest, context: Context) {
       error: 'BOOK_REPAIR_SOURCE_UNREADABLE',
       message: 'الملف الأصلي غير متاح أو ليس PDF مقروءًا. لن تُمس البيانات السابقة.',
     }, { status: 422 })
+
+    // Book-wide selective repair («فحص وإصلاح تشوهات الكتاب»): one bounded
+    // scan step per call; the job row persists progress + counters, so the
+    // admin re-posts while work remains. Available for EVERY book, not just
+    // the two accounting books — nothing here names a book or a title.
+    if (body?.mode === 'SCAN') {
+      const latest = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
+      const active = latest && ['QUEUED', 'RUNNING', 'PAUSED'].includes(latest.status) ? latest : null
+      const stoppedAndReleased = active?.status === 'PAUSED' &&
+        active.retryAt?.getUTCFullYear() === 9999 &&
+        (!active.lockedUntil || active.lockedUntil <= new Date())
+      if (active && !stoppedAndReleased) {
+        return NextResponse.json({
+          error: 'BOOK_REPAIR_JOB_ACTIVE',
+          message: 'هناك مهمة قراءة/تحليل تعمل أو لم تُحرر قفلها. أوقف هذا الكتاب أولًا وانتظر اكتمال الخطوة الجارية.',
+          jobId: active.id,
+        }, { status: 409 })
+      }
+      if (latest?.status === 'FAILED' && latest.phase === 'EXTRACT') {
+        return NextResponse.json({
+          error: 'BOOK_EXTRACTION_INCOMPLETE',
+          message: 'قراءة الكتاب فشلت قبل اكتمال الصفحات. استكمل القراءة أولاً من آخر صفحة محفوظة عبر مسار read-job؛ لا يمكن إصلاح المقاطع الآن.',
+          jobId: latest.id, resumeMode: 'EXTRACT',
+        }, { status: 409 })
+      }
+      let repairJob = await db.bookRepairJob.findFirst({
+        where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (!repairJob) {
+        repairJob = await db.bookRepairJob.create({ data: { bookId: id, programId: book.programId, status: 'QUEUED', mode: 'SCAN' } })
+      }
+      try {
+        const step = await runBookRepairScanStep(repairJob.id, buffer, Date.now() + 240_000)
+        const job = await db.bookRepairJob.findUniqueOrThrow({ where: { id: repairJob.id } })
+        try {
+          const admin = await requireAdmin()
+          await audit({ id: admin.id, name: admin.name }, 'REPAIR_BOOK_SCAN', 'Book', id,
+            `فحص وإصلاح تشوهات الكتاب: مقاطع صحيحة ${step.counters.chunksHealthy} · مصلحة ${step.counters.chunksCorrected} · متبقية ${step.counters.chunksRemaining} · تحتاج مراجعة ${step.counters.chunksNeedsReview}؛ عناصر مصلحة ${step.counters.itemsCorrected} · تحتاج مراجعة ${step.counters.itemsNeedsReview} (الكتاب: ${book.title})`)
+        } catch (error) { console.error('Book repair audit failed:', error) }
+        return NextResponse.json({ ok: true, job, counters: step.counters, done: step.done, processedChunks: step.processedChunks, processedItems: step.processedItems })
+      } catch (error: any) {
+        if (error?.message === 'BOOK_REPAIR_JOB_ACTIVE') {
+          return NextResponse.json({ error: 'BOOK_REPAIR_JOB_ACTIVE', message: 'بدأت مهمة قراءة/تحليل على هذا الكتاب أثناء الإصلاح. أوقفها أولًا ثم استكمل الإصلاح.' }, { status: 409 })
+        }
+        throw error
+      }
+    }
 
     const chunks = await db.bookChunk.findMany({
       where: { bookId: id },
@@ -96,6 +181,14 @@ export async function POST(request: NextRequest, context: Context) {
         error: 'BOOK_REPAIR_JOB_ACTIVE',
         message: 'هناك مهمة قراءة/تحليل تعمل أو لم تُحرر قفلها. أوقف هذا الكتاب أولًا وانتظر اكتمال الخطوة الجارية.',
         jobId: active.id,
+      }, { status: 409 })
+    }
+    // Mutual exclusion (criterion 4): a book-wide scan repair and this
+    // single-shot repair must never run on the same book at the same time.
+    if (await hasActiveBookRepairJob(id)) {
+      return NextResponse.json({
+        error: 'BOOK_REPAIR_JOB_ACTIVE',
+        message: 'هناك مهمة فحص وإصلاح تشوهات جارية على هذا الكتاب. انتظر اكتمالها أو أوقفها قبل إصلاح الصفحات التالفة.',
       }, { status: 409 })
     }
     // A failed extraction owns this operation's precondition: unread pages
@@ -121,8 +214,11 @@ export async function POST(request: NextRequest, context: Context) {
     const deadlineMs = Date.now() + 240_000
     const batch = corrupt.slice(0, MAX_CHUNKS_PER_CALL)
     const repaired: { index: number; pages: number[] }[] = []
+    const repairedWithoutItems: number[] = []
     const stillUnreadable: { index: number; pages: number[]; reason: string }[] = []
     const skippedLinked: { index: number; linkedItems: number; linked: LinkCounts }[] = []
+    const itemsCorrected: { index: number; itemId: string }[] = []
+    const itemsNeedsReview: { index: number; itemId: string; reason: string }[] = []
 
     for (const chunk of batch) {
       const pages = Array.from({ length: chunk.pageEnd - chunk.pageStart + 1 }, (_, i) => chunk.pageStart + i)
@@ -151,15 +247,19 @@ export async function POST(request: NextRequest, context: Context) {
         continue
       }
       // Commit per chunk: re-check the chunk is unchanged and its items are
-      // still unlinked at write time, then replace the text and reset it for
-      // re-analysis. Knowledge items are NOT deleted here — the analyze step
-      // replaces them when it re-analyzes the repaired chunk.
+      // still unlinked at write time, then replace the text. Criterion 1:
+      // a chunk that HAS items is corrected IN PLACE — its items are fixed
+      // from the re-read text under the same IDs (or sent to REVIEW when
+      // unprovable), never deleted and recreated. Only a chunk with NO items
+      // returns to EXTRACTED for a first-time analysis afterwards.
       const outcome = await db.$transaction(async (tx) => {
         const current = await tx.bookChunk.findUnique({ where: { id: chunk.id }, select: { contentHash: true } })
         if (!current || current.contentHash !== chunk.contentHash) return { skipped: 'changed' as const }
-        const itemIds = (await tx.bookKnowledgeItem.findMany({
-          where: { bookId: id, kbVersion: 2, chunkId: chunk.id }, select: { id: true },
-        })).map((item) => item.id)
+        const itemRows = await tx.bookKnowledgeItem.findMany({
+          where: { bookId: id, kbVersion: 2, chunkId: chunk.id },
+          select: { id: true, title: true, summary: true, excerpt: true, pageStart: true, pageEnd: true },
+        })
+        const itemIds = itemRows.map((item) => item.id)
         const linked = await countItemLinks(tx, itemIds, book.programId)
         if (linked.questions + linked.assignments + linked.guides > 0) {
           return { skipped: 'linked' as const, linkedItems: itemIds.length, linked }
@@ -169,11 +269,25 @@ export async function POST(request: NextRequest, context: Context) {
           data: {
             text: ocrText, charCount: ocrText.length,
             contentHash: createHash('sha256').update(ocrText).digest('hex'),
-            textProvenance: 'VISION_OCR', status: 'EXTRACTED',
-            attempts: 0, lastError: null, analysisPasses: 0, saturatedAt: null,
+            textProvenance: 'VISION_OCR',
+            ...(itemRows.length ? {} : { status: 'EXTRACTED', attempts: 0, analysisPasses: 0, saturatedAt: null }),
+            lastError: null,
           },
         })
         if (!changed.count) return { skipped: 'changed' as const }
+        const corrected: { itemId: string }[] = []
+        const needsReview: { itemId: string; reason: string }[] = []
+        for (const item of itemRows) {
+          const result = correctKnowledgeItemFromSource(
+            { id: item.id, title: item.title, summary: item.summary, excerpt: item.excerpt || '', pageStart: item.pageStart, pageEnd: item.pageEnd },
+            ocrText,
+          )
+          if (result.status === 'REVIEW') { needsReview.push({ itemId: item.id, reason: result.reason }); continue }
+          if (result.data.title !== item.title || result.data.summary !== item.summary || result.data.excerpt !== (item.excerpt || '')) {
+            await tx.bookKnowledgeItem.update({ where: { id: item.id }, data: { title: result.data.title, summary: result.data.summary, excerpt: result.data.excerpt } })
+            corrected.push({ itemId: item.id })
+          }
+        }
         // The repaired pages are readable now: clear their UNREADABLE
         // ledger entries on the latest job (same helper the extract step
         // uses; the job's message segment is replaced on progress writes,
@@ -185,18 +299,43 @@ export async function POST(request: NextRequest, context: Context) {
             data: { lastError: mergeBookPageReadIssues(job.lastError, pages, []) },
           })
         }
-        return { repaired: true as const }
+        return { repaired: true as const, hadItems: itemRows.length > 0, corrected, needsReview }
       })
-      if ('repaired' in outcome) repaired.push({ index: chunk.index, pages })
+      if ('repaired' in outcome) {
+        repaired.push({ index: chunk.index, pages })
+        if (!outcome.hadItems) repairedWithoutItems.push(chunk.index)
+        itemsCorrected.push(...outcome.corrected.map((entry) => ({ ...entry, index: chunk.index })))
+        itemsNeedsReview.push(...outcome.needsReview.map((entry) => ({ ...entry, index: chunk.index })))
+      }
       else if (outcome.skipped === 'linked') skippedLinked.push({ index: chunk.index, linkedItems: outcome.linkedItems, linked: outcome.linked })
       else stillUnreadable.push({ index: chunk.index, pages, reason: 'BOOK_REPAIR_CHUNK_CHANGED' })
     }
 
-    // Re-queue the latest analysis job so the repaired chunks are
-    // re-analyzed by the normal driver. A manually stopped book is never
-    // re-queued: the admin resumes it deliberately with RESUME.
+    // Record the still-unreadable pages in the UNREADABLE ledger on the
+    // latest job, so they are visible for review instead of only living in
+    // this response. (Repaired pages had their entries cleared above.)
+    if (stillUnreadable.length && latest) {
+      try {
+        const job = await db.bookReadJob.findUnique({ where: { id: latest.id }, select: { lastError: true } })
+        if (job) {
+          const issues = stillUnreadable.flatMap((entry) =>
+            entry.pages.map((page) => ({ page, kind: 'UNREADABLE' as const, reason: entry.reason.slice(0, 160) })))
+          await db.bookReadJob.update({
+            where: { id: latest.id },
+            data: { lastError: mergeBookPageReadIssues(job.lastError, [], issues) },
+          })
+        }
+      } catch (error) { console.warn('Book repair ledger write failed (response still reports the pages):', error) }
+    }
+
+    // Re-queue the latest analysis job ONLY for repaired chunks that had no
+    // items (first-time analysis — nothing exists to delete). A chunk whose
+    // items were corrected in place is already ANALYZED and must never be
+    // re-analyzed: re-analysis would delete and recreate its items under
+    // NEW ids (criterion 1). A manually stopped book is never re-queued:
+    // the admin resumes it deliberately with RESUME.
     let jobRequeued = false
-    if (repaired.length && requeueableJob && latest) {
+    if (repairedWithoutItems.length && requeueableJob && latest) {
       const changed = await db.bookReadJob.updateMany({
         where: { id: latest.id, status: latest.status },
         data: { status: 'QUEUED', phase: 'ANALYZE', chunksFailed: 0, retryAt: null, lockedUntil: null, finishedAt: null },
@@ -206,13 +345,15 @@ export async function POST(request: NextRequest, context: Context) {
     try {
       const admin = await requireAdmin()
       await audit({ id: admin.id, name: admin.name }, 'REPAIR_BOOK_PAGES', 'Book', id,
-        `إعادة قراءة صفحات تالفة عبر OCR: أُصلح ${repaired.length} مقطع، بقي غير مقروء ${stillUnreadable.length}، تُخطّى لارتباط ${skippedLinked.length} (الكتاب: ${book.title})`)
+        `إعادة قراءة صفحات تالفة عبر OCR: أُصلح ${repaired.length} مقطع، بقي غير مقروء ${stillUnreadable.length}، تُخطّى لارتباط ${skippedLinked.length}، عناصر مصلحة في المكان ${itemsCorrected.length}، عناصر تحتاج مراجعة ${itemsNeedsReview.length} (الكتاب: ${book.title})`)
     } catch (error) { console.error('Book repair audit failed:', error) }
     return NextResponse.json({
       ok: true,
       repairedChunks: repaired,
       stillUnreadable,
       skippedLinked,
+      itemsCorrected,
+      itemsNeedsReview,
       remainingCorruptChunks: corrupt.length - repaired.length,
       jobRequeued,
       jobId: latest?.id ?? null,

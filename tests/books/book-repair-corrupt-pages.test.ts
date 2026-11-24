@@ -22,6 +22,7 @@ let linkedQuestions = 0
 let linkedAssignments: unknown[] = []
 let linkedGuides: unknown[] = []
 let pdfAvailable = true
+let activeRepairJob: { id: string; status: string } | null = null
 let ocrImpl: (pages: number[]) => Promise<{ page: number; text: string }[]> = async (pages) =>
   pages.map((page) => ({ page, text: cleanOcr }))
 
@@ -57,6 +58,12 @@ const repairDb: any = {
   },
   bookKnowledgeItem: {
     findMany: async ({ where }: any) => items.filter((item) => !where?.chunkId || (item as any).chunkId === where.chunkId),
+    update: async ({ where, data }: any) => {
+      const item = items.find((row) => row.id === where.id)
+      if (!item) throw new Error('ITEM_NOT_FOUND')
+      Object.assign(item, data)
+      return { ...item }
+    },
   },
   bookReadJob: {
     findFirst: async () => (job ? { ...job } : null),
@@ -77,6 +84,9 @@ const repairDb: any = {
   programQuestion: { count: async () => 0 },
   programAssignment: { findMany: async () => linkedAssignments.map((sourceKnowledgeIds) => ({ sourceKnowledgeIds })) },
   programStudyGuide: { findMany: async () => linkedGuides.map((sourceKnowledgeIds) => ({ sourceKnowledgeIds })) },
+  // No scan-repair job is active in these single-shot fixtures unless a test
+  // sets one: the mutual exclusion check must see an empty table by default.
+  bookRepairJob: { findFirst: async () => activeRepairJob },
   $transaction: async (callback: (tx: any) => Promise<unknown>) => callback(repairDb),
 }
 mock.module('@/lib/db', () => ({ db: repairDb }))
@@ -105,6 +115,7 @@ describe('repair corrupt book pages', () => {
     linkedAssignments = []
     linkedGuides = []
     pdfAvailable = true
+    activeRepairJob = null
     ocrImpl = async (pages) => pages.map((page) => ({ page, text: cleanOcr }))
   })
 
@@ -212,5 +223,51 @@ describe('repair corrupt book pages', () => {
     expect(body.manuallyStopped).toBe(true)
     expect(job?.status).toBe('PAUSED')
     expect(chunks[0].status).toBe('EXTRACTED')
+  })
+
+  it('corrects an unlinked chunk’s items in place (same IDs) and never re-queues', async () => {
+    items = [{
+      id: 'item-1', chunkId: 'chunk-1',
+      title: 'الأصول المتداولة',
+      summary: 'يشرح هذا الفصل مفهوم الأصول المتداولة وكيفية قياسها في القوائم المالية.',
+      excerpt: garbled.slice(0, 400),
+      pageStart: 5, pageEnd: 6,
+    } as any]
+    const response = await requestRepair()
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.repairedChunks).toEqual([{ index: 0, pages: [5, 6] }])
+    // Criterion 1: same item ID, corrected excerpt proven from the re-read
+    // text; the chunk stays ANALYZED and the job is NOT re-queued (no
+    // delete-and-recreate through re-analysis).
+    expect(body.itemsCorrected).toEqual([{ index: 0, itemId: 'item-1' }])
+    expect(body.itemsNeedsReview).toEqual([])
+    expect(body.jobRequeued).toBe(false)
+    expect(chunks[0].status).toBe('ANALYZED')
+    expect(chunks[0].text).toContain('الأصول المتداولة')
+    expect(items[0].id).toBe('item-1')
+    expect((items[0] as any).excerpt).toContain('الأصول المتداولة')
+    expect((items[0] as any).excerpt).not.toContain('□')
+    expect(job?.status).toBe('COMPLETED')
+  })
+
+  it('persists a still-unreadable chunk in the UNREADABLE ledger', async () => {
+    ocrImpl = async () => { throw new Error('OCR_PROVIDER_DOWN') }
+    const response = await requestRepair()
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.stillUnreadable.length).toBe(1)
+    expect(job?.lastError).toContain('BOOK_PAGE_ISSUES:')
+    expect(job?.lastError).toContain('"page":5')
+    expect(job?.lastError).toContain('"page":6')
+    expect(job?.lastError).toContain('UNREADABLE')
+  })
+
+  it('refuses the single-shot repair while a scan job is active', async () => {
+    activeRepairJob = { id: 'repair-1', status: 'RUNNING' }
+    const response = await requestRepair()
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toBe('BOOK_REPAIR_JOB_ACTIVE')
+    expect(chunks[0].text).toBe(garbled)
   })
 })

@@ -11,6 +11,7 @@ import { questionDuplicateKey } from '@/lib/ai-generation-progress'
 import { isDuplicateQuestionIdea } from '@/lib/question-bank-diversity'
 import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions } from '@/lib/unit-exam-policy'
 import { resolveUnitQuestionBankJobStatus } from '@/lib/unit-question-bank-status'
+import { isKnowledgeItemPendingReview } from '@/lib/knowledge-bank'
 
 const TYPES = new Set(['MCQ', 'TF', 'SHORT', 'ESSAY'])
 const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
@@ -417,7 +418,14 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   const program = await db.program.findUnique({ where: { id: job.programId }, select: { id: true, titleAr: true, category: true, description: true } })
   if (!program) throw new Error('PROGRAM_NOT_FOUND')
   const scope = await scopedKnowledge(job)
-  const knowledge = scope.knowledge.map(knowledgeToSource).filter((item) => evidenceText(item).length >= 40)
+  // Generation-time garble filter (criterion 3): an item awaiting review
+  // (REVIEW / DELETE_EMPTY by the same predicate as the manual review queue)
+  // never seeds a new question — it is skipped here, at the single selection
+  // point both the unit and the program question jobs share. A job whose
+  // every source is garbled fails honestly with *_KNOWLEDGE_REQUIRED below.
+  const knowledge = scope.knowledge.map(knowledgeToSource)
+    .filter((item) => evidenceText(item).length >= 40)
+    .filter((item) => !isKnowledgeItemPendingReview(item))
   if (!knowledge.length) throw new Error(job.unitId ? 'UNIT_V2_KNOWLEDGE_REQUIRED' : 'PROGRAM_V2_KNOWLEDGE_REQUIRED')
 
   const cursor = await readJobCursor(job.id)

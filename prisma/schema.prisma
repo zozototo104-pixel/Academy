@@ -2086,6 +2086,7 @@ model BookReadJob {
   totalChunks    Int       @default(0)
   chunksAnalyzed Int       @default(0)
   chunksFailed   Int       @default(0)
+  enrichmentTarget Int?    // هدف الإثراء لهذه المهمة: 10 افتراضياً، 20 للإثراء الإضافي؛ NULL = 10
   lastError      String?
   retryAt        DateTime?
   lockedUntil    DateTime?
@@ -2096,6 +2097,38 @@ model BookReadJob {
 
   @@index([bookId, status])
   @@index([status, retryAt])
+}
+
+// مهمة إصلاح تشوهات كتاب كامل (فحص انتقائي): تعمل في الخلفية، تستأنف من آخر
+// تقدّم، ولا تحذف أي عنصر معرفة أبداً — التصحيح في المكان نفسه (نفس المعرّف)
+// أو إرسال للمراجعة. العدادات للعرض في لوحة الإدارة، وprogress JSON يحفظ
+// حالة الاستئناف (الفهارس والمُعرّفات المُصلَحة / المحتاجة مراجعة).
+model BookRepairJob {
+  id                String    @id @default(cuid())
+  bookId            String
+  book              Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  programId         String
+  status            String    @default("QUEUED") // QUEUED | RUNNING | PAUSED | COMPLETED | FAILED | STOPPED
+  mode              String    @default("SCAN")
+  chunksTotal       Int       @default(0)
+  chunksHealthy     Int       @default(0)
+  chunksCorrected   Int       @default(0)
+  chunksRemaining   Int       @default(0)
+  chunksNeedsReview Int       @default(0)
+  itemsTotal        Int       @default(0)
+  itemsHealthy      Int       @default(0)
+  itemsCorrected    Int       @default(0)
+  itemsRemaining    Int       @default(0)
+  itemsNeedsReview  Int       @default(0)
+  progress          String?   // JSON: { nextChunkIndex, repairedChunkIds, reviewChunkIds, reviewItemIds }
+  lastError         String?
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([bookId, status])
+  @@index([status])
 }
 
 model BookKnowledgeItem {

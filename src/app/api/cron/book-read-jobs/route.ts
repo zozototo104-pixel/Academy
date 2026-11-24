@@ -4,6 +4,7 @@ import { claimAiHealthRun } from '@/lib/ai-health'
 import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, claimBookReadLock, releaseBookReadLock, classifyBookReadFailure, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
+import { hasActiveBookRepairJob } from '@/lib/book-repair-job'
 import { textAiCheckAllModelHealth } from '@/lib/text-ai'
 
 export const runtime = 'nodejs'
@@ -31,10 +32,18 @@ export async function GET(request: NextRequest) {
     ] },
     orderBy: { createdAt: 'asc' },
     take: 100,
-    select: { id: true, phase: true },
+    select: { id: true, bookId: true, phase: true },
   })
   for (const job of jobs) {
     if (Date.now() >= endAt - 48_000) break
+    // Criterion 4 (second direction): skip a job while a scan repair is
+    // active on its book, without taking its lock — the repair owns the
+    // chunks until it finishes or is stopped; the next cron run picks the
+    // job up again.
+    if (await hasActiveBookRepairJob(job.bookId)) {
+      outcomes.push({ jobId: job.id, outcome: 'SKIPPED_REPAIR_ACTIVE' })
+      continue
+    }
     const claimedAt = new Date()
     if (!(await claimBookReadLock(db, job.id, claimedAt))) {
       outcomes.push({ jobId: job.id, outcome: 'LOCKED' })

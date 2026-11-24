@@ -58,7 +58,8 @@ describe('lease-fenced writes across book pipeline', () => {
     expect(bookAnalyzer).not.toContain('db.bookKnowledgeItem.createMany(')
     expect(bookAnalyzer).not.toContain('db.bookReadJob.update({')
     expect(bookAnalyzer).toContain("message.includes('BOOK_READ_LEASE_LOST')")
-    expect(bookAnalyzer).toContain('const available = Math.max(0, 20 - rows.length)')
+    expect(bookAnalyzer).toContain('const available = Math.max(0, finalTarget - rows.length)')
+    expect(bookAnalyzer).toContain('resolveEnrichmentTarget(target)')
   })
 
   it('requires the owner timestamp for all three terminal job updates', () => {
@@ -343,6 +344,9 @@ const retryDb: any = {
   programQuestion: { count: async () => 0 },
   programAssignment: { findMany: async () => linkedAssignments.map((sourceKnowledgeIds) => ({ sourceKnowledgeIds })) },
   programStudyGuide: { findMany: async () => linkedGuides.map((sourceKnowledgeIds) => ({ sourceKnowledgeIds })) },
+  // No repair job is active in these fixtures: the mutual-exclusion check
+  // (read-job POST refuses while a repair runs) must see an empty table.
+  bookRepairJob: { findFirst: async () => null },
   $queryRaw: async () => [{ id: 'book-1' }],
   $transaction: async (callback: (tx: any) => Promise<unknown>) => callback(retryDb),
 }
