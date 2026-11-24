@@ -333,6 +333,10 @@ export function HomeView() {
         if (++fails >= 2) {
           started = true
           clearInterval(iv)
+          // إيقاف حركة CSS أولاً: أي حركة CSS متوقفة تتغلّب على transform
+          // المضمّن (inline) في ترتيب التتالي، فبدون هذا السطر لا يستطيع
+          // المحرك الاحتياطي تحريك الشريط أبداً ويبقى متجمداً مقصوصاً.
+          el.style.animation = 'none'
           const DURATION = 36000
           let t0: number | null = null
           const step = (ts: number) => {

@@ -108,7 +108,7 @@ describe('admin mobile overflow guard', () => {
     expect(exam).toContain('proctorPipCollapsed')
     expect(exam).toContain("aria-label=\"طي نافذة المراقبة\"")
     const chat = read('src/components/aact/AIChatView.tsx')
-    expect(chat).toContain('<div className="whitespace-pre-wrap break-words">{m.content}</div>')
+    expect(chat).toContain('<div className="whitespace-pre-wrap break-words">{m.role === \'assistant\' ? cleanAssistantReplyText(m.content) : m.content}</div>')
     expect(chat).toContain('grid-cols-5 items-center gap-2 sm:gap-3')
     expect(chat).toContain('flex h-12 w-12 items-center justify-center rounded-full border sm:h-14 sm:w-14')
     const sup = read('src/components/aact/SupervisorView.tsx')
