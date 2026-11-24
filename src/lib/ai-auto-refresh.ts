@@ -1,10 +1,10 @@
 // Auto AI background refresh (step 3) — discovery + capability probes.
 //
 // Quota-safe shape, enforced here and not left to callers:
-// - ONE provider per run, round-robin over the built-in providers.
+// - ONE provider per run, round-robin over built-in and enabled custom providers.
 // - One tiny /models fetch per run (the provider's own discovery path).
-// - Capability probes capped (max ~3 models/provider/run), opt-in per
-//   provider, and never on the live request path.
+// - Capability probes capped (two models per run by default), rotated per
+//   provider and never on the live request path.
 // - A failed discovery refresh keeps the last good catalog (the transient
 //   rule lives in text-ai.ts liveFreeModels); this module only records
 //   the outcome in AI_AUTO_LAST_REFRESH.
@@ -17,20 +17,27 @@
 // so tests run them with an in-memory store and stubbed fetch.
 import { db } from '@/lib/db'
 import {
+  AUTO_PURPOSES,
+  autoRankingKey,
+  buildAutoRankingPayload,
+  parseAutoRanking,
+  rankModelsForTask,
   reconcileReferences,
+  type AutoCandidate,
   type ReferenceWarning,
 } from './ai-auto-mode'
 import { runCapabilityProbes, type ProbeCallFn, type ProbeKind, type ProbeResult } from './ai-capability-probes'
+import type { ModelCapability } from './text-ai'
 
 export const AI_AUTO_LAST_REFRESH_KEY = 'AI_AUTO_LAST_REFRESH'
 export const AI_AUTO_REFRESH_LAST_RUN_KEY = 'AI_AUTO_REFRESH_LAST_RUN'
-export const AI_AUTO_REFRESH_INTERVAL_MS = 60 * 60 * 1000
+// One provider per minute, not all providers in one expensive invocation.
+export const AI_AUTO_REFRESH_INTERVAL_MS = 60 * 1000
 export const AI_AUTO_CAPABILITY_PROBES_KEY_PREFIX = 'AI_AUTO_CAPABILITY_PROBES:'
-export const AI_AUTO_PROBE_PROVIDERS_KEY = 'AI_AUTO_PROBE_PROVIDERS'
+export const AI_AUTO_PROBE_CURSOR_KEY_PREFIX = 'AI_AUTO_PROBE_CURSOR:'
 
-// Built-in providers with a discovery path, in round-robin order. Custom
-// providers refresh through their own admin action
-// (refreshCustomTextAiFreeModels) and are not in this rotation.
+// Built-in providers with a discovery path, in round-robin order. The cron
+// appends enabled custom providers to this list at runtime.
 export const ROUND_ROBIN_PROVIDERS: readonly string[] = [
   'GEMINI', 'ANTHROPIC', 'OPENAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA',
   'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ALBORIHI',
