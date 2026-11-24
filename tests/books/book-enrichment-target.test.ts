@@ -350,6 +350,19 @@ describe('read-job route: enrichment target on the job row', () => {
     expect(jobs).toHaveLength(1)
   })
 
+  test('active repair refuses RESUME without changing the paused job, while STOP stays available', async () => {
+    const job = seedJob({ phase: 'ENRICH', status: 'PAUSED', retryAt: new Date('9999-12-31T00:00:00.000Z') })
+    repairJobs.push({ id: 'repair-1', bookId: 'book-1', status: 'RUNNING' })
+    const resumed = await postReadJob({ action: 'RESUME' })
+    expect(resumed.status).toBe(409)
+    expect((await resumed.json()).error).toBe('BOOK_REPAIR_JOB_ACTIVE')
+    expect(job.status).toBe('PAUSED')
+    expect(job.retryAt?.getUTCFullYear()).toBe(9999)
+    const stopped = await postReadJob({ action: 'STOP' })
+    expect(stopped.status).toBe(200)
+    expect(job.status).toBe('PAUSED')
+  })
+
   test('the target survives STOP and RESUME on the same job row', async () => {
     const job = seedJob({ phase: 'ENRICH', status: 'RUNNING', enrichmentTarget: 20, createdAt: new Date('2026-11-24T09:00:00Z') })
     const stopped = await postReadJob({ action: 'STOP' })
