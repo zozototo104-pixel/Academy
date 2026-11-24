@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 
 type Candidate = { provider: string; model: string; score: number; reason: string; measured: boolean; tier: string; capabilities: { contextLength?: number; vision?: boolean } }
-type Snapshot = { enabled: boolean; checkedAt: string; note: string; stages: Array<{ purpose: string; primary: Candidate | null; fallback: Candidate[]; excluded: Candidate[] }> }
+type Snapshot = { enabled: boolean; checkedAt: string; note: string; transitions: Array<{ at: string; from: string; to: string }>; stages: Array<{ purpose: string; primary: Candidate | null; fallback: Candidate[]; excluded: Candidate[] }> }
 const names: Record<string, string> = { CHAT: 'الشات والوكيل', ANALYSIS: 'تحليل المقاطع', VISION: 'قراءة الصور وإصلاح الصفحات', GENERATION: 'التوليد وبنك المعرفة', GRADING: 'التصحيح والتقييم', LONG_CONTEXT: 'المستندات الطويلة', REVIEW: 'التدقيق المستقل' }
 
 export function AutomaticAiManagement({ enabled, onChange }: { enabled: boolean; onChange: (value: boolean) => void }) {
@@ -46,6 +46,11 @@ export function AutomaticAiManagement({ enabled, onChange }: { enabled: boolean;
     {snapshot && <>
       <p className="text-xs leading-6 text-slate-700">{snapshot.note}</p>
       <p className="text-xs text-slate-600">الوضع المحفوظ: {snapshot.enabled ? 'تلقائي' : 'يدوي'} · وقت الحساب: {new Date(snapshot.checkedAt).toLocaleString('ar')}</p>
+      <details className="text-xs text-slate-700">
+        <summary className="cursor-pointer py-1">سجل الانتقالات ({snapshot.transitions.length})</summary>
+        {snapshot.transitions.map((item, index) => <p key={`${item.at}-${index}`} className="py-1">{new Date(item.at).toLocaleString('ar')} · من {item.from} إلى {item.to}</p>)}
+        {!snapshot.transitions.length && <p>لا توجد انتقالات مسجلة بعد؛ يُسجل هنا كل تغيير بين الوضع التلقائي واليدوي.</p>}
+      </details>
       <div className="grid min-w-0 gap-3 lg:grid-cols-2">
         {snapshot.stages.map(stage => <article key={stage.purpose} className="min-w-0 rounded-lg border border-slate-200 p-3 space-y-2">
           <h4 className="text-sm font-bold text-slate-900">{names[stage.purpose]}</h4>

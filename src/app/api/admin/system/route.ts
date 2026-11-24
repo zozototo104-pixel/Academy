@@ -310,6 +310,17 @@ export async function PATCH(req: NextRequest) {
       if (key === 'AI_ROUTER_POLICY_SOURCE') {
         value = value === 'admin' ? 'admin' : 'legacy'
       }
+      if (key === 'AI_AUTO_MANAGEMENT_ENABLED') {
+        value = ['1', 'true', 'yes', 'on'].includes(value.toLowerCase()) ? 'true' : 'false'
+        const previous = await db.setting.findUnique({ where: { key }, select: { value: true } })
+        if ((previous?.value || '') !== value) {
+          const historyRow = await db.setting.findUnique({ where: { key: 'AI_AUTO_TRANSITIONS' }, select: { value: true } })
+          let history: Array<{ at: string; from: string; to: string }> = []
+          try { history = JSON.parse(historyRow?.value || '[]'); if (!Array.isArray(history)) history = [] } catch { history = [] }
+          history.unshift({ at: new Date().toISOString(), from: previous?.value === 'true' ? 'تلقائي' : previous?.value === 'false' ? 'يدوي' : 'غير مضبوط', to: value === 'true' ? 'تلقائي' : 'يدوي' })
+          await db.setting.upsert({ where: { key: 'AI_AUTO_TRANSITIONS' }, create: { key: 'AI_AUTO_TRANSITIONS', value: JSON.stringify(history.slice(0, 20)) }, update: { value: JSON.stringify(history.slice(0, 20)) } })
+        }
+      }
       if (key === 'AI_POLICY_RANK_BY') {
         value = value === 'family' ? 'family' : 'provider'
       }

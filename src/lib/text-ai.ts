@@ -1348,6 +1348,10 @@ async function automaticCandidates(s: Settings, providers: ConcreteProvider[], t
 
 export async function textAiAutomaticSnapshot() {
   const s = await settings()
+  const transitionsRow = await settingStore().read(['AI_AUTO_TRANSITIONS']).then((rows) => rows.AI_AUTO_TRANSITIONS || '[]')
+  let transitions: Array<{ at: string; from: string; to: string }> = []
+  try { transitions = JSON.parse(transitionsRow); if (!Array.isArray(transitions)) transitions = [] } catch { transitions = [] }
+  transitions = transitions.slice(0, 10)
   const cooldowns = await loadPersistentCooldowns()
   const purposes: TextAiPurpose[] = ['CHAT', 'ANALYSIS', 'VISION', 'GENERATION', 'GRADING', 'LONG_CONTEXT', 'REVIEW']
   type Candidate = Awaited<ReturnType<typeof automaticCandidates>>[number]
@@ -1357,7 +1361,7 @@ export async function textAiAutomaticSnapshot() {
     const candidates = await automaticCandidates(s, providerOrder(s, taskLevel), taskLevel, purpose, cooldowns)
     stages.push({ purpose, primary: candidates.find((candidate) => candidate.eligible) || null, fallback: candidates.filter((candidate) => candidate.eligible).slice(1, 4), excluded: candidates.filter((candidate) => !candidate.eligible).slice(0, 20) })
   }
-  return { enabled: s.automaticManagement, checkedAt: new Date().toISOString(), stages, note: 'درجات إرشادية من الاستخدام الفعلي وليست نسبة دقة. تُطبّق قيود الطلب والميزانية والأدلة واستقلال المدقق عند التنفيذ. UNKNOWN تعني أن التكلفة غير معروفة وليست مجانية. الصوت المباشر والتفريغ يستخدمان مسارهما المتخصص.' }
+  return { enabled: s.automaticManagement, checkedAt: new Date().toISOString(), stages, transitions, note: 'درجات إرشادية من الاستخدام الفعلي وليست نسبة دقة. تُطبّق قيود الطلب والميزانية والأدلة واستقلال المدقق عند التنفيذ. UNKNOWN تعني أن التكلفة غير معروفة وليست مجانية. الصوت المباشر والتفريغ يستخدمان مسارهما المتخصص.' }
 }
 
 export async function textAiRefreshAutomaticCatalog() {
