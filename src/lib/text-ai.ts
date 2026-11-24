@@ -2578,6 +2578,15 @@ function modelCapabilitiesFor(provider: ConcreteProvider, s: Settings, model: st
   return freeModelsCache.get(cacheKey)?.capabilities?.[model] || null
 }
 
+// Called immediately after background discovery, on the same worker.
+// Exposes only catalog metadata, never keys or user-selected model values.
+export async function textAiAutoCapabilitiesForProvider(providerValue: string): Promise<Record<string, ModelCapability>> {
+  const s = await settings()
+  const provider = normalizeProvider(providerValue)
+  if (provider === 'AUTO') return {}
+  return { ...(freeModelDiscoveryEntry(provider, s)?.capabilities || {}) }
+}
+
 function resolvedFamilyFromCatalog(model: string, declaredFamily?: string): string {
   const family = modelFamily(declaredFamily || '')
   return family !== 'unknown' ? family : modelFamily(model)
