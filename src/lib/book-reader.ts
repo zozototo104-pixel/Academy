@@ -209,7 +209,12 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
     } catch {
       // A missing/invalid profile must not replace the original failure.
     }
-    if (overrides?.kind !== 'stage') throw originalError
+    if (overrides?.kind !== 'stage') {
+      if (deadlineMs - Date.now() < 25_000) throw originalError
+      const imagePages = (await transcribeOnce(buffer, pageNumbers, deadlineMs, null, true)).pages
+      if (imagePages.every((page) => !page.text.trim())) throw originalError
+      return imagePages
+    }
     const rescued = (await transcribeWithMeta(buffer, pageNumbers, deadlineMs, {
       preferredModels: overrides.preferredModels,
       preferredProviders: overrides.preferredProviders,
