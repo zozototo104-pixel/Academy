@@ -3,8 +3,9 @@
 // Quota-safe shape, enforced here and not left to callers:
 // - ONE provider per hourly run, round-robin over built-in and enabled custom providers.
 // - One tiny /models fetch per run (the provider's own discovery path).
-// - Capability probes capped (one model per production run), rotated per
-//   provider and never on the live request path.
+// - Hourly capability probes capped (one model per production run), rotated
+//   per provider; a separate per-purpose first-task preflight has its own
+//   persisted lease/cache and tests at most two models on a cold task.
 // - A failed discovery refresh keeps the last good catalog (the transient
 //   rule lives in text-ai.ts liveFreeModels); this module only records
 //   the outcome in AI_AUTO_LAST_REFRESH.
@@ -27,8 +28,8 @@ import {
   type AutoCandidate,
   type ReferenceWarning,
 } from './ai-auto-mode'
-import { runCapabilityProbes, type ProbeCallFn, type ProbeKind, type ProbeResult } from './ai-capability-probes'
-import type { ModelCapability } from './text-ai'
+import { buildJsonProbe, buildLongContextProbe, buildOcrProbe, evaluateProbeResponse, runCapabilityProbes, type ProbeCallFn, type ProbeCallInput, type ProbeKind, type ProbeResult } from './ai-capability-probes'
+import type { ModelCapability, TextAiProvider } from './text-ai'
 
 export const AI_AUTO_LAST_REFRESH_KEY = 'AI_AUTO_LAST_REFRESH'
 export const AI_AUTO_REFRESH_LAST_RUN_KEY = 'AI_AUTO_REFRESH_LAST_RUN'
@@ -40,6 +41,9 @@ export const AI_AUTO_TASK_BOOTSTRAP_LAST_RUN_KEY = 'AI_AUTO_TASK_BOOTSTRAP_LAST_
 export const AI_AUTO_TASK_BOOTSTRAP_COOLDOWN_MS = 10 * 60 * 1000
 export const AI_AUTO_CAPABILITY_PROBES_KEY_PREFIX = 'AI_AUTO_CAPABILITY_PROBES:'
 export const AI_AUTO_PROBE_CURSOR_KEY_PREFIX = 'AI_AUTO_PROBE_CURSOR:'
+export const AI_AUTO_TASK_PREFLIGHT_KEY_PREFIX = 'AI_AUTO_TASK_PREFLIGHT:'
+export const AI_AUTO_TASK_PREFLIGHT_VALID_MS = 24 * 60 * 60 * 1000
+export const AI_AUTO_TASK_PREFLIGHT_RETRY_MS = 10 * 60 * 1000
 
 // Built-in providers with a discovery path, in round-robin order. The cron
 // appends enabled custom providers to this list at runtime.
@@ -145,6 +149,179 @@ export async function claimAiAutoTaskBootstrapRun(client: RawQueryClient = db, n
     nowMs - AI_AUTO_TASK_BOOTSTRAP_COOLDOWN_MS,
   )
   return rows.length > 0
+}
+
+// A per-purpose, cross-instance lease prevents two concurrent first tasks
+// from spending the same probe quota. Values are parameters, never SQL text.
+export async function claimAiAutoTaskPreflightRun(purpose: string, client: RawQueryClient = db, nowMs = Date.now()): Promise<boolean> {
+  if (!AUTO_PURPOSES.includes(purpose as typeof AUTO_PURPOSES[number])) return false
+  const key = `${AI_AUTO_TASK_PREFLIGHT_KEY_PREFIX}CLAIM:${purpose}`
+  const rows = await client.$queryRawUnsafe<Array<{ key: string }>>(
+    `INSERT INTO "Setting" ("key", "value", "updatedAt")
+     VALUES ($1, $2, CURRENT_TIMESTAMP)
+     ON CONFLICT ("key") DO UPDATE
+       SET "value" = EXCLUDED."value", "updatedAt" = CURRENT_TIMESTAMP
+     WHERE CASE
+       WHEN "Setting"."value" ~ '^[0-9]+$' THEN "Setting"."value"::bigint
+       ELSE 0
+     END < $3
+     RETURNING "key"`,
+    key, String(nowMs), nowMs - AI_AUTO_TASK_PREFLIGHT_RETRY_MS,
+  )
+  return rows.length > 0
+}
+
+export type PreflightVerdict = { provider: string; model: string; pass: boolean; available: boolean; latencyMs: number }
+export type PreflightSnapshot = { at: number; kind: ProbeKind; verdicts: PreflightVerdict[]; consecutiveFailures?: number }
+
+export function taskPreflightKey(purpose: string): string {
+  return `${AI_AUTO_TASK_PREFLIGHT_KEY_PREFIX}${purpose}`
+}
+
+// The hourly cron and first-task preflight share a single REAL, pinned
+// provider/model call. The OCR answer is only present in the raster PNG;
+// skipAutoSelection prevents probes recursively triggering preflights.
+async function callPinnedProbe(input: ProbeCallInput & { provider: string; model: string }, timeoutMs: number, maxOutputTokens: number) {
+  try {
+    const attachments = input.kind === 'ocr' && input.planted
+      ? [{ mimeType: 'image/png', base64: (await (await import('sharp')).default(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="820" height="240"><rect width="100%" height="100%" fill="white"/><text x="40" y="140" font-family="sans-serif" font-size="37" fill="black">${input.planted.replace(/[^A-Za-z0-9-]/g, '')}</text></svg>`)).png().toBuffer()).toString('base64') }]
+      : undefined
+    const { textAiCompleteWithMetadata } = await import('./text-ai')
+    const result = await textAiCompleteWithMetadata({
+      history: [{ role: 'user', text: input.prompt }],
+      purpose: 'CHAT',
+      system: 'Answer the prompt exactly as instructed, with nothing else.',
+      restrictToModels: [{ provider: input.provider as Exclude<TextAiProvider, 'AUTO'>, model: input.model }],
+      skipAutoSelection: true,
+      attachments,
+      json: input.kind === 'json',
+      maxOutputTokens,
+      timeoutMs,
+    })
+    if (result.provider !== input.provider || result.model !== input.model) return { text: '', ok: false, error: 'PROBE_MODEL_MISMATCH' }
+    return { text: result.text, ok: true }
+  } catch (error: any) {
+    return { text: '', ok: false, error: String(error?.message || 'PROBE_CALL_FAILED').slice(0, 120) }
+  }
+}
+
+// Preserve the hourly cron's existing allowance; keep first tasks faster.
+export const callPinnedAutoProbeModel: ProbeCallFn = (input) => callPinnedProbe(input, 8_000, 256)
+export const callFastAutoProbeModel: ProbeCallFn = (input) => callPinnedProbe(input, 6_000, 128)
+
+function taskProbe(purpose: string): ProbeCallInput {
+  if (purpose === 'VISION') return buildOcrProbe(Math.random().toString(36).slice(2, 10).toUpperCase())
+  // A short acceptance smoke test, not a full 64k-token stress test.
+  if (purpose === 'LONG_CONTEXT') return buildLongContextProbe(8_000)
+  const instruction = purpose === 'ANALYSIS'
+    ? 'An accounting ledger has revenue of 75 and expenses of 33. Calculate net profit.'
+    : purpose === 'GRADING'
+      ? 'A learner wrote 6 times 7 equals 40. Determine the correct numeric answer.'
+      : purpose === 'REVIEW'
+        ? 'Audit and correct this erroneous statement: 21 plus 21 equals 41.'
+        : purpose === 'GENERATION'
+          ? 'Generate the numeric answer to 7 multiplied by 6.'
+          : 'What is the numeric answer to 6 multiplied by 7?'
+  return { ...buildJsonProbe(), prompt: `${instruction} Reply ONLY as JSON with keys "probe":true and "value":the computed integer. Do not quote the answer from the question.` }
+}
+
+export function parseTaskPreflight(raw: string): PreflightSnapshot | null {
+  try {
+    const parsed = JSON.parse(raw || 'null') as PreflightSnapshot
+    if (!parsed || !Number.isFinite(parsed.at) || parsed.at <= 0 || parsed.at > 8.64e15 || !Array.isArray(parsed.verdicts)
+      || !['json', 'ocr', 'long-context'].includes(parsed.kind)) return null
+    return parsed
+  } catch { return null }
+}
+
+export function orderByTaskPreflight(candidates: AutoCandidate[], snapshot: PreflightSnapshot | null): AutoCandidate[] {
+  if (!snapshot) return candidates
+  const verdicts = new Map(snapshot.verdicts.map((item) => [`${item.provider}:${item.model}`, item]))
+  const status = (item: AutoCandidate) => {
+    const v = verdicts.get(`${item.provider}:${item.model}`)
+    return !v ? 1 : v.pass ? 0 : 2
+  }
+  return [...candidates].sort((a, b) => status(a) - status(b)
+    || (status(a) === 0 ? (verdicts.get(`${a.provider}:${a.model}`)?.latencyMs || Infinity) - (verdicts.get(`${b.provider}:${b.model}`)?.latencyMs || Infinity) : 0))
+}
+
+export interface TaskPreflightInput {
+  store: AutoRefreshStore
+  purpose: string
+  candidates: AutoCandidate[] // Already filtered by paid/quota/verifier constraints.
+  callModel: ProbeCallFn
+  claim?: (purpose: string) => Promise<boolean>
+  nowMs?: number
+  timeoutMs?: number
+}
+
+// At most TWO live, pinned calls on the first task per purpose (one per
+// provider where possible). Success is reused for a day, across tasks and
+// Vercel workers. Transient failures retry after a 10-minute lease; normal
+// requests incur zero calls. Sorting never admits excluded candidates.
+export async function preflightAutoCandidatesForTask(input: TaskPreflightInput): Promise<AutoCandidate[]> {
+  if (!AUTO_PURPOSES.includes(input.purpose as typeof AUTO_PURPOSES[number]) || !input.candidates.length) return input.candidates
+  const nowMs = input.nowMs ?? Date.now()
+  const key = taskPreflightKey(input.purpose)
+  const saved = parseTaskPreflight((await input.store.read([key]))[key] || '')
+  const available = new Set(input.candidates.map((item) => `${item.provider}:${item.model}`))
+  const passedStillEligible = saved?.verdicts.some((item) => item.pass && available.has(`${item.provider}:${item.model}`)) || false
+  // Exponential backoff if an entire pool is down: 10, 20, 40 ... up
+  // to 6h. A new candidate can be explored at the next allowed check.
+  const failures = Math.max(0, Math.min(8, Number(saved?.consecutiveFailures) || 0))
+  const retryMs = Math.min(6 * 60 * 60 * 1000, AI_AUTO_TASK_PREFLIGHT_RETRY_MS * 2 ** Math.max(0, failures - 1))
+  const validFor = passedStillEligible ? AI_AUTO_TASK_PREFLIGHT_VALID_MS : retryMs
+  if (saved && nowMs >= saved.at && nowMs - saved.at < validFor) return orderByTaskPreflight(input.candidates, saved)
+  if (!(await (input.claim || claimAiAutoTaskPreflightRun)(input.purpose))) {
+    return saved && nowMs - saved.at < AI_AUTO_TASK_PREFLIGHT_VALID_MS
+      ? orderByTaskPreflight(input.candidates, saved) : input.candidates
+  }
+
+  const chosen: AutoCandidate[] = []
+  const seenProviders = new Set<string>()
+  const passedBefore = new Set((saved?.verdicts || []).filter((item) => item.pass).map((item) => `${item.provider}:${item.model}`))
+  const failedBefore = new Set((saved?.verdicts || []).filter((item) => !item.pass).map((item) => `${item.provider}:${item.model}`))
+  const candidatePool = [
+    ...input.candidates.filter((item) => passedBefore.has(`${item.provider}:${item.model}`)),
+    ...input.candidates.filter((item) => !passedBefore.has(`${item.provider}:${item.model}`) && !failedBefore.has(`${item.provider}:${item.model}`)),
+    ...input.candidates.filter((item) => failedBefore.has(`${item.provider}:${item.model}`)),
+  ]
+  for (const item of candidatePool) {
+    if (chosen.length >= 2) break
+    if (!seenProviders.has(item.provider)) { chosen.push(item); seenProviders.add(item.provider) }
+  }
+  for (const item of candidatePool) {
+    if (chosen.length >= 2) break
+    if (!chosen.includes(item)) chosen.push(item)
+  }
+  const probe = taskProbe(input.purpose)
+  const timeoutMs = Math.max(1000, Math.min(8_000, input.timeoutMs ?? 6_500))
+  const verdicts = await Promise.all(chosen.map(async ({ provider, model }): Promise<PreflightVerdict> => {
+    const started = Date.now()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const result = await Promise.race([
+        input.callModel({ ...probe, provider, model }),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('PROBE_TIMEOUT')), timeoutMs) }),
+      ])
+      return { provider, model, pass: evaluateProbeResponse(probe.kind, result, probe).pass, available: result.ok, latencyMs: Date.now() - started }
+    } catch {
+      return { provider, model, pass: false, available: false, latencyMs: Date.now() - started }
+    } finally { if (timer) clearTimeout(timer) }
+  }))
+  // Keep negative evidence from earlier bounded rounds so the next round
+  // explores untested providers/models rather than paying for the same two.
+  // Old passes are NOT rolled forward as fresh evidence.
+  const sampled = new Set(verdicts.map((item) => `${item.provider}:${item.model}`))
+  const oldFailures = nowMs - (saved?.at || 0) < 6 * 60 * 60 * 1000
+    ? (saved?.verdicts || []).filter((item) => !item.pass && !sampled.has(`${item.provider}:${item.model}`)) : []
+  const allVerdicts = [...verdicts, ...oldFailures].slice(0, 64)
+  const snapshot: PreflightSnapshot = {
+    at: nowMs, kind: probe.kind, verdicts: allVerdicts,
+    consecutiveFailures: verdicts.some((item) => item.pass) ? 0 : failures + 1,
+  }
+  await input.store.write(key, JSON.stringify(snapshot))
+  return orderByTaskPreflight(input.candidates, snapshot)
 }
 
 export interface RunAutoRefreshInput {
@@ -309,9 +486,9 @@ export interface AutoTaskBootstrapResult {
 
 // First actual task with an empty auto ranking: discover configured providers
 // in a bounded, three-way catalog scan, then persist their purpose rankings.
-// There are NO synthetic model calls here — the task's actual response and
-// validator provide the first quality signal. Future tasks reuse the saved
-// scores and stable pin instead of paying for another full scan.
+// This discovery step itself makes no synthetic calls. The router invokes
+// preflightAutoCandidatesForTask after filtering the discovered ranking;
+// future tasks reuse the saved live evidence and stable pin.
 export async function bootstrapAutoRankingsForTask(input: AutoTaskBootstrapInput): Promise<AutoTaskBootstrapResult> {
   const providers = [...new Set(input.providers.map((item) => String(item || '').toUpperCase()).filter(Boolean))]
   const summary: AutoTaskBootstrapResult = { claimed: false, scanned: [], ranked: [], failed: [] }
