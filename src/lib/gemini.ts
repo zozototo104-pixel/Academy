@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { aiRetryDelayMs, wait } from '@/lib/ai-retry'
 import { STREAM_INTERRUPTED_RETRY_MESSAGE, streamWithNoFallbackAfterFirstChunk } from '@/lib/ai-stream-guard'
 import { decryptSecret, isEncryptedSecret, redactSecrets } from '@/lib/secret-crypto'
-import { autoRankingForPurpose, hasExternalTextAi, isTextAiAutoModeEnabled, textAiCompleteJson, textAiStreamText, type TextAiPreferredModel, type TextAiProvider, type TextAiPurpose, type TextAiRouterPolicy, type TextAiTaskLevel } from '@/lib/text-ai'
+import { hasExternalTextAi, isTextAiAutoModeEnabled, textAiCompleteJson, textAiStreamText, type TextAiPreferredModel, type TextAiProvider, type TextAiPurpose, type TextAiRouterPolicy, type TextAiTaskLevel } from '@/lib/text-ai'
 
 export interface GeminiTurn {
   role: 'user' | 'model'
@@ -498,22 +498,10 @@ export function isTransientGeminiError(e: any): boolean {
   return status === 500 || status === 502 || status === 503 || status === 504 || /UNAVAILABLE|overloaded|high demand|service unavailable|temporar|try again|timeout|deadline/i.test(msg)
 }
 
-// Auto mode (step 2): is the native-Gemini fallback after a router error
-// blocked? When auto is OFF this is always false (today's behaviour).
-// When ON, the fallback is allowed only if a Gemini model is still
-// auto-qualified for the purpose — or if the ranking is empty, i.e. auto
-// has produced no signal yet (last resort, so a missing ranking never
-// breaks a working path). A non-empty ranking without Gemini means the
-// router error stands: no silent downgrade to a hardcoded Gemini chain.
-async function autoGeminiFallbackBlocked(purpose?: TextAiPurpose): Promise<boolean> {
-  if (!(await isTextAiAutoModeEnabled())) return false
-  const ranking = await autoRankingForPurpose(purpose || 'CHAT')
-  if (!ranking.length) return false
-  return !ranking.some((candidate) => candidate.provider === 'GEMINI')
-}
-
 export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<string> {
-  if (opts.taskLevel === 'ACADEMIC_CRITICAL') {
+  // In automatic mode every candidate (including Gemini) must be selected
+  // by the router; the native hardcoded chain must never bypass its ranking.
+  if (opts.taskLevel === 'ACADEMIC_CRITICAL' || await isTextAiAutoModeEnabled()) {
     for await (const chunk of streamWithNoFallbackAfterFirstChunk(() => textAiStreamText(opts))) yield chunk
     return
   }
@@ -523,7 +511,7 @@ export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<st
       for await (const chunk of streamWithNoFallbackAfterFirstChunk(() => textAiStreamText(opts))) yield chunk
       return
     } catch (e) {
-      shouldFallback = hasGemini() && !(await autoGeminiFallbackBlocked(opts.purpose))
+      shouldFallback = hasGemini()
       if (!shouldFallback) throw e
     }
   }
@@ -590,14 +578,13 @@ export async function geminiComplete(opts: GeminiCallOpts): Promise<string> {
 }
 
 export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> {
-  if (opts.taskLevel === 'ACADEMIC_CRITICAL') return textAiCompleteJson(opts)
+  if (opts.taskLevel === 'ACADEMIC_CRITICAL' || await isTextAiAutoModeEnabled()) return textAiCompleteJson(opts)
   let routerError: unknown = null
   if (await hasExternalTextAi()) {
     try {
       return await textAiCompleteJson(opts)
     } catch (e) {
       if (!hasGemini() || opts.excludeProviders?.includes('GEMINI')) throw e
-      if (await autoGeminiFallbackBlocked(opts.purpose)) throw e
       routerError = e
     }
   }
@@ -673,15 +660,11 @@ export async function geminiVisionJson(opts: {
   maxOutputTokens?: number
   timeoutMs?: number
 }): Promise<string> {
-  // Auto mode (step 2): vision goes through the router (purpose VISION)
-  // so the auto ranking picks the vision model. The native path stays as
-  // a last resort only when the auto ranking is empty — i.e. auto has
-  // produced no signal yet. A non-empty ranking means the router result
-  // stands, with no silent downgrade to native Gemini.
+  // The router owns model choice whenever auto mode is ON. Even without
+  // prior rankings it performs a bounded catalog bootstrap on first use;
+  // a failed bootstrap must not silently activate the native manual chain.
   if (await isTextAiAutoModeEnabled()) {
-    const ranking = await autoRankingForPurpose('VISION')
-    try {
-      return await textAiCompleteJson({
+    return textAiCompleteJson({
         system: opts.system || 'أنت قارئ مستندات بصري دقيق. أرجع JSON صالحاً فقط.',
         history: [{ role: 'user', text: opts.prompt }],
         attachments: opts.images.map((img) => ({ mimeType: img.mimeType || 'image/jpeg', base64: img.dataBase64 })),
@@ -689,11 +672,7 @@ export async function geminiVisionJson(opts: {
         temperature: opts.temperature,
         maxOutputTokens: opts.maxOutputTokens,
         timeoutMs: opts.timeoutMs,
-      })
-    } catch (e) {
-      if (ranking.length) throw e
-      // Empty ranking: fall through to the native path below.
-    }
+    })
   }
   const keys = await nativeGeminiKeys()
   if (!keys.length) throw new Error('GEMINI_NOT_CONFIGURED')
