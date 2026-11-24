@@ -4374,8 +4374,22 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     // seam only; downstream treats providers as ids, not union members.
     preferredProviders = autoResolution.preferredProviders as TextAiProvider[]
   }
-  const effectiveRestrictToModels = autoResolution.autoOverride ? undefined : effectiveOpts.restrictToModels
-  const baseOrderedProviders = providerOrder(s, taskLevel)
+  // During initial warm-up keep working using the legacy safe route.
+  // The cron gradually builds qualified rankings without blocking users.
+  const effectiveRestrictToModels = autoResolution.autoOverride
+    ? autoResolution.preferredModels
+    : effectiveOpts.restrictToModels
+  const probePinnedModels = effectiveOpts.skipAutoSelection ? (effectiveOpts.restrictToModels || []) : []
+  const probePinnedProviders = probePinnedModels.length
+    ? [...new Set(probePinnedModels.map((item) => item.provider))] as ConcreteProvider[] : null
+  const publicGateways = new Set(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
+  const publicAlwaysAllowed = new Set(['UNOROUTER', 'OPENROUTER', 'TOPTOOLS'])
+  const baseOrderedProviders = (autoResolution.autoOverride
+    ? preferredProviders.filter((provider) => provider !== 'AUTO') as ConcreteProvider[]
+    : probePinnedProviders || providerOrder(s, taskLevel))
+    .filter((provider) => providerKeys(s, provider).length > 0)
+    .filter((provider) => !autoResolution.autoOverride || taskLevel !== 'GENERAL' || !publicGateways.has(provider)
+      || publicAlwaysAllowed.has(provider) || s.allowPublicGateways)
     .filter((provider) => !excluded.has(provider))
     .filter((provider) => !visionCall || isCustomTextAiProviderId(provider) || providerSupportsVisionAttachments(provider))
   const visionOrderedProviders = visionCall ? visionPriorityOrder(baseOrderedProviders) : baseOrderedProviders
