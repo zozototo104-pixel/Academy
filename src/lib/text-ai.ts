@@ -190,6 +190,9 @@ export interface TextAiCallOpts {
   // these provider/model pairs may be attempted (a true allowlist, not a
   // preference). Unset (the default everywhere) = no effect at all.
   restrictToModels?: TextAiPreferredModel[]
+  // Internal capability probe only: pin a single provider/model while the
+  // public router is in auto mode. Never use for academic/live requests.
+  skipAutoSelection?: boolean
   maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>
   providerRateLimitCooldown?: { provider: Exclude<TextAiProvider, 'AUTO'>; threshold: number; windowMs: number; cooldownMinutes: number }
   excludeModelFamilies?: string[]
