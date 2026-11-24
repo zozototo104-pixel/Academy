@@ -4351,11 +4351,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   // Auto mode choke point (step 2): when ON, the auto ranking for this
   // purpose replaces the preferred/restrict inputs. Exclusions are
   // preserved — the ranking can never re-admit an excluded provider or
-  // family — and paid-blocked models are dropped. When OFF, or when the
-  // ranking is empty, this is a passthrough and the manual behaviour
-  // below runs unchanged (admin global model still seeds fallbacks).
+  // family — and paid-blocked models are dropped. During the first
+  // background discovery cycle, the existing safe route stays available.
   const autoResolution = resolveAutoCandidates({
-    autoMode: s.autoMode,
+    autoMode: s.autoMode && effectiveOpts.skipAutoSelection !== true,
     ranking: s.autoRankings[effectiveOpts.purpose || 'CHAT'] || [],
     purpose: effectiveOpts.purpose,
     taskType: effectiveOpts.taskType,
