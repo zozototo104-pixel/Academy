@@ -2475,6 +2475,12 @@ export function AdminBooksTab() {
       }
     } catch (error: any) {
       const message = String(error?.message || error)
+      if (message.includes('BOOK_REPAIR_JOB_ACTIVE')) {
+        // Repair owns this book until it finishes; retry quietly later
+        // instead of showing the same red toast every five seconds.
+        bookReadRetryRef.current[bookId] = { count: 0, nextAt: Date.now() + 30_000 }
+        return
+      }
       if (/\b(502|504)\b|bad gateway|gateway timeout|failed to fetch|networkerror|network error|load failed/i.test(message)) {
         const count = (bookReadRetryRef.current[bookId]?.count || 0) + 1
         bookReadRetryRef.current[bookId] = { count, nextAt: Date.now() + 5000 }
