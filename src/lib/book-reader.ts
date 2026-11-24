@@ -124,7 +124,25 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
       await parser.destroy().catch(() => {})
     }
   }
+  const parsePages = (raw: string): ExtractedBookPage[] => {
+    const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
+    if (!Array.isArray(parsed?.pages)) throw new Error('OCR_INVALID_PAGE_RESPONSE')
+    const pages = pageNumbers.map((page, i) => {
+      const match = parsed.pages.find((entry: any) => Number(entry.page) === i + 1)
+      if (!match || typeof match.text !== 'string') throw new Error(`OCR_MISSING_PAGE_${page}`)
+      return { page, text: match.text.trim(), textProvenance: 'VISION_OCR' as const }
+    })
+    // Presence alone is not proof: an OCR answer can itself be glyph garbage
+    // (or an invented summary). A broken page fails the OCR call so the
+    // READING-profile failover (next model, APINEX image retry, global
+    // fallback) gets its chance instead of saving the garbage as evidence.
+    for (const page of pages) {
+      if (page.text.trim() && looksLikeBrokenBookPageText(page.text)) throw new Error('OCR_TEXT_FAILED_VERIFICATION')
+    }
+    return pages
+  }
   const meta = await textAiCompleteJsonWithMetadata({
+    validate: (raw) => { parsePages(raw) },
     system: 'أنت محرك OCR حرفي. انسخ النص المرئي كما هو، دون شرح أو وصف أو استنتاج. لا تستخدم VISION_DESCRIPTION.',
     history: [{ role: 'user', text: `الملف يحتوي ${pageNumbers.length} صفحات بالترتيب. أرجع JSON فقط بالشكل {"pages":[{"page":1,"text":"النص الحرفي"}]}، حيث page هو رقم الصفحة داخل الملف الفرعي من 1 إلى ${pageNumbers.length}. لا تخترع نصاً ولا تلخص.` }],
     purpose: 'VISION',
@@ -135,20 +153,7 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
     deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + 90_000),
     attachments,
   })
-  const parsed = JSON.parse(meta.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
-  if (!Array.isArray(parsed?.pages)) throw new Error('OCR_INVALID_PAGE_RESPONSE')
-  const pages = pageNumbers.map((page, i) => {
-    const match = parsed.pages.find((entry: any) => Number(entry.page) === i + 1)
-    if (!match || typeof match.text !== 'string') throw new Error(`OCR_MISSING_PAGE_${page}`)
-    return { page, text: match.text.trim(), textProvenance: 'VISION_OCR' as const }
-  })
-  // Presence alone is not proof: an OCR answer can itself be glyph garbage
-  // (or an invented summary). A broken page fails the OCR call so the
-  // READING-profile failover (next model, APINEX image retry, global
-  // fallback) gets its chance instead of saving the garbage as evidence.
-  for (const page of pages) {
-    if (page.text.trim() && looksLikeBrokenBookPageText(page.text)) throw new Error('OCR_TEXT_FAILED_VERIFICATION')
-  }
+  const pages = parsePages(meta.text)
   return { pages, provider: meta.provider, model: meta.model }
 }
 
