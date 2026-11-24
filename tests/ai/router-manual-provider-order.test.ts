@@ -357,12 +357,17 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     }
   })
 
-  test('custom image and PDF routing requires declared capabilities, not just a model name', () => {
+  test('custom vision routing probes known model families as PNG, but never infers PDF or overrides text-only metadata', () => {
     const supports = textAi.__testVisionSupportForTests
     const custom = { provider: 'CUSTOM_EXTRAA', model: 'gpt-4o-vision' }
     expect(supports({ ...custom, vision: true, modalities: ['text', 'image'] })).toBe(true)
-    expect(supports({ ...custom, vision: true, modalities: [] })).toBe(false)
+    expect(supports({ ...custom, vision: true, modalities: [] })).toBe(true)
+    expect(supports({ provider: 'CUSTOM_EXTRAA', model: 'free/gemini-3.8-flash', vision: false, modalities: [] })).toBe(true)
+    expect(supports({ provider: 'CUSTOM_EXTRAA', model: 'gemini-3-8-flash' })).toBe(true)
+    expect(supports({ provider: 'CUSTOM_EXTRAA', model: 'free/claude-opus-4.6' })).toBe(true)
+    expect(supports({ provider: 'CUSTOM_EXTRAA', model: 'free/deepseek-v4.1-flash' })).toBe(false)
     expect(supports({ ...custom, vision: false, modalities: ['text'] })).toBe(false)
+    expect(supports({ ...custom, vision: false, modalities: [], pdf: true })).toBe(false)
     expect(supports({ ...custom, vision: true, modalities: ['text', 'image'], pdf: true })).toBe(false)
     expect(supports({ ...custom, vision: true, modalities: ['text', 'image', 'document'], pdf: true })).toBe(true)
     // Existing provider handling remains unchanged.
