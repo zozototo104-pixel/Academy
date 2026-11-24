@@ -199,8 +199,18 @@ describe('refuse when no healthy sources exist', () => {
     expect(() => assertUnitRegenerationHasHealthySources(assessment)).toThrow('UNIT_SOURCE_REQUIRES_REPAIR')
   })
 
-  test('assert passes when at least one healthy chunk OR one healthy item remains', () => {
-    expect(() => assertUnitRegenerationHasHealthySources(assessUnitSources([garbledChunk(0)], [cleanItem('item-clean', 'chunk-0')]))).not.toThrow()
+  test('clean-looking knowledge linked to a garbled chunk is excluded', () => {
+    const assessment = assessUnitSources([garbledChunk(0)], [cleanItem('item-clean', 'chunk-0')])
+    expect(assessment.healthyKnowledgeCount).toBe(0)
+    expect(assessment.gaps.skippedKnowledgeIds).toEqual(['item-clean'])
+    expect(() => assertUnitRegenerationHasHealthySources(assessment)).toThrow('UNIT_SOURCE_REQUIRES_REPAIR')
+  })
+
+  test('assert passes when healthy sources remain', () => {
+    const assessment = assessUnitSources([garbledChunk(0), cleanChunk(1)], [cleanItem('item-clean', 'chunk-0'), cleanItem('item-good', 'chunk-1')])
+    expect(assessment.healthyKnowledgeCount).toBe(1)
+    expect(assessment.gaps.skippedKnowledgeIds).toEqual(['item-clean'])
+    expect(() => assertUnitRegenerationHasHealthySources(assessment)).not.toThrow()
     expect(() => assertUnitRegenerationHasHealthySources(assessUnitSources([cleanChunk(0)], [garbledItem('item-garbled', 'chunk-0')]))).not.toThrow()
   })
 
