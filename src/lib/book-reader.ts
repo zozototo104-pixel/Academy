@@ -164,7 +164,15 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
 // فشل الكل: رجوع واحد للعام إن سمح البروفايل (ويُعلَّم fellBack)،
 // وإلا يفشل النداء بوضوح كما فشل.
 async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null, onFallbackAttempt?: () => void): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string; fellBack: boolean }> {
-  if (!overrides) return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null)), fellBack: false }
+  if (!overrides) {
+    try {
+      return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null)), fellBack: false }
+    } catch (pdfError) {
+      if (deadlineMs - Date.now() < 25_000) throw pdfError
+      // Global models may accept image_url but not PDF attachments.
+      return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null, true)), fellBack: false }
+    }
+  }
   try {
     return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, overrides)), fellBack: false }
   } catch (error) {
@@ -173,17 +181,15 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
     // restrict this recovery to a particular provider or model name.
     if (deadlineMs - Date.now() >= 25_000) {
       try {
-        const imageRouting = overrides
-        return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, imageRouting, true)), fellBack: false }
+        return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, overrides, true)), fellBack: false }
       } catch (imageError) {
         if (!overrides.allowGlobalFallback) throw imageError
       }
     }
     if (!overrides.allowGlobalFallback) throw error
-    // D2.1c: الوسم يُضبط لحظة اتخاذ قرار الرجوع — قبل المحاولة نفسها —
-    // حتى يظهر في سجل الفشل إن فشلت محاولة الرجوع أيضًا.
+    // D2.1c: record the fallback before its PDF and PNG attempts.
     onFallbackAttempt?.()
-    return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null)), fellBack: true }
+    return { ...(await transcribeWithMeta(buffer, pageNumbers, deadlineMs, null)), fellBack: true }
   }
 }
 
