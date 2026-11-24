@@ -198,7 +198,8 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
 // profile; this does not restart indexing or relax source-page validation.
 export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNumbers: readonly number[], deadlineMs = Date.now() + 120_000): Promise<ExtractedBookPage[]> {
   try {
-    const original = (await transcribeWithMeta(buffer, pageNumbers, deadlineMs, null)).pages
+    // Preserve the legacy first PDF attempt before consulting READING.
+    const original = (await transcribeOnce(buffer, pageNumbers, deadlineMs, null)).pages
     if (original.every((page) => !page.text.trim())) throw new Error('BOOK_OUTLINE_OCR_EMPTY_RESPONSE')
     return original
   } catch (originalError) {
