@@ -104,8 +104,20 @@ function repairSourceWindow(text: string, previousExcerpt: string | null) {
   if (source.length > 4800) {
     const anchor = String(previousExcerpt || '').trim()
     if (anchor.length < 40) return null
-    const index = source.indexOf(anchor.slice(0, 100))
-    if (index < 0) return null
+    let index = source.indexOf(anchor.slice(0, 100))
+    if (index < 0) {
+      // A damaged prefix need not invalidate an otherwise identifiable quote.
+      // Require a unique, substantial verbatim fragment; never guess a page.
+      const matches: number[] = []
+      for (let offset = 0; offset + 40 <= anchor.length; offset += 20) {
+        const fragment = anchor.slice(offset, offset + 40).trim()
+        if (fragment.length < 35) continue
+        const found = source.indexOf(fragment)
+        if (found >= 0 && source.indexOf(fragment, found + 1) < 0) matches.push(found)
+      }
+      if (!matches.length || Math.max(...matches) - Math.min(...matches) > 1200) return null
+      index = Math.min(...matches)
+    }
     const from = Math.max(0, index - 1800)
     evidence = source.slice(from, from + 4800)
   }
