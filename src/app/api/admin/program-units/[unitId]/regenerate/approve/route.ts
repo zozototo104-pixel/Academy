@@ -36,6 +36,7 @@ export async function POST(req: NextRequest, context: Context) {
         data: buildUnitRegenerationApproveData(draft),
       })
     }, { maxWait: 20000, timeout: 30000 })
+    if (!updatedUnit) return NextResponse.json({ error: 'UNIT_REGENERATION_DRAFT_ALREADY_DECIDED' }, { status: 409 })
     await audit(admin, 'APPROVE_UNIT_REGENERATION', 'Unit', unitId,
       `اعتماد معاينة إعادة توليد الوحدة المتضررة: ${unit.title}`
     ).catch((auditError) => console.error('Unit regeneration approve audit failed after commit:', auditError))
