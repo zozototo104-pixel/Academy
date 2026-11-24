@@ -1,9 +1,9 @@
 // Auto AI background refresh (step 3) — discovery + capability probes.
 //
 // Quota-safe shape, enforced here and not left to callers:
-// - ONE provider per run, round-robin over built-in and enabled custom providers.
+// - ONE provider per hourly run, round-robin over built-in and enabled custom providers.
 // - One tiny /models fetch per run (the provider's own discovery path).
-// - Capability probes capped (two models per run by default), rotated per
+// - Capability probes capped (one model per production run), rotated per
 //   provider and never on the live request path.
 // - A failed discovery refresh keeps the last good catalog (the transient
 //   rule lives in text-ai.ts liveFreeModels); this module only records
@@ -31,8 +31,8 @@ import type { ModelCapability } from './text-ai'
 
 export const AI_AUTO_LAST_REFRESH_KEY = 'AI_AUTO_LAST_REFRESH'
 export const AI_AUTO_REFRESH_LAST_RUN_KEY = 'AI_AUTO_REFRESH_LAST_RUN'
-// One provider per minute, not all providers in one expensive invocation.
-export const AI_AUTO_REFRESH_INTERVAL_MS = 60 * 1000
+// One provider per hour; production also caps probes to one model per run.
+export const AI_AUTO_REFRESH_INTERVAL_MS = 60 * 60 * 1000
 export const AI_AUTO_CAPABILITY_PROBES_KEY_PREFIX = 'AI_AUTO_CAPABILITY_PROBES:'
 export const AI_AUTO_PROBE_CURSOR_KEY_PREFIX = 'AI_AUTO_PROBE_CURSOR:'
 
