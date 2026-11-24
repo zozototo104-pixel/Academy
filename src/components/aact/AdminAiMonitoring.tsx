@@ -33,10 +33,13 @@ type MonitoringCandidate = {
   excludedReason: string | null
   costTier: CostTier
   balance: 'unknown'
+  probe: { pass: boolean; latencyMs: number } | null
 }
 type MonitoringRanking = {
   purpose: string
   computedAt: string | null
+  taskPreflightAt: string | null
+  taskPreflightCurrent: boolean
   top: MonitoringCandidate | null
   candidates: MonitoringCandidate[]
 }
@@ -322,6 +325,13 @@ export function AdminAiMonitoring() {
                 <p className="text-sm font-black text-slate-900">{PURPOSE_LABELS[ranking.purpose] || ranking.purpose}</p>
                 <span className="text-[10px] font-bold text-slate-400">{ranking.computedAt ? `حُسب في ${fmtDate(ranking.computedAt)}` : 'لم يُحسب بعد'}</span>
               </div>
+              <p className="text-[11px] font-bold text-slate-500">
+                {ranking.taskPreflightCurrent && ranking.taskPreflightAt
+                  ? `آخر فحص حقيقي عند بدء المهمة: ${fmtDate(ranking.taskPreflightAt)} — النماذج التي نجحت تُقدَّم على غير المختبرة.`
+                  : ranking.taskPreflightAt
+                    ? `آخر فحص مهمة سابق: ${fmtDate(ranking.taskPreflightAt)} — انتهت صلاحيته، ويُجدَّد عندما تستدعي المهمة ذلك.`
+                    : 'لا يوجد فحص حقيقي محفوظ لهذه المهمة بعد؛ الترتيب مبني على الاكتشاف والصحة المسجلة.'}
+              </p>
               {ranking.top ? (
                 <p className="text-xs font-bold text-emerald-700">
                   الأفضل الآن: {ranking.top.provider}:{ranking.top.model}
@@ -343,6 +353,9 @@ export function AdminAiMonitoring() {
                         {candidate.excludedReason
                           ? <Badge className="bg-rose-50 text-rose-700">مستبعد: {candidate.excludedReason}</Badge>
                           : <Badge className="bg-emerald-50 text-emerald-700">مؤهل</Badge>}
+                        {candidate.probe && <Badge className={candidate.probe.pass ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>
+                          {candidate.probe.pass ? `نجح فحص المهمة · ${candidate.probe.latencyMs}ms` : 'لم ينجح فحص المهمة'}
+                        </Badge>}
                       </span>
                       {candidate.components && (
                         <span className="w-full text-[10px] font-bold text-slate-500">
