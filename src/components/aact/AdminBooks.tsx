@@ -310,6 +310,17 @@ type BookReadJobRow = {
   lockedUntil?: string | null
 }
 
+// Enrichment completion kind (PR #212): the read-job/read-step responses
+// carry `completionKind` ('BASE_COMPLETE' = base enrichment done at 10,
+// 'FINAL_SATURATED' = final saturation at 20), but the local `api<...>`
+// response types below predate it. Carry it through without rewriting
+// those call expressions (their exact text is pinned by the workspace
+// organization guard).
+type EnrichmentCompletionKind = 'BASE_COMPLETE' | 'FINAL_SATURATED'
+function withEnrichmentCompletion<T extends { totalChunks: number; saturatedChunks: number; addedItems: number }>(enrichment: T): T & { completionKind?: EnrichmentCompletionKind } {
+  return enrichment as T & { completionKind?: EnrichmentCompletionKind }
+}
+
 type BookRepairJobRow = {
   id: string
   bookId: string
@@ -543,6 +554,36 @@ interface CurriculumUnitReviewItem {
   } | null
 }
 
+interface UnitRegenerationDraftView {
+  id: string
+  status: string
+  createdAt?: string | null
+  summary?: string | null
+  objectives: string[]
+  content: { heading: string; body: string; pageRefs?: string[]; sourceKnowledgeIds?: string[]; sourceChunkIndexes?: number[] }[]
+  gaps?: { partial: boolean; skippedChunkIndexes: number[]; skippedKnowledgeIds: string[]; skippedChunkCount: number; skippedKnowledgeCount: number; healthyChunkCount: number; healthyKnowledgeCount: number } | null
+  sourceKnowledgeIds: string[]
+}
+
+interface DamagedUnitRow {
+  unitId: string
+  title: string
+  order: number
+  semester: number
+  status: string
+  sourceBookId?: string | null
+  totalChunkCount: number
+  healthyChunkCount: number
+  garbledChunkCount: number
+  totalKnowledgeCount: number
+  healthyKnowledgeCount: number
+  pendingReviewKnowledgeCount: number
+  badChunks: { id: string; index: number }[]
+  badKnowledge: { id: string; title: string }[]
+  gaps?: UnitRegenerationDraftView['gaps']
+  draft?: UnitRegenerationDraftView | null
+}
+
 function questionBankProgressCounts(unit: CurriculumUnitReviewItem) {
   const approved = Number(unit.questionBankJob?.approvedQuestions ?? unit.questionBankSummary?.approved ?? 0) || 0
   const pendingReview = Number(unit.questionBankJob?.pendingReviewQuestions ?? unit.questionBankSummary?.pendingReview ?? 0) || 0
@@ -732,6 +773,7 @@ export function AdminBooksTab() {
     storedChunks?: number; failedChunks?: number; knowledgeTotal?: number
     sourcePages?: number; pagesSaved?: number; corruptChunks?: number
     enrichmentTarget?: number | null
+    completionKind?: EnrichmentCompletionKind
   }>>({})
   const [programKnowledgeV2States, setProgramKnowledgeV2States] = useState<Record<string, { state: 'READING' | 'ENRICHING' | 'COMPLETED' | 'PAUSED' | 'FAILED'; retryAt?: string | null }>>({})
   const [bookReadBusyId, setBookReadBusyId] = useState<string | null>(null)
@@ -759,6 +801,9 @@ export function AdminBooksTab() {
   const [curriculumUnits, setCurriculumUnits] = useState<CurriculumUnitReviewItem[]>([])
   const [unitBusyId, setUnitBusyId] = useState<string | null>(null)
   const [unitRegenerateDrafts, setUnitRegenerateDrafts] = useState(false)
+  const [damagedUnits, setDamagedUnits] = useState<DamagedUnitRow[]>([])
+  const [damagedLoading, setDamagedLoading] = useState(false)
+  const [damagedError, setDamagedError] = useState('')
   const [questionBankStats, setQuestionBankStats] = useState<QuestionBankStats | null>(null)
   const [questionBankProgress, setQuestionBankProgress] = useState<AiGenerationProgressRow>(null)
   const [questionBankItems, setQuestionBankItems] = useState<QuestionBankItemRow[]>([])
@@ -1700,6 +1745,77 @@ export function AdminBooksTab() {
     return () => clearInterval(timer)
   }, [workspaceTab, programId, activeQuestionBankJobIdsKey])
 
+  const loadDamagedUnits = useCallback(async (pid: string) => {
+    setDamagedLoading(true)
+    setDamagedError('')
+    try {
+      const res = await api<{ damagedUnits: DamagedUnitRow[] }>(`/api/admin/program-units?programId=${pid}&damaged=true`)
+      setDamagedUnits(Array.isArray(res.damagedUnits) ? res.damagedUnits : [])
+    } catch (e: any) {
+      setDamagedError(String(e?.message || e))
+    } finally {
+      setDamagedLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (workspaceTab !== 'units' || !programId) return
+    void loadDamagedUnits(programId)
+  }, [workspaceTab, programId, loadDamagedUnits])
+
+  // Damaged-unit regeneration (Part 3): regenerate ONE unit into a draft
+  // preview — the published content is never overwritten here. Approve and
+  // reject only decide the preview; approve applies content fields only.
+  const regenerateDamagedUnit = async (unitId: string) => {
+    if (!programId) return
+    if (!(await askAdminConfirm({ title: 'إعادة توليد الوحدة المتضررة', description: 'سيُعاد توليد محتوى هذه الوحدة فقط من مصادرها السليمة، وتُحفظ النتيجة كمسودة معاينة دون المساس بالمحتوى المنشور.', confirmLabel: 'إعادة التوليد' }))) return
+    setUnitBusyId(unitId)
+    try {
+      const res = await api<{ ok?: boolean; error?: string; draft?: UnitRegenerationDraftView; gaps?: DamagedUnitRow['gaps'] }>(`/api/admin/program-units/${unitId}/regenerate`, { method: 'POST', body: JSON.stringify({}) })
+      if (res.error === 'UNIT_SOURCE_REQUIRES_REPAIR') {
+        toast({ title: 'لا توجد مصادر سليمة كافية', description: 'أصلح مصادر الكتاب أولاً — لن يُخترع محتوى من دون مصدر سليم.', variant: 'destructive' })
+        return
+      }
+      await loadDamagedUnits(programId)
+      toast({ title: 'تمت إعادة التوليد كمسودة معاينة', description: res.gaps?.partial ? `تولّد المحتوى من المصادر السليمة — مقاطع متخطاة: ${res.gaps.skippedChunkCount} · عناصر متخطاة: ${res.gaps.skippedKnowledgeCount}. راجع المعاينة قبل الاعتماد.` : 'تولّد المحتوى من كل المصادر. راجع المعاينة قبل الاعتماد.' })
+    } catch (e: any) {
+      toast({ title: 'تعذرت إعادة توليد الوحدة', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
+  const approveDamagedUnitRegeneration = async (unitId: string) => {
+    if (!programId) return
+    if (!(await askAdminConfirm({ title: 'اعتماد معاينة إعادة التوليد', description: 'سيُستبدل محتوى الوحدة المنشور (الملخص والأهداف والمحاور) بالمعاينة فقط. يبقى معرّف الوحدة وترتيبها وروابطها وسجلات الطلاب ودرجاتهم ومحاولاتهم وواجباتهم كما هي.', confirmLabel: 'اعتماد المعاينة' }))) return
+    setUnitBusyId(unitId)
+    try {
+      await api(`/api/admin/program-units/${unitId}/regenerate/approve`, { method: 'POST', body: JSON.stringify({}) })
+      await loadDamagedUnits(programId)
+      await refreshCurriculumUnits(programId)
+      toast({ title: 'تم اعتماد المعاينة', description: 'استُبدل محتوى الوحدة بالمحتوى المُعاد توليده؛ بقيت هوية الوحدة وسجلات الطلاب كما هي.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر اعتماد المعاينة', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
+  const rejectDamagedUnitRegeneration = async (unitId: string) => {
+    if (!programId) return
+    if (!(await askAdminConfirm({ title: 'رفض معاينة إعادة التوليد', description: 'سيُرفض المحتوى المُعاد توليده ويبقى المحتوى المنشور كما هو دون أي تغيير.', confirmLabel: 'رفض المعاينة', danger: true }))) return
+    setUnitBusyId(unitId)
+    try {
+      await api(`/api/admin/program-units/${unitId}/regenerate/reject`, { method: 'POST', body: JSON.stringify({}) })
+      await loadDamagedUnits(programId)
+      toast({ title: 'تم رفض المعاينة', description: 'بقي المحتوى المنشور كما هو.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر رفض المعاينة', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
   const generateCurriculumUnits = async () => {
     if (!programId) return
     setUnitBusyId('__generate_units__')
@@ -2289,7 +2405,7 @@ export function AdminBooksTab() {
   const fetchBookReadJob = useCallback(async (bookId: string) => {
     const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-job`)
     if (response.enrichment) {
-      setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
+      setBookEnrichment((previous) => ({ ...previous, [bookId]: withEnrichmentCompletion(response.enrichment!) }))
       const total = (response.enrichment as typeof response.enrichment & { knowledgeTotal?: number }).knowledgeTotal
       if (total !== undefined) setV2CountsByBook((previous) => previous[bookId] === total ? previous : { ...previous, [bookId]: total })
     }
@@ -2315,7 +2431,7 @@ export function AdminBooksTab() {
       const response = await api<{ job?: BookReadJobRow; skipped?: string; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-step`, { method: 'POST' })
       delete bookReadRetryRef.current[bookId]
       setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
-      if (response.enrichment) setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
+      if (response.enrichment) setBookEnrichment((previous) => ({ ...previous, [bookId]: withEnrichmentCompletion(response.enrichment!) }))
       if (response.job) {
         setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
         setProgramKnowledgeV2States((previous) => ({ ...previous, [bookId]: {
@@ -2351,7 +2467,7 @@ export function AdminBooksTab() {
       try {
         const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${book.id}/read-job`)
         if (active && response.enrichment) {
-          setBookEnrichment((previous) => ({ ...previous, [book.id]: response.enrichment! }))
+          setBookEnrichment((previous) => ({ ...previous, [book.id]: withEnrichmentCompletion(response.enrichment!) }))
           const total = (response.enrichment as typeof response.enrichment & { knowledgeTotal?: number }).knowledgeTotal
           if (total !== undefined) setV2CountsByBook((previous) => previous[book.id] === total ? previous : { ...previous, [book.id]: total })
         }
@@ -3732,6 +3848,8 @@ export function AdminBooksTab() {
                           {!!bookReadRetryCounts[b.id] && bookReadRetryCounts[b.id] < 5 && <p className="mt-1 text-[11px] font-bold text-amber-700">إعادة محاولة تلقائية ({bookReadRetryCounts[b.id]}/5)</p>}
                           {bookReadRetryCounts[b.id] >= 5 && <div className="mt-1 flex items-center gap-2"><p className="text-[11px] font-bold text-red-700">فشلت 5 محاولات متتالية</p><Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => { delete bookReadRetryRef.current[b.id]; setBookReadRetryCounts((previous) => ({ ...previous, [b.id]: 0 })); void advanceBookReadJob(b.id) }}>استكمال</Button></div>}
                           {bookEnrichment[b.id]?.totalChunks > 0 && <p className="mt-1 text-[11px] text-slate-600">{`مشبع فعلياً ${bookEnrichment[b.id].capacitySaturatedChunks ?? 0} مقطع · استنفد الجولات ${bookEnrichment[b.id].exhaustedChunks ?? 0} من ${bookEnrichment[b.id].totalChunks} · أضيف ${bookEnrichment[b.id].addedItems} عنصر`}</p>}
+                          {bookEnrichment[b.id]?.completionKind === 'BASE_COMPLETE' && <p className="mt-1 text-[11px] font-bold text-slate-600">اكتمل الإثراء الأساسي (10 عناصر لكل مقطع) — يمكن الإثراء الإضافي حتى 20</p>}
+                          {bookEnrichment[b.id]?.completionKind === 'FINAL_SATURATED' && <p className="mt-1 text-[11px] font-bold text-slate-600">تشبع نهائي (20 عنصراً لكل مقطع)</p>}
                           {bookReadJobs[b.id] && (() => {
                             const job = bookReadJobs[b.id]
                             const manuallyStopped = job.status === 'PAUSED' && !!job.retryAt && new Date(job.retryAt).getUTCFullYear() === 9999
@@ -3835,6 +3953,60 @@ export function AdminBooksTab() {
                       إضافة وحدة
                     </Button>
                   </div>
+                </div>
+                <div className="mb-4 rounded-2xl border border-red-100 bg-red-50/60 p-4">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-xs font-black text-red-900">الوحدات المتضررة من مصادر مشوهة</h3>
+                    <Button size="sm" variant="outline" disabled={damagedLoading} onClick={() => programId && loadDamagedUnits(programId)} className="h-7 bg-white text-[10px] font-black text-red-800">
+                      {damagedLoading ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : null}
+                      تحديث القائمة
+                    </Button>
+                  </div>
+                  <p className="text-[11px] font-bold leading-5 text-red-800/80">وحدة متضررة = أي مقطع مصدر مشوّه أو عنصر معرفة بانتظار المراجعة ضمن نطاقها. إعادة التوليد تبني المحتوى من المصادر السليمة فقط وتُحفظ كمسودة معاينة — المحتوى المنشور لا يتغيّر إلا باعتمادك الصريح.</p>
+                  {damagedError && <p className="mt-2 text-[11px] font-bold text-red-700">تعذر تحميل القائمة: {damagedError}</p>}
+                  {damagedLoading ? (
+                    <p className="mt-2 text-[11px] font-bold text-slate-500">جارٍ فحص مصادر الوحدات…</p>
+                  ) : damagedUnits.length === 0 ? (
+                    <p className="mt-2 text-[11px] font-bold text-emerald-700">لا توجد وحدات متضررة في هذا البرنامج — كل مصادر الوحدات سليمة.</p>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      {damagedUnits.map((damaged) => (
+                        <article key={damaged.unitId} className="rounded-xl border border-red-200 bg-white p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="text-xs font-black text-[#0f2b46]">{damaged.title} <span className="font-bold text-slate-500">· الفصل {damaged.semester} · ترتيب {damaged.order} · {damaged.status === 'APPROVED' ? 'معتمدة' : damaged.status === 'NEEDS_REVISION' ? 'تحتاج تعديل' : 'مسودة'}</span></p>
+                              <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">
+                                مقاطع مشوهة: {damaged.garbledChunkCount} من {damaged.totalChunkCount} (سليمة: {damaged.healthyChunkCount})
+                                {damaged.badChunks.length > 0 ? ` · فهارس المقاطع: ${damaged.badChunks.map((c) => c.index).join('، ')}` : ''}
+                                {' · '}عناصر بانتظار المراجعة: {damaged.pendingReviewKnowledgeCount} من {damaged.totalKnowledgeCount} (سليمة: {damaged.healthyKnowledgeCount})
+                              </p>
+                            </div>
+                            <Button size="sm" variant="outline" disabled={unitBusyId === damaged.unitId} onClick={() => regenerateDamagedUnit(damaged.unitId)} className="border-[#c9a227] bg-white text-xs font-bold text-[#a8841a]">
+                              {unitBusyId === damaged.unitId ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
+                              {damaged.draft ? 'إعادة توليد المعاينة' : 'إعادة توليد كمعاينة'}
+                            </Button>
+                          </div>
+                          {damaged.draft && (
+                            <div className="mt-3 rounded-xl bg-amber-50/70 p-3 ring-1 ring-amber-100">
+                              <p className="text-[11px] font-black text-amber-900">معاينة المحتوى المُعاد توليده — لم تُعتمد بعد، والمحتوى المنشور لم يتغيّر</p>
+                              {damaged.draft.gaps?.partial && (
+                                <p className="mt-1 text-[11px] font-bold leading-5 text-amber-800">النواقص: استُبعدت {damaged.draft.gaps.skippedChunkCount} مقاطع مشوهة (فهارس: {damaged.draft.gaps.skippedChunkIndexes.join('، ') || '—'}) و{damaged.draft.gaps.skippedKnowledgeCount} عناصر بانتظار المراجعة — التوليد من المصادر السليمة فقط ({damaged.draft.gaps.healthyChunkCount} مقاطع · {damaged.draft.gaps.healthyKnowledgeCount} عناصر).</p>
+                              )}
+                              {damaged.draft.summary && <p className="mt-2 text-[11px] font-bold leading-5 text-slate-700">الملخص: {damaged.draft.summary}</p>}
+                              {damaged.draft.objectives.length > 0 && <p className="mt-1 text-[11px] font-bold leading-5 text-slate-700">الأهداف: {damaged.draft.objectives.join(' · ')}</p>}
+                              {damaged.draft.content.map((section, sectionIndex) => (
+                                <p key={`${damaged.draft!.id}-preview-${sectionIndex}`} className="mt-1 text-[11px] font-bold leading-5 text-slate-700">• {section.heading}: {section.body.slice(0, 220)}{section.body.length > 220 ? '…' : ''}</p>
+                              ))}
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Button size="sm" disabled={unitBusyId === damaged.unitId} onClick={() => approveDamagedUnitRegeneration(damaged.unitId)} className="bg-emerald-600 text-xs font-black text-white hover:bg-emerald-700">اعتماد المعاينة</Button>
+                                <Button size="sm" variant="outline" disabled={unitBusyId === damaged.unitId} onClick={() => rejectDamagedUnitRegeneration(damaged.unitId)} className="border-red-200 bg-white text-xs font-bold text-red-700">رفض المعاينة</Button>
+                              </div>
+                            </div>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {curriculumUnits.length === 0 ? (
                   <div className="rounded-2xl bg-slate-50 p-6 text-center text-xs font-bold text-slate-500">لا توجد وحدات بعد. استخدم زر توليد الوحدات أعلاه أو أضف وحدة يدوياً.</div>
@@ -5777,6 +5949,9 @@ export function AdminKnowledgeAiRepairTab() {
     status: 'QUEUED' | 'RUNNING' | 'PAUSED' | 'COMPLETED'
     scanned: number; repaired: number; needsReview: number; missingSource: number
     attempts: number; lastError: string | null
+    // Real per-reason counters (PR #212): old responses omit them.
+    garbledSource?: number; unlocatableSource?: number; rejectedCorrections?: number
+    rejectionReasons?: Record<string, number>; ocrRereads?: number; ocrRereadFailed?: number
   }
   const [job, setJob] = useState<RepairStatus | null>(null)
 
@@ -5940,6 +6115,15 @@ export function AdminKnowledgeAiRepairTab() {
                 <p>دون مصدر كافٍ: <b>{job.missingSource}</b></p>
               </div>
             )}
+            {job && (job.garbledSource || job.unlocatableSource || job.rejectedCorrections || job.ocrRereads || job.ocrRereadFailed) ? (
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <p>مصدر مشوّه: <b>{job.garbledSource ?? 0}</b></p>
+                <p>مصدر غير قابل للتحديد: <b>{job.unlocatableSource ?? 0}</b></p>
+                <p>تصحيحات مرفوضة: <b>{job.rejectedCorrections ?? 0}</b></p>
+                <p>إعادة قراءة OCR: <b>{job.ocrRereads ?? 0}</b>{(job.ocrRereadFailed ?? 0) > 0 ? ` (فشل ${job.ocrRereadFailed})` : ''}</p>
+              </div>
+            ) : null}
+            {job?.rejectionReasons && Object.keys(job.rejectionReasons).length > 0 && <p className="mt-2 text-xs text-slate-600">أسباب الرفض: {Object.entries(job.rejectionReasons).map(([reason, count]) => `${reason}: ${count}`).join(' · ')}</p>}
             {job?.lastError && <p className="mt-3 text-xs font-bold text-amber-800">{job.lastError}</p>}
             {statusError && <p role="alert" className="mt-3 text-xs font-bold text-red-700">{statusError}</p>}
           </div>

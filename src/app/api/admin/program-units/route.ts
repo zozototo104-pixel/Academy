@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { hasUnitExamAttempts } from '@/lib/outline-units'
+import { hasUnitExamAttempts, assessUnitSources, parseUnitRegenerationDraft } from '@/lib/outline-units'
 import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions, UNIT_EXAM_REVIEW_LABEL } from '@/lib/unit-exam-policy'
 import { collectTimings, withServerTiming, withTiming } from '@/lib/timing'
 import { resolveUnitQuestionBankJobStatus } from '@/lib/unit-question-bank-status'
@@ -222,6 +222,60 @@ async function listProgramUnits(programId: string) {
   })
 }
 
+// GET ?damaged=true — units affected by garbled sources or unsound
+// knowledge items. A unit is affected when any in-range source chunk fails
+// the garble gate or any in-range v2 knowledge item is pending review (the
+// same gates generation applies). Healthy units are never listed. Sources
+// are derived from the unit's chunk range + v2 items in those chunks — the
+// unit stores no sourceKnowledgeIds of its own.
+async function listDamagedUnits(programId: string) {
+  const units = await db.unit.findMany({
+    where: { programId, sourceBookId: { not: null }, chunkStartIndex: { not: null }, chunkEndIndex: { not: null } },
+    orderBy: [{ order: 'asc' }, { id: 'asc' }],
+    select: { id: true, title: true, order: true, semester: true, status: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
+  })
+  const damaged: any[] = []
+  for (const unit of units) {
+    const chunks = await db.bookChunk.findMany({
+      where: { bookId: unit.sourceBookId!, status: { not: 'FAILED' }, index: { gte: unit.chunkStartIndex!, lte: unit.chunkEndIndex! } },
+      orderBy: { index: 'asc' },
+      select: { id: true, index: true, pageStart: true, pageEnd: true, headingPath: true, text: true },
+    })
+    const chunkIds = chunks.map((chunk) => chunk.id)
+    const knowledge = chunkIds.length ? await db.bookKnowledgeItem.findMany({
+      where: { bookId: unit.sourceBookId!, kbVersion: 2, chunkId: { in: chunkIds } },
+      select: { id: true, category: true, title: true, summary: true, excerpt: true, pageStart: true, pageEnd: true, chunkId: true },
+    }) : []
+    const assessment = assessUnitSources(chunks, knowledge)
+    if (!assessment.affected) continue
+    const draft = await db.unitRegenerationDraft.findFirst({
+      where: { unitId: unit.id, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    })
+    damaged.push({
+      unitId: unit.id,
+      title: unit.title,
+      order: unit.order,
+      semester: unit.semester,
+      status: unit.status,
+      sourceBookId: unit.sourceBookId,
+      chunkStartIndex: unit.chunkStartIndex,
+      chunkEndIndex: unit.chunkEndIndex,
+      totalChunkCount: assessment.totalChunkCount,
+      healthyChunkCount: assessment.healthyChunkCount,
+      garbledChunkCount: assessment.garbledChunkCount,
+      totalKnowledgeCount: assessment.totalKnowledgeCount,
+      healthyKnowledgeCount: assessment.healthyKnowledgeCount,
+      pendingReviewKnowledgeCount: assessment.pendingReviewKnowledgeCount,
+      badChunks: assessment.badChunks,
+      badKnowledge: assessment.badKnowledge,
+      gaps: assessment.gaps,
+      draft: draft ? { id: draft.id, status: draft.status, createdAt: draft.createdAt, ...parseUnitRegenerationDraft(draft) } : null,
+    })
+  }
+  return damaged
+}
+
 // GET /api/admin/program-units?programId=...
 export async function GET(req: NextRequest) {
   const { result, metrics } = await collectTimings(async () => {
@@ -234,6 +288,9 @@ export async function GET(req: NextRequest) {
         select: { id: true, titleAr: true, semestersCount: true, academicReadinessStatus: true },
       }))
       if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+      if (req.nextUrl.searchParams.get('damaged') === 'true') {
+        return NextResponse.json({ program, damagedUnits: await listDamagedUnits(programId) })
+      }
       return NextResponse.json({ program, units: await listProgramUnits(programId) })
     } catch (e: any) {
       if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })

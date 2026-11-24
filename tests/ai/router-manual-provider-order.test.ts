@@ -154,7 +154,11 @@ describe('administrator-registered OpenAI-compatible providers', () => {
     expect(worker).toContain('REPAIR_SUPPORTED_PROVIDERS.has(repairProvider)')
     expect(worker).toContain('customRepairProviders.some((entry) => entry.id === repairProvider)')
     expect(worker).toContain("return { status: 'INVALID_REPAIR_MODEL_CONFIGURATION' }")
-    expect(worker).toContain('restrictToModels: chosenModel')
+    // Owner-ordered contract (PR #212): the chosen model goes first via
+    // preferredModels, then eligible router fallbacks — restrictToModels
+    // would forbid the fallback the owner ordered.
+    expect(worker).toContain('preferredModels: chosenModel')
+    expect(worker).not.toContain('restrictToModels: chosenModel')
   })
 
   test('registry is isolated, validated and cannot overwrite built-in providers', () => {

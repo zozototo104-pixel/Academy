@@ -96,7 +96,7 @@ export async function POST(_request: NextRequest, context: Context) {
     await releaseBookReadLock(db, job.id, now, false)
     // Keep lastError untouched: it contains the per-page issue ledger.
     const updated = await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
-    let enrichment: { totalChunks: number; saturatedChunks: number; capacitySaturatedChunks: number; exhaustedChunks: number; addedItems: number; enrichmentTarget: number | null } | undefined
+    let enrichment: { totalChunks: number; saturatedChunks: number; capacitySaturatedChunks: number; exhaustedChunks: number; addedItems: number; enrichmentTarget: number | null; completionKind: string } | undefined
     if (job.phase === 'ENRICH') {
       const [totalChunks, capacitySaturatedChunks, exhaustedChunks, addedItems] = await Promise.all([
         db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
@@ -104,7 +104,10 @@ export async function POST(_request: NextRequest, context: Context) {
         db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', saturatedAt: null, analysisPasses: { gte: 3 } } }),
         db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2, createdAt: { gte: job.createdAt } } }),
       ])
-      enrichment = { totalChunks, saturatedChunks: capacitySaturatedChunks + exhaustedChunks, capacitySaturatedChunks, exhaustedChunks, addedItems, enrichmentTarget: job.enrichmentTarget ?? null }
+      // completionKind names base completion (10) vs final saturation (20)
+      // explicitly; inline on purpose — see enrichmentCompletionKind in
+      // book-chunk-analyzer, the canonical helper (20 is the only non-base target).
+      enrichment = { totalChunks, saturatedChunks: capacitySaturatedChunks + exhaustedChunks, capacitySaturatedChunks, exhaustedChunks, addedItems, enrichmentTarget: job.enrichmentTarget ?? null, completionKind: job.enrichmentTarget === 20 ? 'FINAL_SATURATED' : 'BASE_COMPLETE' }
     }
     return NextResponse.json({ ok: true, result, job: updated, enrichment })
   } catch (error: any) {

@@ -29,6 +29,16 @@ export function resolveEnrichmentTarget(enrichmentTarget: number | null | undefi
   return enrichmentTarget === BOOK_ENRICH_EXTRA_TARGET ? BOOK_ENRICH_EXTRA_TARGET : BOOK_ENRICH_BASE_TARGET
 }
 
+// Base completion vs final saturation (claim 9): a job that ends at the
+// base target (10) is BASE_COMPLETE — its chunks may still continue to 20
+// in a later extra pass — while a job that ends at the extra target (20)
+// is FINAL_SATURATED. The target number alone left this implicit in every
+// status payload; the kind names it so the admin (and UI) can tell them apart.
+export type EnrichmentCompletionKind = 'BASE_COMPLETE' | 'FINAL_SATURATED'
+export function enrichmentCompletionKind(enrichmentTarget: number | null | undefined): EnrichmentCompletionKind {
+  return resolveEnrichmentTarget(enrichmentTarget) === BOOK_ENRICH_EXTRA_TARGET ? 'FINAL_SATURATED' : 'BASE_COMPLETE'
+}
+
 export const BOOK_KNOWLEDGE_CATEGORIES = ['CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'PRINCIPLE', 'FACT'] as const
 export type BookKnowledgeCandidate = { category: typeof BOOK_KNOWLEDGE_CATEGORIES[number]; title: string; summary: string; excerpt: string; importance: number; sourceLineRangeVerified?: true }
 
@@ -382,7 +392,7 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
   if (job.phase !== 'ENRICH') return { completed: job.phase === 'DONE', added: 0 }
   const target = resolveEnrichmentTarget(job.enrichmentTarget)
   const chunk = await store.nextChunk(job.bookId)
-  if (!chunk) { await store.finish(jobId); return { completed: true, added: 0 } }
+  if (!chunk) { await store.finish(jobId); return { completed: true, added: 0, enrichmentCompletion: enrichmentCompletionKind(job.enrichmentTarget) } }
   const existing = await store.existing(job.bookId, chunk.id, chunk.index)
   const capacity = Math.max(0, target - existing.own.length)
   if (capacity && deadlineMs - Date.now() < 25_000) return { completed: false, added: 0 }

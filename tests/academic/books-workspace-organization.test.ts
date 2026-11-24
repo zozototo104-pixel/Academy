@@ -79,6 +79,9 @@ const ORIGINAL_API_CALL_COUNT = 79 // Reviewed 81-call baseline minus two unsafe
 // المجمدة — إعادة قراءة الصفحات التالفة، وفحص الإصلاح الكامل، وجلب حالة
 // المهمة، وإيقاف/استكمال المهمة، والإثراء الإضافي حتى 20. لا نداء قديم
 // تغيّر ولا حُذف؛ الفئات الجديدة مثبّتة بتأكيدات منفردة أدناه.
+// تحديث مقصود 2026-11-24 (PR #212، إصلاح الوحدات القديمة الخاطئة): أربعة
+// نداءات جديدة أُضيفت كفئة مراجَعة مستثناة — قائمة الوحدات المتضررة، وإعادة
+// توليد الوحدة كمسودة معاينة، واعتماد المعاينة، ورفضها. العدد يبقى 79.
 const ORIGINAL_API_DIGEST = '6d7014593582d1de6dda2823cd5837dd04e14af32ebbf5715e3fd434b1210bc9'
 
 function parseSource() {
@@ -220,6 +223,18 @@ function apiSurface(): { count: number; digest: string } {
   const extraEnrichmentCalls = calls.filter((call) =>
     call.includes('/api/admin/books/${bookId}/read-job') && call.includes("mode: 'ENRICH'") && call.includes('enrichmentTarget: 20'))
   assert.equal(extraEnrichmentCalls.length, 1, 'expected one reviewed extra-enrichment POST')
+  // 2026-11-24 (PR #212، إصلاح الوحدات القديمة الخاطئة): أربعة نداءات مقصودة
+  // تربط واجهة إعادة توليد الوحدة المتضررة — قائمة الوحدات المتضررة (GET
+  // damaged=true)، وإعادة التوليد كمسودة معاينة (POST)، واعتماد المعاينة
+  // (POST)، ورفضها (POST). كل نداء مراجَع منفرداً أدناه؛ وكل النداءات
+  // القديمة تبقى محمية بالبصمة المجمدة الأصلية.
+  const unitRegenerationCalls = calls.filter((call) =>
+    call.includes('&damaged=true') || call.includes('/regenerate'))
+  assert.equal(unitRegenerationCalls.length, 4, 'expected four reviewed damaged-unit regeneration calls')
+  assert.ok(unitRegenerationCalls.some((call) => call.includes('&damaged=true') && !call.includes("method: 'POST'")), 'damaged-units list is a read-only GET')
+  assert.ok(unitRegenerationCalls.some((call) => call.includes('/regenerate') && call.includes("method: 'POST'") && !call.includes('/approve') && !call.includes('/reject')), 'regeneration POST stores a draft preview only')
+  assert.ok(unitRegenerationCalls.some((call) => call.includes('/regenerate/approve') && call.includes("method: 'POST'")), 'draft approve POST')
+  assert.ok(unitRegenerationCalls.some((call) => call.includes('/regenerate/reject') && call.includes("method: 'POST'")), 'draft reject POST')
   // The standalone tab independently lists programs; keep exactly the original
   // API call plus one identical reviewed duplicate for its own selector.
   const aiSettingsCalls = calls.filter((call) => call.includes("'/api/admin/system'"))
@@ -243,7 +258,7 @@ function apiSurface(): { count: number; digest: string } {
         !aiSettingsCalls.includes(call) && !manualReviewCalls.includes(call) &&
         !sourceCandidateCalls.includes(call) && !sourceRestoreCalls.includes(call) &&
         !chunkRepairCalls.includes(call) && !bookRepairCalls.includes(call) &&
-        !extraEnrichmentCalls.includes(call)
+        !extraEnrichmentCalls.includes(call) && !unitRegenerationCalls.includes(call)
     })
     .map((call) => {
       if (suggestedAssignmentSaveCalls.includes(call)) return call.replace('dueDays: s.semester === 3 || !s.unitId ? 14 : null', 'dueDays: null')
@@ -252,7 +267,7 @@ function apiSurface(): { count: number; digest: string } {
     })
     .sort()
   return {
-    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - aiSettingsCalls.length - manualReviewCalls.length - sourceCandidateCalls.length - sourceRestoreCalls.length - chunkRepairCalls.length - bookRepairCalls.length - extraEnrichmentCalls.length - 1,
+    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - aiSettingsCalls.length - manualReviewCalls.length - sourceCandidateCalls.length - sourceRestoreCalls.length - chunkRepairCalls.length - bookRepairCalls.length - extraEnrichmentCalls.length - unitRegenerationCalls.length - 1,
     digest: digest(protectedCalls.join('\n')),
   }
 }

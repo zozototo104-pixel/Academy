@@ -55,6 +55,15 @@ export async function GET(_request: NextRequest, context: Context) {
       capacitySaturatedChunks,
       exhaustedChunks,
       enrichmentTarget: job?.enrichmentTarget ?? null,
+      // Base completion (10) vs final saturation (20), named explicitly:
+      // only an enrich job has a completion kind; extract/analyze jobs omit it.
+      // Inline ternary on purpose — the canonical helper lives in
+      // book-chunk-analyzer (enrichmentCompletionKind), but importing that
+      // heavy module here would widen this route's import graph; 20 is the
+      // only non-base target, so `=== 20` is exactly the helper's decision.
+      ...(job?.enrichmentTarget != null || job?.phase === 'ENRICH'
+        ? { completionKind: job?.enrichmentTarget === 20 ? 'FINAL_SATURATED' : 'BASE_COMPLETE' }
+        : {}),
       addedItems: job && (job.phase === 'ENRICH' || (job.phase === 'DONE' && job.totalChunks === 0))
         ? await db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2, createdAt: { gte: job.createdAt } } }) : 0,
     }

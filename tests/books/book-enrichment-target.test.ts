@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 // Part 1: two-level enrichment. Base pass ends at 10 items per chunk; the
 // optional extra pass continues the SAME items to 20 — no re-extraction, no
@@ -81,6 +83,7 @@ const readJobDb: any = {
     },
   },
   bookKnowledgeItem: {
+    count: async ({ where }: any) => items.filter((item) => matches(item, where)).length,
     groupBy: async ({ where }: any) => {
       const counts = new Map<string, number>()
       for (const item of items) {
@@ -131,7 +134,7 @@ function seedChunk(overrides: any) {
 }
 
 const analyzer = await import('../../src/lib/book-chunk-analyzer')
-const { enrichStepWithStore, resolveEnrichmentTarget, enrichChunkSaturates } = analyzer
+const { enrichStepWithStore, resolveEnrichmentTarget, enrichChunkSaturates, enrichmentCompletionKind } = analyzer
 
 const excerptA = 'الأصول المتداولة هي الأصول التي يتوقع تحويلها إلى نقد خلال سنة مالية واحدة من تاريخ القوائم المالية للمنشأة.'
 const excerptB = 'الخصوم المتداولة هي الالتزامات التي تستحق السداد خلال سنة مالية واحدة وتشمل الذمم الدائنة والمصروفات المستحقة.'
@@ -166,6 +169,20 @@ function makeStore(target: number | null | undefined, ownCount: number, analyzer
   return { items, saves, store, analyze, get finishCalls() { return finishCalls }, get analyzeCalls() { return analyzeCalls } }
 }
 
+// A store with no chunks left: the step finishes the job immediately.
+function makeFinishingStore(target: number | null | undefined) {
+  let finishCalls = 0
+  const store = {
+    getJob: async () => ({ id: 'job-1', bookId: 'book-1', phase: 'ENRICH', enrichmentTarget: target }),
+    nextChunk: async () => null,
+    existing: async () => ({ local: [], own: [] }),
+    save: async () => {},
+    finish: async () => { finishCalls++ },
+  }
+  const analyze = async () => []
+  return { store, analyze, get finishCalls() { return finishCalls } }
+}
+
 const twoNew = [
   candidate('الأصول المتداولة', 'تعريف الأصول المتداولة وطبيعتها في القوائم المالية.', excerptA),
   candidate('الخصوم المتداولة', 'تعريف الخصوم المتداولة وطبيعتها في القوائم المالية.', excerptB),
@@ -188,6 +205,43 @@ describe('enrichment target resolution', () => {
     expect(enrichChunkSaturates({ capacity: 1, available: 1, rowsBefore: 19, accepted: 1, target: 20 })).toBe(true)
     expect(enrichChunkSaturates({ capacity: 1, available: 1, rowsBefore: 19, accepted: 0, target: 20 })).toBe(false)
     expect(enrichChunkSaturates({ capacity: 0, available: 0, rowsBefore: 20, accepted: 0, target: 20 })).toBe(true)
+  })
+})
+
+describe('base completion vs final saturation', () => {
+  // Claim 9: the job status must TELL base completion (10) apart from final
+  // saturation (20) — the target number alone is only implicit.
+  test('the completion kind names the job target: 10 is base-complete, 20 is finally saturated', () => {
+    expect(enrichmentCompletionKind(null)).toBe('BASE_COMPLETE')
+    expect(enrichmentCompletionKind(undefined)).toBe('BASE_COMPLETE')
+    expect(enrichmentCompletionKind(10)).toBe('BASE_COMPLETE')
+    expect(enrichmentCompletionKind(15)).toBe('BASE_COMPLETE')
+    expect(enrichmentCompletionKind(20)).toBe('FINAL_SATURATED')
+  })
+
+  test('a finishing base step reports BASE_COMPLETE', async () => {
+    const finishing = makeFinishingStore(null)
+    const result = await enrichStepWithStore('job-1', Date.now() + 120_000, finishing.store as any, finishing.analyze as any)
+    expect(result.completed).toBe(true)
+    expect(result.enrichmentCompletion).toBe('BASE_COMPLETE')
+    expect(finishing.finishCalls).toBe(1)
+  })
+
+  test('a finishing extra step reports FINAL_SATURATED', async () => {
+    const finishing = makeFinishingStore(20)
+    const result = await enrichStepWithStore('job-1', Date.now() + 120_000, finishing.store as any, finishing.analyze as any)
+    expect(result.completed).toBe(true)
+    expect(result.enrichmentCompletion).toBe('FINAL_SATURATED')
+  })
+
+  test('the read-step enrichment payload names the same kind (inline, same 20-only decision as the helper)', () => {
+    // The read-step route intentionally does NOT import the analyzer helper
+    // (its mock in the mutual-exclusion tests carries only the step
+    // functions); this pin keeps its inline ternary identical to the helper.
+    const root = join(import.meta.dir, '..', '..')
+    const readStep = readFileSync(join(root, 'src/app/api/admin/books/[id]/read-step/route.ts'), 'utf8')
+    expect(readStep).toContain("completionKind: job.enrichmentTarget === 20 ? 'FINAL_SATURATED' : 'BASE_COMPLETE'")
+    expect(readStep).not.toContain('runEnrichStep, enrichmentCompletionKind')
   })
 })
 
@@ -318,5 +372,41 @@ describe('read-job route: enrichment target on the job row', () => {
     expect(body.job.id).toBe(job.id)
     expect(body.job.enrichmentTarget).toBe(20)
     expect(body.job.status).toBe('QUEUED')
+  })
+})
+
+describe('read-job GET: enrichment completion kind', () => {
+  beforeEach(() => {
+    jobs = []
+    chunks = []
+    items = []
+    repairJobs = []
+    seedChunk({ id: 'chunk-base', status: 'ANALYZED' })
+  })
+
+  async function getReadJob() {
+    return readJobApi.GET(
+      new NextRequest('https://academy.test/api/admin/books/book-1/read-job'),
+      { params: Promise.resolve({ id: 'book-1' }) },
+    )
+  }
+
+  test('a completed base job reports BASE_COMPLETE', async () => {
+    seedJob({ phase: 'DONE', status: 'COMPLETED', enrichmentTarget: 10 })
+    const body = await (await getReadJob()).json()
+    expect(body.enrichment.completionKind).toBe('BASE_COMPLETE')
+    expect(body.enrichment.enrichmentTarget).toBe(10)
+  })
+
+  test('a completed extra job reports FINAL_SATURATED', async () => {
+    seedJob({ phase: 'DONE', status: 'COMPLETED', enrichmentTarget: 20 })
+    const body = await (await getReadJob()).json()
+    expect(body.enrichment.completionKind).toBe('FINAL_SATURATED')
+  })
+
+  test('a non-enrich job reports no completion kind', async () => {
+    seedJob({ phase: 'DONE', status: 'COMPLETED', enrichmentTarget: null })
+    const body = await (await getReadJob()).json()
+    expect(body.enrichment.completionKind).toBeUndefined()
   })
 })

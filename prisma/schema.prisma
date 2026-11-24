@@ -608,6 +608,7 @@ model Unit {
   exam       Exam?
   studyGuides ProgramStudyGuide[]
   generationJobs UnitGenerationJob[]
+  regenerationDrafts UnitRegenerationDraft[]
   lectureSeries LectureSeries[]
   lectureVideos LectureVideoResource[]
 
@@ -635,6 +636,30 @@ model UnitGenerationJob {
 
   @@index([unitId, status])
   @@index([status, retryAt])
+}
+
+// Damaged-unit regeneration preview (Part 3): a regenerated unit's content
+// is stored here as a PENDING draft, never on the Unit row itself. Only an
+// explicit admin approve copies summary/objectives/content onto the Unit;
+// reject only flips this row to REJECTED. Old rows stay as history — a new
+// regeneration creates a new row (the route replaces the PENDING one only).
+model UnitRegenerationDraft {
+  id                 String   @id @default(cuid())
+  unitId             String
+  unit               Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  programId          String
+  status             String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  summary            String?
+  objectives         String?  // JSON array
+  content            String   // JSON: array of { heading, body, pageRefs, sourceKnowledgeIds, sourceChunkIndexes }
+  gaps               String?  // JSON: UnitRegenerationGaps — skipped chunks/items + healthy counts
+  sourceKnowledgeIds String?  // JSON array of healthy knowledge ids the draft was built from
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  decidedAt          DateTime?
+
+  @@index([unitId, status])
+  @@index([programId])
 }
 
 model Enrollment {
