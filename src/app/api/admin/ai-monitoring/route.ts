@@ -193,6 +193,10 @@ export async function GET() {
         bookId: row.bookId,
         unitId: row.unitId,
       })),
+      autoFailovers: autoFailovers.map((row) => ({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+      })),
       voiceNote: AUTO_VOICE_EXCLUSION_NOTE,
     })
   } catch (e: any) {
