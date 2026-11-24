@@ -93,6 +93,78 @@ describe('PDF-to-images OCR conversion', () => {
     }
   })
 
+  test('empty OCR on every page is rejected so the router can try another model', async () => {
+    ocrCalls.length = 0
+    ocrBehavior = async () => ({
+      text: JSON.stringify({ pages: [{ page: 1, text: '' }, { page: 2, text: '  ' }] }),
+      provider: 'CUSTOM_EXTRAA', model: 'free/gemini-3.8-flash',
+    })
+    const buffer = await makePdf(2)
+    await expect(__testTranscribeOnceForTests(buffer, [1, 2], Date.now() + 120_000, null))
+      .rejects.toThrow('OCR_ALL_PAGES_EMPTY')
+  })
+
+  test('global routing retries original PDF as PNG when the PDF call fails', async () => {
+    ocrCalls.length = 0
+    ocrBehavior = async (index) => {
+      if (index === 1) throw new Error('PDF_NOT_SUPPORTED')
+      return { text: cleanOcrJson, provider: 'GEMINI', model: 'gemini-3.5-flash-lite' }
+    }
+    const buffer = await makePdf(2)
+    const meta = await __testTranscribeWithMetaForTests(buffer, [1, 2], Date.now() + 120_000, null)
+    expect(meta.pages.map((page) => page.text)).toEqual([cleanPage.trim(), cleanPage.trim()])
+    expect(meta.fellBack).toBe(false)
+    expect(ocrCalls).toHaveLength(2)
+    expect(ocrCalls[0].attachments[0].mimeType).toBe('application/pdf')
+    expect(ocrCalls[1].attachments.map((item) => item.mimeType)).toEqual(['image/png', 'image/png'])
+    expect(ocrCalls[1].preferredModels).toBeUndefined()
+  })
+
+  test('READING stage failure falls back to global PDF then global PNG if allowed', async () => {
+    ocrCalls.length = 0
+    ocrBehavior = async (index) => {
+      if (index < 4) throw new Error('PROVIDER_UNAVAILABLE')
+      return { text: cleanOcrJson, provider: 'GEMINI', model: 'gemini-3.5-flash-lite' }
+    }
+    const stage = {
+      preferredModels: [{ provider: 'CUSTOM_EXTRAA', model: 'free/gemini-3.8-flash' }],
+      preferredProviders: [],
+      policy: 'primary_first',
+      allowGlobalFallback: true,
+    }
+    let fallbackNotices = 0
+    const buffer = await makePdf(2)
+    const meta = await __testTranscribeWithMetaForTests(
+      buffer, [1, 2], Date.now() + 120_000, stage, () => { fallbackNotices++ },
+    )
+    expect(meta.pages[0].text).toBe(cleanPage.trim())
+    expect(meta.fellBack).toBe(true)
+    expect(fallbackNotices).toBe(1)
+    expect(ocrCalls).toHaveLength(4)
+    expect(ocrCalls.map((call) => call.attachments[0].mimeType))
+      .toEqual(['application/pdf', 'image/png', 'application/pdf', 'image/png'])
+    expect(ocrCalls[0].preferredModels).toEqual(stage.preferredModels)
+    expect(ocrCalls[1].preferredModels).toEqual(stage.preferredModels)
+    expect(ocrCalls[2].preferredModels).toBeUndefined()
+    expect(ocrCalls[3].preferredModels).toBeUndefined()
+  })
+
+  test('READING stage with global fallback disabled never invokes global models', async () => {
+    ocrCalls.length = 0
+    ocrBehavior = async () => { throw new Error('STAGE_VISION_UNAVAILABLE') }
+    const stage = {
+      preferredModels: [{ provider: 'CUSTOM_EXTRAA', model: 'free/gemini-3.8-flash' }],
+      preferredProviders: [],
+      policy: 'primary_first',
+      allowGlobalFallback: false,
+    }
+    const buffer = await makePdf(2)
+    await expect(__testTranscribeWithMetaForTests(buffer, [1, 2], Date.now() + 120_000, stage))
+      .rejects.toThrow('STAGE_VISION_UNAVAILABLE')
+    expect(ocrCalls).toHaveLength(2)
+    expect(ocrCalls.every((call) => JSON.stringify(call.preferredModels) === JSON.stringify(stage.preferredModels))).toBe(true)
+  })
+
   test('profile off: a clean global PDF attempt needs no image rendering', async () => {
     ocrCalls.length = 0
     ocrBehavior = async () => ({ text: cleanOcrJson, provider: 'GEMINI', model: 'gemini-3.5-flash-lite' })
