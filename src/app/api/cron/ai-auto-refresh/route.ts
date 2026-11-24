@@ -22,8 +22,8 @@ export const maxDuration = 60
 // ai-health. ai-health already spends a 40 s health budget inside a 60 s
 // maxDuration, and it must run whether auto mode is on or off; discovery
 // + probes add quota spend and time, and auto refresh must spend nothing
-// while auto mode is OFF. One provider per minute, including enabled
-// custom providers; at most two small model probes per tick, rotating
+// while auto mode is OFF. One provider per hour, including enabled
+// custom providers; at most one model (two tiny probe calls) per tick, rotating
 // through the model list to eventually cover every discovered model.
 const STAGES: PipelineStageName[] = ['READING', 'ANALYSIS', 'GENERATION', 'REVIEW']
 
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
   const customProviders = parseCustomTextAiProviders(customRow?.value || '').filter((entry) => entry.enabled).map((entry) => entry.id)
   const providers = [...ROUND_ROBIN_PROVIDERS, ...customProviders]
   const configRow = await db.setting.findUnique({ where: { key: 'AI_AUTO_MODE_CONFIG' } })
-  const probeBudget = Math.min(2, parseAutoModeConfig(configRow?.value || '').probeBudgetPerRun)
+  const probeBudget = Math.min(1, parseAutoModeConfig(configRow?.value || '').probeBudgetPerRun)
   // Stage-profile model refs for reconciliation warnings (read-only).
   let stageProfileModels: Array<{ provider: string; model: string }> = []
   try {
