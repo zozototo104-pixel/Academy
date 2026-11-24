@@ -116,6 +116,7 @@ export async function GET() {
       rankingRows,
       probeRows,
       failovers,
+      autoFailovers,
       health,
       routerState,
       diagnostics,
