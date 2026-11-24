@@ -6,7 +6,7 @@ import {
   isQuotaError,
   isTransientGeminiError,
 } from '@/lib/gemini'
-import { cleanAcademicOutput } from '@/lib/academic-output-quality'
+import { cleanAcademicOutput, looksLikeBrokenBookPageText } from '@/lib/academic-output-quality'
 import { isKnowledgeItemPendingReview } from '@/lib/knowledge-bank'
 
 // Clean one guide field the same way the bank display cleans it, without
