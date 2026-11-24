@@ -272,7 +272,7 @@ describe('router level — quota, provider-down, quality, timeout', () => {
     expect(questionBankJob.isPausableQuestionBankError('some content error')).toBe(false)
   })
 
-  test('sticky-as-hint at the router: auto ON, sticky model is NOT first when the ranking puts another model on top', async () => {
+  test('stable routing: auto ON keeps the successful candidate while still qualified', async () => {
     groqOnly()
     values.set('AI_STICKY_ON_SUCCESS', 'true')
     const calls = installFetch()
