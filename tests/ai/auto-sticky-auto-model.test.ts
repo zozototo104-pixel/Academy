@@ -174,4 +174,19 @@ describe("sticky-as-hint under auto ON (step 5 rule)", () => {
     expect(second).toBe('first')
     expect(seenModels).toEqual(['first-model:free', 'first-model:free'])
   })
+
+  test('ON: a successful model stays pinned after re-ranking and across a new worker', async () => {
+    configureUnoRouterAuto()
+    values.set('AI_AUTO_MODE_ENABLED', '1')
+    setRanking('CHAT', [{ provider: 'UNOROUTER', model: 'first-model:free' }, { provider: 'UNOROUTER', model: 'second-model:free' }])
+    const seenModels = installFetch()
+    const request = { system: 'test', history: [{ role: 'user' as const, text: 'x' }], stickyScope: 'stable-read' }
+    expect(await textAi.textAiComplete(request)).toBe('first')
+    expect([...values.keys()].some((key) => key.startsWith('AI_AUTO_STICKY:'))).toBe(true)
+    setRanking('CHAT', [{ provider: 'UNOROUTER', model: 'second-model:free' }, { provider: 'UNOROUTER', model: 'first-model:free' }])
+    textAi.__resetTextAiStateForTests()
+    textAi.__setTextAiSettingStoreForTests(store)
+    expect(await textAi.textAiComplete(request)).toBe('first')
+    expect(seenModels).toEqual(['first-model:free', 'first-model:free'])
+  })
 })
