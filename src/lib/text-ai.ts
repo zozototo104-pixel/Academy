@@ -2879,6 +2879,8 @@ function isReasoningHealthModel(model: string): boolean {
 }
 
 function healthCheckMaxOutputTokens(provider: ConcreteProvider, model: string): number {
+  // CoArena free reasoning models need room to produce a visible answer.
+  if (provider === 'CUSTOM_421999B38709' && /^(deepseek-v4-1-flash-1017|gemini-3-8-flash|gpt-6-luna)$/i.test(model)) return 1024
   if (isReasoningHealthModel(model)) return 256
   return provider === 'OPENAI' ? 64 : 8
 }
