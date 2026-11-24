@@ -2910,7 +2910,7 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number; provider
       if (Date.now() >= deadlineMs - 1000) break
       const started = Date.now()
       try {
-        const healthTimeoutMs = provider === 'GEMINI' && /(?:3\.8|pro)/i.test(model) ? 30_000 : 15_000
+        const healthTimeoutMs = (provider === 'GEMINI' && /(?:3\.8|pro)/i.test(model)) || (provider === 'CUSTOM_421999B38709' && healthCheckMaxOutputTokens(provider, model) === 1024) ? 30_000 : 15_000
         await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: healthCheckMaxOutputTokens(provider, model), timeoutMs: healthTimeoutMs, deadlineMs: Math.min(Date.now() + healthTimeoutMs, deadlineMs) })
         const result = { provider, model, ok: true, latencyMs: Date.now() - started }
         results.push(result)
