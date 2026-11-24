@@ -4337,7 +4337,6 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const allowAlborihiCrossFamilyVerifier = effectiveOpts.allowAlborihiCrossFamilyVerifier === true
     && effectiveOpts.purpose === 'REVIEW'
     && taskLevel === 'ACADEMIC_CRITICAL'
-    && excluded.has('ALBORIHI')
     && [...excludedFamilies].some((family) => family !== 'unknown')
   // Keep the verifier exclusion contract for all other providers and requests.
   if (allowAlborihiCrossFamilyVerifier) excluded.delete('ALBORIHI')
