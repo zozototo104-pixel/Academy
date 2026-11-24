@@ -158,12 +158,12 @@ describe('scoreModelForTask — paid, context, per-purpose rank', () => {
   })
 })
 
-describe('sticky-as-hint under auto ON (plan risk 3, decided)', () => {
+describe('stable successful models under auto ON', () => {
   const sticky = { provider: 'GROQ', model: 'llama-3.3-70b-versatile' }
   test('auto OFF: sticky goes first (today’s behaviour)', () => {
     expect(autoMode.stickyOrderUnderAuto({ autoMode: false, autoOverride: false, sticky })).toBe('sticky-first')
   })
-  test('auto ON with ranking: sticky first only when it IS the top ranked candidate', () => {
+  test('auto ON: a qualified sticky stays first even after the score ranking changes', () => {
     expect(autoMode.stickyOrderUnderAuto({
       autoMode: true, autoOverride: true,
       autoTop: { provider: 'GROQ', model: 'llama-3.3-70b-versatile' }, sticky,
@@ -171,7 +171,7 @@ describe('sticky-as-hint under auto ON (plan risk 3, decided)', () => {
     expect(autoMode.stickyOrderUnderAuto({
       autoMode: true, autoOverride: true,
       autoTop: { provider: 'GEMINI', model: 'gemini-3.5-flash-lite' }, sticky,
-    })).toBe('ranked')
+    })).toBe('sticky-first')
   })
   test('auto ON but ranking empty: sticky first (manual fallback)', () => {
     expect(autoMode.stickyOrderUnderAuto({ autoMode: true, autoOverride: false, sticky })).toBe('sticky-first')
