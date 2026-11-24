@@ -19,10 +19,11 @@ export async function POST(req: NextRequest, context: Context) {
       orderBy: { createdAt: 'desc' },
     })
     if (!draft) return NextResponse.json({ error: 'UNIT_REGENERATION_DRAFT_NOT_FOUND' }, { status: 404 })
-    await db.unitRegenerationDraft.update({
-      where: { id: draft.id },
+    const claimed = await db.unitRegenerationDraft.updateMany({
+      where: { id: draft.id, unitId, status: 'PENDING' },
       data: { status: 'REJECTED', decidedAt: new Date() },
     })
+    if (claimed.count !== 1) return NextResponse.json({ error: 'UNIT_REGENERATION_DRAFT_ALREADY_DECIDED' }, { status: 409 })
     await audit(admin, 'REJECT_UNIT_REGENERATION', 'Unit', unitId,
       'رفض معاينة إعادة توليد الوحدة المتضررة — بقي المحتوى المنشور كما هو'
     ).catch((auditError) => console.error('Unit regeneration reject audit failed after commit:', auditError))
