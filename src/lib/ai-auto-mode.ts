@@ -1379,14 +1379,9 @@ export function failoverProviderGate(args: {
 
 // ---------------------------------------------------------------------------
 // Step 5 — sticky-model conflict (plan risk 3), DECIDED HERE:
-// When auto is ON with a non-empty ranking, the sticky-model pin
-// (AI_STICKY_ON_SUCCESS) is a HINT, not a pin: the sticky model goes
-// first ONLY when it is already the top auto-ranked candidate for the
-// purpose. Otherwise the auto ranking order wins and the sticky model
-// stays in its ranked position — auto keeps adapting instead of
-// freezing on the last good model. When auto is OFF (or ON with an
-// empty ranking, where the router falls back to manual behaviour),
-// today's sticky behaviour applies unchanged: sticky first.
+// A successful model stays first for its task while it remains qualified.
+// A refreshed score alone is not proof that it stopped working. The router
+// invalidates this pin on real errors, cooldowns or eligibility changes.
 // ---------------------------------------------------------------------------
 
 export type StickyOrderDecision = 'sticky-first' | 'ranked'
@@ -1399,12 +1394,7 @@ export function stickyOrderUnderAuto(args: {
 }): StickyOrderDecision {
   if (!args.autoMode || !args.autoOverride) return 'sticky-first'
   if (!args.sticky) return 'ranked'
-  const top = args.autoTop
-  if (top && String(top.provider).toUpperCase() === String(args.sticky.provider).toUpperCase()
-    && String(top.model).toLowerCase() === String(args.sticky.model).toLowerCase()) {
-    return 'sticky-first'
-  }
-  return 'ranked'
+  return 'sticky-first'
 }
 
 // ---------------------------------------------------------------------------
