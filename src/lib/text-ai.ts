@@ -4565,9 +4565,12 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           effectiveOpts.validate?.(text, { provider, model, ...(provider === 'ALBORIHI' && allowAlborihiCrossFamilyVerifier ? { family: alborihiModelFamily(s, model) } : {}) })
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true }, effectiveOpts.purpose)
+          if (!effectiveOpts.skipAutoSelection) await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true }, effectiveOpts.purpose)
           lastResult = { provider, model, ok: true, at }
           if (stickyScope) stickyModels.set(stickyScope, { provider, model, key: currentKey, at: Date.now() })
+          if (autoStickyKey) {
+            try { await settingStore().write(autoStickyKey, JSON.stringify({ provider, model, at: Date.now() })) } catch { /* best effort */ }
+          }
           const attempt = { provider, model, keyIndex, ok: true, ms, at }
           attempts.push(attempt)
           recordAttempt(attempt)
