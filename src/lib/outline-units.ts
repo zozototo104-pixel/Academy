@@ -344,8 +344,9 @@ export function assessUnitSources(chunks: UnitSourceChunk[], knowledge: UnitSour
   const badChunks = chunks
     .filter((chunk) => looksLikeBrokenBookPageText(chunk.text))
     .map((chunk) => ({ id: chunk.id, index: chunk.index }))
+  const healthyChunkIds = new Set(chunks.filter((chunk) => !looksLikeBrokenBookPageText(chunk.text)).map((chunk) => chunk.id))
   const badKnowledge = knowledge
-    .filter((item) => isKnowledgeItemPendingReview(item))
+    .filter((item) => isKnowledgeItemPendingReview(item) || (item.chunkId != null && !healthyChunkIds.has(item.chunkId)))
     .map((item) => ({ id: item.id, title: item.title }))
   const gaps: UnitRegenerationGaps = {
     partial: badChunks.length > 0 || badKnowledge.length > 0,
