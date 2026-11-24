@@ -4214,10 +4214,10 @@ async function resolveUsableStickyModel(args: {
   if (sticky.provider === 'OPENAI_COMPAT' && args.s.openaiCompatTier === 'PAID' && !(await paidBudgetAvailable(args.s, args.estimatedPaidCost))) return { sticky: null, deleteSticky: true }
 
   const providerPreferredModels = args.preferredModels.filter((item) => item.provider === sticky.provider).map((item) => item.model)
-  const fallbackModels = args.verifierCall && args.s.verifierStrict ? [] : await modelFallbacks(args.s, sticky.provider, args.taskLevel, args.exploreModels, args.opts.purpose)
+  const fallbackModels = args.autoOverride || (args.verifierCall && args.s.verifierStrict) ? [] : await modelFallbacks(args.s, sticky.provider, args.taskLevel, args.exploreModels, args.opts.purpose)
   const sameProviderAlborihiReview = args.allowAlborihiCrossFamilyVerifier && sticky.provider === 'ALBORIHI'
   const discoveredAlborihiModels = sameProviderAlborihiReview ? freeModelDiscoveryEntry('ALBORIHI', args.s) : null
-  const candidateModels = strictCandidateModelsForRequest(args.s, sticky.provider, [...new Set([...providerPreferredModels, ...fallbackModels])], args.taskLevel, args.verifierCall)
+  const candidateModels = strictCandidateModelsForRequest(args.s, sticky.provider, [...new Set([...providerPreferredModels, ...fallbackModels])], args.taskLevel, args.verifierCall, args.autoOverride)
     .filter((model) => !discoveredAlborihiModels?.discoveryOk || discoveredAlborihiModels.models.some((id) => id.toLowerCase() === model.toLowerCase()))
   const eligibleFamily = (model: string) => {
     if (!sameProviderAlborihiReview) return modelFamilyAllowed(model, args.excludedFamilies)
