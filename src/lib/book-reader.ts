@@ -165,14 +165,12 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
   try {
     return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, overrides)), fellBack: false }
   } catch (error) {
-    // APINEX guarantees image_url vision on Gemini but does not document
-    // accepting PDF file parts on this endpoint. Retry the same source pages
-    // as PNGs before abandoning the configured stage models.
-    const apinexVision = overrides.preferredModels.filter((item) =>
-      item.provider.toUpperCase() === 'APINEX' && /gemini/i.test(item.model))
-    if (apinexVision.length && deadlineMs - Date.now() >= 25_000) {
+    // Retry the same source pages as images through the configured stage.
+    // The attachment router filters models by vision capability; do not
+    // restrict this recovery to a particular provider or model name.
+    if (deadlineMs - Date.now() >= 25_000) {
       try {
-        const imageRouting = { ...overrides, preferredModels: apinexVision, preferredProviders: ['APINEX'] }
+        const imageRouting = overrides
         return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, imageRouting, true)), fellBack: false }
       } catch (imageError) {
         if (!overrides.allowGlobalFallback) throw imageError
