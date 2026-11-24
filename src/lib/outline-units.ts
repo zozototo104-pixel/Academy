@@ -340,6 +340,11 @@ export async function generateUnitContentWithAi(params: {
   knowledge: UnitSourceKnowledge[]
   deadlineMs?: number
 }): Promise<GeneratedUnitContent> {
+  // Never expose unresolved knowledge or corrupted source chunks to generation.
+  const chunks = params.chunks.filter((chunk) => !looksLikeBrokenBookPageText(chunk.text))
+  const knowledge = params.knowledge.filter((item) => !isKnowledgeItemPendingReview(item))
+  if (!chunks.length && !knowledge.length) throw new Error('UNIT_SOURCE_REQUIRES_REPAIR')
+  params = { ...params, chunks, knowledge }
   const allowedKnowledgeIds = params.knowledge.map((item) => item.id)
   const allowedChunkIndexes = params.chunks.map((chunk) => chunk.index)
   const prompt = `
