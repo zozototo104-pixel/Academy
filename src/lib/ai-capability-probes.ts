@@ -152,7 +152,7 @@ export async function runCapabilityProbes(input: RunCapabilityProbesInput): Prom
   const skipped = input.models.slice(maxModels)
   const results: ProbeResult[] = []
   const capabilityUpdates: Record<string, Partial<ModelCapability>> = {}
-  const withTimeout = async (probe: ProbeCallInput): Promise<ProbeCallResult> => {
+  const withTimeout = async (probe: ProbeCallInput & { provider: string; model: string }): Promise<ProbeCallResult> => {
     let timer: ReturnType<typeof setTimeout> | null = null
     try {
       const timeout = new Promise<ProbeCallResult>((resolve) => {

@@ -175,6 +175,12 @@ export function AdminAiMonitoring() {
 
   const lastRefreshAt = data?.lastRefresh?.lastRunAt ? fmtDate(data.lastRefresh.lastRunAt) : 'لم يحدث بعد'
   const lastRefreshProvider = data?.lastRefresh?.lastProvider || '—'
+  // Null-safe lists: the guards below read these locals, so TypeScript can
+  // narrow them — `data` itself stays `MonitoringData | null` until loaded.
+  const health = data?.health ?? []
+  const routerState = data?.routerState ?? []
+  const transitions = data?.transitions ?? []
+  const failovers = data?.failovers ?? []
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -264,22 +270,22 @@ export function AdminAiMonitoring() {
       <Card>
         <CardContent className="space-y-2 py-4">
           <p className="text-sm font-black text-slate-900">الصحة والتبريد</p>
-          {(data?.health || []).length === 0 && (data?.routerState || []).length === 0 ? (
+          {health.length === 0 && routerState.length === 0 ? (
             <p className="text-xs font-bold text-slate-500">لا توجد بيانات صحة أو تبريد مسجلة بعد — ستظهر هنا بعد أول فحص صحة أو أول محاولة راوتر.</p>
           ) : (
             <>
-              {(data?.routerState || []).length > 0 && (
+              {routerState.length > 0 && (
                 <ul className="space-y-1">
-                  {data.routerState.slice(0, 10).map((item, index) => (
+                  {routerState.slice(0, 10).map((item, index) => (
                     <li key={index} className="text-[11px] font-bold text-slate-700">
                       {item.provider} — {item.type}{item.model ? ` — ${item.model}` : ''}{item.until ? ` — حتى ${fmtDate(item.until)}` : ''}{item.reason ? ` — ${item.reason}` : ''}
                     </li>
                   ))}
                 </ul>
               )}
-              {(data?.health || []).length > 0 && (
+              {health.length > 0 && (
                 <ul className="space-y-1">
-                  {data.health.slice(0, 10).map((row) => (
+                  {health.slice(0, 10).map((row) => (
                     <li key={`${row.provider}:${row.model}`} className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-700">
                       <span dir="ltr">{row.provider}:{row.model}</span>
                       <Badge className={row.status === 'شغّال' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}>{row.status}</Badge>
@@ -296,11 +302,11 @@ export function AdminAiMonitoring() {
         <Card>
           <CardContent className="space-y-2 py-4">
             <p className="text-sm font-black text-slate-900">سجل التبديلات (تلقائي ↔ يدوي)</p>
-            {(data?.transitions || []).length === 0 ? (
+            {transitions.length === 0 ? (
               <p className="text-xs font-bold text-slate-500">لم يبدّل أحد الوضع بعد — أول تبديل سيظهر هنا.</p>
             ) : (
               <ul className="space-y-1">
-                {data.transitions.map((entry, index) => (
+                {transitions.map((entry, index) => (
                   <li key={index} className="text-[11px] font-bold text-slate-700">
                     {fmtDate(entry.at)} — من {entry.from === 'auto' ? 'تلقائي' : 'يدوي'} إلى {entry.to === 'auto' ? 'تلقائي' : 'يدوي'}
                   </li>
@@ -313,11 +319,11 @@ export function AdminAiMonitoring() {
         <Card>
           <CardContent className="space-y-2 py-4">
             <p className="text-sm font-black text-slate-900">سجل التحويل الاحتياطي (آخر 50)</p>
-            {(data?.failovers || []).length === 0 ? (
+            {failovers.length === 0 ? (
               <p className="text-xs font-bold text-slate-500">لم يحدث تحويل احتياطي مسجل بعد — ستظهر هنا التشغيلات التي استخدمت نموذجاً بديلاً بعد فشل الأول.</p>
             ) : (
               <ul className="space-y-1">
-                {data.failovers.slice(0, 10).map((row) => (
+                {failovers.slice(0, 10).map((row) => (
                   <li key={row.id} className="text-[11px] font-bold text-slate-700">
                     {fmtDate(row.createdAt)} — {row.stage} — {row.provider || '—'}:{row.model || '—'} — {row.success ? 'نجح بعد التحويل' : `فشل (${row.failureCategory || 'غير مصنف'})`}
                   </li>

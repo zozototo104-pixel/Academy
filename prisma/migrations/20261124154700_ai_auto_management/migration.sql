@@ -7,7 +7,7 @@ CREATE TABLE "AiAutoFailoverEvent" (
     "id" "text" NOT NULL,
     "provider" "text" NOT NULL,
     "model" "text",
-    "keyIndex" "integer",
+    "keyIndex" INTEGER,
     "purpose" "text",
     "taskType" "text",
     "failureKind" "text" NOT NULL,

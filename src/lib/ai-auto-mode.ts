@@ -159,7 +159,7 @@ export function parseAutoRanking(raw: unknown): AutoCandidate[] {
         if (!Number.isFinite(n) || n < 0 || n > 1) { valid = false; break }
         parsed[field] = n
       }
-      if (valid) candidate.components = parsed as ScoreComponents
+      if (valid) candidate.components = { quality: parsed.quality, recentSuccess: parsed.recentSuccess, adherence: parsed.adherence, latency: parsed.latency, quota: parsed.quota, cost: parsed.cost }
     }
     const excludedReason = (row as unknown as Record<string, unknown>).excludedReason
     if (typeof excludedReason === 'string' && excludedReason.trim()) candidate.excludedReason = excludedReason.trim().slice(0, 120)
@@ -660,7 +660,7 @@ export function parseCapabilityFeedbackState(raw: unknown): CapabilityFeedbackSt
     if (!value || typeof value !== 'object' || Array.isArray(value)) return emptyCapabilityFeedbackState()
     const record = value as Record<string, unknown>
     const failures = record.failures && typeof record.failures === 'object' && !Array.isArray(record.failures)
-      ? Object.fromEntries(Object.entries(record.failures as Record<string, unknown>).map(([k, v]) => [k, Number(v) || 0]).filter(([, v]) => v > 0))
+      ? Object.fromEntries(Object.entries(record.failures as Record<string, unknown>).map(([k, v]): [string, number] => [k, Number(v) || 0]).filter(([, v]) => v > 0))
       : {}
     const demoted = record.demoted && typeof record.demoted === 'object' && !Array.isArray(record.demoted)
       ? Object.fromEntries(Object.entries(record.demoted as Record<string, unknown>).map(([k, v]) => [k, Array.isArray(v) ? v.map(String) : []]).filter(([, v]) => v.length > 0))

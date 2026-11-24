@@ -81,9 +81,9 @@ export async function GET(request: NextRequest) {
       const { text } = await textAiCompleteJsonWithMetadata({
         history: [{ role: 'user', text: input.prompt }],
         purpose: 'CHAT',
+        system: 'Answer the user prompt exactly as instructed, with nothing else.',
         restrictToModels: [{ provider: input.provider as unknown as Exclude<TextAiProvider, 'AUTO'>, model: input.model }],
         timeoutMs: 15_000,
-        json: input.kind === 'json',
       })
       return { text, ok: true }
     } catch (e: any) {
