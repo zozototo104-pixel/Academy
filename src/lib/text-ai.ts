@@ -4197,6 +4197,7 @@ async function resolveUsableStickyModel(args: {
   persistentCooldowns: Record<string, string>
   attachments: TextAiAttachment[]
   exploreModels: boolean
+  autoOverride: boolean
   allowAlborihiCrossFamilyVerifier: boolean
   estimatedPaidCost: number
 }): Promise<{ sticky: StickyModel | null; deleteSticky: boolean }> {
