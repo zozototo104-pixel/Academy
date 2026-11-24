@@ -181,7 +181,8 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
     // restrict this recovery to a particular provider or model name.
     if (deadlineMs - Date.now() >= 25_000) {
       try {
-        return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, overrides, true)), fellBack: false }
+        const imageRouting = overrides
+        return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, imageRouting, true)), fellBack: false }
       } catch (imageError) {
         if (!overrides.allowGlobalFallback) throw imageError
       }
