@@ -11,9 +11,9 @@
 //   stage-profile snapshots).
 // - ON: the auto ranking (AI_AUTO_RANKING:<purpose>, computed by later
 //   steps — scorer/discovery/probes) replaces preferredProviders /
-//   preferredModels / restrictToModels for the call. The admin-chosen
-//   global model stays only as the fallback seed when the ranking is
-//   empty; stage-profile restrictToModels is ignored for ranking but the
+//   preferredModels / restrictToModels for the call. An empty ranking
+//   must fail closed after task bootstrap; manual settings never silently
+//   take over. Stage-profile restrictToModels is ignored for ranking but the
 //   override is recorded in telemetry (detail.autoOverride, see
 //   autoOverrideDetail()).
 // - Paid safety holds in both modes: a candidate whose model is on the
@@ -273,10 +273,9 @@ export interface ResolveAutoCandidatesResult {
   excludedReasons: string[]
 }
 
-// THE choke point (plan step 2). When auto is OFF — or when auto is ON but
-// the ranking for this purpose is empty — this is a no-op passthrough:
-// the caller's preferred/restrict inputs reach the router unchanged, and
-// the admin global model still seeds modelFallbacks downstream.
+// THE choke point (plan step 2). When auto is OFF, manual routing is a
+// no-op passthrough. When ON with no qualified candidates, fail closed:
+// never reactivate a manual model while the admin expects automatic mode.
 // When auto is ON with a non-empty qualified ranking, the ranking replaces
 // preferredProviders / preferredModels and restrictToModels is ignored
 // (recorded in overriddenRestrictToModels for telemetry). Exclusions and
