@@ -53,6 +53,12 @@ export async function loadUnitRegenerationSources(unitId: string): Promise<UnitR
   if (!unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) {
     throw new Error('UNIT_OUTLINE_SOURCE_REQUIRED')
   }
+  // Capture the narrowed values HERE: TypeScript forgets property
+  // narrowing across the awaits below, so the return would otherwise see
+  // `string | null` / `number | null` again (TS2322 at the return).
+  const sourceBookId = unit.sourceBookId
+  const chunkStartIndex = unit.chunkStartIndex
+  const chunkEndIndex = unit.chunkEndIndex
   const chunks = await db.bookChunk.findMany({
     where: { bookId: unit.sourceBookId, status: { not: 'FAILED' }, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } },
     orderBy: { index: 'asc' },
@@ -66,7 +72,7 @@ export async function loadUnitRegenerationSources(unitId: string): Promise<UnitR
     select: { id: true, category: true, title: true, summary: true, excerpt: true, pageStart: true, pageEnd: true, chunkId: true },
   })
   if (!knowledge.length) throw new Error('UNIT_V2_KNOWLEDGE_REQUIRED')
-  return { unit, chunks, knowledge, assessment: assessUnitSources(chunks, knowledge) }
+  return { unit: { ...unit, sourceBookId, chunkStartIndex, chunkEndIndex }, chunks, knowledge, assessment: assessUnitSources(chunks, knowledge) }
 }
 
 // An already-running generation job for the unit (QUEUED/RUNNING), or a
