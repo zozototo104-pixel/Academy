@@ -227,9 +227,12 @@ export async function POST(request: NextRequest, context: Context) {
     if (body?.action === 'STOP' || body?.action === 'RESUME') {
       const current = await db.bookReadJob.findFirst({
         where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } },
-        orderBy: { createdAt: 'desc' },
       })
       if (!current) return NextResponse.json({ error: 'لا توجد مهمة جارية يمكن التحكم بها' }, { status: 409 })
+      if (body.action === 'RESUME' && await hasActiveBookRepairJob(id)) return NextResponse.json({
+        error: 'BOOK_REPAIR_JOB_ACTIVE',
+        message: 'هناك مهمة إصلاح تشوهات جارية على هذا الكتاب. انتظر اكتمالها قبل استكمال القراءة.',
+      }, { status: 409 })
       const manualStop = current.status === 'PAUSED' && current.retryAt?.getUTCFullYear() === 9999
       if (body.action === 'STOP' && !manualStop) {
         await db.bookReadJob.updateMany({
@@ -249,8 +252,8 @@ export async function POST(request: NextRequest, context: Context) {
     if (existing) return NextResponse.json({ ok: true, job: existing, resumed: true })
     // Mutual exclusion (repair vs enrichment): a repair job and a read/enrich
     // job must never run on the same book at the same time. Starting new
-    // read work while a repair is active is refused; STOP/RESUME above are
-    // unaffected because they start no work.
+    // read work while a repair is active is refused. STOP remains available;
+    // RESUME above also refuses to restart while repair is running.
     if (await hasActiveBookRepairJob(id)) return NextResponse.json({
       error: 'BOOK_REPAIR_JOB_ACTIVE',
       message: 'هناك مهمة إصلاح تشوهات جارية على هذا الكتاب. انتظر اكتمالها أو أوقفها قبل بدء قراءة أو إثراء جديد.',
