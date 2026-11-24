@@ -46,6 +46,9 @@ export async function GET(request: NextRequest) {
     async write(key: string, value: string) {
       await db.setting.upsert({ where: { key }, update: { value }, create: { key, value } })
     },
+    async delete(key: string) {
+      await db.setting.delete({ where: { key } }).catch(() => {})
+    },
   }
   const customRow = await db.setting.findUnique({ where: { key: CUSTOM_AI_PROVIDERS_SETTING } })
   const customProviders = parseCustomTextAiProviders(customRow?.value || '').filter((entry) => entry.enabled).map((entry) => entry.id)

@@ -1,14 +1,18 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import {
+  AI_AUTO_NO_MODEL_PENDING_KEY_PREFIX,
   AUTO_PURPOSES,
   AUTO_VOICE_EXCLUSION_NOTE,
   AI_AUTO_MODE_TRANSITIONS_KEY,
   autoRankingKey,
   isAutoModeEnabled,
+  noModelPendingKey,
   parseAutoModeTransitions,
   parseAutoRankingPayload,
+  parseNoModelPendingEvent,
+  type NoModelPendingEvent,
   type ScoreComponents,
 } from '@/lib/ai-auto-mode'
 import {
@@ -51,6 +55,57 @@ import {
 // Boolean column, schema.prisma:224).
 
 export type MonitoringCostTier = 'free' | 'paid' | 'unknown'
+
+export interface MonitoringNoModelEvent {
+  purpose: string
+  at: string
+  updatedAt: string
+  cause: 'PROVEN_EMPTY' | 'NEVER_COMPUTED'
+  excludedReasons: string[]
+  choice: 'STAY_AUTO' | null
+  choiceAt: string | null
+}
+
+export interface MonitoringNoQualifiedModel {
+  pending: true
+  purposes: string[]
+  firstSeenAt: string | null
+  lastSeenAt: string | null
+  lastPurpose: string
+  events: MonitoringNoModelEvent[]
+}
+
+// Decision 3 (Haris 2026-11-24): the pending "no qualified model"
+// events, newest first. A malformed row is dropped, never invented.
+// The per-event `choice`/`choiceAt` extend the specified shape so the
+// dashboard can show that Haris already chose to stay on auto.
+function noQualifiedModelFromPendingRows(
+  rows: Array<{ key: string; value: string }>,
+): MonitoringNoQualifiedModel | null {
+  const events = rows
+    .map((row) => parseNoModelPendingEvent(row.value))
+    .filter((event): event is NoModelPendingEvent => !!event)
+  if (!events.length) return null
+  events.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+  const firstSeen = events.map((event) => Date.parse(event.at)).filter(Number.isFinite)
+  const lastSeen = events.map((event) => Date.parse(event.updatedAt)).filter(Number.isFinite)
+  return {
+    pending: true,
+    purposes: [...new Set(events.map((event) => event.purpose))],
+    firstSeenAt: firstSeen.length ? new Date(Math.min(...firstSeen)).toISOString() : null,
+    lastSeenAt: lastSeen.length ? new Date(Math.max(...lastSeen)).toISOString() : null,
+    lastPurpose: events[0].purpose,
+    events: events.map((event) => ({
+      purpose: event.purpose,
+      at: event.at,
+      updatedAt: event.updatedAt,
+      cause: event.cause,
+      excludedReasons: event.excludedReasons,
+      choice: event.choice,
+      choiceAt: event.choiceAt,
+    })),
+  }
+}
 
 export interface MonitoringCandidate {
   provider: string
@@ -115,6 +170,7 @@ export async function GET() {
       tiersRow,
       rankingRows,
       probeRows,
+      pendingRows,
       failovers,
       autoFailovers,
       health,
@@ -127,6 +183,7 @@ export async function GET() {
       db.setting.findUnique({ where: { key: 'AI_PROVIDER_TIERS' } }),
       db.setting.findMany({ where: { key: { startsWith: 'AI_AUTO_RANKING:' } } }),
       db.setting.findMany({ where: { key: { startsWith: AI_AUTO_CAPABILITY_PROBES_KEY_PREFIX } } }),
+      db.setting.findMany({ where: { key: { startsWith: AI_AUTO_NO_MODEL_PENDING_KEY_PREFIX } } }),
       db.aiPipelineOperationLog.findMany({
         where: { fallbackUsed: true },
         orderBy: { createdAt: 'desc' },
@@ -180,6 +237,7 @@ export async function GET() {
     return NextResponse.json({
       mode: { auto, value: auto ? '1' : '0' },
       rankings,
+      noQualifiedModel: noQualifiedModelFromPendingRows(pendingRows),
       health,
       routerState,
       diagnostics,
@@ -208,5 +266,51 @@ export async function GET() {
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     return NextResponse.json({ error: 'تعذر تحميل لوحة مراقبة الذكاء' }, { status: 500 })
+  }
+}
+
+// Decision 3 (Haris 2026-11-24) — the admin's answer to a pending
+// "no qualified model" event. Admin-only, like GET.
+// - 'stay-auto' (purpose required, must be a known purpose): records
+//   choice 'STAY_AUTO' + choiceAt on that purpose's event WITHOUT
+//   clearing pending — the banner stays until a model qualifies.
+// - 'resolve' (purpose optional): deletes the purpose's pending key,
+//   or all pending keys when no purpose is given — used after the
+//   switch to manual. Deleting a missing key is a no-op success.
+export async function POST(request: NextRequest) {
+  try {
+    await requireAdmin()
+    const body = (await request.json().catch(() => null)) as { action?: unknown; purpose?: unknown } | null
+    const action = body?.action
+    if (action !== 'stay-auto' && action !== 'resolve') {
+      return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
+    }
+    const purposeRaw = typeof body?.purpose === 'string' ? body.purpose.trim().toUpperCase() : ''
+    const isKnownPurpose = (AUTO_PURPOSES as readonly string[]).includes(purposeRaw)
+    if (action === 'stay-auto') {
+      if (!purposeRaw || !isKnownPurpose) {
+        return NextResponse.json({ error: 'مهمة غير معروفة' }, { status: 400 })
+      }
+      const key = noModelPendingKey(purposeRaw)
+      const row = await db.setting.findUnique({ where: { key } })
+      const event = parseNoModelPendingEvent(row?.value || '')
+      if (!event) return NextResponse.json({ error: 'لا يوجد تنبيه معلّق لهذه المهمة' }, { status: 404 })
+      const now = new Date().toISOString()
+      const value = JSON.stringify({ ...event, choice: 'STAY_AUTO', choiceAt: now, updatedAt: now })
+      await db.setting.upsert({ where: { key }, update: { value }, create: { key, value } })
+      return NextResponse.json({ ok: true })
+    }
+    if (purposeRaw && !isKnownPurpose) {
+      return NextResponse.json({ error: 'مهمة غير معروفة' }, { status: 400 })
+    }
+    if (purposeRaw) {
+      await db.setting.deleteMany({ where: { key: noModelPendingKey(purposeRaw) } }).catch(() => {})
+    } else {
+      await db.setting.deleteMany({ where: { key: { startsWith: AI_AUTO_NO_MODEL_PENDING_KEY_PREFIX } } }).catch(() => {})
+    }
+    return NextResponse.json({ ok: true })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    return NextResponse.json({ error: 'تعذر تنفيذ الإجراء' }, { status: 500 })
   }
 }

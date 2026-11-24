@@ -20,6 +20,7 @@ import {
   AUTO_PURPOSES,
   autoRankingKey,
   buildAutoRankingPayload,
+  noModelPendingKey,
   parseAutoRanking,
   rankModelsForTask,
   reconcileReferences,
@@ -51,6 +52,10 @@ export const ROUND_ROBIN_PROVIDERS: readonly string[] = [
 export interface AutoRefreshStore {
   read(keys: string[]): Promise<Record<string, string>>
   write(key: string, value: string): Promise<void>
+  // Optional: present on the router's settingStore, the test stores and
+  // the cron route's inline store. A store without delete simply cannot
+  // clear a pending no-model event (decision 3 recovery).
+  delete?(key: string): Promise<void>
 }
 
 export interface DiscoveryResult {
@@ -269,6 +274,13 @@ async function computeAndPersistRankings(args: {
     const fresh = buildAutoRankingPayload({ purpose, ranked, computedAtMs: nowMs }).candidates as AutoCandidate[]
     const combined = mergeProviderRanking(parseAutoRanking(rows[key]), provider, fresh)
     await store.write(key, JSON.stringify({ purpose, computedAt: new Date(nowMs).toISOString(), candidates: combined }))
+    // Decision 3 recovery: a ranking with >= 1 qualified candidate
+    // clears that purpose's pending "no model" event, so the dashboard
+    // banner disappears on next load. Best-effort and check-then-clear:
+    // an all-excluded ranking leaves the event in place.
+    if (combined.some((candidate) => !candidate.excludedReason)) {
+      try { await store.delete?.(noModelPendingKey(purpose)) } catch { /* best-effort: never break the refresh */ }
+    }
   }
   return [...AUTO_PURPOSES]
 }

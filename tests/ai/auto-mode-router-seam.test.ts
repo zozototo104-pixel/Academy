@@ -192,13 +192,31 @@ describe('ranking replaces inputs when ON, exclusions preserved', () => {
     // The Gemini family is excluded (verifier must differ from generator).
     // No other qualified auto model exists, so the call must fail closed
     // instead of silently switching to the manual Groq configuration.
-    await expect(textAi.textAiCompleteJson({
-      system: 'test', history: [{ role: 'user', text: 'hi' }],
-      excludeProviders: ['OPENAI'],
-      excludeModelFamilies: ['gemini'],
-    })).rejects.toThrow(/AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK/)
+    // Decision 3 (Haris 2026-11-24): the failure is typed PROVEN_EMPTY
+    // (the stored ranking's only row was excluded with a recorded
+    // reason) and a pending event is persisted for the dashboard choice.
+    let caught: any = null
+    try {
+      await textAi.textAiCompleteJson({
+        system: 'test', history: [{ role: 'user', text: 'hi' }],
+        excludeProviders: ['OPENAI'],
+        excludeModelFamilies: ['gemini'],
+      })
+    } catch (e) { caught = e }
+    expect(caught).toBeTruthy()
+    expect(caught.code).toBe('AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK')
+    expect(caught.cause).toBe('PROVEN_EMPTY')
+    expect(caught.message).toMatch(/AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK/)
+    expect(caught.pendingKey).toBe('AI_AUTO_NO_MODEL_PENDING:CHAT')
     expect(calls.some((c) => c.url.includes('generativelanguage.googleapis.com'))).toBe(false)
     expect(calls.some((c) => c.url.includes('api.groq.com'))).toBe(false)
+    const pending = JSON.parse(values.get('AI_AUTO_NO_MODEL_PENDING:CHAT') || 'null')
+    expect(pending).toMatchObject({
+      purpose: 'CHAT',
+      status: 'PENDING_CHOICE',
+      cause: 'PROVEN_EMPTY',
+    })
+    expect(pending.excludedReasons).toContain('GEMINI:gemini-3.5-flash-lite EXCLUDED_FAMILY')
   })
 })
 

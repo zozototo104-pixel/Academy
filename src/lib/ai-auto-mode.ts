@@ -1424,3 +1424,251 @@ export function splitOcrBudget(totalBudgetMs: number, attempts = 2): { perAttemp
 export function isRunTimeoutError(message: unknown): boolean {
   return /text_ai_run_timeout|ai_deadline_exceeded/.test(String(message || '').toLowerCase())
 }
+
+// ---------------------------------------------------------------------------
+// Decision 3 (Haris 2026-11-24) — no qualified model: tell Haris, let HIM
+// choose. When auto is ON and no model qualifies for a purpose, the
+// router no longer fails with a bare error nobody sees: it records a
+// per-purpose pending event (AI_AUTO_NO_MODEL_PENDING:<PURPOSE>) and
+// throws a typed AutoNoModelError. The monitoring dashboard renders the
+// event as a platform screen with two choices: switch to manual, or
+// stay on auto while the hourly refresh keeps checking in the
+// background. The event is written ONLY when the emptiness is proven
+// (PROVEN_EMPTY) or when no ranking was ever computed (NEVER_COMPUTED);
+// a failed discovery or a lost bootstrap lease writes nothing.
+// ---------------------------------------------------------------------------
+
+export const AI_AUTO_NO_MODEL_PENDING_KEY_PREFIX = 'AI_AUTO_NO_MODEL_PENDING:'
+
+export function noModelPendingKey(purpose: TextAiPurpose | string): string {
+  return `${AI_AUTO_NO_MODEL_PENDING_KEY_PREFIX}${String(purpose || 'CHAT').toUpperCase()}`
+}
+
+export type AutoNoModelCause = 'PROVEN_EMPTY' | 'NEVER_COMPUTED' | 'DISCOVERY_FAILED' | 'BOOTSTRAP_IN_PROGRESS'
+
+export interface AutoNoModelBootstrapSummary {
+  claimed: boolean
+  scanned: string[]
+  ranked: string[]
+  failed: string[]
+}
+
+export interface NoModelPendingEvent {
+  at: string
+  updatedAt: string
+  purpose: string
+  status: 'PENDING_CHOICE'
+  cause: 'PROVEN_EMPTY' | 'NEVER_COMPUTED'
+  excludedReasons: string[]
+  rankingComputedAt: string | null
+  bootstrap: AutoNoModelBootstrapSummary | null
+  choice: 'STAY_AUTO' | null
+  choiceAt: string | null
+}
+
+function parseBootstrapSummary(raw: unknown): AutoNoModelBootstrapSummary | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const record = raw as Record<string, unknown>
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+  return {
+    claimed: record.claimed === true,
+    scanned: strings(record.scanned),
+    ranked: strings(record.ranked),
+    failed: strings(record.failed),
+  }
+}
+
+// Lenient parse, like parseAutoRankingPayload: a malformed row is treated
+// as absent, never invented — the dashboard simply shows no pending event.
+export function parseNoModelPendingEvent(raw: unknown): NoModelPendingEvent | null {
+  try {
+    const value = typeof raw === 'string' ? JSON.parse(raw || 'null') : raw
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+    const record = value as Record<string, unknown>
+    if (record.status !== 'PENDING_CHOICE') return null
+    if (typeof record.at !== 'string' || !Number.isFinite(Date.parse(record.at))) return null
+    if (typeof record.updatedAt !== 'string' || !Number.isFinite(Date.parse(record.updatedAt))) return null
+    if (typeof record.purpose !== 'string' || !record.purpose.trim()) return null
+    if (record.cause !== 'PROVEN_EMPTY' && record.cause !== 'NEVER_COMPUTED') return null
+    const excludedReasons = Array.isArray(record.excludedReasons)
+      ? record.excludedReasons.filter((item): item is string => typeof item === 'string').slice(0, 32)
+      : []
+    const rankingComputedAt = typeof record.rankingComputedAt === 'string'
+      && Number.isFinite(Date.parse(record.rankingComputedAt)) ? record.rankingComputedAt : null
+    const choice = record.choice === 'STAY_AUTO' ? 'STAY_AUTO' as const : null
+    const choiceAt = choice && typeof record.choiceAt === 'string'
+      && Number.isFinite(Date.parse(record.choiceAt)) ? record.choiceAt : null
+    return {
+      at: record.at,
+      updatedAt: record.updatedAt,
+      purpose: String(record.purpose).toUpperCase(),
+      status: 'PENDING_CHOICE',
+      cause: record.cause,
+      excludedReasons,
+      rankingComputedAt,
+      bootstrap: parseBootstrapSummary(record.bootstrap),
+      choice,
+      choiceAt,
+    }
+  } catch {
+    return null
+  }
+}
+
+// First occurrence sets `at`; later hits refresh `updatedAt` only and
+// keep the admin's recorded choice — a stay-auto choice survives repeat
+// failures, and the banner stays pending until a model qualifies or the
+// admin switches to manual and resolves it.
+export function recordNoModelPendingEvent(
+  previous: NoModelPendingEvent | null,
+  args: {
+    purpose: string
+    cause: 'PROVEN_EMPTY' | 'NEVER_COMPUTED'
+    excludedReasons: string[]
+    rankingComputedAt: string | null
+    bootstrap: AutoNoModelBootstrapSummary | null
+  },
+  nowMs = Date.now(),
+): NoModelPendingEvent {
+  const now = new Date(nowMs).toISOString()
+  const purpose = String(args.purpose || 'CHAT').toUpperCase()
+  if (previous && previous.purpose === purpose) {
+    return {
+      ...previous,
+      updatedAt: now,
+      cause: args.cause,
+      excludedReasons: [...args.excludedReasons].slice(0, 32),
+      rankingComputedAt: args.rankingComputedAt,
+      bootstrap: args.bootstrap,
+    }
+  }
+  return {
+    at: now,
+    updatedAt: now,
+    purpose,
+    status: 'PENDING_CHOICE',
+    cause: args.cause,
+    excludedReasons: [...args.excludedReasons].slice(0, 32),
+    rankingComputedAt: args.rankingComputedAt,
+    bootstrap: args.bootstrap,
+    choice: null,
+    choiceAt: null,
+  }
+}
+
+export interface ClassifyAutoNoModelInput {
+  // The task bootstrap's return value, or null when it never ran (the
+  // ranking already had a candidate) or threw (claim/DB unavailable).
+  bootstrap: AutoNoModelBootstrapSummary | null
+  // Providers with a configured key that the bootstrap was asked to scan.
+  // Empty when nothing is configured — the NEVER_COMPUTED signal.
+  configuredProviders: string[]
+  // Whether a AI_AUTO_RANKING:<purpose> row is stored at all.
+  storedRowPresent: boolean
+  // The ranking the router actually used (post voice-filter).
+  storedCandidates: AutoCandidate[]
+  storedComputedAt: string | null
+  excludedReasons: string[]
+  // True when AI_AUTO_LAST_REFRESH has results and every one of them
+  // reports discoveryOk === false.
+  lastRefreshAllFailed: boolean
+}
+
+export interface ClassifyAutoNoModelResult {
+  cause: AutoNoModelCause
+  writeEvent: boolean
+}
+
+// Distinguish the four zero-qualified outcomes. Order matters: a
+// successful discovery outranks a stale last-refresh, and a stored
+// ranking whose rows are all excluded with recorded reasons is proof
+// even when the bootstrap could not run — but the moment ANY provider
+// failed to answer, the emptiness is NOT proven (that provider may
+// have held a qualifying model).
+export function classifyAutoNoModel(input: ClassifyAutoNoModelInput): ClassifyAutoNoModelResult {
+  const bootstrap = input.bootstrap
+  const failed = bootstrap?.failed || []
+  const scanned = bootstrap?.scanned || []
+  // (a) The bootstrap claimed the run, every scanned provider answered,
+  // and still nothing qualifies: the emptiness is proven.
+  if (bootstrap?.claimed === true && scanned.length > 0 && failed.length === 0) {
+    return { cause: 'PROVEN_EMPTY', writeEvent: true }
+  }
+  // (b) The bootstrap claimed the run and every scanned provider failed
+  // to answer: discovery itself is broken, not the model pool.
+  if (bootstrap?.claimed === true && scanned.length > 0 && failed.length >= scanned.length) {
+    return { cause: 'DISCOVERY_FAILED', writeEvent: false }
+  }
+  // (c) A stored ranking exists and every stored row was excluded with a
+  // recorded reason — but only when no provider failed to answer.
+  const perRowReasons = input.excludedReasons.filter((reason) => reason !== 'AUTO_NO_QUALIFIED_CANDIDATES')
+  const allStoredExcluded = input.storedCandidates.length > 0 && perRowReasons.length > 0
+    && (!bootstrap || failed.length === 0)
+  if (allStoredExcluded) return { cause: 'PROVEN_EMPTY', writeEvent: true }
+  // (d) The ranking was never computed and the last refresh says every
+  // provider's discovery failed: the same broken-discovery verdict.
+  if (input.lastRefreshAllFailed && !input.storedComputedAt) {
+    return { cause: 'DISCOVERY_FAILED', writeEvent: false }
+  }
+  // (e) Another worker holds the 10-minute bootstrap claim: this request
+  // cannot know yet — transient, never the "no model" message.
+  if (bootstrap && bootstrap.claimed === false && input.configuredProviders.length > 0) {
+    return { cause: 'BOOTSTRAP_IN_PROGRESS', writeEvent: false }
+  }
+  // (f) No ranking was ever computed and no provider is even configured:
+  // nothing to discover — the dashboard hints "add a provider + key".
+  if (input.configuredProviders.length === 0 && input.storedCandidates.length === 0 && !input.storedComputedAt) {
+    return { cause: 'NEVER_COMPUTED', writeEvent: true }
+  }
+  // (g) A stored (possibly empty) ranking row exists, providers are
+  // configured, and no provider failed to answer: the stored verdict
+  // stands — the bootstrap either could not run here or produced
+  // nothing new. This is the empty-ranking fail-closed case.
+  if (input.storedRowPresent && input.configuredProviders.length > 0 && (!bootstrap || failed.length === 0)) {
+    return { cause: 'PROVEN_EMPTY', writeEvent: true }
+  }
+  // (h) Nothing stored and providers configured, but discovery never
+  // produced a ranking: discovery failed somewhere upstream.
+  if (!input.storedRowPresent && input.configuredProviders.length > 0) {
+    return { cause: 'DISCOVERY_FAILED', writeEvent: false }
+  }
+  return { cause: 'DISCOVERY_FAILED', writeEvent: false }
+}
+
+// Typed replacement for the old bare
+// Error('AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK:<purpose>'). The message
+// keeps the old prefix so existing log greps still match; the stable
+// `code` property is what callers and tests should match on.
+export class AutoNoModelError extends Error {
+  code: string
+  cause: AutoNoModelCause
+  purpose: string
+  excludedReasons: string[]
+  pendingKey: string | null
+  failedProviders: string[]
+  constructor(args: {
+    code: string
+    cause: AutoNoModelCause
+    purpose: string
+    message: string
+    excludedReasons?: string[]
+    pendingKey?: string | null
+    failedProviders?: string[]
+  }) {
+    super(args.message)
+    this.name = 'AutoNoModelError'
+    this.code = args.code
+    this.cause = args.cause
+    this.purpose = String(args.purpose || 'CHAT').toUpperCase()
+    this.excludedReasons = [...(args.excludedReasons || [])]
+    this.pendingKey = args.pendingKey ?? null
+    this.failedProviders = [...(args.failedProviders || [])]
+  }
+}
+
+export function isAutoNoModelError(error: unknown): error is AutoNoModelError {
+  return !!error && typeof error === 'object'
+    && (error as AutoNoModelError).name === 'AutoNoModelError'
+    && typeof (error as AutoNoModelError).code === 'string'
+}

@@ -62,9 +62,27 @@ type AutoFailoverRow = {
   purpose: string | null
   failureKind: string
 }
+type NoModelPendingEvent = {
+  purpose: string
+  at: string
+  updatedAt: string
+  cause: 'PROVEN_EMPTY' | 'NEVER_COMPUTED'
+  excludedReasons: string[]
+  choice: 'STAY_AUTO' | null
+  choiceAt: string | null
+}
 type MonitoringData = {
   mode: { auto: boolean; value: string }
   rankings: MonitoringRanking[]
+  // Decision 3 (Haris 2026-11-24): null when nothing is pending.
+  noQualifiedModel: {
+    pending: true
+    purposes: string[]
+    firstSeenAt: string | null
+    lastSeenAt: string | null
+    lastPurpose: string
+    events: NoModelPendingEvent[]
+  } | null
   health: { provider: string; model: string; status: string; purposeScores?: Record<string, number> }[]
   routerState: { provider: string; type: string; model?: string | null; keyIndex?: number | null; until?: string | null; reason?: string | null }[]
   diagnostics: { activeProvider?: string | null; selectedProvider?: string; policy?: string; message?: string } | null
@@ -115,6 +133,7 @@ export function AdminAiMonitoring() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [toggling, setToggling] = useState(false)
+  const [acting, setActing] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -158,6 +177,46 @@ export function AdminAiMonitoring() {
       toast({ title: 'خطأ', description: e?.message || 'تعذر تغيير الوضع', variant: 'destructive' })
     } finally {
       setToggling(false)
+    }
+  }
+
+  // Decision 3 (Haris 2026-11-24): the two choices on the no-model
+  // notice. (a) Switch to manual through the SAME PATCH as the toggle
+  // above, then resolve (delete) the pending events. (b) Stay on auto:
+  // record the choice WITHOUT clearing pending — the banner stays until
+  // a model qualifies and the hourly refresh clears it.
+  const switchToManual = async () => {
+    if (!data?.noQualifiedModel) return
+    setActing(true)
+    try {
+      await api('/api/admin/system', {
+        method: 'PATCH',
+        body: JSON.stringify({ AI_AUTO_MODE_ENABLED: '0' }),
+      })
+      await api('/api/admin/ai-monitoring', { method: 'POST', body: JSON.stringify({ action: 'resolve' }) })
+      toast({ title: 'تم إيقاف الوضع التلقائي', description: 'رجعت للترتيب اليدوي، وكمّل شغلك عادي.' })
+      await load()
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e?.message || 'تعذر التبديل لليدوي', variant: 'destructive' })
+    } finally {
+      setActing(false)
+    }
+  }
+
+  const stayOnAuto = async () => {
+    const pending = data?.noQualifiedModel
+    if (!pending) return
+    setActing(true)
+    try {
+      for (const purpose of pending.purposes) {
+        await api('/api/admin/ai-monitoring', { method: 'POST', body: JSON.stringify({ action: 'stay-auto', purpose }) })
+      }
+      toast({ title: 'تمام — بضل على التلقائي، وبفحص كل ساعة لحتى يلاقي نموذج.' })
+      await load()
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e?.message || 'تعذر تسجيل الاختيار', variant: 'destructive' })
+    } finally {
+      setActing(false)
     }
   }
 
@@ -206,6 +265,29 @@ export function AdminAiMonitoring() {
         </Button>
       </div>
 
+      {data?.noQualifiedModel && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+          <p className="text-sm font-black">لا يوجد نموذج مؤهل حالياً</p>
+          <p className="mt-1 text-xs font-bold leading-relaxed">
+            {data.noQualifiedModel.events[0]?.cause === 'NEVER_COMPUTED'
+              ? 'ما في نموذج جاهز يشتغل هلأ، وما في ترتيب محفوظ أصلاً — أضف مزوداً ومفتاحاً من إعدادات الذكاء، وبعدين النظام بيبلّش يفحص.'
+              : 'الوضع التلقائي فحص كل المزودين، وما لقى ولا نموذج جاهز يشتغل هلأ. شغلك محفوظ وما ضاع شي، والنظام بيرجع يفحص كل ساعة لوحده.'}
+          </p>
+          <p className="mt-1 text-[11px] font-bold leading-relaxed">
+            المهام المتأثرة: {data.noQualifiedModel.purposes.map((purpose) => PURPOSE_LABELS[purpose] || purpose).join('، ')}
+            {' · '}أول مرة صارت: {fmtDate(data.noQualifiedModel.firstSeenAt)}
+            {' · '}آخر فحص: {fmtDate(data.noQualifiedModel.lastSeenAt)}
+          </p>
+          {data.noQualifiedModel.events.every((event) => event.choice === 'STAY_AUTO') && (
+            <p className="mt-1 text-[11px] font-bold leading-relaxed">اخترت البقاء على التلقائي — النظام بيفحص كل ساعة لحتى يلاقي نموذج.</p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" size="sm" disabled={acting} onClick={switchToManual} className="bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#0f2b46]/90">بدّل لليدوي وكمّل شغلك</Button>
+            <Button type="button" size="sm" variant="outline" disabled={acting} onClick={stayOnAuto}>خلّيك على التلقائي — بفحص بالخلفية</Button>
+          </div>
+        </div>
+      )}
+
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
           <div>
@@ -246,7 +328,7 @@ export function AdminAiMonitoring() {
                   {typeof ranking.top.score === 'number' ? ` — النتيجة ${ranking.top.score}` : ''}
                 </p>
               ) : (
-                <p className="text-xs font-bold text-slate-500">لا يوجد نموذج مؤهل بعد لهذه المهمة — يعمل الراوتر بالترتيب اليدوي.</p>
+                <p className="text-xs font-bold text-slate-500">لا يوجد نموذج مؤهل بعد لهذه المهمة — ما في رجوع تلقائي لليدوي؛ القرار إلك من التنبيه فوق.</p>
               )}
               {ranking.candidates.length === 0 ? (
                 <p className="text-[11px] text-slate-400">لا توجد قائمة ترتيب محفوظة لهذه المهمة بعد.</p>

@@ -3,7 +3,7 @@ import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
 import { request as httpsRequest } from 'node:https'
 import { db } from '@/lib/db'
-import { AI_AUTO_MODE_CONFIG_KEY, AI_AUTO_MODE_ENABLED_KEY, AI_AUTO_RANKING_ASR_KEY, AUTO_PURPOSES, autoRankingKey, classifyAutoFailure, emptyProviderDownState, filterVoiceModelsFromTextRanking, isAutoModeEnabled, isProviderDownLike, parseAsrRanking, parseAutoModeConfig, parseAutoRanking, recordProviderDownHit, reconcileDiscoveryCatalog, resolveAutoCandidates, stickyOrderUnderAuto, TEXT_AI_RUN_TIMEOUT, type AsrRankingEntry, type AutoCandidate, type ProviderDownState } from '@/lib/ai-auto-mode'
+import { AI_AUTO_MODE_CONFIG_KEY, AI_AUTO_MODE_ENABLED_KEY, AI_AUTO_RANKING_ASR_KEY, AUTO_PURPOSES, autoRankingKey, AutoNoModelError, classifyAutoFailure, classifyAutoNoModel, emptyProviderDownState, filterVoiceModelsFromTextRanking, isAutoModeEnabled, isProviderDownLike, noModelPendingKey, parseAsrRanking, parseAutoModeConfig, parseAutoRanking, parseAutoRankingPayload, parseNoModelPendingEvent, recordNoModelPendingEvent, recordProviderDownHit, reconcileDiscoveryCatalog, resolveAutoCandidates, stickyOrderUnderAuto, TEXT_AI_RUN_TIMEOUT, type AsrRankingEntry, type AutoCandidate, type AutoNoModelBootstrapSummary, type ProviderDownState } from '@/lib/ai-auto-mode'
 import { enforceAiUserDailyCostCap, estimateAiCostCents, estimatePromptTokens, recordAiUsage } from '@/lib/ai-usage-accounting'
 import { decryptSecret, isEncryptedSecret, isSecretKeyName, keyHashForRateLimit, redactSecrets, unsealSettingSecret } from '@/lib/secret-crypto'
 
@@ -4356,6 +4356,99 @@ async function keyRateAllowed(provider: ConcreteProvider, key: string): Promise<
   return true
 }
 
+// Decision 3 (Haris 2026-11-24): classify a zero-qualified auto outcome
+// from the stored evidence, persist a pending event ONLY for a proven
+// empty pool (or a never-computed ranking), and return the typed error
+// the caller throws. Best-effort throughout: a persistence failure must
+// never turn a routing failure into a different error.
+async function buildAutoNoModelError(args: {
+  purpose: string
+  excludedReasons: string[]
+  bootstrap: AutoNoModelBootstrapSummary | null
+  configuredProviders: string[]
+  rankingUsed: AutoCandidate[]
+}): Promise<AutoNoModelError> {
+  const purpose = String(args.purpose || 'CHAT').toUpperCase()
+  const pendingKey = noModelPendingKey(purpose)
+  let storedRowPresent = false
+  let storedComputedAt: string | null = null
+  let lastRefreshAllFailed = false
+  let previousEvent = null as ReturnType<typeof parseNoModelPendingEvent>
+  try {
+    const autoRefresh = await import('./ai-auto-refresh')
+    const rows = await settingStore().read([
+      autoRankingKey(purpose),
+      pendingKey,
+      autoRefresh.AI_AUTO_LAST_REFRESH_KEY,
+    ])
+    const rankingRaw = String(rows[autoRankingKey(purpose)] || '')
+    storedRowPresent = rankingRaw.trim().length > 0
+    storedComputedAt = parseAutoRankingPayload(rankingRaw || '').computedAt
+    const lastRefresh = autoRefresh.parseLastRefreshState(rows[autoRefresh.AI_AUTO_LAST_REFRESH_KEY] || '')
+    const results = Object.values(lastRefresh.results || {})
+    lastRefreshAllFailed = results.length > 0 && results.every((result) => result.discoveryOk === false)
+    previousEvent = parseNoModelPendingEvent(rows[pendingKey] || '')
+  } catch {
+    // Reads are best-effort: classification falls back to the bootstrap
+    // + ranking evidence already in hand.
+  }
+  const classification = classifyAutoNoModel({
+    bootstrap: args.bootstrap,
+    configuredProviders: args.configuredProviders,
+    storedRowPresent,
+    storedCandidates: args.rankingUsed,
+    storedComputedAt,
+    excludedReasons: args.excludedReasons,
+    lastRefreshAllFailed,
+  })
+  if (classification.writeEvent) {
+    try {
+      // writeEvent is true only for PROVEN_EMPTY / NEVER_COMPUTED, so
+      // this cast holds by construction of classifyAutoNoModel.
+      const event = recordNoModelPendingEvent(previousEvent, {
+        purpose,
+        cause: classification.cause as 'PROVEN_EMPTY' | 'NEVER_COMPUTED',
+        excludedReasons: args.excludedReasons,
+        rankingComputedAt: storedComputedAt,
+        bootstrap: args.bootstrap,
+      })
+      await settingStore().write(pendingKey, JSON.stringify(event))
+    } catch {
+      // Best-effort diagnostic persistence (same precedent as
+      // recordQuestionVerifierNoCandidate): never break the request path.
+    }
+  }
+  if (classification.cause === 'DISCOVERY_FAILED') {
+    return new AutoNoModelError({
+      code: 'AI_AUTO_DISCOVERY_FAILED',
+      cause: 'DISCOVERY_FAILED',
+      purpose,
+      message: `AI_AUTO_DISCOVERY_FAILED:${purpose}`,
+      excludedReasons: args.excludedReasons,
+      pendingKey: null,
+      failedProviders: [...(args.bootstrap?.failed || [])],
+    })
+  }
+  if (classification.cause === 'BOOTSTRAP_IN_PROGRESS') {
+    return new AutoNoModelError({
+      code: 'AI_AUTO_BOOTSTRAP_IN_PROGRESS',
+      cause: 'BOOTSTRAP_IN_PROGRESS',
+      purpose,
+      message: `AI_AUTO_BOOTSTRAP_IN_PROGRESS:${purpose}`,
+      excludedReasons: args.excludedReasons,
+      pendingKey: null,
+    })
+  }
+  return new AutoNoModelError({
+    code: 'AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK',
+    cause: classification.cause,
+    purpose,
+    message: `AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK:${purpose}`,
+    excludedReasons: args.excludedReasons,
+    pendingKey,
+  })
+}
+
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const attachments = normalizedAttachments(opts)
   const visionCall = attachments.length > 0
@@ -4363,6 +4456,12 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const baseSettings = await settings()
   let taskSettings = baseSettings
   const taskPurpose = effectiveOpts.purpose || 'CHAT'
+  // Decision 3 (Haris 2026-11-24): the bootstrap result is evidence for
+  // the choke point below — a failed discovery, a lost lease and a
+  // proven-empty pool are three different answers, and only the last
+  // one records a "no model" event for Haris to choose on.
+  let bootstrapOutcome: AutoNoModelBootstrapSummary | null = null
+  let bootstrapConfiguredProviders: string[] = []
   if (baseSettings.autoMode && !effectiveOpts.skipAutoSelection &&
     !(baseSettings.autoRankings[taskPurpose] || []).some((item) => !item.excludedReason)) {
     try {
@@ -4371,7 +4470,8 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         ...autoRefresh.ROUND_ROBIN_PROVIDERS,
         ...baseSettings.customProviders.filter((entry) => entry.enabled).map((entry) => entry.id),
       ])].filter((provider) => providerKeys(baseSettings, provider as ConcreteProvider).length > 0)
-      await autoRefresh.bootstrapAutoRankingsForTask({
+      bootstrapConfiguredProviders = [...providers]
+      bootstrapOutcome = await autoRefresh.bootstrapAutoRankingsForTask({
         store: settingStore(),
         providers,
         capabilitiesForProvider: textAiAutoCapabilitiesForProvider,
@@ -4385,8 +4485,11 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         autoRankings: { ...baseSettings.autoRankings, [taskPurpose]: ranked },
       }
     } catch {
-      // If discovery or its DB lease is unavailable, the existing safe
-      // manual fallback still serves the task. The hourly cron can retry.
+      // Discovery or its DB claim is unavailable: the last stored
+      // ranking stays in place and the choke point below classifies the
+      // outcome from the stored evidence instead of silently falling
+      // back to manual. The hourly cron retries discovery on its own.
+      bootstrapOutcome = null
     }
   }
   const resolvedPolicy = resolveRouterPolicy(effectiveOpts.purpose, taskSettings, effectiveOpts.routerPolicy)
@@ -4409,7 +4512,11 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   let preferredProviders = [...new Set([...(effectiveOpts.preferredProviders || []).filter(Boolean), ...preferredModelProviders])]
   // Auto mode choke point: qualified candidates replace all manual routing.
   // On first use a bounded catalog scan above populates the ranking. If
-  // nothing qualifies, fail honestly rather than silently using manual pins.
+  // nothing qualifies, fail with a typed error and — only for a proven
+  // empty pool or a never-computed ranking — record a pending event so
+  // Haris can choose (manual now, or stay on auto) from the monitoring
+  // dashboard. A failed discovery or a lost bootstrap lease is a
+  // different, transient answer and records nothing.
   const autoResolution = resolveAutoCandidates({
     autoMode: s.autoMode && effectiveOpts.skipAutoSelection !== true,
     ranking: s.autoRankings[effectiveOpts.purpose || 'CHAT'] || [],
@@ -4424,7 +4531,13 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     paidBlockedModels: s.paidUsageMode === 'off' ? s.paidModels : [],
   })
   if (autoResolution.autoOverride && !autoResolution.autoCandidates.length) {
-    throw new Error(`AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK:${effectiveOpts.purpose || 'CHAT'}`)
+    throw await buildAutoNoModelError({
+      purpose: effectiveOpts.purpose || 'CHAT',
+      excludedReasons: autoResolution.excludedReasons,
+      bootstrap: bootstrapOutcome,
+      configuredProviders: bootstrapConfiguredProviders,
+      rankingUsed: s.autoRankings[effectiveOpts.purpose || 'CHAT'] || [],
+    })
   }
   if (autoResolution.autoOverride) {
     preferredModels = autoResolution.preferredModels

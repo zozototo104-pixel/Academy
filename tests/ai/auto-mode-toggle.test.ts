@@ -303,8 +303,46 @@ describe('toggle ON override at the router', () => {
     values.set('AI_AUTO_MODE_ENABLED', '1')
     values.set('AI_AUTO_RANKING:CHAT', JSON.stringify({ candidates: [] }))
     const calls = installFetch()
-    await expect(textAi.textAiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'hi' }] })).rejects.toThrow('AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK:CHAT')
+    // Decision 3 (Haris 2026-11-24): the failure is a typed error with
+    // a recorded cause, AND a pending event is persisted so the
+    // monitoring dashboard can show Haris the choice.
+    let caught: any = null
+    try {
+      await textAi.textAiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'hi' }] })
+    } catch (e) { caught = e }
+    expect(caught).toBeTruthy()
+    expect(caught.code).toBe('AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK')
+    expect(caught.cause).toBe('PROVEN_EMPTY')
+    expect(caught.message).toBe('AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK:CHAT')
+    expect(caught.purpose).toBe('CHAT')
+    expect(caught.pendingKey).toBe('AI_AUTO_NO_MODEL_PENDING:CHAT')
     expect(calls).toHaveLength(0)
+    const pending = JSON.parse(values.get('AI_AUTO_NO_MODEL_PENDING:CHAT') || 'null')
+    expect(pending).toMatchObject({
+      purpose: 'CHAT',
+      status: 'PENDING_CHOICE',
+      cause: 'PROVEN_EMPTY',
+      excludedReasons: ['AUTO_NO_QUALIFIED_CANDIDATES'],
+      rankingComputedAt: null,
+      bootstrap: null,
+      choice: null,
+      choiceAt: null,
+    })
+    expect(typeof pending.at).toBe('string')
+    expect(typeof pending.updatedAt).toBe('string')
+  })
+
+  test('a repeat failure refreshes updatedAt but keeps the first-seen at', async () => {
+    configureTwoProviders()
+    values.set('AI_AUTO_MODE_ENABLED', '1')
+    values.set('AI_AUTO_RANKING:CHAT', JSON.stringify({ candidates: [] }))
+    installFetch()
+    await expect(textAi.textAiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'hi' }] })).rejects.toThrow('AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK:CHAT')
+    const first = JSON.parse(values.get('AI_AUTO_NO_MODEL_PENDING:CHAT') || 'null')
+    await expect(textAi.textAiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'hi' }] })).rejects.toThrow('AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK:CHAT')
+    const second = JSON.parse(values.get('AI_AUTO_NO_MODEL_PENDING:CHAT') || 'null')
+    expect(second.at).toBe(first.at)
+    expect(Date.parse(second.updatedAt)).toBeGreaterThanOrEqual(Date.parse(first.updatedAt))
   })
 
   test('ON: a paid-listed model is never attempted while paid usage is off', async () => {
@@ -341,6 +379,86 @@ describe('toggle ON override at the router', () => {
     expect(calls.map((call) => call.model)).toEqual(['llama-3.3-70b-versatile'])
     expect(values.has('AI_MODEL_STATS:CHAT:GROQ:llama-3.3-70b-versatile')).toBe(false)
     expect([...values.keys()].some((key) => key.startsWith('AI_AUTO_STICKY:'))).toBe(false)
+  })
+})
+
+describe('decision 3 — no qualified model is a choice, not a silent failure', () => {
+  test('lease lost: another worker holds the bootstrap claim → transient error, no pending event', async () => {
+    configureTwoProviders()
+    values.set('AI_AUTO_MODE_ENABLED', '1')
+    values.set('AI_AUTO_RANKING:CHAT', JSON.stringify({ candidates: [] }))
+    // The claim query returns no row: another worker holds the claim.
+    const oldQuery = (db as any).$queryRawUnsafe
+    ;(db as any).$queryRawUnsafe = async () => []
+    const calls = installFetch()
+    try {
+      let caught: any = null
+      try {
+        await textAi.textAiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'hi' }] })
+      } catch (e) { caught = e }
+      expect(caught).toBeTruthy()
+      expect(caught.code).toBe('AI_AUTO_BOOTSTRAP_IN_PROGRESS')
+      expect(caught.cause).toBe('BOOTSTRAP_IN_PROGRESS')
+      expect(caught.message).toBe('AI_AUTO_BOOTSTRAP_IN_PROGRESS:CHAT')
+      expect(caught.pendingKey).toBeNull()
+      expect(calls).toHaveLength(0)
+      expect(values.has('AI_AUTO_NO_MODEL_PENDING:CHAT')).toBe(false)
+    } finally {
+      if (oldQuery === undefined) delete (db as any).$queryRawUnsafe
+      else (db as any).$queryRawUnsafe = oldQuery
+    }
+  })
+
+  test('discovery failed: every provider fails to answer → typed error, no pending event', async () => {
+    configureTwoProviders()
+    values.set('AI_AUTO_MODE_ENABLED', '1')
+    const oldQuery = (db as any).$queryRawUnsafe
+    ;(db as any).$queryRawUnsafe = async () => [{ key: 'AI_AUTO_TASK_BOOTSTRAP_LAST_RUN' }]
+    // Every catalog fetch fails: Gemini's /models list and Groq's.
+    globalThis.fetch = mock(async (url: string | URL | Request) => {
+      const urlText = String(url)
+      if (urlText.includes('/models')) return jsonResponse({ error: { message: 'boom' } }, 500)
+      throw new Error(`unexpected fetch: ${urlText}`)
+    }) as any
+    try {
+      let caught: any = null
+      try {
+        await textAi.textAiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'hi' }] })
+      } catch (e) { caught = e }
+      expect(caught).toBeTruthy()
+      expect(caught.code).toBe('AI_AUTO_DISCOVERY_FAILED')
+      expect(caught.cause).toBe('DISCOVERY_FAILED')
+      expect(caught.message).toBe('AI_AUTO_DISCOVERY_FAILED:CHAT')
+      expect([...(caught.failedProviders as string[])].sort()).toEqual(['GEMINI', 'GROQ'])
+      expect(caught.pendingKey).toBeNull()
+      expect(values.has('AI_AUTO_NO_MODEL_PENDING:CHAT')).toBe(false)
+    } finally {
+      if (oldQuery === undefined) delete (db as any).$queryRawUnsafe
+      else (db as any).$queryRawUnsafe = oldQuery
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('never computed: auto ON with no provider configured → event with cause NEVER_COMPUTED', async () => {
+    values.set('AI_AUTO_MODE_ENABLED', '1')
+    installFetch()
+    let caught: any = null
+    try {
+      await textAi.textAiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'hi' }] })
+    } catch (e) { caught = e }
+    expect(caught).toBeTruthy()
+    expect(caught.code).toBe('AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK')
+    expect(caught.cause).toBe('NEVER_COMPUTED')
+    expect(caught.message).toBe('AI_AUTO_NO_QUALIFIED_MODEL_FOR_TASK:CHAT')
+    expect(caught.pendingKey).toBe('AI_AUTO_NO_MODEL_PENDING:CHAT')
+    const pending = JSON.parse(values.get('AI_AUTO_NO_MODEL_PENDING:CHAT') || 'null')
+    expect(pending).toMatchObject({
+      purpose: 'CHAT',
+      status: 'PENDING_CHOICE',
+      cause: 'NEVER_COMPUTED',
+      choice: null,
+      choiceAt: null,
+    })
   })
 })
 

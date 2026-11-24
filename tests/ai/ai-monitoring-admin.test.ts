@@ -38,6 +38,18 @@ const db: any = {
       values.set(key, value)
       return { key, value }
     },
+    deleteMany: async ({ where }: any) => {
+      const key = where?.key
+      let count = 0
+      if (typeof key === 'string') {
+        if (values.delete(key)) count = 1
+      } else if (typeof key?.startsWith === 'string') {
+        for (const k of [...values.keys()]) {
+          if (k.startsWith(key.startsWith)) { values.delete(k); count++ }
+        }
+      }
+      return { count }
+    },
   },
   aiPipelineOperationLog: {
     findMany: async () => failoverRows,
@@ -63,7 +75,7 @@ mock.module('@/lib/auth', () => ({
 mock.module('@/lib/settings', () => ({ getSetting: async (key: string) => values.get(key) || '' }))
 
 const textAi = await import('../../src/lib/text-ai')
-const { GET } = await import('../../src/app/api/admin/ai-monitoring/route')
+const { GET, POST } = await import('../../src/app/api/admin/ai-monitoring/route')
 
 function makeStore(backing: Map<string, string>) {
   return {
@@ -273,5 +285,104 @@ describe('ai-monitoring GET payload shape', () => {
       { provider: 'GROQ', model: 'llama-3.3-70b-versatile', score: null, components: null, excludedReason: null, costTier: 'unknown', balance: 'unknown' },
     ])
     expect(fetchCalls).toBe(0)
+  })
+
+  test('noQualifiedModel is null when nothing is pending, and lists pending events otherwise', async () => {
+    seedDashboard()
+    expect((await (await GET()).json()).noQualifiedModel).toBeNull()
+    values.set('AI_AUTO_NO_MODEL_PENDING:CHAT', JSON.stringify({
+      at: '2026-11-24T10:00:00.000Z', updatedAt: '2026-11-24T12:00:00.000Z',
+      purpose: 'CHAT', status: 'PENDING_CHOICE', cause: 'PROVEN_EMPTY',
+      excludedReasons: ['AUTO_NO_QUALIFIED_CANDIDATES'], rankingComputedAt: null,
+      bootstrap: { claimed: true, scanned: ['GEMINI'], ranked: [], failed: [] },
+      choice: null, choiceAt: null,
+    }))
+    values.set('AI_AUTO_NO_MODEL_PENDING:VISION', JSON.stringify({
+      at: '2026-11-24T09:00:00.000Z', updatedAt: '2026-11-24T11:00:00.000Z',
+      purpose: 'VISION', status: 'PENDING_CHOICE', cause: 'NEVER_COMPUTED',
+      excludedReasons: [], rankingComputedAt: null, bootstrap: null,
+      choice: null, choiceAt: null,
+    }))
+    // A malformed pending row is dropped, never invented.
+    values.set('AI_AUTO_NO_MODEL_PENDING:REVIEW', 'garbage{{{')
+    const body = await (await GET()).json()
+    expect(body.noQualifiedModel.pending).toBe(true)
+    expect(body.noQualifiedModel.purposes).toEqual(['CHAT', 'VISION'])
+    expect(body.noQualifiedModel.firstSeenAt).toBe('2026-11-24T09:00:00.000Z')
+    expect(body.noQualifiedModel.lastSeenAt).toBe('2026-11-24T12:00:00.000Z')
+    expect(body.noQualifiedModel.lastPurpose).toBe('CHAT')
+    expect(body.noQualifiedModel.events).toHaveLength(2)
+    expect(body.noQualifiedModel.events[0]).toMatchObject({
+      purpose: 'CHAT', at: '2026-11-24T10:00:00.000Z', updatedAt: '2026-11-24T12:00:00.000Z',
+      cause: 'PROVEN_EMPTY', excludedReasons: ['AUTO_NO_QUALIFIED_CANDIDATES'], choice: null, choiceAt: null,
+    })
+    expect(body.noQualifiedModel.events[1]).toMatchObject({ purpose: 'VISION', cause: 'NEVER_COMPUTED' })
+    expect(fetchCalls).toBe(0)
+  })
+})
+
+describe('ai-monitoring POST (decision 3 choices)', () => {
+  function postRequest(body: unknown) {
+    return { json: async () => body } as any
+  }
+
+  function seedPendingChat() {
+    values.set('AI_AUTO_NO_MODEL_PENDING:CHAT', JSON.stringify({
+      at: '2026-11-24T10:00:00.000Z', updatedAt: '2026-11-24T10:00:00.000Z',
+      purpose: 'CHAT', status: 'PENDING_CHOICE', cause: 'PROVEN_EMPTY',
+      excludedReasons: ['AUTO_NO_QUALIFIED_CANDIDATES'], rankingComputedAt: null,
+      bootstrap: null, choice: null, choiceAt: null,
+    }))
+  }
+
+  test('non-admin gets 403 on POST', async () => {
+    adminAllowed = false
+    const response = await POST(postRequest({ action: 'stay-auto', purpose: 'CHAT' }))
+    expect(response.status).toBe(403)
+  })
+
+  test('unknown action and unknown purpose get 400', async () => {
+    expect((await POST(postRequest({ action: 'nope' }))).status).toBe(400)
+    expect((await POST(postRequest({ action: 'stay-auto', purpose: 'NOPE' }))).status).toBe(400)
+    expect((await POST(postRequest({ action: 'stay-auto' }))).status).toBe(400)
+    expect((await POST(postRequest({ action: 'resolve', purpose: 'NOPE' }))).status).toBe(400)
+  })
+
+  test('stay-auto records the choice WITHOUT clearing pending', async () => {
+    seedPendingChat()
+    const response = await POST(postRequest({ action: 'stay-auto', purpose: 'CHAT' }))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ ok: true })
+    const event = JSON.parse(values.get('AI_AUTO_NO_MODEL_PENDING:CHAT') || 'null')
+    expect(event).toMatchObject({
+      purpose: 'CHAT', status: 'PENDING_CHOICE', cause: 'PROVEN_EMPTY',
+      choice: 'STAY_AUTO', at: '2026-11-24T10:00:00.000Z',
+    })
+    expect(typeof event.choiceAt).toBe('string')
+    // The banner stays pending: GET still lists the event.
+    const body = await (await GET()).json()
+    expect(body.noQualifiedModel.purposes).toEqual(['CHAT'])
+    expect(body.noQualifiedModel.events[0].choice).toBe('STAY_AUTO')
+  })
+
+  test('stay-auto on a purpose with no pending event gets 404', async () => {
+    const response = await POST(postRequest({ action: 'stay-auto', purpose: 'CHAT' }))
+    expect(response.status).toBe(404)
+  })
+
+  test('resolve deletes one purpose, or all pending when no purpose is given', async () => {
+    seedPendingChat()
+    values.set('AI_AUTO_NO_MODEL_PENDING:VISION', JSON.stringify({
+      at: '2026-11-24T09:00:00.000Z', updatedAt: '2026-11-24T09:00:00.000Z',
+      purpose: 'VISION', status: 'PENDING_CHOICE', cause: 'NEVER_COMPUTED',
+      excludedReasons: [], rankingComputedAt: null, bootstrap: null, choice: null, choiceAt: null,
+    }))
+    expect((await POST(postRequest({ action: 'resolve', purpose: 'CHAT' }))).status).toBe(200)
+    expect(values.has('AI_AUTO_NO_MODEL_PENDING:CHAT')).toBe(false)
+    expect(values.has('AI_AUTO_NO_MODEL_PENDING:VISION')).toBe(true)
+    const response = await POST(postRequest({ action: 'resolve' }))
+    expect(response.status).toBe(200)
+    expect(values.has('AI_AUTO_NO_MODEL_PENDING:VISION')).toBe(false)
+    expect((await (await GET()).json()).noQualifiedModel).toBeNull()
   })
 })

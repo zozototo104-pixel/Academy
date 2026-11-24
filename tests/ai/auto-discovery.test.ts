@@ -400,6 +400,49 @@ describe('first-task auto bootstrap (no synthetic model spend)', () => {
     expect(autoMode.parseAutoRanking(backing.get('AI_AUTO_RANKING:CHAT')).map((item) => item.model)).toEqual(['good-model'])
   })
 
+  test('a ranking that gains a qualified candidate clears that purpose’s pending no-model event', async () => {
+    const backing = new Map<string, string>()
+    // Decision 3 recovery: the event the router recorded while nothing
+    // qualified must disappear once discovery qualifies a model.
+    backing.set('AI_AUTO_NO_MODEL_PENDING:CHAT', JSON.stringify({
+      at: '2026-11-24T10:00:00.000Z', updatedAt: '2026-11-24T10:00:00.000Z',
+      purpose: 'CHAT', status: 'PENDING_CHOICE', cause: 'PROVEN_EMPTY',
+      excludedReasons: ['AUTO_NO_QUALIFIED_CANDIDATES'], rankingComputedAt: null,
+      bootstrap: null, choice: null, choiceAt: null,
+    }))
+    const result = await autoRefresh.bootstrapAutoRankingsForTask({
+      store: makeStore(backing),
+      providers: ['GEMINI'],
+      claim: async () => true,
+      discover: async (provider: string) => ({ provider, models: ['gemini-model'], discoveryOk: true }),
+      capabilitiesForProvider: async () => ({ 'gemini-model': { vision: true, costTier: 'free' as const } }),
+    })
+    expect(result.ranked).toEqual(['GEMINI'])
+    expect(autoMode.parseAutoRanking(backing.get('AI_AUTO_RANKING:CHAT')).some((item) => !item.excludedReason)).toBe(true)
+    expect(backing.has('AI_AUTO_NO_MODEL_PENDING:CHAT')).toBe(false)
+  })
+
+  test('an all-excluded ranking leaves the pending no-model event in place', async () => {
+    const backing = new Map<string, string>()
+    backing.set('AI_AUTO_NO_MODEL_PENDING:VISION', JSON.stringify({
+      at: '2026-11-24T10:00:00.000Z', updatedAt: '2026-11-24T10:00:00.000Z',
+      purpose: 'VISION', status: 'PENDING_CHOICE', cause: 'PROVEN_EMPTY',
+      excludedReasons: ['AUTO_NO_QUALIFIED_CANDIDATES'], rankingComputedAt: null,
+      bootstrap: null, choice: null, choiceAt: null,
+    }))
+    const result = await autoRefresh.bootstrapAutoRankingsForTask({
+      store: makeStore(backing),
+      providers: ['GEMINI'],
+      claim: async () => true,
+      discover: async (provider: string) => ({ provider, models: ['gemini-model'], discoveryOk: true }),
+      // Vision requires vision OR ocr: both explicitly false excludes it.
+      capabilitiesForProvider: async () => ({ 'gemini-model': { vision: false, ocr: false, costTier: 'free' as const } }),
+    })
+    expect(result.ranked).toEqual(['GEMINI'])
+    expect(autoMode.parseAutoRanking(backing.get('AI_AUTO_RANKING:VISION')).some((item) => !item.excludedReason)).toBe(false)
+    expect(backing.has('AI_AUTO_NO_MODEL_PENDING:VISION')).toBe(true)
+  })
+
   test('the cold task itself waits for ranking before routing; its next call reuses the saved choice', async () => {
     values.set('AI_AUTO_MODE_ENABLED', '1')
     values.set('AI_TEXT_PROVIDER', 'ZAI')
