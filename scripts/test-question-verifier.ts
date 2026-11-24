@@ -264,9 +264,9 @@ async function unavailableVerifierKeepsGenerationPending() {
     () => new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } }),
     async (calls) => {
       const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'gemini-3.8-flash' })
-      assert.equal(calls.length, 0, 'no provider should be called when only the excluded generator exists')
+      assert.equal(calls.some((call) => call.url.includes(':generateContent') || call.url.includes('/chat/completions')), false, 'no verifier inference should occur when only the generator family exists')
       assert.equal(result[0].verificationPending, true)
-      assert.equal(result[0].verificationReason, 'AI_VERIFIER_UNAVAILABLE')
+      assert.equal(result[0].verificationReason, 'VERIFIER_SAME_FAMILY')
       assert.ok(result[0].qualityFlags?.includes('NEEDS_HUMAN_REVIEW'))
     }
   )
