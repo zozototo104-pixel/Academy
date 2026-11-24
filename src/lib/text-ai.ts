@@ -4473,15 +4473,18 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         continue
       }
     }
-    const providerPreferredModels = preferredModels.filter((item) => item.provider === provider).map((item) => item.model)
+    const providerPreferredModels = [
+      ...preferredModels.filter((item) => item.provider === provider).map((item) => item.model),
+      ...probePinnedModels.filter((item) => item.provider === provider).map((item) => item.model),
+    ]
     if (isVerifierCall(effectiveOpts) && taskLevel !== 'GENERAL') {
       const selectedModel = modelFor(s, provider)
       if (selectedModel && !academicModelAllowed(provider, selectedModel) && !providerPreferredModels.includes(selectedModel)) noteNoCandidate(provider, selectedModel, 'NOT_IN_ALLOWLIST')
     }
-    const fallbackModels = verifierCall && s.verifierStrict ? [] : await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
+    const fallbackModels = autoResolution.autoOverride || probePinnedProviders || (verifierCall && s.verifierStrict) ? [] : await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
     const sameProviderAlborihiReview = allowAlborihiCrossFamilyVerifier && provider === 'ALBORIHI'
     const discoveredAlborihiModels = sameProviderAlborihiReview ? freeModelDiscoveryEntry('ALBORIHI', s) : null
-    const candidateModels = applyModelRestriction(strictCandidateModelsForRequest(s, provider, [...new Set([...providerPreferredModels, ...fallbackModels])], taskLevel, verifierCall), provider, effectiveRestrictToModels)
+    const candidateModels = applyModelRestriction(strictCandidateModelsForRequest(s, provider, [...new Set([...providerPreferredModels, ...fallbackModels])], taskLevel, verifierCall, autoResolution.autoOverride), provider, effectiveRestrictToModels)
       .filter((model) => !discoveredAlborihiModels?.discoveryOk || discoveredAlborihiModels.models.some((id) => id.toLowerCase() === model.toLowerCase()))
     const eligibleFamily = (model: string) => {
       if (!sameProviderAlborihiReview) return modelFamilyAllowed(model, excludedFamilies)
@@ -4493,7 +4496,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     }
     const baseModels = candidateModels
       .filter(eligibleFamily)
-      .filter((model) => modelSupportsVisionAttachment(provider, model, modelCapabilitiesFor(provider, s, model), attachments))
+      .filter((model) => effectiveOpts.skipAutoSelection || modelSupportsVisionAttachment(provider, model, modelCapabilitiesFor(provider, s, model), attachments))
     const orderedModels = stickyFirst && usableSticky && usableSticky.provider === provider && baseModels.includes(usableSticky.model)
       ? [usableSticky.model, ...baseModels.filter((model) => model !== usableSticky.model)]
       : baseModels
