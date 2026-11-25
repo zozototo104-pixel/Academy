@@ -2970,13 +2970,13 @@ export function AdminBooksTab() {
         onStep: (step) => {
           setBookRepairJobs((prev) => ({ ...prev, [bookId]: step.job as BookRepairJobRow }))
           const c = step.counters
-          liveToast.update({ title: 'جارٍ إكمال فحص وإصلاح التشوهات', description: `مقاطع مصلحة ${c.chunksCorrected} · تحتاج مراجعة ${c.chunksNeedsReview} · متبقية ${c.chunksRemaining} · عناصر مصلحة ${c.itemsCorrected} · تحتاج مراجعة ${c.itemsNeedsReview}` })
+          liveToast.update({ id: liveToast.id, title: 'جارٍ إكمال فحص وإصلاح التشوهات', description: `مقاطع مصلحة ${c.chunksCorrected} · تحتاج مراجعة ${c.chunksNeedsReview} · متبقية ${c.chunksRemaining} · عناصر مصلحة ${c.itemsCorrected} · تحتاج مراجعة ${c.itemsNeedsReview}` })
         },
         reassertStop: () => api(`/api/admin/books/${bookId}/repair-corrupt-pages`, { method: 'POST', body: JSON.stringify({ action: 'STOP' }) }),
       })
       if (outcome.outcome === 'done') {
         const c = outcome.lastStep!.counters
-        liveToast.update({ title: 'اكتمل فحص وإصلاح تشوهات الكتاب', description: `مقاطع مصلحة ${c.chunksCorrected} · تحتاج مراجعة ${c.chunksNeedsReview} · متبقية ${c.chunksRemaining} · عناصر مصلحة ${c.itemsCorrected} · تحتاج مراجعة ${c.itemsNeedsReview}` })
+        liveToast.update({ id: liveToast.id, title: 'اكتمل فحص وإصلاح تشوهات الكتاب', description: `مقاطع مصلحة ${c.chunksCorrected} · تحتاج مراجعة ${c.chunksNeedsReview} · متبقية ${c.chunksRemaining} · عناصر مصلحة ${c.itemsCorrected} · تحتاج مراجعة ${c.itemsNeedsReview}` })
       } else if (outcome.outcome === 'error') {
         liveToast.dismiss()
         toast({ title: 'تعذر فحص وإصلاح التشوهات', description: String((outcome.error as any)?.message || outcome.error), variant: 'destructive' })
