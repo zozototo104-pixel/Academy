@@ -27,7 +27,7 @@ type ExamQuestion = {
 type BankItem = { id: string; type: string; text: string; options: string | null; correctAnswer: string | null; sourceBookTitle?: string | null }
 
 const STATUS_LABEL: Record<string, string> = { DRAFT: 'مسودة', READY: 'منشور', ARCHIVED: 'مؤرشف', PENDING_REVIEW: 'بانتظار المراجعة', APPROVED: 'معتمد', REJECTED: 'مرفوض' }
-const SOURCE_LABEL: Record<string, string> = { BANK: 'بنك الأسئلة', MANUAL: 'يدوي', EXCEL_IMPORT: 'استيراد Excel', DOC_IMPORT: 'استيراد مستند', AI_INTERNET: 'ذكاء من الإنترنت' }
+const SOURCE_LABEL: Record<string, string> = { BANK: 'بنك الأسئلة', MANUAL: 'يدوي', EXCEL_IMPORT: 'استيراد Excel', DOC_IMPORT: 'استيراد مستند', AI_INTERNET: 'ذكاء من الإنترنت', CUSTOM_BOOK: 'كتاب مخصص' }
 
 function apiErrorMessage(data: any, fallback: string) {
   return String(data?.error || data?.message || fallback)
@@ -66,6 +66,10 @@ export function AdminComprehensiveExamTab() {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importPreview, setImportPreview] = useState<any>(null)
   const [importing, setImporting] = useState(false)
+  const [customBookFile, setCustomBookFile] = useState<File | null>(null)
+  const [customBookCount, setCustomBookCount] = useState('5')
+  const [customBookResult, setCustomBookResult] = useState<any>(null)
+  const [customBookBusy, setCustomBookBusy] = useState(false)
   const [manualType, setManualType] = useState('MCQ')
   const [manualText, setManualText] = useState('')
   const [manualOptions, setManualOptions] = useState(['', '', '', ''])
@@ -297,6 +301,30 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
+  const runCustomBook = async () => {
+    if (!detail || !customBookFile) return
+    setCustomBookBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', customBookFile)
+      fd.append('count', customBookCount)
+      const data = await jsonOrThrow(
+        await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/from-custom-book`, { method: 'POST', body: fd }),
+        'تعذر توليد الأسئلة من الكتاب',
+      )
+      setCustomBookResult(data)
+      toast({
+        title: `تم توليد ${data.imported} سؤالاً من الكتاب — كلها بانتظار المراجعة`,
+        description: data.rejectedCount ? `${data.rejectedCount} سؤالاً مرفوضاً بالتحقق بالدليل` : undefined,
+      })
+      await refreshDetailAndList(detail.exam.id)
+    } catch (e: any) {
+      toast({ title: 'تعذر توليد الأسئلة من الكتاب', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setCustomBookBusy(false)
+    }
+  }
+
   const reviewQuestion = async (q: ExamQuestion, status: 'APPROVED' | 'REJECTED') => {
     if (!detail) return
     if (status === 'REJECTED' && !rejectReason.trim()) {
@@ -473,6 +501,13 @@ export function AdminComprehensiveExamTab() {
           importPreview={importPreview}
           importing={importing}
           onRunImport={runImport}
+          customBookFile={customBookFile}
+          setCustomBookFile={setCustomBookFile}
+          customBookCount={customBookCount}
+          setCustomBookCount={setCustomBookCount}
+          customBookResult={customBookResult}
+          customBookBusy={customBookBusy}
+          onRunCustomBook={runCustomBook}
           examId={detail.exam.id}
           manualType={manualType}
           setManualType={setManualType}
@@ -649,6 +684,41 @@ function DetailPanel(props: any) {
                 <p className="text-xs text-slate-600">
                   المعاينة: {props.importPreview.valid} سؤالاً صالحاً، {props.importPreview.errors?.length || 0} صفاً مرفوضاً
                   {props.importPreview.errors?.length ? ` — أول خطأ: سطر ${props.importPreview.errors[0].row}: ${props.importPreview.errors[0].message}` : ''}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-3 pt-4">
+              <h4 className="text-sm font-black">رفع كتاب مخصص وتوليد أسئلة منه</h4>
+              <p className="text-[11px] text-slate-500">
+                كتاب PDF من خارج كتب البرنامج — يُقرأ هنا فقط ولا يُسجَّل ككتاب برنامج. الذكاء يولّد أسئلة صح/خطأ واختيار متعدد من نصه، وكل سؤال يحمل
+                دليلاً حرفياً من الكتاب ويبدأ بانتظار المراجعة. الحد 10 ميغابايت و300 صفحة؛ الصفحات بلا نص مقروء (ممسوحة ضوئياً) تُبلَّغ ولا تولَّد منها أسئلة.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input type="file" accept=".pdf" onChange={(e: ChangeEvent<HTMLInputElement>) => props.setCustomBookFile(e.target.files?.[0] || null)} className="max-w-xs" />
+                <div className="flex items-center gap-2">
+                  <Label>عدد الأسئلة</Label>
+                  <Input
+                    type="number" min={1} max={10} value={props.customBookCount}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => props.setCustomBookCount(e.target.value)} className="w-20"
+                  />
+                </div>
+                <Button disabled={props.customBookBusy || !props.customBookFile} onClick={props.onRunCustomBook}>
+                  {props.customBookBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} رفع الكتاب وتوليد أسئلة
+                </Button>
+              </div>
+              {props.customBookBusy && <p className="text-xs text-slate-500">جارٍ قراءة الكتاب وتوليد الأسئلة — قد تستغرق العملية دقيقة أو أكثر…</p>}
+              {props.customBookResult && (
+                <p className="text-xs text-slate-600">
+                  الكتاب «{props.customBookResult.extraction?.bookTitle}»: {props.customBookResult.extraction?.totalPages} صفحة،
+                  {' '}{props.customBookResult.extraction?.readablePages} مقروءة
+                  {props.customBookResult.extraction?.unreadablePages?.length
+                    ? `، ${props.customBookResult.extraction.unreadablePages.length} غير مقروءة (صفحات ${props.customBookResult.extraction.unreadablePages.slice(0, 5).map((p: any) => p.page).join('، ')}${props.customBookResult.extraction.unreadablePages.length > 5 ? '…' : ''})`
+                    : ''}
+                  {' '}— وُلّد {props.customBookResult.imported} سؤالاً من {props.customBookResult.requested} مطلوباً
+                  {props.customBookResult.rejectedCount ? `، ${props.customBookResult.rejectedCount} مرفوضاً بالتحقق بالدليل` : ''}
                 </p>
               )}
             </CardContent>
