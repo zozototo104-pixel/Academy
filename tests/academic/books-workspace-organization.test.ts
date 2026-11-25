@@ -158,17 +158,24 @@ function apiSurface(): { count: number; digest: string } {
   // 2026-11-12: only two extra calls are intentionally added for source-grounded
   // AI correction: one paginated POST and one refresh GET. Preserve the frozen
   // digest for every original endpoint, method, payload and header.
-  // 2026-11-25: a second repair-ai POST is intentionally added — the general
-  // «تكليف الذكاء للكل» button in the manual-review screen (ordered by the
-  // owner). Same endpoint, same action, same background job; it only enqueues
-  // from a second entry point, it is not a second repair engine.
+  // 2026-11-25: the general «تكليف الذكاء للكل» button NO LONGER posts
+  // repair-ai — the owner ordered it confined to the manual-review queue,
+  // so it posts the scoped 'ai-fill-review-all' action instead (new
+  // reviewed category below). Only the standalone tab still enqueues the
+  // whole-bank smart-repair job.
   const aiRepairCalls = calls.filter((call) =>
     call.includes("'/api/admin/knowledge-bank'") && call.includes("action: 'repair-ai'"))
-  assert.equal(aiRepairCalls.length, 2, 'expected two source-grounded AI repair POSTs (standalone tab + review-screen bulk button)')
+  assert.equal(aiRepairCalls.length, 1, 'expected one source-grounded AI repair POST (standalone tab only)')
   assert.ok(aiRepairCalls.some((call) => call.includes("method: 'POST'") && call.includes('programId: selectedProgramId') &&
     !call.includes('cursor')), 'AI repair must enqueue from the standalone admin tab, not run in the books workspace')
-  assert.ok(aiRepairCalls.some((call) => call.includes("method: 'POST'") && call.includes('programId: targetProgramId')),
-    'bulk AI repair must enqueue the same job from the review screen')
+  // 2026-11-25: the review-screen bulk button posts the scoped bulk fill
+  // (ai-fill-review-all) — review-queue items only, one AI call each,
+  // saved in place where proven. It must never post repair-ai again.
+  const reviewBulkAiCalls = calls.filter((call) =>
+    call.includes("'/api/admin/knowledge-bank'") && call.includes("action: 'ai-fill-review-all'"))
+  assert.equal(reviewBulkAiCalls.length, 1, 'expected one scoped review-queue bulk-fill POST')
+  assert.ok(reviewBulkAiCalls.some((call) => call.includes("method: 'POST'") && call.includes('programId: targetProgramId') &&
+    !call.includes("action: 'repair-ai'")), 'bulk review fill must post the scoped action from the review screen, never the whole-bank job')
   const aiRefreshCalls = calls.filter((call) =>
     call.includes('/api/admin/knowledge-bank?programId=') && call.includes('encodeURIComponent(programId)') && call.includes('repairStatus=1'))
   assert.equal(aiRefreshCalls.length, 1, 'expected one read-only job-status poll for background AI repair')
@@ -272,6 +279,7 @@ function apiSurface(): { count: number; digest: string } {
       }
       return !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) &&
         !bookRebuildCalls.includes(call) && !aiRepairCalls.includes(call) && !aiRefreshCalls.includes(call) &&
+        !reviewBulkAiCalls.includes(call) &&
         !aiSettingsCalls.includes(call) && !manualReviewCalls.includes(call) &&
         !sourceCandidateCalls.includes(call) && !sourceRestoreCalls.includes(call) &&
         !chunkRepairCalls.includes(call) && !bookRepairCalls.includes(call) &&
@@ -284,7 +292,7 @@ function apiSurface(): { count: number; digest: string } {
     })
     .sort()
   return {
-    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - aiSettingsCalls.length - manualReviewCalls.length - sourceCandidateCalls.length - sourceRestoreCalls.length - chunkRepairCalls.length - bookRepairCalls.length - extraEnrichmentCalls.length - unitRegenerationCalls.length - 1,
+    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - reviewBulkAiCalls.length - aiSettingsCalls.length - manualReviewCalls.length - sourceCandidateCalls.length - sourceRestoreCalls.length - chunkRepairCalls.length - bookRepairCalls.length - extraEnrichmentCalls.length - unitRegenerationCalls.length - 1,
     digest: digest(protectedCalls.join('\n')),
   }
 }

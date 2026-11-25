@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { getProgramKnowledgeItems, rebuildKnowledgeForBook, rebuildProgramKnowledge, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt, KNOWLEDGE_BANK_LIMITS } from '@/lib/knowledge-bank'
-import { scheduleProgramKnowledgeV2, enqueueKnowledgeAiRepairJob, getKnowledgeAiRepairJob, repairSourceWindow, aiFillReviewItemFields } from '@/lib/book-knowledge-v2-scheduler'
+import { scheduleProgramKnowledgeV2, enqueueKnowledgeAiRepairJob, getKnowledgeAiRepairJob, repairSourceWindow, aiFillReviewItemFields, isManualReviewQueueItem, runReviewFillAllStep } from '@/lib/book-knowledge-v2-scheduler'
 import { planKnowledgeItemCleanup, repairKnownOcrWords, type OcrWordRepair } from '@/lib/academic-output-quality'
 import { withTimedResponse, withTiming } from '@/lib/timing'
 
@@ -117,10 +117,7 @@ export async function GET(req: NextRequest) {
         })
         if (!rows.length) { hasMoreRows = false; break }
         cursor = rows[rows.length - 1].id
-        collected.push(...rows.filter((row) =>
-          ['REVIEW', 'DELETE_EMPTY'].includes(planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt).action) ||
-          !row.bookId || !row.chunkId || row.pageStart == null || row.pageEnd == null
-        ))
+        collected.push(...rows.filter((row) => isManualReviewQueueItem(row)))
         hasMoreRows = rows.length === 100
         if (!hasMoreRows) break
       }
@@ -439,6 +436,17 @@ export async function POST(req: NextRequest) {
       // response; closing the browser cannot interrupt the persisted job.
       const job = await enqueueKnowledgeAiRepairJob(programId)
       return NextResponse.json({ ok: true, queued: true, job }, { status: 202 })
+    }
+
+    if (action === 'ai-fill-review-all') {
+      if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
+      const program = await db.program.findUnique({ where: { id: programId }, select: { id: true } })
+      if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+      // Scoped to the manual-review queue only: fills + saves review items
+      // in place, one AI call each, within the admin's calls-per-run
+      // budget. It never enqueues the whole-bank smart-repair job.
+      const result = await runReviewFillAllStep(programId, admin)
+      return NextResponse.json(result)
     }
 
     if (action === 'sanitize' || action === 'clean') {

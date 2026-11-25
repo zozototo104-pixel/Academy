@@ -1681,6 +1681,9 @@ export function AdminBooksTab() {
     SOURCE_GARBLED: 'نص المقطع نفسه مشوّه؛ أصلح كلمات المقطع أولًا ثم كلّف الذكاء.',
     SOURCE_UNLOCATABLE: 'تعذّر تحديد موضع العنصر في نص المقطع؛ لم يتغيّر العنصر.',
     SOURCE_TOO_SHORT: 'نص المقطع أقصر من أن يُبنى عليه تصحيح؛ لم يتغيّر العنصر.',
+    SOURCE_MISSING: 'مصدر العنصر أو صفحات الكتاب مفقودة؛ يلزم استعادة المصدر قبل التكليف بالذكاء.',
+    SOURCE_UNVERIFIED: 'الكتاب أو المقطع أو نطاق الصفحات غير قابل للتحقق؛ لم يتغيّر العنصر.',
+    SAVE_CONFLICT: 'تغيّر العنصر بالتزامن؛ لم يُحفظ. أعد المحاولة.',
   }
 
   // Per-item "تكليف الذكاء": ONE AI call drafts the three fields from the
@@ -1710,27 +1713,36 @@ export function AdminBooksTab() {
     } finally { setManualReviewAiFillBusyId(null) }
   }
 
-  // "تكليف الذكاء للكل": the same background smart-repair job the
-  // «بدء التصحيح الذكي» button enqueues — no second repair engine.
-  // Each press runs ONE budgeted batch server-side, then stops; items
-  // the AI cannot prove stay in the queue. The list reloads so items
-  // the job already fixed disappear.
+  // "تكليف الذكاء للكل": scoped to the manual-review queue ONLY — it
+  // fills + saves review items in place (one AI call each, same
+  // calls-per-run budget), never the whole knowledge bank. It does NOT
+  // enqueue the background smart-repair job («بدء التصحيح الذكي» stays
+  // its own button). Each press runs one budgeted batch server-side,
+  // then stops; items the AI cannot prove stay in the queue. The list
+  // reloads so saved items disappear.
   const aiFillAllManualReview = async () => {
     if (!programId || manualReviewBulkAiBusy) return
     const targetProgramId = programId
     setManualReviewBulkAiBusy(true)
     try {
-      const result = await api<{ job: { status: string; repaired: number; needsReview: number; scanned: number } }>('/api/admin/knowledge-bank', {
+      const result = await api<{ ok: boolean; reason?: string; saved: number; stillReview: number; scanned: number; reasons: Record<string, number>; hasMore: boolean }>('/api/admin/knowledge-bank', {
         method: 'POST',
-        body: JSON.stringify({ programId: targetProgramId, action: 'repair-ai' }),
+        body: JSON.stringify({ programId: targetProgramId, action: 'ai-fill-review-all' }),
       })
       if (knowledgeRepairProgramRef.current !== targetProgramId) return
-      const job = result.job
-      toast({ title: 'تمت جدولة التصحيح الذكي للكل', description: `يعمل من الخادم دفعة دفعة دون إبقاء الصفحة مفتوحة. أُصلح ${job?.repaired || 0} عنصر حتى الآن، وبقي ${job?.needsReview || 0} بحاجة للمراجعة. كرّر الزر عندما تتوقف المهمة لدفعة تالية.` })
+      if (!result.ok) {
+        toast({ title: 'تعذّر تكليف الذكاء لقائمة المراجعة', description: aiFillReasonText[result.reason || ''] || 'لم يتغيّر أي عنصر.', variant: 'destructive' })
+        return
+      }
+      const topReason = Object.entries(result.reasons || {}).sort((a, b) => b[1] - a[1])[0]
+      toast({
+        title: 'تمت تعبئة عناصر المراجعة بالذكاء',
+        description: `حُفظ ${result.saved} عنصر من قائمة المراجعة اليدوية بعد إثباتها حرفياً، وبقي ${result.stillReview} عنصر بحاجة للمراجعة.${topReason ? ` أكثر سبب للبقاء: ${aiFillReasonText[topReason[0]] || topReason[0]} (${topReason[1]})` : ''}${result.hasMore ? ' كرّر الزر للدفعة التالية.' : ''}`,
+      })
       await loadManualReview(null)
     } catch (e: any) {
       if (knowledgeRepairProgramRef.current === targetProgramId) {
-        toast({ title: 'تعذّر جدولة التصحيح الذكي', description: e.message || 'لم تتغيّر بيانات المعرفة.', variant: 'destructive' })
+        toast({ title: 'تعذّر تكليف الذكاء لقائمة المراجعة', description: e.message || 'لم يتغيّر أي عنصر.', variant: 'destructive' })
       }
     } finally { setManualReviewBulkAiBusy(false) }
   }

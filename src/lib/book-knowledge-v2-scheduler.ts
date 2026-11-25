@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { audit } from '@/lib/notify'
 import { randomUUID } from 'node:crypto'
 import { cleanAcademicOutput, planKnowledgeItemCleanup, validateGroundedKnowledgeRepair, looksLikeBrokenBookPageText, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
 import { looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt } from '@/lib/knowledge-bank'
@@ -615,6 +616,41 @@ export async function readKnowledgeRepairModelChoice(): Promise<{
   return { models, source, config }
 }
 
+// Manual-review queue membership — the SAME rule the GET review=1 list
+// in src/app/api/admin/knowledge-bank/route.ts uses: the cleanup plan
+// still wants REVIEW or DELETE_EMPTY, or the item's source link is
+// missing. The bulk «تكليف الذكاء للكل» button walks ONLY these rows;
+// healthy items (KEEP/UPDATE) are never touched by it. Keep this
+// predicate identical in both places; the route imports it.
+export function isManualReviewQueueItem(row: {
+  title: string; summary: string; excerpt?: string | null
+  bookId?: string | null; chunkId?: string | null
+  pageStart?: number | null; pageEnd?: number | null
+}): boolean {
+  return ['REVIEW', 'DELETE_EMPTY'].includes(
+    planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt).action,
+  ) || !row.bookId || !row.chunkId || row.pageStart == null || row.pageEnd == null
+}
+
+export type ReviewFillAllReason =
+  | ReviewFillReason
+  | 'SOURCE_MISSING'
+  | 'SOURCE_UNVERIFIED'
+  | 'SOURCE_GARBLED'
+  | 'SOURCE_UNLOCATABLE'
+  | 'SOURCE_TOO_SHORT'
+  | 'SAVE_CONFLICT'
+
+export type ReviewFillAllResult =
+  | {
+      ok: true; saved: number; stillReview: number; scanned: number
+      reasons: Record<string, number>; hasMore: boolean; savedIds: string[]
+    }
+  | {
+      ok: false; reason: 'AI_UNAVAILABLE'; saved: 0; stillReview: 0; scanned: 0
+      reasons: Record<string, number>; hasMore: false; savedIds: []
+    }
+
 // Per-item review fill ("تكليف الذكاء"): the acceptance rule for an AI
 // draft of the three review fields. It is the manual-save rule itself —
 // lengths (title 6–220, summary 20–1800, excerpt 20–1500), garble-free
@@ -714,6 +750,120 @@ export async function aiFillReviewItemFields(
   let parsed: unknown
   try { parsed = JSON.parse(result) } catch { return { ok: false, reason: 'INVALID_JSON' } }
   return validateReviewFillFields(parsed, args.chunkText)
+}
+
+// Bulk review fill ("تكليف الذكاء للكل", POST ai-fill-review-all):
+// fills + saves ONLY items already in the manual-review queue — never
+// the whole knowledge bank. Each press takes the first review items by
+// id (no persisted cursor: saved items leave the queue, so the next
+// press continues from the next ones). The budget is the same 1–10
+// «محاولات الذكاء في كل تشغيل خلفي» setting as the background job, but
+// it counts AI calls only: items skipped without an AI call (missing
+// source, garbled source) do not consume budget, so a garbled item at
+// the head of the queue can never block the rest forever. Per item the
+// checks mirror the per-item fill and the manual save: chunk ANALYZED
+// + page range, repairSourceWindow (no AI call on a bad source), ONE AI
+// call via aiFillReviewItemFields, then the manual-save check re-run
+// against the freshly re-read chunk (verbatim excerpt) + CAS on
+// updatedAt + the same audit. It NEVER enqueues or runs the background
+// smart-repair job and NEVER touches the book-repair job.
+export async function runReviewFillAllStep(
+  programId: string,
+  admin: { id?: string | null; name: string } | null,
+  overrides: Pick<KnowledgeAiRepairOverrides, 'completeJson'> = {},
+): Promise<ReviewFillAllResult> {
+  const { source: repairModelSource, config } = await readKnowledgeRepairModelChoice()
+  if (repairModelSource === 'none') {
+    return { ok: false, reason: 'AI_UNAVAILABLE', saved: 0, stillReview: 0, scanned: 0, reasons: {}, hasMore: false, savedIds: [] }
+  }
+  const requestedCalls = Number(config.AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN || 1)
+  const maxCalls = Number.isFinite(requestedCalls) ? Math.max(1, Math.min(10, Math.floor(requestedCalls))) : 1
+
+  const reasons: Record<string, number> = {}
+  const count = (reason: ReviewFillAllReason) => { reasons[reason] = (reasons[reason] || 0) + 1 }
+  let saved = 0
+  let scanned = 0
+  let aiCalls = 0
+  let endOfTable = false
+  let hasMore = false
+  const savedIds: string[] = []
+  let cursor: string | undefined
+
+  while (aiCalls < maxCalls && !endOfTable) {
+    const rows = await db.bookKnowledgeItem.findMany({
+      where: { programId, ...(cursor ? { id: { gt: cursor } } : {}) },
+      orderBy: { id: 'asc' }, take: 100,
+    })
+    if (rows.length < 100) endOfTable = true
+    if (!rows.length) break
+    cursor = rows[rows.length - 1].id
+    for (let i = 0; i < rows.length; i++) {
+      // Budget exhausted mid-window: rows after i are still unexamined.
+      if (aiCalls >= maxCalls) { hasMore = true; break }
+      const item = rows[i]
+      if (!isManualReviewQueueItem(item)) continue
+      scanned++
+      if (!item.bookId || !item.chunkId || item.pageStart == null || item.pageEnd == null) {
+        count('SOURCE_MISSING')
+        continue
+      }
+      const chunk = await db.bookChunk.findFirst({
+        where: { id: item.chunkId, programId, bookId: item.bookId },
+        select: { id: true, status: true, text: true, pageStart: true, pageEnd: true },
+      })
+      if (!chunk || chunk.status !== 'ANALYZED' || !chunk.text ||
+          item.pageStart < chunk.pageStart || item.pageEnd > chunk.pageEnd || item.pageStart > item.pageEnd) {
+        count('SOURCE_UNVERIFIED')
+        continue
+      }
+      const window = repairSourceWindow(chunk.text, { title: item.title, summary: item.summary ?? '', excerpt: item.excerpt })
+      if (window.status !== 'OK') {
+        count(window.status === 'GARBLED' ? 'SOURCE_GARBLED' : window.status === 'UNLOCATABLE' ? 'SOURCE_UNLOCATABLE' : 'SOURCE_TOO_SHORT')
+        continue
+      }
+      aiCalls++
+      const filled = await aiFillReviewItemFields({
+        item: { title: item.title, summary: item.summary ?? '', excerpt: item.excerpt },
+        chunkText: chunk.text, evidence: window.evidence,
+      }, { completeJson: overrides.completeJson })
+      if (!filled.ok) {
+        count(filled.reason)
+        continue
+      }
+      // Re-run the manual-save check against freshly re-read rows: the
+      // chunk may have changed while the model was thinking.
+      const freshItem = await db.bookKnowledgeItem.findFirst({ where: { id: item.id, programId } })
+      const freshChunk = await db.bookChunk.findFirst({
+        where: { id: item.chunkId, programId, bookId: item.bookId },
+        select: { id: true, status: true, text: true, pageStart: true, pageEnd: true },
+      })
+      if (!freshItem || !freshChunk || freshChunk.status !== 'ANALYZED' || !freshChunk.text ||
+          item.pageStart < freshChunk.pageStart || item.pageEnd > freshChunk.pageEnd || item.pageStart > item.pageEnd) {
+        count(!freshItem ? 'SAVE_CONFLICT' : 'SOURCE_UNVERIFIED')
+        continue
+      }
+      const checked = validateReviewFillFields(filled.fields, freshChunk.text)
+      if (!checked.ok) {
+        count(checked.reason)
+        continue
+      }
+      const updated = await db.bookKnowledgeItem.updateMany({
+        where: { id: item.id, programId, updatedAt: freshItem.updatedAt },
+        data: { title: checked.fields.title, summary: checked.fields.summary, excerpt: checked.fields.excerpt },
+      })
+      if (updated.count !== 1) {
+        count('SAVE_CONFLICT')
+        continue
+      }
+      await audit(admin, 'MANUAL_REVIEW_KNOWLEDGE_ITEM', 'BookKnowledgeItem', item.id,
+        'تعبئة بالذكاء لقائمة المراجعة اليدوية وحفظ بعد إثبات حرفي للمقتطف في مقطع الكتاب، دون تغيير المعرّف أو المراجع')
+      saved++
+      savedIds.push(item.id)
+    }
+    // Budget exhausted exactly on a full window: more windows may exist.
+    if (aiCalls >= maxCalls && rows.length === 100) hasMore = true
+  }
+  return { ok: true, saved, stillReview: scanned - saved, scanned, reasons, hasMore, savedIds }
 }
 
 // Called by a server-side cron only. One AI candidate at most per tick;

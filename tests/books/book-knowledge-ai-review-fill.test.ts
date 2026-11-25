@@ -2,9 +2,12 @@
 //
 // Per-item fill: one AI call drafts the three fields from the item's own
 // chunk evidence; it must NEVER save — the helper has no DB write path.
-// The bulk button reuses the background smart-repair job, so the budget
-// test below runs the real step: at most N AI calls per press, the rest
-// stay queued. Real scheduler code against an in-memory fake DB.
+// The bulk button is SCOPED to the manual-review queue (owner's law,
+// 2026-11-25): it fills + saves review items only, one AI call each,
+// and never enqueues the whole-bank smart-repair job — its budget and
+// scope tests live in book-knowledge-ai-review-fill-all.test.ts. The
+// background-job tests below guard the untouched «بدء التصحيح الذكي»
+// job itself. Real scheduler code against an in-memory fake DB.
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
@@ -295,7 +298,7 @@ describe('validateReviewFillFields (the manual-save rule)', () => {
   })
 })
 
-describe('bulk "تكليف الذكاء للكل" reuses the budgeted background job', () => {
+describe('background smart-repair job ("بدء التصحيح الذكي", untouched by the review bulk button)', () => {
   test('one press runs at most the configured calls and leaves the rest queued', async () => {
     seedConfig('AUTO', '', '2', '0')
     items = [makeItem('item-1'), makeItem('item-2'), makeItem('item-3'), makeItem('item-4'), makeItem('item-5')]
@@ -357,15 +360,25 @@ describe('review AI buttons wiring (source pins)', () => {
     expect(ADMIN_BOOKS).toContain('لم يُحفظ أي تعديل بعد')
   })
 
-  test('the review header offers one general button reusing the smart-repair job', () => {
+  test('the review header offers one general button scoped to the review queue, never the smart-repair job', () => {
     expect(ADMIN_BOOKS).toContain('تكليف الذكاء للكل')
     expect(ADMIN_BOOKS).toContain('const aiFillAllManualReview')
-    expect(ADMIN_BOOKS).toContain("action: 'repair-ai'")
+    const bulkHandler = ADMIN_BOOKS.split('const aiFillAllManualReview')[1]?.split('const previewChunkRepair')[0] || ''
+    expect(bulkHandler).toContain("action: 'ai-fill-review-all'")
+    expect(bulkHandler).not.toContain("action: 'repair-ai'")
+    expect(bulkHandler).not.toContain('تمت جدولة التصحيح الذكي')
   })
 
   test('the route serves the fill action and never saves from it', () => {
     expect(ROUTE).toContain("body.action === 'ai-fill-review'")
     expect(ROUTE).toContain('aiFillReviewItemFields')
     expect(ROUTE).toContain('repairSourceWindow')
+  })
+
+  test('the route serves the scoped bulk fill and leaves the smart-repair enqueue untouched', () => {
+    expect(ROUTE).toContain("action === 'ai-fill-review-all'")
+    expect(ROUTE).toContain('runReviewFillAllStep')
+    expect(ROUTE).toContain("action === 'repair-ai'")
+    expect(ROUTE).toContain('enqueueKnowledgeAiRepairJob')
   })
 })
