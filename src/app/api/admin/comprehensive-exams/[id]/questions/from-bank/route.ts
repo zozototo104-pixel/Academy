@@ -23,9 +23,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: 'لا يمكن إضافة أسئلة لامتحان منشور — ألغِ نشره أولاً' }, { status: 409 })
     }
     const body = await req.json()
-    const bankItemIds: string[] = Array.isArray(body?.bankItemIds)
-      ? [...new Set(body.bankItemIds.map((x: unknown) => String(x || '').trim()).filter(Boolean))].slice(0, 100)
+    const rawIds: string[] = Array.isArray(body?.bankItemIds)
+      ? body.bankItemIds.map((x: unknown) => String(x || '').trim()).filter(Boolean)
       : []
+    // NOTE: do NOT inline `[...new Set(chain)]` here — `body` comes from
+    // req.json() (any), and `new Set` over an `any` chain infers
+    // Set<unknown> (TS 5.9: `any` gives the generic constructor no
+    // inference site for T), which fails the string[] check. Typing the
+    // intermediate first pins the element type.
+    const bankItemIds: string[] = [...new Set(rawIds)].slice(0, 100)
     if (!bankItemIds.length) return NextResponse.json({ error: 'اختر سؤالاً واحداً على الأقل من بنك الأسئلة' }, { status: 400 })
     const bankItems = await db.questionBankItem.findMany({
       where: { id: { in: bankItemIds }, programId: exam.programId, status: 'APPROVED' },
