@@ -48,6 +48,7 @@ const loadAdminRepresentativesModule = () => import('@/components/aact/AdminRepr
 const loadAdminGradingReviewModule = () => import('@/components/aact/AdminGradingReviewTab')
 const loadAdminStudyScheduleModule = () => import('@/components/aact/AdminStudyScheduleTab')
 const loadAdminLegacyGraduatesModule = () => import('@/components/aact/AdminLegacyGraduatesTab')
+const loadAdminComprehensiveExamModule = () => import('@/components/aact/AdminComprehensiveExamTab')
 const loadAdminAnnouncementsModule = () => import('@/components/aact/AdminAnnouncementsTab')
 
 const AdminThesisTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminThesisTab), { ssr: false, loading: AdminTabLoader })
@@ -73,6 +74,7 @@ const AdminReopenAppeals = dynamic(() => import('@/components/aact/AdminReopenAp
 const AdminMercyQueue = dynamic(() => import('@/components/aact/AdminMercy').then((m) => m.AdminMercyQueue), { ssr: false, loading: AdminTabLoader })
 const AdminStudyScheduleTab = dynamic(() => loadAdminStudyScheduleModule(), { ssr: false, loading: AdminTabLoader })
 const AdminLegacyGraduatesTab = dynamic(() => loadAdminLegacyGraduatesModule(), { ssr: false, loading: AdminTabLoader })
+const AdminComprehensiveExamTab = dynamic(() => loadAdminComprehensiveExamModule().then((m) => m.AdminComprehensiveExamTab), { ssr: false, loading: AdminTabLoader })
 const AdminAnnouncementsTab = dynamic(() => loadAdminAnnouncementsModule().then((m) => m.AdminAnnouncementsTab), { ssr: false, loading: AdminTabLoader })
 const AdminLectures = dynamic(() => import('@/components/aact/AdminLectures').then((m) => m.AdminLectures), { ssr: false, loading: AdminTabLoader })
 const AdminMeetings = dynamic(() => import('@/components/aact/AdminMeetings').then((m) => m.AdminMeetings), { ssr: false, loading: AdminTabLoader })
@@ -488,7 +490,7 @@ export function AdminView() {
     const allowed = new Set([
       'admissions', 'service-requests', 'rules', 'students', 'supervisors', 'agents',
       'representatives', 'books', 'knowledge-ai-repair', 'study-schedule', 'quality', 'attempts',
-      'grading-review', 'thesis', 'ai', 'finance', 'certs', 'legacy-graduates',
+      'grading-review', 'thesis', 'ai', 'comprehensive-exams', 'finance', 'certs', 'legacy-graduates',
       'system', 'announcements', 'lectures', 'meetings', 'ai-stage-profiles', 'ai-monitoring',
       'settings', 'admins', 'audit', 'messages', 'admin-messages',
       'student-follow-up', 'whatsapp-inbox',
@@ -2041,6 +2043,7 @@ export function AdminView() {
               <TabsTrigger value="grading-review" className="gap-1 text-[10px] font-bold sm:text-xs">مراجعة التصحيح</TabsTrigger>
               <TabsTrigger value="thesis" className="gap-1 text-[10px] font-bold sm:text-xs">أبحاث التخرج والمناقشات</TabsTrigger>
               <TabsTrigger value="ai" className="gap-1 text-[10px] font-bold sm:text-xs">سجل المشرف الذكي</TabsTrigger>
+              <TabsTrigger value="comprehensive-exams" className="gap-1 text-[10px] font-bold sm:text-xs">تجهيز امتحان شامل</TabsTrigger>
             </TabsList>
           </div>
           <div className="border-t border-dashed border-slate-100 pt-2.5">
@@ -2704,6 +2707,11 @@ export function AdminView() {
         {/* الخريجون السابقون */}
         <TabsContent value="legacy-graduates">
           <AdminLegacyGraduatesTab />
+        </TabsContent>
+
+        {/* تجهيز امتحان شامل للخريجين الخارجيين */}
+        <TabsContent value="comprehensive-exams">
+          <AdminComprehensiveExamTab />
         </TabsContent>
 
         {/* الرسوم والإعدادات */}

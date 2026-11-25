@@ -395,6 +395,7 @@ model Program {
   studyGuides ProgramStudyGuide[]
   assignments ProgramAssignment[]
   programExams ProgramExam[]
+  comprehensiveExams ComprehensiveExam[]
   studyScheduleItems StudyScheduleItem[]
   lectureSeries LectureSeries[]
   lectureVideos LectureVideoResource[]
@@ -3037,4 +3038,51 @@ model ScholarshipWaitlistEntry {
 
   @@unique([definitionId, userId])
   @@index([definitionId, status, createdAt])
+}
+
+model ComprehensiveExam {
+  id            String   @id @default(cuid())
+  programId     String
+  program       Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  level         String   // لقطة من Program.category وقت الإنشاء: DIPLOMA | MASTERS | DOCTORATE | ACCREDITATION
+  title         String   // «امتحان شامل — <عنوان البرنامج>»
+  status        String   @default("DRAFT") // DRAFT | READY | ARCHIVED
+  passScore     Int      @default(60) // 1..100
+  durationMin   Int      @default(120) // 10..480 دقيقة
+  totalPoints   Int      @default(0) // نقطتان لكل سؤال معتمد
+  publishedAt   DateTime?
+  publishedById String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  questions ComprehensiveExamQuestion[]
+
+  @@unique([programId, status]) // امتحان حي واحد (مسودة أو منشور) لكل برنامج
+  @@index([programId])
+}
+
+model ComprehensiveExamQuestion {
+  id             String   @id @default(cuid())
+  examId         String
+  exam           ComprehensiveExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  order          Int
+  type           String   // MCQ | TF فقط — لا مقالي في أي طبقة
+  text           String
+  options        String?  // JSON: MCQ من 3 إلى 4 خيارات؛ TF ثابت ["صح","خطأ"]
+  correctAnswer  String?  // رقم الخيار "0".."3"؛ TF: "0"=صح، "1"=خطأ
+  source         String   // BANK | MANUAL | EXCEL_IMPORT | DOC_IMPORT | AI_INTERNET
+  sourceBookId   String?
+  sourceEvidence String?  // الدليل الحرفي من الكتاب إن وجد
+  bankItemId     String?  // أصل بنك الأسئلة إن كان المصدر BANK
+  status         String   @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | REJECTED
+  rejectedReason String?
+  approvedById   String?
+  approvedAt     DateTime?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([examId, order])
+  @@index([examId, status])
 }
