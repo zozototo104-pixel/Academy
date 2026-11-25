@@ -1,6 +1,7 @@
 'use client'
 
 import { api } from '@/lib/store'
+import { runBookRepairScanFlow } from '@/lib/book-repair-scan-flow'
 import { aiProgressLabel, aiProgressPercent, arabicAiStatusMessage } from '@/lib/ai-error-messages'
 import { buildAcademicProgramProfile } from '@/lib/program-tracks'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic, sanitizeAcademicList, sanitizeAcademicLabelList, conciseAcademicLabel } from '@/lib/academic-output-quality'
@@ -772,6 +773,11 @@ export function AdminBooksTab() {
   const [knowledgeTotalCount, setKnowledgeTotalCount] = useState(0)
   const [bookReadJobs, setBookReadJobs] = useState<Record<string, BookReadJobRow>>({})
   const [bookRepairJobs, setBookRepairJobs] = useState<Record<string, BookRepairJobRow | null>>({})
+  // Complete-mode repair loop: the stop flag is read by the driver on every
+  // step, and the running id keeps the STOP button enabled while the loop
+  // holds the busy flag (see scanBookDistortion / controlBookRepairJob).
+  const bookRepairCompleteStopRef = useRef<Record<string, boolean>>({})
+  const [bookRepairCompleteRunningId, setBookRepairCompleteRunningId] = useState<string | null>(null)
   const [bookEnrichment, setBookEnrichment] = useState<Record<string, {
     totalChunks: number; saturatedChunks: number; addedItems: number
     capacitySaturatedChunks?: number; exhaustedChunks?: number
@@ -873,8 +879,9 @@ export function AdminBooksTab() {
   const [gradingDialog, setGradingDialog] = useState<null | { mode: 'GRADE' | 'REVISION'; submission: AssignmentSubmissionRow; assignment: AssignmentRow; score: string; feedback: string }>(null)
   const [gradingAiDraft, setGradingAiDraft] = useState<any | null>(null)
   const [gradingAiAnalyzing, setGradingAiAnalyzing] = useState(false)
-  const [confirmDialog, setConfirmDialog] = useState<null | { title: string; description: string; confirmLabel?: string; danger?: boolean }>(null)
+  const [confirmDialog, setConfirmDialog] = useState<null | { title: string; description: string; confirmLabel?: string; secondaryLabel?: string; danger?: boolean }>(null)
   const confirmResolveRef = useRef<((ok: boolean) => void) | null>(null)
+  const choiceResolveRef = useRef<((value: 'primary' | 'secondary' | null) => void) | null>(null)
   const [cognitiveOverrideDialog, setCognitiveOverrideDialog] = useState<null | { title: string; message: string; details: string[]; reason: string }>(null)
   const cognitiveOverrideResolveRef = useRef<((reason: string | null) => void) | null>(null)
   const [rebuildingKnowledge, setRebuildingKnowledge] = useState(false)
@@ -949,6 +956,23 @@ export function AdminBooksTab() {
   const closeAdminConfirm = (ok: boolean) => {
     confirmResolveRef.current?.(ok)
     confirmResolveRef.current = null
+    setConfirmDialog(null)
+  }
+
+  // Same promise pattern as askAdminConfirm, with a second action button:
+  // 'primary' = the dark confirm button, 'secondary' = the outline second
+  // button, null = cancelled (إلغاء, X or escape). Used only by the repair
+  // button; every other askAdminConfirm call site is unaffected.
+  const askAdminChoice = useCallback((dialog: { title: string; description: string; confirmLabel?: string; secondaryLabel?: string; danger?: boolean }) => {
+    return new Promise<'primary' | 'secondary' | null>((resolve) => {
+      choiceResolveRef.current = resolve
+      setConfirmDialog(dialog)
+    })
+  }, [])
+
+  const closeAdminChoice = (value: 'primary' | 'secondary' | null) => {
+    choiceResolveRef.current?.(value)
+    choiceResolveRef.current = null
     setConfirmDialog(null)
   }
 
@@ -2841,27 +2865,75 @@ export function AdminBooksTab() {
   // book — nothing here names a book. Runs as a background job in bounded
   // steps; press again while work remains to continue from last progress.
   const scanBookDistortion = async (bookId: string) => {
-    const ok = await askAdminConfirm({
+    const choice = await askAdminChoice({
       title: 'فحص وإصلاح تشوهات الكتاب',
-      description: 'يفحص النظام كل مقاطع الكتاب وعناصره، ويعيد قراءة الصفحات المشوهة فقط من ملف PDF الأصلي عبر OCR، ويصحح العناصر المشوهة في مكانها دون حذف أي عنصر أو تغيير أي معرّف. العناصر التي لا يمكن إثبات تصحيحها من النص الأصلي تُرسل للمراجعة.',
-      confirmLabel: 'بدء الفحص والإصلاح',
+      description: '«إكمال المهمة كاملة» يتابع النظام وحده خطوة بعد خطوة حتى ينتهي الكتاب كله، ويمكنك إيقافه في أي وقت من زر «إيقاف فحص الإصلاح» دون أن يضيع التقدم. «أربعة أربعة» يصلح دفعة واحدة فقط (4 مقاطع) وتضغط الزر مجدداً لكل دفعة تالية.',
+      confirmLabel: 'إكمال المهمة كاملة',
+      secondaryLabel: 'أربعة أربعة',
     })
-    if (!ok) return
+    if (!choice) return
+    if (choice === 'secondary') {
+      // Four-by-four: one bounded step, today's behaviour verbatim.
+      setBookReadBusyId(bookId)
+      try {
+        const response = await api<{ job: BookRepairJobRow; counters: { chunksCorrected: number; chunksNeedsReview: number; chunksRemaining: number; itemsCorrected: number; itemsNeedsReview: number; itemsRemaining: number }; done: boolean; processedChunks: number }>(`/api/admin/books/${bookId}/repair-corrupt-pages`, { method: 'POST', body: JSON.stringify({ mode: 'SCAN' }) })
+        setBookRepairJobs((previous) => ({ ...previous, [bookId]: response.job }))
+        const c = response.counters
+        toast({
+          title: response.done ? 'اكتمل فحص وإصلاح تشوهات الكتاب' : 'فحص وإصلاح التشوهات — بقي عمل',
+          description: `مقاطع مصلحة ${c.chunksCorrected} · تحتاج مراجعة ${c.chunksNeedsReview} · متبقية ${c.chunksRemaining} · عناصر مصلحة ${c.itemsCorrected} · تحتاج مراجعة ${c.itemsNeedsReview}${response.done ? '' : ' — اضغط الزر مجدداً للمتابعة من حيث توقف.'}`,
+        })
+      } catch (error: any) {
+        toast({ title: 'تعذر فحص وإصلاح التشوهات', description: String(error?.message || error), variant: 'destructive' })
+      } finally { setBookReadBusyId(null) }
+      return
+    }
+    // Complete mode: the driver keeps stepping until the server says done.
+    // The loop ends on the server's `done` (including via the Task-1
+    // reconciliation), on STOP, on a read-job conflict (409), or on error.
+    bookRepairCompleteStopRef.current[bookId] = false
+    setBookRepairCompleteRunningId(bookId)
     setBookReadBusyId(bookId)
+    const liveToast = toast({ title: 'جارٍ إكمال فحص وإصلاح التشوهات', description: 'بدأ الإكمال التلقائي — تُحدَّث الأرقام بعد كل دفعة.' })
     try {
-      const response = await api<{ job: BookRepairJobRow; counters: { chunksCorrected: number; chunksNeedsReview: number; chunksRemaining: number; itemsCorrected: number; itemsNeedsReview: number; itemsRemaining: number }; done: boolean; processedChunks: number }>(`/api/admin/books/${bookId}/repair-corrupt-pages`, { method: 'POST', body: JSON.stringify({ mode: 'SCAN' }) })
-      setBookRepairJobs((previous) => ({ ...previous, [bookId]: response.job }))
-      const c = response.counters
-      toast({
-        title: response.done ? 'اكتمل فحص وإصلاح تشوهات الكتاب' : 'فحص وإصلاح التشوهات — بقي عمل',
-        description: `مقاطع مصلحة ${c.chunksCorrected} · تحتاج مراجعة ${c.chunksNeedsReview} · متبقية ${c.chunksRemaining} · عناصر مصلحة ${c.itemsCorrected} · تحتاج مراجعة ${c.itemsNeedsReview}${response.done ? '' : ' — اضغط الزر مجدداً للمتابعة من حيث توقف.'}`,
+      const outcome = await runBookRepairScanFlow({
+        mode: 'complete',
+        bookId,
+        shouldStop: () => bookRepairCompleteStopRef.current[bookId] === true,
+        onStep: (step) => {
+          setBookRepairJobs((prev) => ({ ...prev, [bookId]: step.job as BookRepairJobRow }))
+          const c = step.counters
+          liveToast.update({ title: 'جارٍ إكمال فحص وإصلاح التشوهات', description: `مقاطع مصلحة ${c.chunksCorrected} · تحتاج مراجعة ${c.chunksNeedsReview} · متبقية ${c.chunksRemaining} · عناصر مصلحة ${c.itemsCorrected} · تحتاج مراجعة ${c.itemsNeedsReview}` })
+        },
+        reassertStop: () => api(`/api/admin/books/${bookId}/repair-corrupt-pages`, { method: 'POST', body: JSON.stringify({ action: 'STOP' }) }),
       })
-    } catch (error: any) {
-      toast({ title: 'تعذر فحص وإصلاح التشوهات', description: String(error?.message || error), variant: 'destructive' })
-    } finally { setBookReadBusyId(null) }
+      if (outcome.outcome === 'done') {
+        const c = outcome.lastStep!.counters
+        liveToast.update({ title: 'اكتمل فحص وإصلاح تشوهات الكتاب', description: `مقاطع مصلحة ${c.chunksCorrected} · تحتاج مراجعة ${c.chunksNeedsReview} · متبقية ${c.chunksRemaining} · عناصر مصلحة ${c.itemsCorrected} · تحتاج مراجعة ${c.itemsNeedsReview}` })
+      } else if (outcome.outcome === 'error') {
+        liveToast.dismiss()
+        toast({ title: 'تعذر فحص وإصلاح التشوهات', description: String((outcome.error as any)?.message || outcome.error), variant: 'destructive' })
+      } else if (outcome.outcome === 'stopped') {
+        // STOP already toasted by controlBookRepairJob; refresh the row so the
+        // card shows the server truth (PAUSED), not a stale RUNNING snapshot.
+        liveToast.dismiss()
+        await fetchBookRepairJob(bookId).catch(() => {})
+      } else {
+        // 'conflict': a read job owns the book now — stop quietly, same as the
+        // existing RESUME handling in advanceBookReadJob.
+        liveToast.dismiss()
+      }
+    } finally {
+      setBookRepairCompleteRunningId(null)
+      setBookReadBusyId(null)
+    }
   }
 
   const controlBookRepairJob = async (bookId: string, action: 'STOP' | 'RESUME') => {
+    // A STOP during a complete-mode loop must also halt the driver, which
+    // reads this flag before every step (its finally re-asserts STOP after
+    // a mid-step status overwrite, so PAUSED stays durable).
+    if (action === 'STOP') bookRepairCompleteStopRef.current[bookId] = true
     setBookReadBusyId(bookId)
     try {
       const response = await api<{ job: BookRepairJobRow }>(`/api/admin/books/${bookId}/repair-corrupt-pages`, { method: 'POST', body: JSON.stringify({ action }) })
@@ -2869,7 +2941,7 @@ export function AdminBooksTab() {
       toast({ title: action === 'STOP' ? 'تم إيقاف فحص الإصلاح' : 'تم استكمال فحص الإصلاح', description: action === 'STOP' ? 'التقدم محفوظ؛ يمكنك الاستكمال لاحقاً من حيث توقف.' : 'اضغط «فحص وإصلاح تشوهات الكتاب» للمتابعة.' })
     } catch (error: any) {
       toast({ title: action === 'STOP' ? 'تعذر إيقاف فحص الإصلاح' : 'تعذر استكمال فحص الإصلاح', description: String(error?.message || error), variant: 'destructive' })
-    } finally { setBookReadBusyId(null) }
+    } finally { if (bookRepairCompleteRunningId !== bookId) setBookReadBusyId(null) }
   }
 
   const controlBookReadJob = async (bookId: string, action: 'STOP' | 'RESUME') => {
@@ -3826,7 +3898,7 @@ export function AdminBooksTab() {
                               {countForBook > 0 && <Button size="sm" variant="outline" onClick={() => startBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || unfinishedRead || isEnriching || (bookEnrichment[b.id]?.totalChunks > 0 && (bookEnrichment[b.id]?.capacitySaturatedChunks ?? 0) >= (bookEnrichment[b.id]?.totalChunks ?? Infinity))} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">{activeJob?.phase === 'ENRICH' && activeJob.status === 'PAUSED' ? 'الإثراء متوقف — اضغط استكمال' : bookReadBusyId === b.id || isEnriching ? 'جارٍ استخراج المزيد...' : 'استخراج المزيد'}</Button>}
                               {countForBook > 0 && (bookEnrichment[b.id]?.totalChunks ?? 0) > 0 && (bookEnrichment[b.id]?.capacitySaturatedChunks ?? 0) >= (bookEnrichment[b.id]?.totalChunks ?? Infinity) && (bookEnrichment[b.id]?.enrichmentTarget ?? activeJob?.enrichmentTarget ?? 10) === 10 && <Button size="sm" variant="outline" onClick={() => startExtraBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || unfinishedRead || isEnriching} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">إثراء إضافي حتى 20 عنصراً لكل مقطع</Button>}
                               {(bookEnrichment[b.id]?.enrichmentTarget ?? activeJob?.enrichmentTarget ?? 10) === 20 && <p className="self-center text-[10px] font-bold text-slate-500">الهدف الحالي للإثراء: 20 عنصراً لكل مقطع</p>}
-                              <Button size="sm" variant="outline" onClick={() => scanBookDistortion(b.id)} disabled={bookReadBusyId === b.id || unfinishedRead || (isEnriching && !stoppedEnrichmentReleased)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">فحص وإصلاح تشوهات الكتاب</Button>
+                              <Button size="sm" variant="outline" onClick={() => scanBookDistortion(b.id)} disabled={bookReadBusyId === b.id || bookRepairCompleteRunningId === b.id || unfinishedRead || (isEnriching && !stoppedEnrichmentReleased)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">فحص وإصلاح تشوهات الكتاب</Button>
                             </div>
                           </div>
                           {bookOutlines[b.id] && (() => {
@@ -3924,7 +3996,7 @@ export function AdminBooksTab() {
                                   <p>المقاطع: سليم {repair.chunksHealthy} · مصلح {repair.chunksCorrected} · متبقٍ {repair.chunksRemaining} · يحتاج مراجعة {repair.chunksNeedsReview} من {repair.chunksTotal}</p>
                                   <p>العناصر: سليم {repair.itemsHealthy} · مصلح {repair.itemsCorrected} · متبقٍ {repair.itemsRemaining} · يحتاج مراجعة {repair.itemsNeedsReview} من {repair.itemsTotal}</p>
                                   {repairActive && <div className="flex flex-wrap gap-2">
-                                    {repair.status !== 'PAUSED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => void controlBookRepairJob(b.id, 'STOP')}>إيقاف فحص الإصلاح</Button>}
+                                    {repair.status !== 'PAUSED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id && bookRepairCompleteRunningId !== b.id} onClick={() => void controlBookRepairJob(b.id, 'STOP')}>إيقاف فحص الإصلاح</Button>}
                                     {repair.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => void controlBookRepairJob(b.id, 'RESUME')}>استكمال فحص الإصلاح</Button>}
                                   </div>}
                                 </div>
@@ -5686,7 +5758,7 @@ export function AdminBooksTab() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) closeAdminConfirm(false) }}>
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) { if (confirmDialog?.secondaryLabel) closeAdminChoice(null); else closeAdminConfirm(false) } }}>
         <DialogContent className="max-w-lg rounded-3xl" dir="rtl">
           {confirmDialog && (
             <div className="space-y-4">
@@ -5700,8 +5772,9 @@ export function AdminBooksTab() {
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-2 sm:flex-row">
-                <Button variant="outline" onClick={() => closeAdminConfirm(false)} className="flex-1 rounded-2xl font-black">إلغاء</Button>
-                <Button onClick={() => closeAdminConfirm(true)} className={confirmDialog.danger ? 'flex-1 rounded-2xl bg-red-600 font-black text-white hover:bg-red-700' : 'flex-1 rounded-2xl bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]'}>
+                <Button variant="outline" onClick={() => { if (confirmDialog.secondaryLabel) closeAdminChoice(null); else closeAdminConfirm(false) }} className="flex-1 rounded-2xl font-black">إلغاء</Button>
+                {confirmDialog.secondaryLabel && <Button variant="outline" onClick={() => closeAdminChoice('secondary')} className="flex-1 rounded-2xl font-black">{confirmDialog.secondaryLabel}</Button>}
+                <Button onClick={() => { if (confirmDialog.secondaryLabel) closeAdminChoice('primary'); else closeAdminConfirm(true) }} className={confirmDialog.danger ? 'flex-1 rounded-2xl bg-red-600 font-black text-white hover:bg-red-700' : 'flex-1 rounded-2xl bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]'}>
                   {confirmDialog.confirmLabel || 'متابعة'}
                 </Button>
               </div>

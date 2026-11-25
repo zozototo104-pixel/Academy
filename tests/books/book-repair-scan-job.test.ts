@@ -368,4 +368,136 @@ describe('book-wide selective repair (SCAN)', () => {
     expect(body.job.itemsCorrected).toBe(1)
     expect(body.job.itemsNeedsReview).toBe(0)
   })
+
+  test('reconciles stale remaining ids the fresh scan no longer flags and completes', async () => {
+    // Live stall of 2026-11-25: the job list says chunk-1 is still
+    // distorted, but its text is clean now (fixed by another path), so
+    // the fresh scan no longer flags it. The old code would batch
+    // nothing, leave remaining at 1 and never finish; the reconciled
+    // step resolves the stale id (healthy, NOT "corrected") and completes.
+    chunks[0].text = cleanOcr
+    repairJobs.push({
+      id: 'repair-1', bookId: 'book-1', programId: 'program-1', status: 'QUEUED', mode: 'SCAN',
+      chunksTotal: 3, chunksHealthy: 1, chunksCorrected: 0, chunksRemaining: 2, chunksNeedsReview: 0,
+      itemsTotal: 3, itemsHealthy: 1, itemsCorrected: 0, itemsRemaining: 2, itemsNeedsReview: 0,
+      progress: JSON.stringify({
+        distortedChunkIds: ['chunk-1', 'chunk-3'], distortedItemIds: ['item-1', 'item-2'],
+        repairedChunkIds: [], reviewChunkIds: [],
+        correctedItemIds: [], reviewItemIds: [],
+      }),
+      lastError: null, startedAt: new Date(), finishedAt: null, createdAt: new Date('2026-11-24T09:00:00Z'),
+    })
+    const response = await postRepair({ mode: 'SCAN' })
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.done).toBe(true)
+    expect(body.noProgress).toBe(false)
+    expect(body.processedChunks).toBe(1)
+    // Chunk-1 was never re-read: its pages stay out of the OCR calls.
+    expect(ocrCalls).not.toContain(5)
+    expect(ocrCalls).not.toContain(6)
+    expect(ocrCalls).toContain(8)
+    expect(ocrCalls).toContain(9)
+    expect(body.counters).toMatchObject({
+      chunksTotal: 3, chunksHealthy: 2, chunksCorrected: 1, chunksRemaining: 0, chunksNeedsReview: 0,
+      itemsTotal: 3, itemsHealthy: 2, itemsCorrected: 1, itemsRemaining: 0, itemsNeedsReview: 0,
+    })
+    expect(body.job.status).toBe('COMPLETED')
+  })
+
+  test('records an empty-text remaining chunk as a hole and completes', async () => {
+    // Empty text is a hole, never distortion: the fresh scan ignores
+    // chunk-1, so without reconciliation the job would stall with
+    // remaining 1 forever. The hole goes to review with an UNREADABLE
+    // ledger entry, like an OCR failure.
+    chunks[0].text = ''
+    repairJobs.push({
+      id: 'repair-1', bookId: 'book-1', programId: 'program-1', status: 'QUEUED', mode: 'SCAN',
+      chunksTotal: 3, chunksHealthy: 1, chunksCorrected: 0, chunksRemaining: 2, chunksNeedsReview: 0,
+      itemsTotal: 3, itemsHealthy: 1, itemsCorrected: 0, itemsRemaining: 1, itemsNeedsReview: 0,
+      progress: JSON.stringify({
+        distortedChunkIds: ['chunk-1', 'chunk-3'], distortedItemIds: ['item-1'],
+        repairedChunkIds: [], reviewChunkIds: [],
+        correctedItemIds: [], reviewItemIds: [],
+      }),
+      lastError: null, startedAt: new Date(), finishedAt: null, createdAt: new Date('2026-11-24T09:00:00Z'),
+    })
+    const response = await postRepair({ mode: 'SCAN' })
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.done).toBe(true)
+    expect(body.counters).toMatchObject({
+      chunksTotal: 3, chunksHealthy: 1, chunksCorrected: 1, chunksRemaining: 0, chunksNeedsReview: 1,
+      itemsTotal: 3, itemsHealthy: 2, itemsCorrected: 0, itemsRemaining: 0, itemsNeedsReview: 1,
+    })
+    expect(readJob.lastError).toContain('BOOK_PAGE_ISSUES:')
+    expect(readJob.lastError).toContain('"page":5')
+    expect(readJob.lastError).toContain('UNREADABLE')
+    expect(body.job.status).toBe('COMPLETED')
+  })
+
+  test('records a repeatedly CAS-skipped chunk for review after the bound', async () => {
+    // Every transaction sees a changed contentHash (a concurrent writer):
+    // each press OCRs the chunk again but records nothing. After
+    // BOOK_REPAIR_MAX_CAS_SKIPS consecutive skips the chunk goes to
+    // review instead of being retried forever.
+    const originalFindUnique = scanDb.bookChunk.findUnique
+    scanDb.bookChunk.findUnique = async ({ where }: any) => {
+      const chunk = chunks.find((row) => row.id === where.id) || null
+      return chunk ? { ...chunk, contentHash: 'changed-mid-step' } : null
+    }
+    try {
+      const first = await postRepair({ mode: 'SCAN' })
+      const firstBody = await first.json()
+      expect(first.status).toBe(200)
+      expect(firstBody.done).toBe(false)
+      expect(firstBody.noProgress).toBe(true)
+      expect(firstBody.processedChunks).toBe(0)
+      expect(firstBody.counters.chunksRemaining).toBe(2)
+      expect(firstBody.counters.chunksNeedsReview).toBe(0)
+      const second = await postRepair({ mode: 'SCAN' })
+      const secondBody = await second.json()
+      expect(secondBody.done).toBe(false)
+      expect(secondBody.noProgress).toBe(true)
+      expect(secondBody.counters.chunksRemaining).toBe(2)
+      expect(secondBody.counters.chunksNeedsReview).toBe(0)
+      const third = await postRepair({ mode: 'SCAN' })
+      const thirdBody = await third.json()
+      expect(third.status).toBe(200)
+      expect(thirdBody.done).toBe(true)
+      expect(thirdBody.counters.chunksRemaining).toBe(0)
+      expect(thirdBody.counters.chunksNeedsReview).toBe(2)
+      // Only item-1 (on chunk-1) was distorted; item-3's excerpt was
+      // already clean, so only one item goes to review with the chunks.
+      expect(thirdBody.counters.itemsNeedsReview).toBe(1)
+      expect(thirdBody.job.status).toBe('COMPLETED')
+      // Each press retried the OCR before giving up to review.
+      expect(ocrCalls.filter((page) => page === 5).length).toBe(3)
+      expect(ocrCalls.filter((page) => page === 8).length).toBe(3)
+    } finally {
+      scanDb.bookChunk.findUnique = originalFindUnique
+    }
+  })
+
+  test('a step that moves nothing while work remains reports noProgress', async () => {
+    // Same CAS-skip setup, one press only: the step ran, made no
+    // progress, and says so instead of repeating «بقي عمل» counters.
+    const originalFindUnique = scanDb.bookChunk.findUnique
+    scanDb.bookChunk.findUnique = async ({ where }: any) => {
+      const chunk = chunks.find((row) => row.id === where.id) || null
+      return chunk ? { ...chunk, contentHash: 'changed-mid-step' } : null
+    }
+    try {
+      const response = await postRepair({ mode: 'SCAN' })
+      const body = await response.json()
+      expect(response.status).toBe(200)
+      expect(body.done).toBe(false)
+      expect(body.noProgress).toBe(true)
+      expect(body.processedChunks).toBe(0)
+      expect(body.processedItems).toBe(0)
+      expect(body.counters.chunksRemaining).toBe(2)
+    } finally {
+      scanDb.bookChunk.findUnique = originalFindUnique
+    }
+  })
 })

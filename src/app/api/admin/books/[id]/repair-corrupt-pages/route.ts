@@ -175,7 +175,7 @@ export async function POST(request: NextRequest, context: Context) {
           await audit({ id: admin.id, name: admin.name }, 'REPAIR_BOOK_SCAN', 'Book', id,
             `فحص وإصلاح تشوهات الكتاب: مقاطع صحيحة ${step.counters.chunksHealthy} · مصلحة ${step.counters.chunksCorrected} · متبقية ${step.counters.chunksRemaining} · تحتاج مراجعة ${step.counters.chunksNeedsReview}؛ عناصر مصلحة ${step.counters.itemsCorrected} · تحتاج مراجعة ${step.counters.itemsNeedsReview} (الكتاب: ${book.title})`)
         } catch (error) { console.error('Book repair audit failed:', error) }
-        return NextResponse.json({ ok: true, job, counters: step.counters, done: step.done, processedChunks: step.processedChunks, processedItems: step.processedItems, ...(resumed ? { resumed } : {}) })
+        return NextResponse.json({ ok: true, job, counters: step.counters, done: step.done, processedChunks: step.processedChunks, processedItems: step.processedItems, noProgress: step.noProgress, ...(resumed ? { resumed } : {}) })
       } catch (error: any) {
         if (error?.message === 'BOOK_REPAIR_JOB_ACTIVE') {
           return NextResponse.json({ error: 'BOOK_REPAIR_JOB_ACTIVE', message: 'بدأت مهمة قراءة/تحليل على هذا الكتاب أثناء الإصلاح. أوقفها أولًا ثم استكمل الإصلاح.' }, { status: 409 })

@@ -21,6 +21,10 @@ import { mergeBookPageReadIssues } from '@/lib/book-read-job-control'
 export const BOOK_REPAIR_ACTIVE_STATUSES = ['QUEUED', 'RUNNING', 'PAUSED'] as const
 export const BOOK_REPAIR_MAX_CHUNKS_PER_STEP = 4
 export const BOOK_REPAIR_MAX_ITEMS_PER_STEP = 20
+// A chunk whose repair transaction keeps CAS-skipping (its contentHash
+// changed under us mid-step) is retried at most this many consecutive
+// times, then recorded for review instead of being retried forever.
+export const BOOK_REPAIR_MAX_CAS_SKIPS = 3
 
 export type BookRepairProgress = {
   distortedChunkIds: string[]
@@ -29,18 +33,31 @@ export type BookRepairProgress = {
   reviewChunkIds: string[]
   correctedItemIds: string[]
   reviewItemIds: string[]
+  // Consecutive CAS skips per chunk id (a chunk is attempted at most once
+  // per step, so this counts skips across steps). Absent in old rows.
+  casSkipCounts: Record<string, number>
 }
 
 export function parseBookRepairProgress(value: string | null | undefined): BookRepairProgress {
   const empty: BookRepairProgress = {
     distortedChunkIds: [], distortedItemIds: [], repairedChunkIds: [],
     reviewChunkIds: [], correctedItemIds: [], reviewItemIds: [],
+    casSkipCounts: {},
   }
   if (!value) return empty
   try {
     const parsed = JSON.parse(value)
     const list = (key: keyof BookRepairProgress): string[] =>
       Array.isArray(parsed?.[key]) ? [...new Set(parsed[key].filter((id: unknown) => typeof id === 'string'))] : []
+    const counts = (key: 'casSkipCounts'): Record<string, number> => {
+      const raw = parsed?.[key]
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+      const out: Record<string, number> = {}
+      for (const [id, count] of Object.entries(raw)) {
+        if (typeof count === 'number' && Number.isSafeInteger(count) && count > 0) out[id] = count
+      }
+      return out
+    }
     return {
       distortedChunkIds: list('distortedChunkIds'),
       distortedItemIds: list('distortedItemIds'),
@@ -48,6 +65,7 @@ export function parseBookRepairProgress(value: string | null | undefined): BookR
       reviewChunkIds: list('reviewChunkIds'),
       correctedItemIds: list('correctedItemIds'),
       reviewItemIds: list('reviewItemIds'),
+      casSkipCounts: counts('casSkipCounts'),
     }
   } catch { return empty }
 }
@@ -225,6 +243,11 @@ export type BookRepairScanStepResult = {
   paused: boolean
   processedChunks: number
   processedItems: number
+  // True only when the step did no work at all (no chunk processed, no
+  // item processed, nothing reconciled) while work remains: the client
+  // must show this honestly instead of repeating the same «بقي عمل»
+  // counters forever (the live stall of 2026-11-25).
+  noProgress: boolean
 }
 
 // One bounded scan step: re-read up to 4 distorted chunks from the original
@@ -241,6 +264,78 @@ type RepairScanTxOutcome =
   | { skipped: 'changed' }
   | { repaired: true; corrected: string[]; review: string[] }
 
+// Best-effort UNREADABLE ledger entry on the latest read job: flagging a
+// page never fails the repair step (progress is already recorded).
+async function recordUnreadablePages(bookId: string, pages: number[], reason: string): Promise<void> {
+  try {
+    const latest = await db.bookReadJob.findFirst({ where: { bookId }, orderBy: { createdAt: 'desc' } })
+    if (!latest) return
+    const row = await db.bookReadJob.findUnique({ where: { id: latest.id }, select: { lastError: true } })
+    if (!row) return
+    await db.bookReadJob.update({
+      where: { id: latest.id },
+      data: { lastError: mergeBookPageReadIssues(row.lastError, [], pages.map((page) => ({ page, kind: 'UNREADABLE' as const, reason: reason.slice(0, 160) }))) },
+    })
+  } catch (error) { console.warn('Book repair ledger write failed (progress still recorded):', error) }
+}
+
+// Reconcile the append-only progress lists against the fresh scan.
+//
+// The batch is selected from the FRESH scan only, while `remaining` is
+// computed from the ACCUMULATED lists. A chunk/item that leaves the
+// distorted set without being recorded (its text was cleaned by another
+// path, its row was deleted in a rebuild, or its text became empty —
+// empty text is a hole, never distortion) would otherwise keep
+// `remaining` above zero forever while every step processes nothing:
+// the live stall of 2026-11-25 (13 chunks, 0 progress per press).
+// Resolution per stale id: clean text -> drop from the distorted list
+// (healthy, NOT counted as corrected — nothing changed); empty chunk
+// text -> record for review as a hole (same UNREADABLE ledger as the
+// OCR-failure path); missing row -> drop (it can never be processed).
+// Returns how many ids moved out of `remaining` plus the hole chunk ids
+// (for their ledger entries).
+function reconcileRepairProgress(
+  progress: BookRepairProgress,
+  scan: { distortedChunkIds: string[]; distortedItemIds: string[] },
+  chunks: Array<{ id: string; text: string; pageStart: number; pageEnd: number }>,
+  items: RepairItemRow[],
+): { changed: number; holeChunkIds: string[] } {
+  const chunkById = new Map(chunks.map((chunk) => [chunk.id, chunk]))
+  const freshDistortedChunks = new Set(scan.distortedChunkIds)
+  const freshDistortedItems = new Set(scan.distortedItemIds)
+  let changed = 0
+  const holeChunkIds: string[] = []
+  const isUnresolved = (id: string, repaired: string[], review: string[]) =>
+    !repaired.includes(id) && !review.includes(id)
+  for (const id of progress.distortedChunkIds.filter((row) => isUnresolved(row, progress.repairedChunkIds, progress.reviewChunkIds))) {
+    const chunk = chunkById.get(id)
+    if (!chunk) {
+      progress.distortedChunkIds = progress.distortedChunkIds.filter((row) => row !== id)
+      changed++
+      continue
+    }
+    if (freshDistortedChunks.has(id)) continue
+    if (!chunk.text.trim()) {
+      if (!progress.reviewChunkIds.includes(id)) progress.reviewChunkIds.push(id)
+      for (const item of items.filter((row) => row.chunkId === id && scan.distortedItemIds.includes(row.id))) {
+        if (!progress.reviewItemIds.includes(item.id)) progress.reviewItemIds.push(item.id)
+      }
+      holeChunkIds.push(id)
+      changed++
+      continue
+    }
+    progress.distortedChunkIds = progress.distortedChunkIds.filter((row) => row !== id)
+    changed++
+  }
+  for (const id of progress.distortedItemIds.filter((row) => isUnresolved(row, progress.correctedItemIds, progress.reviewItemIds))) {
+    if (freshDistortedItems.has(id)) continue
+    // Clean now, or its row is gone: resolved (healthy), not "corrected".
+    progress.distortedItemIds = progress.distortedItemIds.filter((row) => row !== id)
+    changed++
+  }
+  return { changed, holeChunkIds }
+}
+
 export async function runBookRepairScanStep(
   jobId: string,
   buffer: Buffer,
@@ -252,10 +347,10 @@ export async function runBookRepairScanStep(
   const progress = parseBookRepairProgress(job.progress)
   const countersNow = (totalChunks: number, totalItems: number) => computeBookRepairCounters(totalChunks, totalItems, progress)
   if (job.status === 'PAUSED') {
-    return { jobId, status: job.status, counters: countersNow(job.chunksTotal, job.itemsTotal), done: false, paused: true, processedChunks: 0, processedItems: 0 }
+    return { jobId, status: job.status, counters: countersNow(job.chunksTotal, job.itemsTotal), done: false, paused: true, processedChunks: 0, processedItems: 0, noProgress: false }
   }
   if (job.status === 'COMPLETED' || job.status === 'FAILED' || job.status === 'STOPPED') {
-    return { jobId, status: job.status, counters: countersNow(job.chunksTotal, job.itemsTotal), done: job.status === 'COMPLETED', paused: false, processedChunks: 0, processedItems: 0 }
+    return { jobId, status: job.status, counters: countersNow(job.chunksTotal, job.itemsTotal), done: job.status === 'COMPLETED', paused: false, processedChunks: 0, processedItems: 0, noProgress: false }
   }
   // Mutual exclusion, defence in depth: the route already refused when a
   // read job was active; re-check here in case one started since.
@@ -285,6 +380,11 @@ export async function runBookRepairScanStep(
   for (const id of scan.distortedChunkIds) if (!progress.distortedChunkIds.includes(id)) progress.distortedChunkIds.push(id)
   for (const id of scan.distortedItemIds) if (!progress.distortedItemIds.includes(id)) progress.distortedItemIds.push(id)
 
+  // Reconcile the stale lists before selecting the batch: without this,
+  // ids that left the distorted set (cleaned elsewhere, emptied, deleted)
+  // keep `remaining` above zero while the batch is always empty.
+  const reconciled = reconcileRepairProgress(progress, scan, chunks, items)
+
   const saveProgress = async (done: boolean) => {
     const counters = countersNow(chunks.length, items.length)
     await db.bookRepairJob.update({
@@ -293,6 +393,20 @@ export async function runBookRepairScanStep(
     })
     return counters
   }
+
+  // Holes go to the UNREADABLE ledger like OCR failures, and the
+  // reconciliation itself persists immediately so a later crash in this
+  // step cannot resurrect the stale ids.
+  if (reconciled.holeChunkIds.length > 0) {
+    const chunkById = new Map(chunks.map((chunk) => [chunk.id, chunk]))
+    for (const id of reconciled.holeChunkIds) {
+      const chunk = chunkById.get(id)
+      if (!chunk) continue
+      const pages = Array.from({ length: chunk.pageEnd - chunk.pageStart + 1 }, (_, i) => chunk.pageStart + i)
+      await recordUnreadablePages(job.bookId, pages, 'REPAIR_CHUNK_EMPTY_TEXT')
+    }
+  }
+  if (reconciled.changed > 0) await saveProgress(false)
 
   const distortedChunks = chunks.filter((chunk) =>
     scan.distortedChunkIds.includes(chunk.id) &&
@@ -341,25 +455,14 @@ export async function runBookRepairScanStep(
       // A stuck chunk never halts the book: record it for review (progress
       // + the UNREADABLE ledger on the latest read job) and continue.
       if (!progress.reviewChunkIds.includes(chunk.id)) progress.reviewChunkIds.push(chunk.id)
+      delete progress.casSkipCounts[chunk.id]
       for (const item of items.filter((row) => row.chunkId === chunk.id && scan.distortedItemIds.includes(row.id))) {
         if (!progress.reviewItemIds.includes(item.id)) progress.reviewItemIds.push(item.id)
       }
-      try {
-        const latest = await db.bookReadJob.findFirst({ where: { bookId: job.bookId }, orderBy: { createdAt: 'desc' } })
-        if (latest) {
-          const row = await db.bookReadJob.findUnique({ where: { id: latest.id }, select: { lastError: true } })
-          if (row) {
-            // An incomplete scan flags only its bad pages; a whole-chunk
-            // OCR failure (OCR_FAILED / verification / no text) flags
-            // every page, as before.
-            const issuePages = incompletePages.length > 0 ? incompletePages : pages
-            await db.bookReadJob.update({
-              where: { id: latest.id },
-              data: { lastError: mergeBookPageReadIssues(row.lastError, [], issuePages.map((page) => ({ page, kind: 'UNREADABLE' as const, reason: (ocrReason as string).slice(0, 160) }))) },
-            })
-          }
-        }
-      } catch (error) { console.warn('Book repair ledger write failed (progress still recorded):', error) }
+      // An incomplete scan flags only its bad pages; a whole-chunk OCR
+      // failure (OCR_FAILED / verification / no text) flags every page.
+      const issuePages = incompletePages.length > 0 ? incompletePages : pages
+      await recordUnreadablePages(job.bookId, issuePages, ocrReason)
       await saveProgress(false)
       continue
     }
@@ -398,7 +501,25 @@ export async function runBookRepairScanStep(
       }
       return { repaired: true as const, corrected, review }
     })
-    if (!('repaired' in outcome)) continue
+    if (!('repaired' in outcome)) {
+      // CAS skip: the chunk changed under us mid-step (a concurrent
+      // writer). Retried, but bounded — after BOOK_REPAIR_MAX_CAS_SKIPS
+      // consecutive skips the chunk goes to review instead of being
+      // retried forever (the second silent path of the 2026-11-25 stall).
+      const skips = (progress.casSkipCounts[chunk.id] ?? 0) + 1
+      if (skips >= BOOK_REPAIR_MAX_CAS_SKIPS) {
+        delete progress.casSkipCounts[chunk.id]
+        if (!progress.reviewChunkIds.includes(chunk.id)) progress.reviewChunkIds.push(chunk.id)
+        for (const item of items.filter((row) => row.chunkId === chunk.id && scan.distortedItemIds.includes(row.id))) {
+          if (!progress.reviewItemIds.includes(item.id)) progress.reviewItemIds.push(item.id)
+        }
+        await saveProgress(false)
+      } else {
+        progress.casSkipCounts[chunk.id] = skips
+      }
+      continue
+    }
+    delete progress.casSkipCounts[chunk.id]
     if (!progress.repairedChunkIds.includes(chunk.id)) progress.repairedChunkIds.push(chunk.id)
     for (const id of outcome.corrected) if (!progress.correctedItemIds.includes(id)) progress.correctedItemIds.push(id)
     for (const id of outcome.review) if (!progress.reviewItemIds.includes(id)) progress.reviewItemIds.push(id)
@@ -439,6 +560,10 @@ export async function runBookRepairScanStep(
 
   const counters = countersNow(chunks.length, items.length)
   const done = counters.chunksRemaining === 0 && counters.itemsRemaining === 0
+  // Honest no-progress signal: this step moved nothing (no chunk/item
+  // processed, nothing reconciled) while work remains. The client shows
+  // this distinctly instead of repeating the same «بقي عمل» counters.
+  const noProgress = processedChunks === 0 && processedItems === 0 && reconciled.changed === 0 && !done
   const finalCounters = await saveProgress(done)
-  return { jobId, status: done ? 'COMPLETED' : 'RUNNING', counters: finalCounters, done, paused: false, processedChunks, processedItems }
+  return { jobId, status: done ? 'COMPLETED' : 'RUNNING', counters: finalCounters, done, paused: false, processedChunks, processedItems, noProgress }
 }
