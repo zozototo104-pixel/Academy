@@ -421,7 +421,7 @@ export function AdminComprehensiveExamTab() {
         <CardContent className="space-y-2 pt-4">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-black">الامتحانات الشاملة ({exams.length})</h4>
-            <Button variant="outline" size="sm" onClick={loadAll}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
+            <Button variant="outline" size="sm" onClick={() => loadAll()}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
           </div>
           {exams.length === 0 && <p className="text-xs text-slate-500">لا توجد امتحانات شاملة بعد — أنشئ أول مسودة من الأعلى.</p>}
           <div className="space-y-2">

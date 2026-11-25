@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: 'لا يمكن إضافة أسئلة لامتحان منشور — ألغِ نشره أولاً' }, { status: 409 })
     }
     const body = await req.json()
-    const bankItemIds = Array.isArray(body?.bankItemIds)
+    const bankItemIds: string[] = Array.isArray(body?.bankItemIds)
       ? [...new Set(body.bankItemIds.map((x: unknown) => String(x || '').trim()).filter(Boolean))].slice(0, 100)
       : []
     if (!bankItemIds.length) return NextResponse.json({ error: 'اختر سؤالاً واحداً على الأقل من بنك الأسئلة' }, { status: 400 })
