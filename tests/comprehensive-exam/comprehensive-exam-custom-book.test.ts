@@ -59,6 +59,7 @@ function extractionOf() {
   return {
     bookId: 'custom-upload:testbook00000001',
     bookTitle: 'مبادئ المحاسبة',
+    kind: 'PDF' as const,
     totalPages: 4,
     readablePages: 4,
     unreadablePages: [],
