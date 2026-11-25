@@ -21,7 +21,7 @@ type ExamListItem = {
 }
 type ExamQuestion = {
   id: string; order: number; type: string; text: string; options: string | null; correctAnswer: string | null
-  source: string; sourceBookId?: string | null; sourceEvidence?: string | null; bankItemId?: string | null
+  source: string; sourceBookId?: string | null; sourceEvidence?: string | null; sourceUrl?: string | null; bankItemId?: string | null
   status: string; rejectedReason?: string | null
 }
 type BankItem = { id: string; type: string; text: string; options: string | null; correctAnswer: string | null; sourceBookTitle?: string | null }
@@ -70,6 +70,11 @@ export function AdminComprehensiveExamTab() {
   const [customBookCount, setCustomBookCount] = useState('5')
   const [customBookResult, setCustomBookResult] = useState<any>(null)
   const [customBookBusy, setCustomBookBusy] = useState(false)
+  const [internetTopic, setInternetTopic] = useState('')
+  const [internetCount, setInternetCount] = useState('5')
+  const [internetResult, setInternetResult] = useState<any>(null)
+  const [internetBusy, setInternetBusy] = useState(false)
+  const [internetKeyMissing, setInternetKeyMissing] = useState(false)
   const [manualType, setManualType] = useState('MCQ')
   const [manualText, setManualText] = useState('')
   const [manualOptions, setManualOptions] = useState(['', '', '', ''])
@@ -325,6 +330,37 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
+  const runInternet = async () => {
+    if (!detail || !internetTopic.trim()) return
+    setInternetBusy(true)
+    setInternetKeyMissing(false)
+    try {
+      // The response is parsed here (not via jsonOrThrow) so the
+      // TAVILY_KEY_MISSING code survives and the tab can show the
+      // settings hint instead of a bare error toast.
+      const res = await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/from-internet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: internetTopic.trim(), count: internetCount }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (data?.code === 'TAVILY_KEY_MISSING') setInternetKeyMissing(true)
+        throw new Error(apiErrorMessage(data, 'تعذر توليد الأسئلة من الإنترنت'))
+      }
+      setInternetResult(data)
+      toast({
+        title: `تم توليد ${data.imported} سؤالاً من بحث الإنترنت — كلها بانتظار المراجعة`,
+        description: data.rejectedCount ? `${data.rejectedCount} سؤالاً مرفوضاً بالتحقق بالدليل` : undefined,
+      })
+      await refreshDetailAndList(detail.exam.id)
+    } catch (e: any) {
+      toast({ title: 'تعذر توليد الأسئلة من الإنترنت', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setInternetBusy(false)
+    }
+  }
+
   const reviewQuestion = async (q: ExamQuestion, status: 'APPROVED' | 'REJECTED') => {
     if (!detail) return
     if (status === 'REJECTED' && !rejectReason.trim()) {
@@ -410,7 +446,7 @@ export function AdminComprehensiveExamTab() {
             <h3 className="text-base font-black">تجهيز امتحان شامل لاجتياز البرنامج</h3>
             <p className="text-xs text-slate-500">
               امتحان من 100 سؤال (صح/خطأ واختيار متعدد فقط — لا مقالي) لخريج درس البرنامج في مؤسسة أخرى. يُنشر فقط عند اكتمال 100 سؤال معتمد،
-              والنجاح فيه يؤهل صاحبه كخريج. مصدر «الذكاء من الإنترنت» غير متاح بعد — لا توجد قدرة بحث ويب في المنصة.
+              والنجاح فيه يؤهل صاحبه كخريج. مصدر «الذكاء من الإنترنت» يبحث في الويب عبر Tavily (مفتاح مجاني يُحفظ في إعدادات النظام) ويولّد أسئلة بدليل حرفي ورابط مصدر لكل سؤال.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-[1fr_120px_140px_auto]">
@@ -508,6 +544,14 @@ export function AdminComprehensiveExamTab() {
           customBookResult={customBookResult}
           customBookBusy={customBookBusy}
           onRunCustomBook={runCustomBook}
+          internetTopic={internetTopic}
+          setInternetTopic={setInternetTopic}
+          internetCount={internetCount}
+          setInternetCount={setInternetCount}
+          internetResult={internetResult}
+          internetBusy={internetBusy}
+          internetKeyMissing={internetKeyMissing}
+          onRunInternet={runInternet}
           examId={detail.exam.id}
           manualType={manualType}
           setManualType={setManualType}
@@ -693,11 +737,11 @@ function DetailPanel(props: any) {
             <CardContent className="space-y-3 pt-4">
               <h4 className="text-sm font-black">رفع كتاب مخصص وتوليد أسئلة منه</h4>
               <p className="text-[11px] text-slate-500">
-                كتاب PDF من خارج كتب البرنامج — يُقرأ هنا فقط ولا يُسجَّل ككتاب برنامج. الذكاء يولّد أسئلة صح/خطأ واختيار متعدد من نصه، وكل سؤال يحمل
-                دليلاً حرفياً من الكتاب ويبدأ بانتظار المراجعة. الحد 10 ميغابايت و300 صفحة؛ الصفحات بلا نص مقروء (ممسوحة ضوئياً) تُبلَّغ ولا تولَّد منها أسئلة.
+                كتاب PDF أو Word (DOCX) من خارج كتب البرنامج — يُقرأ هنا فقط ولا يُسجَّل ككتاب برنامج. الذكاء يولّد أسئلة صح/خطأ واختيار متعدد من نصه، وكل سؤال يحمل
+                دليلاً حرفياً من الكتاب ويبدأ بانتظار المراجعة. الحد 10 ميغابايت و300 صفحة (أو 300 مقطعاً نصياً لملف Word — فملف Word بلا صفحات حقيقية)؛ الصفحات بلا نص مقروء (ممسوحة ضوئياً) تُبلَّغ ولا تولَّد منها أسئلة.
               </p>
               <div className="flex flex-wrap items-center gap-2">
-                <Input type="file" accept=".pdf" onChange={(e: ChangeEvent<HTMLInputElement>) => props.setCustomBookFile(e.target.files?.[0] || null)} className="max-w-xs" />
+                <Input type="file" accept=".pdf,.docx" onChange={(e: ChangeEvent<HTMLInputElement>) => props.setCustomBookFile(e.target.files?.[0] || null)} className="max-w-xs" />
                 <div className="flex items-center gap-2">
                   <Label>عدد الأسئلة</Label>
                   <Input
@@ -712,13 +756,50 @@ function DetailPanel(props: any) {
               {props.customBookBusy && <p className="text-xs text-slate-500">جارٍ قراءة الكتاب وتوليد الأسئلة — قد تستغرق العملية دقيقة أو أكثر…</p>}
               {props.customBookResult && (
                 <p className="text-xs text-slate-600">
-                  الكتاب «{props.customBookResult.extraction?.bookTitle}»: {props.customBookResult.extraction?.totalPages} صفحة،
-                  {' '}{props.customBookResult.extraction?.readablePages} مقروءة
+                  الكتاب «{props.customBookResult.extraction?.bookTitle}»: {props.customBookResult.extraction?.totalPages} {props.customBookResult.extraction?.kind === 'DOCX' ? 'مقطعاً نصياً' : 'صفحة'}،
+                  {' '}{props.customBookResult.extraction?.readablePages} {props.customBookResult.extraction?.kind === 'DOCX' ? 'مقروءاً' : 'مقروءة'}
                   {props.customBookResult.extraction?.unreadablePages?.length
-                    ? `، ${props.customBookResult.extraction.unreadablePages.length} غير مقروءة (صفحات ${props.customBookResult.extraction.unreadablePages.slice(0, 5).map((p: any) => p.page).join('، ')}${props.customBookResult.extraction.unreadablePages.length > 5 ? '…' : ''})`
+                    ? `، ${props.customBookResult.extraction.unreadablePages.length} غير مقروءة (${props.customBookResult.extraction.kind === 'DOCX' ? 'مقاطع نصية' : 'صفحات'} ${props.customBookResult.extraction.unreadablePages.slice(0, 5).map((p: any) => p.page).join('، ')}${props.customBookResult.extraction.unreadablePages.length > 5 ? '…' : ''})`
                     : ''}
                   {' '}— وُلّد {props.customBookResult.imported} سؤالاً من {props.customBookResult.requested} مطلوباً
                   {props.customBookResult.rejectedCount ? `، ${props.customBookResult.rejectedCount} مرفوضاً بالتحقق بالدليل` : ''}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-3 pt-4">
+              <h4 className="text-sm font-black">بحث الذكاء عبر الإنترنت</h4>
+              <p className="text-[11px] text-slate-500">
+                يبحث الذكاء في الويب (Tavily) عن الموضوع، ثم يولّد أسئلة صح/خطأ واختيار متعدد من الخلاصات الراجعة فقط — كل سؤال بدليل حرفي من خلاصة
+                ورابط مصدرها، ويبدأ بانتظار المراجعة. يتطلب مفتاح Tavily مجانياً محفوظاً في إعدادات النظام (1000 بحث شهرياً، من غير بطاقة).
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input value={props.internetTopic} onChange={(e: ChangeEvent<HTMLInputElement>) => props.setInternetTopic(e.target.value)} placeholder="مثال: مبادئ المحاسبة المالية" className="max-w-xs" />
+                <div className="flex items-center gap-2">
+                  <Label>عدد الأسئلة</Label>
+                  <Input
+                    type="number" min={1} max={10} value={props.internetCount}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => props.setInternetCount(e.target.value)} className="w-20"
+                  />
+                </div>
+                <Button disabled={props.internetBusy || !props.internetTopic?.trim()} onClick={props.onRunInternet}>
+                  {props.internetBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} بحث وتوليد أسئلة
+                </Button>
+              </div>
+              {props.internetBusy && <p className="text-xs text-slate-500">جارٍ البحث في الويب وتوليد الأسئلة — قد تستغرق العملية دقيقة أو أكثر…</p>}
+              {props.internetKeyMissing && (
+                <p className="text-xs font-bold text-amber-700">
+                  لم يُحفظ مفتاح Tavily بعد — احفظ مفتاحاً مجانياً من tavily.com في لوحة الإدارة ← النظام ← مزوّدو النصوص والمفاتيح ← بحث الإنترنت للامتحان الشامل (Tavily)، ثم أعد المحاولة.
+                </p>
+              )}
+              {props.internetResult && (
+                <p className="text-xs text-slate-600">
+                  البحث عن «{props.internetResult.search?.topic}»: {props.internetResult.search?.resultsFound} نتيجة، {props.internetResult.search?.chunksUsed} مقطعاً مستخدماً
+                  {props.internetResult.search?.creditsUsed != null ? `، ${props.internetResult.search.creditsUsed} نقطة بحث مستخدمة` : ''}
+                  {' '}— وُلّد {props.internetResult.imported} سؤالاً من {props.internetResult.requested} مطلوباً
+                  {props.internetResult.rejectedCount ? `، ${props.internetResult.rejectedCount} مرفوضاً بالتحقق بالدليل` : ''}
                 </p>
               )}
             </CardContent>
@@ -801,6 +882,14 @@ function QuestionRow(props: any) {
             ))}
           </ul>
           {q.sourceEvidence && <p className="mt-1 text-[11px] text-slate-500">الدليل: {q.sourceEvidence}</p>}
+          {q.sourceUrl && (
+            <p className="mt-1 text-[11px] text-slate-500">
+              المصدر:{' '}
+              <a className="text-emerald-700 underline" href={q.sourceUrl} target="_blank" rel="noreferrer">
+                {q.sourceUrl}
+              </a>
+            </p>
+          )}
           {q.status === 'REJECTED' && q.rejectedReason && <p className="mt-1 text-[11px] text-red-600">سبب الرفض: {q.rejectedReason}</p>}
           {isDraft && (
             <div className="mt-2 flex flex-wrap items-center gap-2">

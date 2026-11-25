@@ -64,6 +64,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         source: q.source,
         sourceBookId: q.sourceBookId,
         sourceEvidence: q.sourceEvidence,
+        sourceUrl: q.sourceUrl,
         bankItemId: q.bankItemId,
         status: q.status,
         rejectedReason: q.rejectedReason,

@@ -210,3 +210,45 @@ describe('POST .../questions/from-custom-book', () => {
     expect(saved[0].sourceEvidence).toContain('الأصول المتداولة')
   })
 })
+
+describe('POST .../questions/from-custom-book — DOCX', () => {
+  function docxFile(name = 'book.docx') {
+    return new File([new Uint8Array([1, 2, 3])], name, {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+  }
+
+  test('accepts a .docx and reports kind DOCX in the extraction', async () => {
+    const id = seedExam()
+    extractResult = { ...defaultExtraction(), kind: 'DOCX', totalPages: 12, readablePages: 12 }
+    const res = await route.POST(fileReq(id, docxFile()), ctx(id))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.source).toBe('CUSTOM_BOOK')
+    expect(body.extraction.kind).toBe('DOCX')
+    expect(body.extraction.totalPages).toBe(12)
+    expect(questions.filter((q) => q.source === 'CUSTOM_BOOK')).toHaveLength(2)
+  })
+
+  test('400 for legacy .doc with an honest message', async () => {
+    const id = seedExam()
+    const res = await route.POST(
+      fileReq(id, new File([new Uint8Array([1])], 'old.doc', { type: 'application/msword' })),
+      ctx(id),
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toContain('DOC القديمة')
+    expect(questions).toHaveLength(0)
+  })
+
+  test('422 with the Word wording when a .docx has no readable text', async () => {
+    const id = seedExam()
+    extractResult = { ...defaultExtraction(), kind: 'DOCX', totalPages: 0, readablePages: 0, chunks: [] }
+    const res = await route.POST(fileReq(id, docxFile('empty.docx')), ctx(id))
+    const body = await res.json()
+    expect(res.status).toBe(422)
+    expect(body.error).toContain('ملف Word')
+    expect(body.extraction.kind).toBe('DOCX')
+    expect(questions).toHaveLength(0)
+  })
+})

@@ -19,10 +19,14 @@ function extOf(name: string) {
 }
 
 function extractionErrorMessage(code: string, fileName: string): string {
+  const isDocx = extOf(fileName) === 'docx'
   if (code === 'CUSTOM_BOOK_NOT_A_PDF') return 'الملف ليس PDF صالحاً — ارفع كتاباً بصيغة PDF'
+  if (code === 'CUSTOM_BOOK_DOCX_UNREADABLE') return 'تعذرت قراءة ملف Word — الملف تالف أو ليس DOCX صالحاً'
   if (code === 'CUSTOM_BOOK_EMPTY_PDF') return 'ملف PDF بلا صفحات'
   if (code === 'CUSTOM_BOOK_TOO_LONG')
-    return `الكتاب أطول من ${CUSTOM_BOOK_MAX_PAGES} صفحة — للكتب الطويلة ارفع الكتاب ككتاب برنامج أولاً ثم استورد أسئلته من بنك الأسئلة`
+    return isDocx
+      ? `الملف أطول من ${CUSTOM_BOOK_MAX_PAGES} مقطعاً نصياً — للملفات الطويلة ارفع الكتاب ككتاب برنامج أولاً ثم استورد أسئلته من بنك الأسئلة`
+      : `الكتاب أطول من ${CUSTOM_BOOK_MAX_PAGES} صفحة — للكتب الطويلة ارفع الكتاب ككتاب برنامج أولاً ثم استورد أسئلته من بنك الأسئلة`
   return `تعذرت قراءة الكتاب «${fileName}»`
 }
 
@@ -46,11 +50,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const form = await req.formData()
     const file = form.get('file') as unknown as File | null
     if (!file || typeof file.arrayBuffer !== 'function') {
-      return NextResponse.json({ error: 'ارفع كتاباً بصيغة PDF' }, { status: 400 })
+      return NextResponse.json({ error: 'ارفع كتاباً بصيغة PDF أو Word (DOCX)' }, { status: 400 })
     }
     const fileName = file.name || 'book.pdf'
-    if (extOf(fileName) !== 'pdf') {
-      return NextResponse.json({ error: 'الصيغة غير مدعومة — المسموح: PDF فقط' }, { status: 400 })
+    const ext = extOf(fileName)
+    if (ext === 'doc') {
+      return NextResponse.json({ error: 'صيغة DOC القديمة غير مدعومة — احفظ الملف بصيغة DOCX أو PDF ثم ارفعه' }, { status: 400 })
+    }
+    if (ext !== 'pdf' && ext !== 'docx') {
+      return NextResponse.json({ error: 'الصيغة غير مدعومة — المسموح: PDF أو Word (DOCX) فقط' }, { status: 400 })
     }
     const buffer = Buffer.from(await file.arrayBuffer())
     if (buffer.length > CUSTOM_BOOK_MAX_FILE_BYTES) {
@@ -64,14 +72,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: extractionErrorMessage(String(e?.message || e), fileName) }, { status: 422 })
     }
     if (!extraction.chunks.length) {
+      const isDocx = extOf(fileName) === 'docx'
       return NextResponse.json(
         {
           error:
             extraction.totalPages === extraction.unreadablePages.length
-              ? 'لم أجد نصاً مقروءاً في الكتاب — كل صفحاته بلا نص (ممسوح ضوئياً على الأرجح)؛ جرّب نسخة نصية من الكتاب'
+              ? isDocx
+                ? 'لم أجد نصاً مقروءاً في ملف Word — الملف فارغ أو نصه صور فقط؛ جرّب نسخة نصية من الملف'
+                : 'لم أجد نصاً مقروءاً في الكتاب — كل صفحاته بلا نص (ممسوح ضوئياً على الأرجح)؛ جرّب نسخة نصية من الكتاب'
               : 'لم أجد مقاطع صالحة لتوليد أسئلة من هذا الكتاب',
           extraction: {
             bookTitle: extraction.bookTitle,
+            kind: extraction.kind || (isDocx ? 'DOCX' : 'PDF'),
             totalPages: extraction.totalPages,
             readablePages: extraction.readablePages,
             unreadablePages: extraction.unreadablePages,
@@ -104,6 +116,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
             error: String(e?.message || 'مصادر الكتاب غير كافية لتوليد أسئلة موثّقة'),
             extraction: {
               bookTitle: extraction.bookTitle,
+              kind: extraction.kind || (extOf(fileName) === 'docx' ? 'DOCX' : 'PDF'),
               totalPages: extraction.totalPages,
               readablePages: extraction.readablePages,
               unreadablePages: extraction.unreadablePages,
@@ -123,6 +136,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           rejectedCount: generated.rejectedCount,
           extraction: {
             bookTitle: extraction.bookTitle,
+            kind: extraction.kind || (extOf(fileName) === 'docx' ? 'DOCX' : 'PDF'),
             totalPages: extraction.totalPages,
             readablePages: extraction.readablePages,
             unreadablePages: extraction.unreadablePages,
@@ -157,7 +171,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       'GENERATE_COMPREHENSIVE_EXAM_QUESTIONS_FROM_CUSTOM_BOOK',
       'ComprehensiveExam',
       id,
-      `توليد ${generated.questions.length} سؤالاً من كتاب مخصص «${extraction.bookTitle}» (${extraction.totalPages} صفحة، ${extraction.readablePages} مقروءة) إلى الامتحان الشامل «${exam.title}» — كلها بانتظار المراجعة؛ ${generated.rejectedCount} سؤالاً مرفوضاً بالتحقق`,
+      `توليد ${generated.questions.length} سؤالاً من كتاب مخصص «${extraction.bookTitle}» (${extraction.totalPages} ${extraction.kind === 'DOCX' ? 'مقطعاً نصياً' : 'صفحة'}، ${extraction.readablePages} ${extraction.kind === 'DOCX' ? 'مقروءاً' : 'مقروءة'}) إلى الامتحان الشامل «${exam.title}» — كلها بانتظار المراجعة؛ ${generated.rejectedCount} سؤالاً مرفوضاً بالتحقق`,
     )
     return NextResponse.json({
       ok: true,
@@ -171,6 +185,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       model: generated.model || null,
       extraction: {
         bookTitle: extraction.bookTitle,
+        kind: extraction.kind || (extOf(fileName) === 'docx' ? 'DOCX' : 'PDF'),
         totalPages: extraction.totalPages,
         readablePages: extraction.readablePages,
         unreadablePages: extraction.unreadablePages,

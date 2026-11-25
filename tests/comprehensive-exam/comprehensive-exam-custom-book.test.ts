@@ -19,6 +19,7 @@ const {
   extractCustomBookChunks,
   formatCustomBookChunksForPrompt,
   generateCustomBookQuestions,
+  splitDocxTextIntoPseudoPages,
 } = lib
 
 const CHUNK_1_TEXT =
@@ -304,5 +305,109 @@ describe('generateCustomBookQuestions', () => {
       code = e?.code || ''
     }
     expect(code).toBe('INSUFFICIENT_SOURCE')
+  })
+})
+
+describe('splitDocxTextIntoPseudoPages', () => {
+  test('short text is one pseudo-page; paragraphs accumulate to the page size', () => {
+    expect(splitDocxTextIntoPseudoPages(CHUNK_1_TEXT)).toHaveLength(1)
+    const para = 'فقرة نصية طويلة بما يكفي لقياس التقسيم. '.repeat(20).trim() // ~800 chars
+    expect(para.length).toBeGreaterThan(700)
+    const pages = splitDocxTextIntoPseudoPages([para, para, para].join('\n\n'))
+    expect(pages).toHaveLength(2)
+    expect(pages[0]).toContain(para.slice(0, 40))
+    expect(pages.every((p: string) => p.length <= 2000)).toBe(true)
+  })
+
+  test('a single over-long paragraph splits at word boundaries', () => {
+    const long = Array.from({ length: 450 }, () => 'كلمة').join(' ') // ~2250 chars
+    const pages = splitDocxTextIntoPseudoPages(long)
+    expect(pages.length).toBe(2)
+    expect(pages.every((p: string) => p.length <= 2000)).toBe(true)
+    expect(pages.join(' ').replace(/\s+/g, ' ')).toContain('كلمة كلمة كلمة')
+  })
+
+  test('empty text has no pseudo-pages', () => {
+    expect(splitDocxTextIntoPseudoPages('')).toEqual([])
+    expect(splitDocxTextIntoPseudoPages('   \n\n  ')).toEqual([])
+  })
+})
+
+describe('extractCustomBookChunks — DOCX', () => {
+  const DOCX_TEXT = CHUNK_1_TEXT + '\n\n' + CHUNK_2_TEXT
+  const fakeDocx = (text: string, readable = true, reader: any = 'DOCX') => async () => ({ text, readable, reader, note: '' })
+
+  test('reads a .docx into pseudo-pages with kind DOCX and the same chunking', async () => {
+    const out = await extractCustomBookChunks(Buffer.from('fake-docx-bytes'), 'مبادئ المحاسبة.docx', {
+      extractDocumentText: fakeDocx(DOCX_TEXT),
+    })
+    expect(out.kind).toBe('DOCX')
+    expect(out.totalPages).toBe(1)
+    expect(out.readablePages).toBe(1)
+    expect(out.unreadablePages).toEqual([])
+    expect(out.chunks.length).toBe(1)
+    expect(out.chunks[0].pageStart).toBe(1)
+    expect(out.chunks[0].pageEnd).toBe(1)
+    expect(out.chunks[0].text).toContain('الأصول المتداولة')
+    expect(out.bookTitle).toBe('مبادئ المحاسبة')
+  })
+
+  test('PDF extraction still reports kind PDF', async () => {
+    const pdf = await makePdf(1)
+    const out = await extractCustomBookChunks(pdf, 'book.pdf', {
+      extractPages: async (_buffer: Buffer, numbers: readonly number[]) =>
+        numbers.map((page) => ({ page, text: CHUNK_1_TEXT, textProvenance: 'NATIVE_TEXT' as const })),
+    })
+    expect(out.kind).toBe('PDF')
+    expect(out.totalPages).toBe(1)
+  })
+
+  test('a .docx with no readable text reports zero pages and zero chunks', async () => {
+    const out = await extractCustomBookChunks(Buffer.from('empty-docx'), 'فارغ.docx', {
+      extractDocumentText: fakeDocx('', false, 'EMPTY'),
+    })
+    expect(out.kind).toBe('DOCX')
+    expect(out.totalPages).toBe(0)
+    expect(out.readablePages).toBe(0)
+    expect(out.chunks).toEqual([])
+  })
+
+  test('a corrupt .docx fails as unreadable, never as zero questions', async () => {
+    await expect(
+      extractCustomBookChunks(Buffer.from('corrupt'), 'تالف.docx', { extractDocumentText: fakeDocx('', false, 'ERROR') }),
+    ).rejects.toThrow('CUSTOM_BOOK_DOCX_UNREADABLE')
+  })
+
+  test('a garbled pseudo-page is reported unreadable, not chunked', async () => {
+    const out = await extractCustomBookChunks(Buffer.from('garbled'), 'مشوه.docx', {
+      extractDocumentText: fakeDocx(GARBLED_TEXT),
+    })
+    expect(out.kind).toBe('DOCX')
+    expect(out.chunks).toEqual([])
+    expect(out.unreadablePages).toEqual([{ page: 1, reason: 'BOOK_PAGE_TEXT_FAILED_QUALITY_GATE' }])
+  })
+
+  test('a .docx longer than 300 pseudo-pages fails outright', async () => {
+    const longText = Array.from({ length: 301 }, () => 'و'.repeat(2000)).join('\n\n')
+    await expect(
+      extractCustomBookChunks(Buffer.from('long-docx'), 'طويل.docx', { extractDocumentText: fakeDocx(longText) }),
+    ).rejects.toThrow('CUSTOM_BOOK_TOO_LONG')
+  })
+
+  test('generation from a DOCX extraction labels the locator as text blocks, not pages', async () => {
+    let capturedPrompt = ''
+    const captureComplete = async ({ validate, prompt }: any) => {
+      capturedPrompt = prompt
+      validate(GOOD_REPLY, { provider: 'GEMINI', model: 'gemini-3.5-flash-lite' })
+      return { text: GOOD_REPLY, provider: 'GEMINI', model: 'gemini-3.5-flash-lite' }
+    }
+    const out = await generateCustomBookQuestions(
+      { ...extractionOf(), kind: 'DOCX' },
+      { programTitleAr: 'الماجستير المهني في إدارة الأعمال', count: 2 },
+      { completeJson: captureComplete },
+    )
+    expect(out.accepted).toBe(2)
+    expect(capturedPrompt).toContain('مقاطع نصية 1–2')
+    expect(capturedPrompt).not.toContain('صفحات 1–2')
   })
 })

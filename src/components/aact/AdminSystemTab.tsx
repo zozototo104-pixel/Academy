@@ -1987,6 +1987,13 @@ export function AdminSystemTab() {
                 {F('OXION_BASE_URL', 'Oxion AI Base URL', 'https://www.oxionai.com/v1', 'text', 'يجب أن يدعم /chat/completions بنمط OpenAI-compatible.')}
               </>
             ) : null}
+            <div className="sm:col-span-2 rounded-xl border border-teal-200 bg-white p-3">
+              <h4 className="text-[11px] font-black text-teal-900">بحث الإنترنت للامتحان الشامل (Tavily)</h4>
+              <p className="mt-1 text-[10px] font-bold leading-relaxed text-slate-600">مفتاح مجاني من tavily.com — 1000 بحث شهرياً، من غير بطاقة. يُستخدم فقط لتوليد أسئلة الامتحان الشامل من نتائج البحث عبر الإنترنت.</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {F('TAVILY_API_KEY', 'مفتاح Tavily API', data.secretsSet.TAVILY_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'tvly-...', 'password', 'يبقى في السيرفر ولا يظهر في المتصفح')}
+              </div>
+            </div>
           </div>
           </div>
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-3">

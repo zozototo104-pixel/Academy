@@ -3074,6 +3074,7 @@ model ComprehensiveExamQuestion {
   source         String   // BANK | MANUAL | EXCEL_IMPORT | DOC_IMPORT | AI_INTERNET
   sourceBookId   String?
   sourceEvidence String?  // الدليل الحرفي من الكتاب إن وجد
+  sourceUrl      String?  // رابط صفحة الويب المصدر — لمصدر «الذكاء من الإنترنت» فقط
   bankItemId     String?  // أصل بنك الأسئلة إن كان المصدر BANK
   status         String   @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | REJECTED
   rejectedReason String?
