@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { decryptSecret, isEncryptedSecret } from '@/lib/secret-crypto'
 import { searchTavily, TavilySearchError } from '@/lib/tavily-search'
+import { internetAcademicTopicIssue } from '@/lib/comprehensive-exam'
 import {
   INTERNET_MAX_SEARCH_RESULTS,
   clampInternetQuestionCount,
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params
     const exam = await db.comprehensiveExam.findUnique({
       where: { id },
-      select: { id: true, status: true, title: true, programId: true },
+      select: { id: true, status: true, title: true, programId: true, specializationProgramId: true },
     })
     if (!exam) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
     if (exam.status !== 'DRAFT') {
@@ -61,6 +62,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const topic = String(body?.topic || '').trim()
     if (!topic) {
       return NextResponse.json({ error: 'اكتب موضوع البحث أولاً' }, { status: 400 })
+    }
+    const specialty = await db.program.findUnique({
+      where: { id: exam.specializationProgramId || exam.programId },
+      select: { titleAr: true },
+    })
+    const specialtyTitle = specialty?.titleAr || exam.title
+    const topicIssue = internetAcademicTopicIssue(topic, specialtyTitle)
+    if (topicIssue) {
+      return NextResponse.json({ error: topicIssue, code: 'ACADEMIC_TOPIC_REQUIRED' }, { status: 422 })
     }
     const count = clampInternetQuestionCount(body?.count)
     const apiKey = await readTavilyApiKey()
@@ -95,7 +105,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         { status: 422 },
       )
     }
-    const program = await db.program.findUnique({ where: { id: exam.programId }, select: { titleAr: true } })
     const previous = await db.comprehensiveExamQuestion.findMany({
       where: { examId: id },
       select: { text: true },
@@ -108,7 +117,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         search.results,
         {
           topic,
-          programTitleAr: program?.titleAr || exam.title,
+          programTitleAr: specialtyTitle,
           count,
           previousQuestionTexts: previous.map((q: any) => q.text),
         },
