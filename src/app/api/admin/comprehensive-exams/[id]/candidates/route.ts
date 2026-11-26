@@ -89,15 +89,26 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       passedEmails.length > 0
         ? await db.certificate.findMany({
             where: { type: 'COMPREHENSIVE_EXAM', comprehensiveExamId: id, user: { email: { in: passedEmails } } },
-            select: { serial: true, user: { select: { email: true } } },
+            select: { id: true, serial: true, uploadedFileKey: true, stampedFileKey: true, user: { select: { email: true } } },
           })
         : []
-    const serialByEmail = new Map(certificates.map((c: any) => [c.user.email, c.serial]))
+    const certificateByEmail = new Map(
+      certificates.map((c: any) => [
+        c.user.email,
+        { serial: c.serial, certificateId: c.id, uploadedFileKey: c.uploadedFileKey || null, stampedFileKey: c.stampedFileKey || null },
+      ]),
+    )
     return NextResponse.json({
       ok: true,
       candidates: candidates.map((c: any) => {
         const shaped: any = candidateShape(c)
-        if (shaped.attempt) shaped.attempt.certificateSerial = serialByEmail.get(c.email) || null
+        if (shaped.attempt) {
+          const certInfo = certificateByEmail.get(c.email)
+          shaped.attempt.certificateSerial = certInfo?.serial || null
+          shaped.attempt.certificateId = certInfo?.certificateId || null
+          shaped.attempt.certificateUploadedFileKey = certInfo?.uploadedFileKey || null
+          shaped.attempt.certificateStampedFileKey = certInfo?.stampedFileKey || null
+        }
         return shaped
       }),
     })

@@ -933,7 +933,7 @@ type CandidateInvitation = {
   lastSentAt: string | null
   inviteUrl?: string | null
 }
-type CandidateAttempt = { id: string; status: string; score: number | null; passed: boolean | null; startedAt: string; submittedAt: string | null; certificateSerial?: string | null }
+type CandidateAttempt = { id: string; status: string; score: number | null; passed: boolean | null; startedAt: string; submittedAt: string | null; certificateSerial?: string | null; certificateId?: string | null; certificateUploadedFileKey?: string | null; certificateStampedFileKey?: string | null }
 type CandidateItem = {
   id: string
   fullName: string
@@ -984,6 +984,10 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
   const [invitationsByCandidate, setInvitationsByCandidate] = useState<Record<string, CandidateInvitation[]>>({})
   const [showInvitations, setShowInvitations] = useState<Record<string, boolean>>({})
   const [inviteUrlByCandidate, setInviteUrlByCandidate] = useState<Record<string, string>>({})
+  const [certFileByCandidate, setCertFileByCandidate] = useState<Record<string, File | null>>({})
+  const [certQrSizeByCandidate, setCertQrSizeByCandidate] = useState<Record<string, string>>({})
+  const [certQrPositionByCandidate, setCertQrPositionByCandidate] = useState<Record<string, string>>({})
+  const [certPreviewUrlByCandidate, setCertPreviewUrlByCandidate] = useState<Record<string, string | null>>({})
 
   const loadCandidates = async () => {
     setLoading(true)
@@ -1159,6 +1163,71 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
     }
   }
 
+  // ---- رفع/ختم ملف شهادة المعادلة (مطابق لشاشة الخريجين السابقين) ----
+  // الشهادة الأصلية لا يُعاد رسمها؛ يُضاف QR والرقم التسلسلي فقط فوق
+  // الملف كما رُفع، بنفس مسار الختم وحقول التخطيط.
+  const certUploadUrl = (c: CandidateItem) => `/api/admin/comprehensive-exams/${examId}/certificates/${c.attempt?.certificateId}/upload`
+  const certQrSize = (c: CandidateItem) => certQrSizeByCandidate[c.id] || 'M'
+  const certQrPosition = (c: CandidateItem) => certQrPositionByCandidate[c.id] || 'BOTTOM_LEFT'
+
+  const previewCertFile = async (c: CandidateItem) => {
+    const certId = c.attempt?.certificateId
+    if (!certId) return
+    const file = certFileByCandidate[c.id] || null
+    setBusy(`cert-preview-${c.id}`)
+    try {
+      if (file) {
+        // ملف جديد لم يُحفظ بعد: المعاينة تمر عبر POST (مثل شاشة
+        // الخريجين السابقين) لأن متصفحات الهواتف ترفض عرض blob: PDF
+        // داخل الإطارات.
+        const fd = new FormData()
+        fd.append('file', file)
+        fd.append('qrPosition', certQrPosition(c))
+        fd.append('qrSize', certQrSize(c))
+        const res = await fetch(`${certUploadUrl(c)}?preview=true`, { method: 'POST', body: fd })
+        if (!res.ok) throw new Error(apiErrorMessage(await res.json().catch(() => ({})), 'تعذر إنشاء المعاينة'))
+        const blob = await res.blob()
+        const prev = certPreviewUrlByCandidate[c.id]
+        if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+        setCertPreviewUrlByCandidate((prevState) => ({ ...prevState, [c.id]: URL.createObjectURL(blob) }))
+      } else {
+        if (!c.attempt?.certificateUploadedFileKey) return toast({ title: 'ارفع ملف الشهادة أولاً', variant: 'destructive' })
+        // الملف المخزّن يُعاين برابط GET نظامي حتى يعرضه متصفح التلفون
+        // داخل الإطار.
+        setCertPreviewUrlByCandidate((prevState) => ({
+          ...prevState,
+          [c.id]: `${certUploadUrl(c)}?qrSize=${certQrSize(c)}&layout=${encodeURIComponent(certQrPosition(c))}&t=${Date.now()}`,
+        }))
+      }
+    } catch (e: any) {
+      toast({ title: 'فشل إنشاء المعاينة', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const uploadCertFile = async (c: CandidateItem) => {
+    const certId = c.attempt?.certificateId
+    if (!certId) return
+    const file = certFileByCandidate[c.id] || null
+    if (!file && !c.attempt?.certificateUploadedFileKey) return toast({ title: 'ارفع ملف الشهادة أولاً', variant: 'destructive' })
+    setBusy(`cert-upload-${c.id}`)
+    try {
+      const fd = new FormData()
+      if (file) fd.append('file', file)
+      fd.append('qrPosition', certQrPosition(c))
+      fd.append('qrSize', certQrSize(c))
+      const data = await jsonOrThrow(await fetch(certUploadUrl(c), { method: 'POST', body: fd }), 'تعذر حفظ الشهادة المختومة')
+      toast({ title: 'تم حفظ الشهادة المختومة', description: data.stampedFileKey || c.attempt?.certificateSerial || '' })
+      setCertFileByCandidate((prev) => ({ ...prev, [c.id]: null }))
+      await loadCandidates()
+    } catch (e: any) {
+      toast({ title: 'فشل حفظ الملف المختوم', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <Card>
       <CardContent className="space-y-3 pt-4">
@@ -1234,6 +1303,60 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
                     المحاولة: {c.attempt.status === 'GRADED' ? `مصححة — النتيجة ${c.attempt.score ?? '—'}% — ${c.attempt.passed ? 'ناجح' : 'راسب'}` : c.attempt.status === 'STARTED' ? 'بدأت ولم تُسلَّم' : 'منتهية'}
                     {c.attempt.certificateSerial ? ` — الشهادة: ${c.attempt.certificateSerial}` : ''}
                   </p>
+                )}
+
+                {c.attempt?.status === 'GRADED' && c.attempt?.passed && c.attempt?.certificateId && (
+                  <div className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
+                      <span>رفع شهادة جاهزة وختم QR والرقم</span>
+                      <span className="font-bold text-slate-500">الرقم: <span dir="ltr">{c.attempt.certificateSerial}</span></span>
+                      {c.attempt.certificateStampedFileKey ? <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">ملف مختوم</Badge> : <Badge variant="outline">بلا ملف مختوم</Badge>}
+                    </div>
+                    <p className="rounded-xl border border-emerald-100 bg-emerald-50 p-2 text-[11px] font-bold leading-5 text-emerald-900">
+                      الشهادة الأصلية لا يُعاد رسمها. يتم فقط إضافة QR والرقم التسلسلي فوق الملف كما رفعته.
+                    </p>
+                    <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e: ChangeEvent<HTMLInputElement>) => setCertFileByCandidate((prev) => ({ ...prev, [c.id]: e.target.files?.[0] || null }))} />
+                    {certFileByCandidate[c.id] && <p className="text-[11px] text-slate-500">{certFileByCandidate[c.id]?.name}</p>}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-black text-slate-600">حجم QR</Label>
+                        <Select value={certQrSize(c)} onValueChange={(v) => setCertQrSizeByCandidate((prev) => ({ ...prev, [c.id]: v }))}>
+                          <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="S">صغير</SelectItem>
+                            <SelectItem value="M">متوسط</SelectItem>
+                            <SelectItem value="L">كبير</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-black text-slate-600">موضع QR</Label>
+                        <Select value={certQrPosition(c)} onValueChange={(v) => setCertQrPositionByCandidate((prev) => ({ ...prev, [c.id]: v }))}>
+                          <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="BOTTOM_LEFT">أسفل اليسار</SelectItem>
+                            <SelectItem value="BOTTOM_RIGHT">أسفل اليمين</SelectItem>
+                            <SelectItem value="TOP_LEFT">أعلى اليسار</SelectItem>
+                            <SelectItem value="TOP_RIGHT">أعلى اليمين</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    {certPreviewUrlByCandidate[c.id] && (
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-black text-slate-600">معاينة بالمواضع الحالية — لم تُحفظ بعد</Label>
+                        <iframe title="معاينة الشهادة المختومة" src={certPreviewUrlByCandidate[c.id] || ''} className="h-96 w-full rounded-xl border border-slate-200 bg-white" />
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => previewCertFile(c)} disabled={busy === `cert-preview-${c.id}`}>
+                        {busy === `cert-preview-${c.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} معاينة
+                      </Button>
+                      <Button size="sm" onClick={() => uploadCertFile(c)} disabled={busy === `cert-upload-${c.id}`}>
+                        {busy === `cert-upload-${c.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} حفظ المختوم
+                      </Button>
+                    </div>
+                  </div>
                 )}
 
                 {inv && (
