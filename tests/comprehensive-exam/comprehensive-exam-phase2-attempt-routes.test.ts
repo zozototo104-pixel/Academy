@@ -259,6 +259,16 @@ describe('attempt GET — start and resume', () => {
     expect(attempts.length).toBe(1)
     expect(attempts[0].status).toBe('STARTED')
   })
+  test('parallel starts never create more than one attempt', async () => {
+    const responses = await Promise.all([
+      attemptRoute.GET(getReq('tok-valid-1')),
+      attemptRoute.GET(getReq('tok-valid-1')),
+    ])
+    expect(responses.some((res) => res.status === 200)).toBe(true)
+    expect(responses.every((res) => res.status === 200 || res.status === 409)).toBe(true)
+    expect(attempts).toHaveLength(1)
+    expect(invitations[0].status).toBe('USED')
+  })
   test('a second GET resumes the same attempt with the same display', async () => {
     const first = await (await attemptRoute.GET(getReq('tok-valid-1'))).json()
     const second = await attemptRoute.GET(getReq('tok-valid-1'))
