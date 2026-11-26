@@ -92,11 +92,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
             select: { id: true, serial: true, uploadedFileKey: true, stampedFileKey: true, user: { select: { email: true } } },
           })
         : []
-    const certificateByEmail = new Map(
-      certificates.map((c: any) => [
-        c.user.email,
-        { serial: c.serial, certificateId: c.id, uploadedFileKey: c.uploadedFileKey || null, stampedFileKey: c.stampedFileKey || null },
-      ]),
+    type ExamCertificateInfo = { serial: string; certificateId: string; uploadedFileKey: string | null; stampedFileKey: string | null }
+    const certificateByEmail = new Map<string, ExamCertificateInfo>(
+      certificates.map(
+        (c: any): [string, ExamCertificateInfo] => [
+          c.user.email,
+          { serial: c.serial, certificateId: c.id, uploadedFileKey: c.uploadedFileKey || null, stampedFileKey: c.stampedFileKey || null },
+        ],
+      ),
     )
     return NextResponse.json({
       ok: true,
