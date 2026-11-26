@@ -67,7 +67,7 @@ mock.module('@/lib/storage', () => ({
 }))
 mock.module('@/lib/pdf/official', () => ({
   pdfDate: (d: any) => String(d || ''),
-  pdfResponse: (buffer: Buffer, filename: string) => new Response(buffer, {
+  pdfResponse: (buffer: Buffer, filename: string) => new Response(new Uint8Array(buffer), {
     headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${filename}"` },
   }),
   pdfSafeText: (v: any, fallback = '') => String(v ?? fallback ?? ''),
