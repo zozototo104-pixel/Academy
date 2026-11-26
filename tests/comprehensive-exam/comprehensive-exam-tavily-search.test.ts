@@ -109,6 +109,15 @@ describe('searchTavily — happy path and request shape', () => {
     await searchTavily({ apiKey: 'tvly-k', query: 'x', maxResults: 50 }, { fetchFn: fn })
     expect(JSON.parse(calls[0].init.body).max_results).toBe(20)
   })
+
+  test('reviewed specialty research requests advanced multi-chunk sources, without changing basic mode', async () => {
+    const { fn, calls } = fakeFetch(TAVILY_BODY)
+    await searchTavily({ apiKey: 'tvly-k', query: 'تحليل القيادة', searchDepth: 'advanced', chunksPerSource: 3, maxResults: 8 }, { fetchFn: fn })
+    const sent = JSON.parse(calls[0].init.body)
+    expect(sent.search_depth).toBe('advanced')
+    expect(sent.chunks_per_source).toBe(3)
+    expect(sent.max_results).toBe(8)
+  })
 })
 
 describe('searchTavily — typed errors, never a silent empty result', () => {

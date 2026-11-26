@@ -37,20 +37,35 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 
     if (!certificate) return NextResponse.json({ error: 'الشهادة غير موجودة' }, { status: 404 })
 
-    const publicByQrToken = id === certificate.qrToken
-    const canView =
-      publicByQrToken ||
-      user?.role === 'ADMIN' ||
-      certificate.userId === user?.id ||
-      certificate.admission?.userId === user?.id ||
-      certificate.admission?.email === user?.email ||
-      certificate.agent?.userId === user?.id
+    const publicByQrToken = Boolean(certificate.qrToken) && id === certificate.qrToken
+    // Do not compare missing owner fields with an anonymous visitor's
+    // missing id/email: undefined === undefined would expose private PDFs.
+    const canView = publicByQrToken || (!!user && (
+      user.role === 'ADMIN' ||
+      certificate.userId === user.id ||
+      certificate.admission?.userId === user.id ||
+      (Boolean(user.email) && certificate.admission?.email === user.email) ||
+      certificate.agent?.userId === user.id
+    ))
 
     if (!canView) return NextResponse.json({ error: 'صلاحيات غير كافية لعرض الشهادة' }, { status: 403 })
 
     if (certificate.stampedFileKey) {
-      const stamped = await readLegacyCertificateStoredFile(certificate.stampedFileKey, 'application/pdf')
-      if (stamped) return pdfResponse(stamped.buffer, `${certificate.serial}.pdf`)
+      const stamped = await readLegacyCertificateStoredFile(certificate.stampedFileKey, 'application/pdf', 30 * 1024 * 1024)
+      if (stamped) {
+        // A 10MB source can produce a PDF larger than Vercel's default
+        // function response limit. The certificate access gate above must
+        // run first; only then issue a short-lived signed object URL.
+        if (stamped.buffer.byteLength > 4 * 1024 * 1024) {
+          const { createSignedStorageUrlForKey } = await import('@/lib/storage')
+          const signedUrl = createSignedStorageUrlForKey(certificate.stampedFileKey, 300)
+          if (!signedUrl) return NextResponse.json({ error: 'تعذر تجهيز رابط تنزيل الشهادة الكبيرة' }, { status: 503 })
+          const response = NextResponse.redirect(new URL(signedUrl, _req.url), 302)
+          response.headers.set('Cache-Control', 'no-store')
+          return response
+        }
+        return pdfResponse(stamped.buffer, `${certificate.serial}.pdf`)
+      }
     }
 
     try {

@@ -150,6 +150,7 @@ function mapValidatedToExamItems(
       text: q.text,
       options: q.type === 'TF' ? ['صح', 'خطأ'] : q.options,
       correctAnswer: q.correct,
+      correctAnswerIndexBase: 0,
       sourceEvidence: q.sourceEvidence,
     })
     if (!checked.ok) {

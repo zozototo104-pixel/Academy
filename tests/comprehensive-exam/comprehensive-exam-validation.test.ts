@@ -1,9 +1,15 @@
 // Comprehensive exam — question validation (closed questions only).
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { approvePendingQuestionsInBatches, parseSavedInternetExamPlan } from '../../src/components/aact/AdminComprehensiveExamTab'
 import {
   parseComprehensiveCorrectAnswer,
   parseComprehensiveType,
   validateComprehensiveQuestion,
+  internetAcademicTopicIssue,
+  internetQuestionAcademicIssue,
+  internetSourceAcademicIssue,
 } from '../../src/lib/comprehensive-exam'
 
 const mcq = {
@@ -12,6 +18,38 @@ const mcq = {
   options: ['النقدية', 'المباني', 'براءات الاختراع', 'الشهرة'],
   correctAnswer: '0',
 }
+
+describe('internet comprehensive exam — academic scope', () => {
+  const specialization = 'الدكتوراه المهنية في إدارة الأعمال'
+
+  test('rejects degree name and admissions topics, but accepts disciplinary topics', () => {
+    expect(internetAcademicTopicIssue('دكتوراه إدارة الأعمال DBA', specialization)).not.toBeNull()
+    expect(internetAcademicTopicIssue('شروط القبول في برنامج DBA', specialization)).not.toBeNull()
+    expect(internetAcademicTopicIssue('الإدارة الاستراتيجية وتحليل الميزة التنافسية', specialization)).toBeNull()
+    expect(internetAcademicTopicIssue('مناهج البحث العلمي التطبيقي', specialization)).toBeNull()
+  })
+
+  test('refuses degree-admissions sources even when their text is real', () => {
+    expect(internetSourceAcademicIssue(
+      'United International Business School - DBA',
+      'يُعدّ برنامج دكتوراه إدارة الأعمال برنامجًا مهنيًا موجهاً نحو خريجي الماجستير في التخصصات ذات الصلة.',
+    )).toBe('DEGREE_ADMISSIONS_SOURCE')
+    expect(internetSourceAcademicIssue(
+      'المحاسبة المالية',
+      'الأصول المتداولة تشمل النقدية والذمم المدينة والمخزون، وتخضع لتحليل السيولة وإدارة رأس المال العامل.',
+    )).toBeNull()
+  })
+
+  test('refuses degree trivia but preserves knowledge questions', () => {
+    expect(internetQuestionAcademicIssue('من هي الفئة المستهدفة للالتحاق ببرنامج دكتوراه إدارة الأعمال DBA؟')).not.toBeNull()
+    expect(internetQuestionAcademicIssue('ما هي الشروط الأساسية المذكورة للقبول في برنامج الـ DBA؟')).not.toBeNull()
+    expect(internetQuestionAcademicIssue('يركز برنامج الـ DBA بشكل أساسي على تطبيق المعرفة النظرية لتحسين ممارسات الإدارة والأعمال.')).not.toBeNull()
+    expect(internetQuestionAcademicIssue('هل الماجستير بعد البكالوريوس؟')).toBe('DEGREE_SEQUENCE_QUESTION')
+    expect(internetQuestionAcademicIssue('هل شهادة الدكتوراه تتطلب الماجستير؟')).toBe('DEGREE_SEQUENCE_QUESTION')
+    expect(internetQuestionAcademicIssue('كيف يؤثر التحليل المالي للسيولة في اتخاذ قرار تمويل رأس المال العامل؟')).toBeNull()
+    expect(internetQuestionAcademicIssue('تُصنّف الذمم المدينة ضمن الأصول المتداولة في قائمة المركز المالي.')).toBeNull()
+  })
+})
 
 describe('validateComprehensiveQuestion', () => {
   test('accepts a valid multiple-choice question', () => {
@@ -107,9 +145,116 @@ describe('parseComprehensiveType', () => {
 })
 
 describe('parseComprehensiveCorrectAnswer', () => {
+  test('zero-based UI/stored answers retain all four MCQ positions', () => {
+    const options = ['الأول', 'الثاني', 'الثالث', 'الرابع']
+    for (let i = 0; i < options.length; i++) {
+      expect(parseComprehensiveCorrectAnswer('MCQ', String(i), options, 0)).toBe(String(i))
+      const checked = validateComprehensiveQuestion({ ...mcq, correctAnswer: String(i), correctAnswerIndexBase: 0 })
+      expect(checked.ok).toBe(true)
+      if (checked.ok) expect(checked.question.correctAnswer).toBe(String(i))
+    }
+    expect(parseComprehensiveCorrectAnswer('MCQ', '4', options, 0)).toBeNull()
+  })
+
+  test('legacy one-based numeric imports still resolve to zero-based storage', () => {
+    expect(parseComprehensiveCorrectAnswer('MCQ', '1', mcq.options)).toBe('0')
+    expect(parseComprehensiveCorrectAnswer('MCQ', '4', mcq.options)).toBe('3')
+  })
+
   test('TF accepts صح/خطأ words', () => {
     expect(parseComprehensiveCorrectAnswer('TF', 'صح', ['صح', 'خطأ'])).toBe('0')
     expect(parseComprehensiveCorrectAnswer('TF', 'خطأ', ['صح', 'خطأ'])).toBe('1')
     expect(parseComprehensiveCorrectAnswer('TF', '2', ['صح', 'خطأ'])).toBe(null)
+  })
+})
+
+describe('comprehensive exam review UX', () => {
+  const view = readFileSync(join(import.meta.dir, '../../src/components/aact/AdminComprehensiveExamTab.tsx'), 'utf8')
+
+  test('restores a reviewed blueprint with its selected axes, without accepting invalid local data', () => {
+    const saved = parseSavedInternetExamPlan(JSON.stringify({
+      axesText: 'الإدارة الاستراتيجية وتحليل الميزة التنافسية\nمناهج البحث التطبيقي',
+      selectedTopics: { 'الإدارة الاستراتيجية وتحليل الميزة التنافسية': true, 'مناهج البحث التطبيقي': false },
+      basis: 'MIXED', reviewed: true,
+    }))
+    expect(saved?.selectedTopics['الإدارة الاستراتيجية وتحليل الميزة التنافسية']).toBe(true)
+    expect(saved?.selectedTopics['مناهج البحث التطبيقي']).toBeUndefined()
+    expect(parseSavedInternetExamPlan('{broken')).toBeNull()
+    expect(parseSavedInternetExamPlan(JSON.stringify({ axesText: 'محور واحد', selectedTopics: {}, reviewed: true }))).toBeNull()
+    expect(parseSavedInternetExamPlan(JSON.stringify({ axesText: 'الإدارة الاستراتيجية وتحليل الميزة التنافسية', selectedTopics: { 'الإدارة الاستراتيجية وتحليل الميزة التنافسية': true }, reviewed: false }))).toBeNull()
+  })
+
+  test('offers explicit resume after a saved partial run and keeps the plan on refresh', () => {
+    expect(view).toContain('localStorage.setItem(internetExamPlanStorageKey(examId)')
+    expect(view).toContain('localStorage.getItem(internetExamPlanStorageKey(examId))')
+    expect(view).toContain('استكمال الأسئلة الناقصة')
+    expect(view).toContain('كل دفعة بحد أقصى 10 أسئلة')
+    expect(view).toContain('internetPlanStored')
+    expect(view).toContain('internetStopRef.current = true')
+  })
+
+  test('keeps the question panel mounted during approval and edit refresh', () => {
+    expect(view).toContain('const loadDetail = async (examId: string, showLoading = true)')
+    expect(view).toContain('if (showLoading) setDetailLoading(true)')
+    expect(view).toContain('if (showLoading) setDetailLoading(false)')
+    expect(view).toContain('loadDetail(examId, false), loadExams()')
+    expect(view).toContain('onClick={() => loadDetail(exam.id)}')
+  })
+
+  test('select-all approves only pending questions via existing guarded PATCH', () => {
+    expect(view).toContain('تحديد الكل')
+    expect(view).toContain('اعتماد المحدد')
+    expect(view).toContain("q.status === 'PENDING_REVIEW'")
+    expect(view).toContain("body: JSON.stringify({ status: 'APPROVED' })")
+    expect(view).toContain('bulkApproveLock.current = true')
+    expect(view).toContain('bulkApproveLock.current = false')
+  })
+
+  test('specialty-wide internet generation requires a reviewed blueprint and supports stop/progress', () => {
+    expect(view).toContain('تحضير محاور التخصص')
+    expect(view).toContain('كتابة المحاور يدوياً')
+    expect(view).toContain('تحديد جميع المحاور')
+    expect(view).toContain('internetSelectedTopics[topic]')
+    expect(view).toContain('const chosenAxes = writtenAxes.filter')
+    expect(view).toContain('توليد الأسئلة حسب المخطط')
+    expect(view).toContain('!internetPlanReviewed')
+    expect(view).toContain("mode: 'COMPREHENSIVE'")
+    expect(view).toContain('internetStopRef.current = true')
+    expect(view).toContain('axisTarget: axis.target')
+    expect(view).toContain('await refreshDetailAndList(examId)')
+    expect(view).toContain('جميعها بانتظار مراجعتك')
+  })
+
+  test('batch approval preserves each success and reports failed academic validation', async () => {
+    const visited: string[] = []
+    const result = await approvePendingQuestionsInBatches(
+      [{ id: 'a', order: 1 }, { id: 'bad', order: 2 }, { id: 'a', order: 1 }, { id: 'c', order: 3 }],
+      async (id) => {
+        visited.push(id)
+        if (id === 'bad') throw new Error('السؤال خارج التخصص')
+      },
+    )
+    expect(visited.sort()).toEqual(['a', 'bad', 'c'])
+    expect(result.approvedIds).toEqual(['a', 'c'])
+    expect(result.failed).toEqual([{ id: 'bad', order: 2, reason: 'السؤال خارج التخصص' }])
+  })
+
+  test('batch approval limits concurrency to four and reports progress', async () => {
+    let concurrent = 0
+    let peak = 0
+    const progress: number[] = []
+    const result = await approvePendingQuestionsInBatches(
+      Array.from({ length: 9 }, (_, i) => ({ id: `q-${i}`, order: i + 1 })),
+      async () => {
+        concurrent++
+        peak = Math.max(peak, concurrent)
+        await new Promise((resolve) => setTimeout(resolve, 2))
+        concurrent--
+      },
+      (processed) => progress.push(processed),
+    )
+    expect(peak).toBeLessThanOrEqual(4)
+    expect(progress).toEqual([4, 8, 9])
+    expect(result.approvedIds).toHaveLength(9)
   })
 })

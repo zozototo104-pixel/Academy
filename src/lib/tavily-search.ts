@@ -7,8 +7,9 @@
 //   body: { query, search_depth: 'basic', max_results, include_answer: false, include_usage: true }
 //   200: { query, answer?, results: [{ title, url, content, score, raw_content?, published_date?, favicon? }],
 //          response_time, usage?: { credits }, request_id }
-// search_depth 'basic' costs 1 credit per search (free tier: 1,000
-// credits/month, no card) — 'advanced' costs 2 and is not used here.
+// The single-topic route keeps 'basic' (1 credit). The reviewed
+// specialty-wide route may explicitly request 'advanced' (2 credits)
+// with three query-relevant chunks per source, per Tavily's docs.
 // No scraping, no other search provider. Failures are typed errors —
 // never an empty silent result.
 export const TAVILY_SEARCH_URL = 'https://api.tavily.com/search'
@@ -97,7 +98,7 @@ export function parseTavilySearchResponse(raw: unknown): TavilySearchOutcome {
 }
 
 export async function searchTavily(
-  input: { apiKey: string; query: string; maxResults?: number },
+  input: { apiKey: string; query: string; maxResults?: number; searchDepth?: 'basic' | 'advanced'; chunksPerSource?: number },
   deps: { fetchFn?: typeof fetch } = {},
 ): Promise<TavilySearchOutcome> {
   const apiKey = String(input.apiKey || '').trim()
@@ -105,6 +106,7 @@ export async function searchTavily(
   if (!apiKey) throw new TavilySearchError('AUTH', 'مفتاح Tavily غير مضبوط')
   if (!query) throw new TavilySearchError('BAD_REQUEST', 'موضوع البحث فارغ')
   const maxResults = Math.max(1, Math.min(20, Math.floor(input.maxResults ?? TAVILY_MAX_RESULTS) || TAVILY_MAX_RESULTS))
+  const advanced = input.searchDepth === 'advanced'
   const fetchFn = deps.fetchFn || fetch
   let res: Response
   try {
@@ -116,7 +118,8 @@ export async function searchTavily(
       },
       body: JSON.stringify({
         query,
-        search_depth: 'basic',
+        search_depth: advanced ? 'advanced' : 'basic',
+        ...(advanced ? { chunks_per_source: Math.max(1, Math.min(3, Math.floor(input.chunksPerSource || 3))) } : {}),
         max_results: maxResults,
         include_answer: false,
         include_usage: true,

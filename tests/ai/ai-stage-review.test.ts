@@ -6,6 +6,7 @@ mock.module('@/lib/db', () => ({ db: { aiPipelineOperationLog: { create: async (
 const routerCalls: Record<string, unknown>[] = []
 let restrictedBehavior: 'throw' | 'respond' = 'throw'
 let responseContext: { provider: string; model: string; family?: string } = { provider: 'ANTHROPIC', model: 'claude-v' }
+let academicFit: boolean | undefined
 let generatorFamilyOverride = 'gemini'
 mock.module('@/lib/text-ai', () => ({
   pipelineConfigSnapshot: async () => ({ policy: 'balanced', allowedModels: [], verifierPreferred: [] }),
@@ -32,7 +33,7 @@ mock.module('@/lib/text-ai', () => ({
       err.code = 'AI_VERIFIER_UNAVAILABLE'
       throw err
     }
-    const text = JSON.stringify({ results: [{ index: 0, valid: true, answerSupported: true, evidenceSupportsQuestion: true, reason: 'مدعوم بالمصدر' }] })
+    const text = JSON.stringify({ results: [{ index: 0, academicFit, valid: true, answerSupported: true, evidenceSupportsQuestion: true, reason: 'مدعوم بالمصدر' }] })
     ;(opts.validate as ((t: string, c: { provider: string; model: string; family?: string }) => void) | undefined)?.(text, responseContext)
     return text
   },
@@ -161,6 +162,22 @@ describe('D2.4 behavioral: the verifier runs restricted, then falls back once if
     expect(routerCalls[0].restrictToModels).toBeUndefined()
     expect(out[0].verifierProvider).toBe('ANTHROPIC')
   })
+})
+
+test('internet exam review requires an explicit match to the selected axis and level', async () => {
+  const examScope = { specialty: 'إدارة الأعمال', topic: 'إدارة المخاطر', level: 'DOCTORATE' }
+  try {
+    for (const verdict of [undefined, false, true]) {
+      academicFit = verdict
+      const [reviewed] = await verifyQuestionsWithCrossProvider({
+        questions: [QUESTION], sources: [{ text: SOURCE_TEXT }], generatorProvider: 'GEMINI',
+        generatorModel: 'gemini-2.5-pro', examScope,
+      })
+      const prompt = JSON.stringify(routerCalls.at(-1)?.history)
+      for (const field of Object.values(examScope)) expect(prompt).toContain(field)
+      expect(reviewed.qualityFlags?.includes('SOURCE_GROUNDED')).toBe(verdict === true)
+    }
+  } finally { academicFit = undefined }
 })
 
 describe('D2.4 scope guards', () => {

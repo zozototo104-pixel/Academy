@@ -364,10 +364,10 @@ export async function stampLegacyCertificatePdf(input: {
   return Buffer.from(await pdf.save())
 }
 
-export async function readLegacyCertificateStoredFile(key: string, mimeType?: string | null) {
+export async function readLegacyCertificateStoredFile(key: string, mimeType?: string | null, maxBytes = LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES) {
   const mime = String(mimeType || 'application/octet-stream')
-  return (await readStoredFile({ provider: 's3', key, mimeType: mime, maxBytes: LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES }).catch(() => null))
-    || (await readStoredFile({ provider: 'local', key, mimeType: mime, maxBytes: LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES }).catch(() => null))
+  return (await readStoredFile({ provider: 's3', key, mimeType: mime, maxBytes }).catch(() => null))
+    || (await readStoredFile({ provider: 'local', key, mimeType: mime, maxBytes }).catch(() => null))
 }
 
 export async function storeLegacyCertificateOriginal(buffer: Buffer, fileName: string, mimeType: LegacyCertificateMime) {
@@ -376,6 +376,77 @@ export async function storeLegacyCertificateOriginal(buffer: Buffer, fileName: s
 
 export async function storeLegacyCertificateStamped(buffer: Buffer, fileName: string) {
   return storeFileBuffer({ buffer, fileName, mimeType: 'application/pdf', namespace: 'certificates/legacy-stamped' })
+}
+
+// Regular-graduate originals and stamped PDFs are private objects. They are
+// exposed through authenticated certificate routes, never public storage URLs.
+export async function storeRegularCertificateOriginal(buffer: Buffer, fileName: string, mimeType: LegacyCertificateMime) {
+  return storeFileBuffer({ buffer, fileName, mimeType, namespace: 'certificates/regular-originals' })
+}
+
+export async function storeRegularCertificateStamped(buffer: Buffer, fileName: string) {
+  return storeFileBuffer({ buffer, fileName, mimeType: 'application/pdf', namespace: 'certificates/regular-stamped' })
+}
+
+export const REGULAR_CERTIFICATE_UPLOAD_PREFIX = 'certificates/regular-pending/'
+const REGULAR_CERTIFICATE_MIME_EXT: Record<LegacyCertificateMime, string> = {
+  'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg',
+}
+
+export function newRegularCertificateUploadKey(certificateId: string, mimeType: LegacyCertificateMime): string | null {
+  if (!/^[a-zA-Z0-9_-]{4,100}$/.test(certificateId) || !REGULAR_CERTIFICATE_MIME_EXT[mimeType]) return null
+  return `${REGULAR_CERTIFICATE_UPLOAD_PREFIX}${certificateId}/${randomUUID()}.${REGULAR_CERTIFICATE_MIME_EXT[mimeType]}`
+}
+
+export function isRegularCertificateUploadKey(key: unknown, certificateId: string): key is string {
+  if (typeof key !== 'string' || !/^[a-zA-Z0-9_-]{4,100}$/.test(certificateId)) return false
+  const prefix = `${REGULAR_CERTIFICATE_UPLOAD_PREFIX}${certificateId}/`
+  return key.startsWith(prefix) && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:pdf|png|jpg)$/.test(key.slice(prefix.length))
+}
+
+// The presigned PUT doesn't itself cap the request's bytes. Read staging
+// objects as a bounded stream, so a forged size or an oversized upload
+// cannot make the function buffer an arbitrarily large S3 object.
+export async function readRegularCertificateDirectUpload(key: string, certificateId: string): Promise<Buffer | null> {
+  if (!isRegularCertificateUploadKey(key, certificateId)) return null
+  // Dynamic access keeps the legacy certificate helper compatible with
+  // isolated legacy-route test doubles that do not exercise direct uploads.
+  const { getFileStreamFromStorageOrBase64 } = await import('@/lib/storage')
+  const found = await getFileStreamFromStorageOrBase64({ provider: 's3', key })
+    || await getFileStreamFromStorageOrBase64({ provider: 'local', key, maxBytes: LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES })
+  if (!found) return null
+  if (found.size !== null && found.size > LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES) {
+    await found.stream.cancel().catch(() => {})
+    throw new Error('STORAGE_FILE_TOO_LARGE')
+  }
+  const reader = found.stream.getReader()
+  const parts: Buffer[] = []
+  let bytes = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      bytes += value.byteLength
+      if (bytes > LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES) throw new Error('STORAGE_FILE_TOO_LARGE')
+      parts.push(Buffer.from(value))
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => {})
+    throw error
+  } finally {
+    reader.releaseLock()
+  }
+  return Buffer.concat(parts, bytes)
+}
+
+export function regularCertificatePreviewKey(certificateId: string, adminId: string) {
+  if (!/^[a-zA-Z0-9_-]{4,100}$/.test(certificateId) || !/^[a-zA-Z0-9_-]{4,100}$/.test(adminId)) throw new Error('INVALID_CERTIFICATE_PREVIEW_KEY')
+  return `certificates/regular-previews/${certificateId}/${adminId}.pdf`
+}
+
+export async function storeRegularCertificatePreview(buffer: Buffer, key: string) {
+  const { storeFileBufferAtKey } = await import('@/lib/storage')
+  return storeFileBufferAtKey({ buffer, key, fileName: 'preview.pdf', mimeType: 'application/pdf' })
 }
 
 // --- Bulk ZIP direct-to-storage upload -------------------------------------
@@ -435,8 +506,7 @@ export function isLegacyCertificateZipImportKey(key: unknown): key is string {
 
 // Presigned PUT URL the browser uses to upload one bulk ZIP directly to
 // storage. Returns null when S3 storage is not configured on this server.
-export function createLegacyCertificateZipUploadUrl(key: string): string | null {
-  if (!isLegacyCertificateZipImportKey(key)) return null
+function createCertificateObjectUploadUrl(key: string): string | null {
   const cfg = getLegacyZipS3Config()
   if (!cfg) return null
   const endpoint = new URL(cfg.endpoint)
@@ -460,6 +530,14 @@ export function createLegacyCertificateZipUploadUrl(key: string): string | null 
   const kSigning = legacyZipHmac(kService, 'aws4_request')
   const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex')
   return `${endpoint.origin}${uri}?${canonicalQuery}&X-Amz-Signature=${signature}`
+}
+
+export function createLegacyCertificateZipUploadUrl(key: string): string | null {
+  return isLegacyCertificateZipImportKey(key) ? createCertificateObjectUploadUrl(key) : null
+}
+
+export function createRegularCertificateUploadUrl(key: string, certificateId: string): string | null {
+  return isRegularCertificateUploadKey(key, certificateId) ? createCertificateObjectUploadUrl(key) : null
 }
 
 export async function readLegacyCertificateZipImport(key: string): Promise<Buffer | null> {

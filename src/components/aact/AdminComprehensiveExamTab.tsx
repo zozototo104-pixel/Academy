@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { toast } from '@/hooks/use-toast'
+import { useAdminActionDialog } from './AdminActionDialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Check, Download, FileSpreadsheet, Loader2, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react'
 
 type ProgramOption = { id: string; titleAr: string; titleEn?: string | null; slug?: string | null; active?: boolean | null; category?: string | null; serviceKind?: string | null }
+type InternetExamAxis = { topic: string; origin: 'CURRICULUM' | 'AI_SUGGESTION' }
 type ExamCounts = { approved: number; pending: number; rejected: number }
 type ExamListItem = {
   id: string; programId: string; programTitleAr: string; programCategory: string
@@ -50,7 +53,60 @@ function parseOptions(raw: string | null): string[] {
   }
 }
 
+type SavedInternetExamPlan = { axesText: string; selectedTopics: Record<string, boolean>; basis: string; reviewed: true }
+
+function internetExamPlanStorageKey(examId: string) {
+  return `aact:comprehensive-exam-internet-plan:v1:${examId}`
+}
+
+// Persist only the administrator-approved blueprint in this browser. The
+// server remains authoritative for the saved question count and axis caps.
+export function parseSavedInternetExamPlan(raw: string | null): SavedInternetExamPlan | null {
+  if (!raw || raw.length > 8000) return null
+  try {
+    const data = JSON.parse(raw)
+    if (typeof data?.axesText !== 'string' || data.axesText.length > 4000 || data.reviewed !== true) return null
+    const axes = data.axesText.split('\n').map((axis: string) => axis.trim()).filter(Boolean)
+    if (!axes.length || axes.length > 20 || axes.some((axis: string) => axis.length < 10 || axis.length > 160)) return null
+    if (!data.selectedTopics || typeof data.selectedTopics !== 'object' || Array.isArray(data.selectedTopics)) return null
+    const selectedTopics = Object.fromEntries(axes.filter((axis: string) => data.selectedTopics[axis] === true).map((axis: string) => [axis, true]))
+    if (!Object.keys(selectedTopics).length || Object.keys(selectedTopics).length > 10) return null
+    return { axesText: axes.join('\n'), selectedTopics, basis: String(data.basis || 'MANUAL').slice(0, 30), reviewed: true }
+  } catch { return null }
+}
+
+type BulkReviewQuestion = { id: string; order: number }
+
+// Reuse the single-question approval endpoint for every item, including all
+// academic checks and its individual audit. Never skip a failed question.
+export async function approvePendingQuestionsInBatches(
+  questions: readonly BulkReviewQuestion[],
+  approveOne: (id: string) => Promise<void>,
+  onProgress?: (processed: number, total: number) => void,
+): Promise<{ approvedIds: string[]; failed: { id: string; order: number; reason: string }[] }> {
+  const uniqueQuestions = [...new Map(questions.map((q) => [q.id, q])).values()]
+  const approvedIds: string[] = []
+  const failed: { id: string; order: number; reason: string }[] = []
+  for (let start = 0; start < uniqueQuestions.length; start += 4) {
+    const results = await Promise.all(uniqueQuestions.slice(start, start + 4).map(async (question) => {
+      try {
+        await approveOne(question.id)
+        return { question, ok: true as const }
+      } catch (error: any) {
+        return { question, ok: false as const, reason: String(error?.message || error || 'تعذر الاعتماد') }
+      }
+    }))
+    for (const result of results) {
+      if (result.ok) approvedIds.push(result.question.id)
+      else failed.push({ id: result.question.id, order: result.question.order, reason: result.reason })
+    }
+    onProgress?.(Math.min(start + 4, uniqueQuestions.length), uniqueQuestions.length)
+  }
+  return { approvedIds, failed }
+}
+
 export function AdminComprehensiveExamTab() {
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [exams, setExams] = useState<ExamListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,16 +134,33 @@ export function AdminComprehensiveExamTab() {
   const [internetResult, setInternetResult] = useState<any>(null)
   const [internetBusy, setInternetBusy] = useState(false)
   const [internetKeyMissing, setInternetKeyMissing] = useState(false)
+  const [internetAxesText, setInternetAxesText] = useState('')
+  const [internetSelectedTopics, setInternetSelectedTopics] = useState<Record<string, boolean>>({})
+  const [internetPlanBasis, setInternetPlanBasis] = useState('')
+  const [internetPlanBusy, setInternetPlanBusy] = useState(false)
+  const [internetPlanReviewed, setInternetPlanReviewed] = useState(false)
+  const [internetPlanStored, setInternetPlanStored] = useState(false)
+  const [internetRunBusy, setInternetRunBusy] = useState(false)
+  const [internetRunProgress, setInternetRunProgress] = useState<{axis: number; total: number; imported: number; errors: string[]} | null>(null)
+  const internetStopRef = useRef(false)
+  const internetRunLock = useRef(false)
+  const activeExamIdRef = useRef<string | null>(null)
   const [manualType, setManualType] = useState('MCQ')
   const [manualText, setManualText] = useState('')
   const [manualOptions, setManualOptions] = useState(['', '', '', ''])
   const [manualAnswer, setManualAnswer] = useState('0')
   const [manualEvidence, setManualEvidence] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const editTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [editText, setEditText] = useState('')
   const [editOptions, setEditOptions] = useState<string[]>([])
   const [editAnswer, setEditAnswer] = useState('0')
   const [rejectReason, setRejectReason] = useState('')
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([])
+  const [bulkApproveBusy, setBulkApproveBusy] = useState(false)
+  const [bulkApproveProgress, setBulkApproveProgress] = useState<{ processed: number; total: number } | null>(null)
+  const bulkApproveLock = useRef(false)
 
   const loadExams = async () => {
     const data = await jsonOrThrow(await fetch('/api/admin/comprehensive-exams', { cache: 'no-store' }), 'تعذر تحميل الامتحانات الشاملة')
@@ -113,16 +186,34 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
-  const loadDetail = async (examId: string) => {
-    setDetailLoading(true)
+  const loadDetail = async (examId: string, showLoading = true) => {
+    // Keep the question list mounted for in-place review updates.
+    // Hiding a long panel during refresh collapses the page and moves scroll.
+    if (selectedId !== examId) {
+      // Switching exams restores this exam's last reviewed blueprint. A
+      // refresh must not discard the ability to resume a partial run.
+      internetStopRef.current = true
+      activeExamIdRef.current = examId
+      let saved: SavedInternetExamPlan | null = null
+      try { saved = parseSavedInternetExamPlan(localStorage.getItem(internetExamPlanStorageKey(examId))) } catch { /* private browsing may deny storage */ }
+      setInternetAxesText(saved?.axesText || '')
+      setInternetSelectedTopics(saved?.selectedTopics || {})
+      setInternetPlanBasis(saved?.basis || '')
+      setInternetPlanReviewed(Boolean(saved?.reviewed))
+      setInternetPlanStored(Boolean(saved))
+      setInternetRunProgress(null)
+    }
+    if (showLoading) setDetailLoading(true)
     try {
       const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${examId}`, { cache: 'no-store' }), 'تعذر تحميل الامتحان')
       setDetail({ exam: data.exam, counts: data.counts, questions: data.questions })
+      const pendingIds = new Set((data.questions as ExamQuestion[]).filter((q) => q.status === 'PENDING_REVIEW').map((q) => q.id))
+      setSelectedQuestionIds((ids) => ids.filter((id) => pendingIds.has(id)))
       setSelectedId(examId)
     } catch (e: any) {
       toast({ title: 'تعذر تحميل الامتحان', description: e.message || 'حدث خطأ', variant: 'destructive' })
     } finally {
-      setDetailLoading(false)
+      if (showLoading) setDetailLoading(false)
     }
   }
 
@@ -157,7 +248,12 @@ export function AdminComprehensiveExamTab() {
   }, [detail, statusFilter])
 
   const refreshDetailAndList = async (examId: string) => {
-    await Promise.all([loadDetail(examId), loadExams()])
+    await Promise.all([loadDetail(examId, false), loadExams()])
+  }
+
+  const discardSavedInternetPlan = (examId: string) => {
+    try { localStorage.removeItem(internetExamPlanStorageKey(examId)) } catch { /* no browser storage */ }
+    setInternetPlanStored(false)
   }
 
   const createExam = async () => {
@@ -191,7 +287,14 @@ export function AdminComprehensiveExamTab() {
 
   const publishExam = async (action: 'publish' | 'unpublish' | 'archive') => {
     if (!detail) return
-    if (action === 'archive' && !window.confirm('أرشفة الامتحان نهائياً؟ تبقى نتائجه وسجلاته، ويمكن بعدها إنشاء نسخة جديدة للتخصص.')) return
+    if (action === 'archive') {
+      const confirmed = await confirmAction({
+        title: 'أرشفة الامتحان',
+        description: `هل تريد أرشفة «${detail.exam.title}»؟ تبقى نتائجه وسجلاته محفوظة، ويمكنك إنشاء نسخة جديدة للتخصص.`,
+        confirmLabel: 'أرشفة الامتحان', tone: 'warning',
+      })
+      if (!confirmed) return
+    }
     try {
       const data = await jsonOrThrow(
         await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/publish`, {
@@ -278,6 +381,7 @@ export function AdminComprehensiveExamTab() {
             text: manualText,
             options: manualType === 'TF' ? ['صح', 'خطأ'] : manualOptions.filter((o) => o.trim() !== ''),
             correctAnswer: manualAnswer,
+            correctAnswerIndexBase: 0,
             sourceEvidence: manualEvidence || undefined,
           }),
         }),
@@ -375,6 +479,128 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
+  const createInternetPlan = async () => {
+    if (!detail) return
+    const examId = detail.exam.id
+    setInternetPlanBusy(true)
+    setInternetPlanReviewed(false)
+    setInternetAxesText('')
+    setInternetSelectedTopics({})
+    setInternetPlanBasis('')
+    setInternetRunProgress(null)
+    try {
+      const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${examId}/questions/from-internet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'PLAN' }),
+      }), 'تعذر تحضير محاور التخصص')
+      if (activeExamIdRef.current !== examId) return
+      discardSavedInternetPlan(examId)
+      setInternetAxesText((data.axes as InternetExamAxis[]).map((axis) => axis.topic).join('\n'))
+      setInternetPlanBasis(data.basis)
+      toast({ title: `تم تحضير ${data.axes.length} محاور — اختر التي تريدها`, description: data.warning || 'تستطيع تعديل القائمة قبل تحديد المحاور' })
+    } catch (e: any) {
+      toast({ title: 'تعذر تحضير مخطط الامتحان', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setInternetPlanBusy(false)
+    }
+  }
+
+  const openManualInternetPlan = () => {
+    if (detail) discardSavedInternetPlan(detail.exam.id)
+    setInternetAxesText('')
+    setInternetSelectedTopics({})
+    setInternetPlanBasis('MANUAL')
+    setInternetPlanReviewed(false)
+    setInternetRunProgress(null)
+  }
+
+  const runComprehensiveInternetPlan = async () => {
+    if (!detail || internetBusy || internetRunLock.current || !internetPlanReviewed) return
+    const examId = detail.exam.id
+    const writtenAxes = internetAxesText.split('\n').map((line) => line.trim()).filter(Boolean)
+    const chosenAxes = writtenAxes.filter((topic) => internetSelectedTopics[topic])
+    if (!chosenAxes.length || chosenAxes.length > 10 || writtenAxes.length > 20 || chosenAxes.some((topic) => topic.length < 10 || topic.length > 160) || new Set(chosenAxes).size !== chosenAxes.length) {
+      toast({ title: 'حدد المحاور التي تريد الامتحان فيها، وتأكّد أنها علمية وصالحة وغير مكررة', variant: 'destructive' })
+      return
+    }
+    // Academic-scope validation is also enforced by each guarded API
+    // request. The UI only distributes the administrator's chosen axes.
+    const perAxis = Math.floor(100 / chosenAxes.length)
+    const allocations = chosenAxes.map((topic, index) => ({ topic, target: perAxis + (index < 100 % chosenAxes.length ? 1 : 0) }))
+    // Store the reviewed selection BEFORE the first request. Every batch is
+    // committed by the API, so another click after stopping/reloading may
+    // resume against the server's saved per-axis counts without duplicates.
+    try {
+      localStorage.setItem(internetExamPlanStorageKey(examId), JSON.stringify({
+        axesText: writtenAxes.join('\n'),
+        selectedTopics: Object.fromEntries(chosenAxes.map((topic) => [topic, true])),
+        basis: internetPlanBasis, reviewed: true,
+      }))
+      setInternetPlanStored(true)
+    } catch {
+      toast({ title: 'التوليد سيستمر، لكن هذا المتصفح لا يسمح بحفظ خطة الاستكمال بعد تحديث الصفحة', variant: 'destructive' })
+    }
+    internetStopRef.current = false
+    internetRunLock.current = true
+    setInternetRunBusy(true)
+    setInternetKeyMissing(false)
+    let imported = 0
+    let completedAxes = 0
+    let fatal = false
+    const errors: string[] = []
+    try {
+      for (const [index, axis] of allocations.entries()) {
+        if (internetStopRef.current || fatal) break
+        let remaining = axis.target
+        // One request produces at most ten questions. Permit enough
+        // batches for the chosen axis share, plus two partial retries;
+        // never loop indefinitely when real evidence is exhausted.
+        const maxAttempts = Math.ceil(axis.target / 10) + 2
+        for (let attempt = 0; attempt < maxAttempts && remaining > 0 && !internetStopRef.current; attempt++) {
+          setInternetRunProgress({ axis: index + 1, total: allocations.length, imported, errors: [...errors] })
+          try {
+            const res = await fetch(`/api/admin/comprehensive-exams/${examId}/questions/from-internet`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mode: 'COMPREHENSIVE', topic: axis.topic, count: Math.min(10, remaining), axisTarget: axis.target }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) {
+              if (data?.code === 'TAVILY_KEY_MISSING') {
+                setInternetKeyMissing(true)
+                fatal = true
+              }
+              if (res.status === 401 || res.status === 409) fatal = true
+              throw new Error(apiErrorMessage(data, 'تعذر توليد أسئلة المحور'))
+            }
+            imported += Number(data.imported || 0)
+            remaining = Number(data.axisRemaining ?? 0)
+            if (data.examFull) fatal = true
+            if (data.skipped || !data.imported) break
+          } catch (e: any) {
+            errors.push(`«${axis.topic}»: ${String(e?.message || 'تعذر التوليد')}`)
+            break
+          }
+        }
+        if (remaining > 0 && !internetStopRef.current && !fatal && !errors.some((entry) => entry.startsWith(`«${axis.topic}»`))) {
+          errors.push(`«${axis.topic}»: نقص ${remaining} سؤالاً لعدم كفاية الأسئلة الموثقة`)
+        }
+        completedAxes = index + 1
+      }
+      setInternetRunProgress({ axis: completedAxes, total: allocations.length, imported, errors })
+      toast({
+        title: `انتهى توليد ${imported} سؤالاً جديداً — جميعها بانتظار مراجعتك`,
+        description: internetStopRef.current ? 'تم الإيقاف بعد حفظ الدفعات السابقة' : errors.length ? `${errors.length} محاور فيها نقص أو تعذّر` : 'راجع المحتوى ووزن المحاور قبل الاعتماد',
+      })
+    } finally {
+      setInternetRunBusy(false)
+      internetRunLock.current = false
+      if (activeExamIdRef.current === examId) await refreshDetailAndList(examId).catch(() => null)
+      else await loadExams().catch(() => null)
+    }
+  }
+
   const reviewQuestion = async (q: ExamQuestion, status: 'APPROVED' | 'REJECTED') => {
     if (!detail) return
     if (status === 'REJECTED' && !rejectReason.trim()) {
@@ -398,8 +624,50 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
+  const approveSelectedQuestions = async () => {
+    if (!detail || detail.exam.status !== 'DRAFT' || bulkApproveLock.current) return
+    const selected = new Set(selectedQuestionIds)
+    const questions = filteredQuestions.filter((q) => q.status === 'PENDING_REVIEW' && selected.has(q.id))
+    if (!questions.length) return
+    bulkApproveLock.current = true
+    setBulkApproveBusy(true)
+    setBulkApproveProgress({ processed: 0, total: questions.length })
+    try {
+      const result = await approvePendingQuestionsInBatches(questions, async (questionId) => {
+        await jsonOrThrow(
+          await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/${questionId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'APPROVED' }),
+          }),
+          'تعذر اعتماد السؤال',
+        )
+      }, (processed, total) => setBulkApproveProgress({ processed, total }))
+      setSelectedQuestionIds((ids) => ids.filter((id) => !result.approvedIds.includes(id)))
+      toast({
+        title: `تم اعتماد ${result.approvedIds.length} من ${questions.length} سؤالاً محدداً`,
+        description: result.failed.length
+          ? `تعذر اعتماد ${result.failed.length}: ${result.failed.slice(0, 3).map((q) => `#${q.order} (${q.reason})`).join('، ')}. صحّحها وراجعها فردياً.`
+          : undefined,
+        variant: result.failed.length ? 'destructive' : undefined,
+      })
+      await refreshDetailAndList(detail.exam.id)
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث قائمة الأسئلة بعد الاعتماد', description: e.message || 'حدّث القائمة للتأكد من الحالات', variant: 'destructive' })
+    } finally {
+      bulkApproveLock.current = false
+      setBulkApproveBusy(false)
+      setBulkApproveProgress(null)
+    }
+  }
+
   const saveEdit = async (q: ExamQuestion) => {
-    if (!detail) return
+    if (!detail || savingEdit) return
+    if (q.type === 'MCQ' && !editOptions[Number(editAnswer)]?.trim()) {
+      toast({ title: 'اختر إجابة صحيحة لها نص قبل الحفظ', variant: 'destructive' })
+      return
+    }
+    setSavingEdit(true)
     try {
       await jsonOrThrow(
         await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/${q.id}`, {
@@ -408,7 +676,8 @@ export function AdminComprehensiveExamTab() {
           body: JSON.stringify({
             text: editText,
             options: q.type === 'TF' ? ['صح', 'خطأ'] : editOptions.filter((o) => o.trim() !== ''),
-            correctAnswer: editAnswer,
+            correctAnswer: q.type === 'TF' ? editAnswer : String(editOptions.slice(0, Number(editAnswer)).filter((o) => o.trim()).length),
+            correctAnswerIndexBase: 0,
           }),
         }),
         'تعذر حفظ التعديل',
@@ -418,11 +687,19 @@ export function AdminComprehensiveExamTab() {
       await refreshDetailAndList(detail.exam.id)
     } catch (e: any) {
       toast({ title: 'تعذر حفظ التعديل', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setSavingEdit(false)
     }
   }
 
   const deleteQuestion = async (q: ExamQuestion) => {
-    if (!detail || !window.confirm('حذف هذا السؤال من المسودة؟')) return
+    if (!detail) return
+    const confirmed = await confirmAction({
+      title: `حذف السؤال رقم ${q.order}؟`,
+      description: `سيُحذف السؤال التالي من مسودة الامتحان «${detail.exam.title}».\n${q.text}`,
+      confirmLabel: 'حذف السؤال', tone: 'danger',
+    })
+    if (!confirmed) return
     try {
       await jsonOrThrow(
         await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/${q.id}`, { method: 'DELETE' }),
@@ -435,12 +712,15 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
-  const startEdit = (q: ExamQuestion) => {
+  const startEdit = (q: ExamQuestion, trigger: HTMLButtonElement) => {
+    editTriggerRef.current = trigger
     setEditingId(q.id)
     setEditText(q.text)
     setEditOptions(q.type === 'TF' ? ['صح', 'خطأ'] : parseOptions(q.options))
     setEditAnswer(q.correctAnswer || '0')
   }
+
+  const editingQuestion = editingId ? detail?.questions.find((q) => q.id === editingId) : null
 
   if (loading) {
     return (
@@ -515,6 +795,7 @@ export function AdminComprehensiveExamTab() {
               <button
                 key={exam.id}
                 type="button"
+                disabled={bulkApproveBusy}
                 onClick={() => loadDetail(exam.id)}
                 className={`w-full rounded-lg border p-3 text-right ${selectedId === exam.id ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'}`}
               >
@@ -574,6 +855,23 @@ export function AdminComprehensiveExamTab() {
           internetBusy={internetBusy}
           internetKeyMissing={internetKeyMissing}
           onRunInternet={runInternet}
+          internetAxesText={internetAxesText}
+          setInternetAxesText={(value: string) => { discardSavedInternetPlan(detail.exam.id); setInternetAxesText(value); setInternetSelectedTopics({}); setInternetPlanReviewed(false) }}
+          internetSelectedTopics={internetSelectedTopics}
+          onToggleInternetAxis={(topic: string, checked: boolean) => { discardSavedInternetPlan(detail.exam.id); setInternetSelectedTopics((prev) => ({ ...prev, [topic]: checked })); setInternetPlanReviewed(false) }}
+          onSelectAllInternetAxes={() => { discardSavedInternetPlan(detail.exam.id); setInternetSelectedTopics(Object.fromEntries(internetAxesText.split('\n').map((topic) => topic.trim()).filter(Boolean).map((topic) => [topic, true]))); setInternetPlanReviewed(false) }}
+          onClearInternetAxes={() => { discardSavedInternetPlan(detail.exam.id); setInternetSelectedTopics({}); setInternetPlanReviewed(false) }}
+          internetPlanBasis={internetPlanBasis}
+          internetPlanBusy={internetPlanBusy}
+          internetPlanReviewed={internetPlanReviewed}
+          setInternetPlanReviewed={(checked: boolean) => { if (!checked) discardSavedInternetPlan(detail.exam.id); setInternetPlanReviewed(checked) }}
+          internetPlanStored={internetPlanStored}
+          internetRunBusy={internetRunBusy}
+          internetRunProgress={internetRunProgress}
+          onCreateInternetPlan={createInternetPlan}
+          onOpenManualInternetPlan={openManualInternetPlan}
+          onRunComprehensiveInternetPlan={runComprehensiveInternetPlan}
+          onStopInternetPlan={() => { internetStopRef.current = true }}
           examId={detail.exam.id}
           manualType={manualType}
           setManualType={setManualType}
@@ -586,21 +884,62 @@ export function AdminComprehensiveExamTab() {
           manualEvidence={manualEvidence}
           setManualEvidence={setManualEvidence}
           onAddManual={addManualQuestion}
-          editingId={editingId}
-          setEditingId={setEditingId}
-          editText={editText}
-          setEditText={setEditText}
-          editOptions={editOptions}
-          setEditOptions={setEditOptions}
-          editAnswer={editAnswer}
-          setEditAnswer={setEditAnswer}
           rejectReason={rejectReason}
           setRejectReason={setRejectReason}
+          selectedQuestionIds={selectedQuestionIds}
+          setSelectedQuestionIds={setSelectedQuestionIds}
+          bulkApproveBusy={bulkApproveBusy}
+          bulkApproveProgress={bulkApproveProgress}
+          onApproveSelected={approveSelectedQuestions}
           onReview={reviewQuestion}
-          onSaveEdit={saveEdit}
           onDelete={deleteQuestion}
           onStartEdit={startEdit}
         />
+      )}
+
+      {actionDialog}
+      {editingQuestion && (
+        <Dialog open onOpenChange={(open) => { if (!open && !savingEdit) setEditingId(null) }}>
+          <DialogContent dir="rtl" showCloseButton={!savingEdit}
+            className="max-h-[92dvh] overflow-y-auto rounded-2xl sm:max-w-lg"
+            onCloseAutoFocus={(event) => {
+              if (editTriggerRef.current?.isConnected) {
+                event.preventDefault()
+                editTriggerRef.current.focus({ preventScroll: true })
+              }
+            }}>
+            <DialogHeader className="text-right sm:text-right">
+              <DialogTitle>تعديل السؤال رقم {editingQuestion.order}</DialogTitle>
+              <DialogDescription>عدّل نص السؤال وحدّد الإجابة الصحيحة. حفظ التعديلات يعيد السؤال المعتمد إلى المراجعة.</DialogDescription>
+            </DialogHeader>
+            <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void saveEdit(editingQuestion) }}>
+              <fieldset disabled={savingEdit} className="min-w-0 space-y-3">
+                <Label htmlFor="exam-question-text">نص السؤال</Label>
+                <Textarea id="exam-question-text" value={editText} onChange={(event) => setEditText(event.target.value)} rows={3} />
+                <fieldset className="min-w-0 space-y-2">
+                  <legend className="text-sm font-bold">الخيارات والإجابة الصحيحة</legend>
+                  {editOptions.map((option, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input type="radio" id={`exam-edit-answer-${index}`} name="exam-edit-answer"
+                        aria-label={`تعيين الخيار ${index + 1} إجابة صحيحة`} checked={editAnswer === String(index)}
+                        onChange={() => setEditAnswer(String(index))} />
+                      {editingQuestion.type === 'TF'
+                        ? <Label htmlFor={`exam-edit-answer-${index}`}>{option}</Label>
+                        : <Input aria-label={`نص الخيار ${index + 1}`} value={option} onChange={(event) => {
+                            const value = event.target.value
+                            setEditOptions((previous) => previous.map((item, i) => i === index ? value : item))
+                          }} />}
+                    </div>
+                  ))}
+                </fieldset>
+              </fieldset>
+              <DialogFooter>
+                <Button type="button" variant="outline" disabled={savingEdit} onClick={() => setEditingId(null)}>إلغاء</Button>
+                <Button type="submit" disabled={savingEdit}>{savingEdit ? 'جارٍ الحفظ…' : 'حفظ التعديل'}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
 
       {detail && !detailLoading && (
@@ -615,6 +954,12 @@ function DetailPanel(props: any) {
   const exam = detail.exam
   const isDraft = exam.status === 'DRAFT'
   const canPublish = detail.counts.approved === 100
+  const remainingExamSlots = Math.max(0, 100 - detail.counts.approved - detail.counts.pending)
+  const selectable = (filteredQuestions as ExamQuestion[]).filter((q) => q.status === 'PENDING_REVIEW')
+  const selectedVisible = selectable.filter((q) => props.selectedQuestionIds.includes(q.id))
+  const allVisibleSelected = selectable.length > 0 && selectedVisible.length === selectable.length
+  const suggestedAxes = String(props.internetAxesText || '').split('\n').map((axis) => axis.trim()).filter(Boolean)
+  const chosenAxesCount = suggestedAxes.filter((axis) => props.internetSelectedTopics?.[axis]).length
 
   return (
     <div className="space-y-4">
@@ -800,9 +1145,73 @@ function DetailPanel(props: any) {
           <Card>
             <CardContent className="space-y-3 pt-4">
               <h4 className="text-sm font-black">بحث الذكاء عبر الإنترنت</h4>
+              <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 space-y-2">
+                <h5 className="text-sm font-bold text-indigo-900">امتحان شامل موزع على محاور التخصص</h5>
+                <p className="text-xs text-indigo-900">
+                  يحضّر مخططاً من 5 إلى 10 محاور من وحدات التخصص المعتمدة أو مقترحات الذكاء. راجع المحاور وعدّلها أولاً، ثم يبحث عن مصادر لكل محور
+                  ويولّد أسئلة فهم وتطبيق وتحليل. كل دفعة بحد أقصى 10 أسئلة، ويواصل تلقائياً حتى سقف 100 سؤال أو نفاد الأدلة العلمية؛ ويمكن استكمال النقص لاحقاً.
+                  أي سؤال يُحفظ بانتظار مراجعتك، ولا يُملأ النقص بأسئلة مخترعة.
+                </p>
+                <Button variant="outline" disabled={!isDraft || props.internetBusy || props.internetPlanBusy || props.internetRunBusy} onClick={props.onCreateInternetPlan}>
+                  {props.internetPlanBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  تحضير محاور التخصص
+                </Button>
+                <Button variant="outline" disabled={!isDraft || props.internetRunBusy || props.internetPlanBusy} onClick={props.onOpenManualInternetPlan}>كتابة المحاور يدوياً</Button>
+                {props.internetPlanBusy && <p className="text-xs text-indigo-700">جارٍ إعداد المحاور — قد تستغرق العملية دقيقة…</p>}
+                {!!props.internetPlanBasis && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-indigo-800">
+                      {props.internetPlanBasis === 'CURRICULUM' ? 'المحاور مأخوذة من الوحدات المعتمدة للتخصص.' : props.internetPlanBasis === 'MIXED' ? 'المحاور تجمع وحدات معتمدة ومقترحات ذكاء لإكمال التغطية؛ راجع المقترحات قبل التشغيل.' : props.internetPlanBasis === 'MANUAL' ? 'اكتب المحاور العلمية التي تريد إضافتها، كل محور بسطر، ثم حدد المحاور المطلوب الامتحان فيها.' : 'هذه محاور مقترحة بالذكاء، وليست منهجاً معتمداً. راجع ملاءمتها للتخصص قبل التشغيل.'}
+                    </p>
+                    <Textarea rows={10} dir="rtl" value={props.internetAxesText} disabled={props.internetRunBusy} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => props.setInternetAxesText(e.target.value)} aria-label="محاور الامتحان الشامل — محور في كل سطر" />
+                    <p className="text-[11px] text-slate-600">المحاور المقترحة: {suggestedAxes.length}. حدّد فقط المحاور التي تريدها؛ الاختيار النهائي لك. عند تحرير القائمة ستُلغى التحديدات السابقة.</p>
+                    <div className="rounded-md border border-indigo-200 bg-white p-2 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-bold text-indigo-900">المحاور المختارة: {chosenAxesCount} من {suggestedAxes.length}</p>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" disabled={props.internetRunBusy || !suggestedAxes.length} onClick={props.onSelectAllInternetAxes}>تحديد جميع المحاور</Button>
+                          <Button size="sm" variant="outline" disabled={props.internetRunBusy || !chosenAxesCount} onClick={props.onClearInternetAxes}>إلغاء التحديد</Button>
+                        </div>
+                      </div>
+                      {suggestedAxes.map((axis, index) => (
+                        <label key={`${index}-${axis}`} className="flex items-start gap-2 text-xs text-slate-800 cursor-pointer">
+                          <input type="checkbox" className="mt-0.5" disabled={props.internetRunBusy} checked={Boolean(props.internetSelectedTopics?.[axis])} onChange={(e: ChangeEvent<HTMLInputElement>) => props.onToggleInternetAxis(axis, e.target.checked)} />
+                          <span>{axis}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {chosenAxesCount > 0 && chosenAxesCount < 5 && <p className="text-xs text-amber-800">تنبيه: اختيار أقل من خمسة محاور يعني تغطية أضيق للتخصص، لكنه مسموح إذا كان هذا مقصوداً.</p>}
+                    <p className="text-[11px] text-indigo-800">لكل محور مختار: ثلاثة أبحاث ويب متقدمة (نظريات، دراسات علمية، وحالات تطبيقية) من مواقع مستقلة. يوزّع النظام العدد المستهدف بالتساوي، ويبلغك بالنقص بدل اختراع الأسئلة. البحث المتقدم يستهلك نقاط Tavily أكثر من البحث العادي.</p>
+                    {props.internetPlanStored && (
+                      <p className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900" role="status">
+                        خطة المحاور محفوظة على هذا المتصفح. يمكنك الاستكمال بعد الإيقاف أو تحديث الصفحة؛ الخادم يحسب الأسئلة المحفوظة لكل محور فلا يعيد إضافتها.
+                        المتبقي من سعة الامتحان ككل: {remainingExamSlots} من 100 سؤال.
+                      </p>
+                    )}
+                    <label className="flex items-start gap-2 text-xs text-indigo-900">
+                      <input type="checkbox" checked={props.internetPlanReviewed} disabled={props.internetRunBusy || !chosenAxesCount} onChange={(e: ChangeEvent<HTMLInputElement>) => props.setInternetPlanReviewed(e.target.checked)} className="mt-1" />
+                      راجعت المحاور المختارة وتأكدت أنها تمثل كفاءات التخصص العلمية ولا تتناول شروط القبول أو وصف الدرجة، وأوافق على استهلاك رصيد Tavily للبحث المتقدم (نحو 6 نقاط لكل دفعة من ثلاثة أبحاث).
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button disabled={!isDraft || props.internetBusy || !chosenAxesCount || !props.internetPlanReviewed || props.internetRunBusy || props.internetPlanBusy || !remainingExamSlots} onClick={props.onRunComprehensiveInternetPlan}>
+                        {props.internetRunBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : props.internetPlanStored ? <RefreshCw className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                        {props.internetPlanStored ? 'استكمال الأسئلة الناقصة' : 'توليد الأسئلة حسب المخطط'}
+                      </Button>
+                      {props.internetRunBusy && <Button variant="outline" onClick={props.onStopInternetPlan}>إيقاف بعد الدفعة الحالية</Button>}
+                    </div>
+                    {props.internetRunProgress && (
+                      <div className="text-xs text-indigo-900 space-y-1" role="status" aria-live="polite">
+                        <p>المحور {props.internetRunProgress.axis} من {props.internetRunProgress.total} — أُضيف {props.internetRunProgress.imported} سؤالاً بانتظار المراجعة</p>
+                        {props.internetRunProgress.errors.map((error: string, index: number) => <p key={`${index}-${error}`} className="text-amber-800">{error}</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               <p className="text-[11px] text-slate-500">
-                يبحث الذكاء في الويب (Tavily) عن الموضوع، ثم يولّد أسئلة صح/خطأ واختيار متعدد من الخلاصات الراجعة فقط — كل سؤال بدليل حرفي من خلاصة
-                ورابط مصدرها، ويبدأ بانتظار المراجعة. يتطلب مفتاح Tavily مجانياً محفوظاً في إعدادات النظام (1000 بحث شهرياً، من غير بطاقة).
+                أو ابحث في محور واحد فقط: يبحث الذكاء في الويب (Tavily) عن محور علمي داخل تخصص الامتحان، ثم يولّد أسئلة كفاءة تخصصية بدليل حرفي ورابط مصدر، وكلها بانتظار المراجعة.
+                اكتب موضوعاً مثل «الإدارة الاستراتيجية وتحليل المنافسة» أو «مناهج البحث التطبيقي»؛ لا تكتب اسم الدرجة (DBA) وحده، أو شروط قبولها، فهذه ليست أسئلة تخصصية.
+                يتطلب ذلك مفتاح Tavily محفوظاً في إعدادات النظام.
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Input value={props.internetTopic} onChange={(e: ChangeEvent<HTMLInputElement>) => props.setInternetTopic(e.target.value)} placeholder="مثال: مبادئ المحاسبة المالية" className="max-w-xs" />
@@ -813,7 +1222,7 @@ function DetailPanel(props: any) {
                     onChange={(e: ChangeEvent<HTMLInputElement>) => props.setInternetCount(e.target.value)} className="w-20"
                   />
                 </div>
-                <Button disabled={props.internetBusy || !props.internetTopic?.trim()} onClick={props.onRunInternet}>
+                <Button disabled={!isDraft || props.internetBusy || props.internetRunBusy || !props.internetTopic?.trim()} onClick={props.onRunInternet}>
                   {props.internetBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} بحث وتوليد أسئلة
                 </Button>
               </div>
@@ -840,7 +1249,7 @@ function DetailPanel(props: any) {
         <CardContent className="space-y-3 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-black">أسئلة الامتحان ({detail.questions.length})</h4>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={setStatusFilter} disabled={props.bulkApproveBusy}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">كل الحالات</SelectItem>
@@ -850,6 +1259,31 @@ function DetailPanel(props: any) {
               </SelectContent>
             </Select>
           </div>
+          {isDraft && selectable.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
+              <label className="flex cursor-pointer items-center gap-2 font-bold">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  disabled={props.bulkApproveBusy}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                    const visible = new Set(selectable.map((q) => q.id))
+                    props.setSelectedQuestionIds((ids: string[]) => e.target.checked
+                      ? [...new Set([...ids, ...visible])]
+                      : ids.filter((id) => !visible.has(id)))
+                  }}
+                />
+                تحديد الكل ({selectable.length} بانتظار المراجعة)
+              </label>
+              <Button size="sm" disabled={props.bulkApproveBusy || selectedVisible.length === 0} onClick={props.onApproveSelected}>
+                {props.bulkApproveBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                اعتماد المحدد ({selectedVisible.length})
+              </Button>
+              {props.bulkApproveBusy && props.bulkApproveProgress && (
+                <span role="status" className="text-slate-600">جارٍ معالجة {props.bulkApproveProgress.processed} من {props.bulkApproveProgress.total} سؤالاً…</span>
+              )}
+            </div>
+          )}
           <div className="space-y-2">
             {filteredQuestions.map((q: ExamQuestion) => (
               <QuestionRow key={q.id} q={q} isDraft={isDraft} {...props} />
@@ -865,10 +1299,22 @@ function DetailPanel(props: any) {
 function QuestionRow(props: any) {
   const { q, isDraft } = props
   const options = parseOptions(q.options)
-  const editing = props.editingId === q.id
   return (
     <div className="rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2 text-xs">
+        {isDraft && q.status === 'PENDING_REVIEW' && (
+          <label className="flex cursor-pointer items-center gap-1 font-bold">
+            <input
+              type="checkbox"
+              aria-label={`تحديد السؤال ${q.order} للاعتماد`}
+              checked={props.selectedQuestionIds.includes(q.id)}
+              disabled={props.bulkApproveBusy}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => props.setSelectedQuestionIds((ids: string[]) =>
+                e.target.checked ? [...new Set([...ids, q.id])] : ids.filter((id) => id !== q.id))}
+            />
+            تحديد
+          </label>
+        )}
         <span className="font-black">#{q.order}</span>
         <Badge variant="secondary">{q.type === 'TF' ? 'صح/خطأ' : 'اختيار متعدد'}</Badge>
         <Badge variant={q.status === 'APPROVED' ? 'default' : q.status === 'REJECTED' ? 'destructive' : 'secondary'}>
@@ -876,71 +1322,43 @@ function QuestionRow(props: any) {
         </Badge>
         <span className="text-slate-500">المصدر: {SOURCE_LABEL[q.source] || q.source}</span>
       </div>
-      {editing ? (
-        <div className="mt-2 space-y-2">
-          <Textarea value={props.editText} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => props.setEditText(e.target.value)} rows={2} />
-          {q.type === 'MCQ' && (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {props.editOptions.map((opt: string, i: number) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input type="radio" name={`edit-answer-${q.id}`} checked={props.editAnswer === String(i)} onChange={() => props.setEditAnswer(String(i))} aria-label={`الخيار ${i + 1} صحيح`} />
-                  <Input value={opt} onChange={(e: ChangeEvent<HTMLInputElement>) => { const next = [...props.editOptions]; next[i] = e.target.value; props.setEditOptions(next) }} />
-                </div>
-              ))}
-            </div>
+      <p className="mt-2 text-sm font-bold">{q.text}</p>
+      <ul className="mt-1 space-y-0.5 text-xs">
+        {options.map((opt: string, i: number) => (
+          <li key={i} className={String(i) === q.correctAnswer ? 'font-bold text-emerald-700' : 'text-slate-600'}>
+            {i + 1}. {opt} {String(i) === q.correctAnswer ? '✓ (الصحيحة)' : ''}
+          </li>
+        ))}
+      </ul>
+      {q.sourceEvidence && <p className="mt-1 text-[11px] text-slate-500">الدليل: {q.sourceEvidence}</p>}
+      {q.sourceUrl && (
+        <p className="mt-1 text-[11px] text-slate-500">
+          المصدر:{' '}
+          <a className="text-emerald-700 underline" href={q.sourceUrl} target="_blank" rel="noreferrer">
+            {q.sourceUrl}
+          </a>
+        </p>
+      )}
+      {q.status === 'REJECTED' && q.rejectedReason && <p className="mt-1 text-[11px] text-red-600">سبب الرفض: {q.rejectedReason}</p>}
+      {isDraft && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {q.status !== 'APPROVED' && (
+            <Button size="sm" variant="outline" disabled={props.bulkApproveBusy} onClick={() => props.onReview(q, 'APPROVED')}><Check className="h-3.5 w-3.5" /> اعتماد</Button>
           )}
-          {q.type === 'TF' && (
-            <div className="flex gap-4 text-sm">
-              <label className="flex items-center gap-1"><input type="radio" name={`edit-tf-${q.id}`} checked={props.editAnswer === '0'} onChange={() => props.setEditAnswer('0')} /> صح</label>
-              <label className="flex items-center gap-1"><input type="radio" name={`edit-tf-${q.id}`} checked={props.editAnswer === '1'} onChange={() => props.setEditAnswer('1')} /> خطأ</label>
-            </div>
+          {q.status !== 'REJECTED' && (
+            <>
+              <Input
+                value={props.rejectReason}
+                placeholder="سبب الرفض (مطلوب للرفض)"
+                className="w-48"
+                onChange={(e: ChangeEvent<HTMLInputElement>) => props.setRejectReason(e.target.value)}
+              />
+              <Button size="sm" variant="outline" disabled={props.bulkApproveBusy} onClick={() => props.onReview(q, 'REJECTED')}><X className="h-3.5 w-3.5" /> رفض</Button>
+            </>
           )}
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => props.onSaveEdit(q)}>حفظ التعديل</Button>
-            <Button size="sm" variant="outline" onClick={() => props.setEditingId(null)}>إلغاء</Button>
-          </div>
+          <Button size="sm" variant="outline" onClick={(e) => props.onStartEdit(q, e.currentTarget)}>تعديل</Button>
+          <Button size="sm" variant="outline" onClick={() => props.onDelete(q)}><Trash2 className="h-3.5 w-3.5" /> حذف</Button>
         </div>
-      ) : (
-        <>
-          <p className="mt-2 text-sm font-bold">{q.text}</p>
-          <ul className="mt-1 space-y-0.5 text-xs">
-            {options.map((opt: string, i: number) => (
-              <li key={i} className={String(i) === q.correctAnswer ? 'font-bold text-emerald-700' : 'text-slate-600'}>
-                {i + 1}. {opt} {String(i) === q.correctAnswer ? '✓ (الصحيحة)' : ''}
-              </li>
-            ))}
-          </ul>
-          {q.sourceEvidence && <p className="mt-1 text-[11px] text-slate-500">الدليل: {q.sourceEvidence}</p>}
-          {q.sourceUrl && (
-            <p className="mt-1 text-[11px] text-slate-500">
-              المصدر:{' '}
-              <a className="text-emerald-700 underline" href={q.sourceUrl} target="_blank" rel="noreferrer">
-                {q.sourceUrl}
-              </a>
-            </p>
-          )}
-          {q.status === 'REJECTED' && q.rejectedReason && <p className="mt-1 text-[11px] text-red-600">سبب الرفض: {q.rejectedReason}</p>}
-          {isDraft && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {q.status !== 'APPROVED' && (
-                <Button size="sm" variant="outline" onClick={() => props.onReview(q, 'APPROVED')}><Check className="h-3.5 w-3.5" /> اعتماد</Button>
-              )}
-              {q.status !== 'REJECTED' && (
-                <>
-                  <Input
-                    value={props.rejectReason}
-                    placeholder="سبب الرفض (مطلوب للرفض)"
-                    className="w-48"
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => props.setRejectReason(e.target.value)}
-                  />
-                  <Button size="sm" variant="outline" onClick={() => props.onReview(q, 'REJECTED')}><X className="h-3.5 w-3.5" /> رفض</Button>
-                </>
-              )}
-              <Button size="sm" variant="outline" onClick={() => props.onStartEdit(q)}>تعديل</Button>
-              <Button size="sm" variant="outline" onClick={() => props.onDelete(q)}><Trash2 className="h-3.5 w-3.5" /> حذف</Button>
-            </div>
-          )}
-        </>
       )}
     </div>
   )

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { validateComprehensiveQuestion } from '@/lib/comprehensive-exam'
+import { internetQuestionAcademicIssue } from '@/lib/comprehensive-exam'
 
 export const runtime = 'nodejs'
 
@@ -41,6 +42,7 @@ export async function PATCH(
         text: body?.text ?? question.text,
         options: body?.options ?? safeJson(question.options),
         correctAnswer: body?.correctAnswer ?? question.correctAnswer,
+        correctAnswerIndexBase: body?.correctAnswer === undefined || body?.correctAnswerIndexBase === 0 ? 0 : 1,
         sourceEvidence: body?.sourceEvidence ?? question.sourceEvidence,
       })
       if (!checked.ok) return NextResponse.json({ error: checked.errors.join('؛ ') }, { status: 400 })
@@ -57,12 +59,19 @@ export async function PATCH(
       }
     }
     if (nextStatus === 'APPROVED') {
+      if (question.source === 'AI_INTERNET' && internetQuestionAcademicIssue(String(data.text ?? question.text))) {
+        return NextResponse.json({
+          error: 'هذا السؤال يختبر معلومات عن الدرجة أو شروط الالتحاق، وليس كفاءة علمية في التخصص. عدّله إلى سؤال تخصصي أو ارفضه.',
+          code: 'ACADEMIC_QUESTION_OFF_TOPIC',
+        }, { status: 422 })
+      }
       // الاعتماد يعيد التحقق من النسخة المخزنة نفسها قبل ختمها.
       const stored = validateComprehensiveQuestion({
         type: (data.type as string) ?? question.type,
         text: (data.text as string) ?? question.text,
         options: data.options !== undefined ? JSON.parse(String(data.options)) : safeJson(question.options),
         correctAnswer: (data.correctAnswer as string) ?? question.correctAnswer,
+        correctAnswerIndexBase: 0,
         sourceEvidence: (data.sourceEvidence as string | null) ?? question.sourceEvidence,
       })
       if (!stored.ok) return NextResponse.json({ error: stored.errors.join('؛ ') }, { status: 400 })

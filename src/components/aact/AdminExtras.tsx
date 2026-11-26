@@ -2204,6 +2204,15 @@ export function AdminCertificatesTab() {
   const [certPageSize, setCertPageSize] = useState(25)
   const [certTotal, setCertTotal] = useState(0)
   const [certRefresh, setCertRefresh] = useState(0)
+  // ---- رفع/ختم ملف شهادة الخريج العادي (مطابق لشاشة الخريجين السابقين
+  // وقسم شهادة المعادلة): الملف الأصلي لا يُعاد رسمه؛ يُضاف QR والرقم
+  // التسلسلي فقط فوق الملف كما رُفع. الحالة لكل شهادة برقمها التسلسلي.
+  const [certUploadFileBySerial, setCertUploadFileBySerial] = useState<Record<string, File | null>>({})
+  const [certUploadDirectBySerial, setCertUploadDirectBySerial] = useState<Record<string, { file: File; key: string } | undefined>>({})
+  const [certUploadQrSizeBySerial, setCertUploadQrSizeBySerial] = useState<Record<string, string>>({})
+  const [certUploadQrPositionBySerial, setCertUploadQrPositionBySerial] = useState<Record<string, string>>({})
+  const [certUploadPreviewUrlBySerial, setCertUploadPreviewUrlBySerial] = useState<Record<string, string | null>>({})
+  const [certUploadBusy, setCertUploadBusy] = useState<string | null>(null)
 
   const load = () => setCertRefresh((v) => v + 1)
 
@@ -2412,6 +2421,121 @@ export function AdminCertificatesTab() {
       toast({ title: 'تعذر إصدار الشهادة', description: e.message, variant: 'destructive' })
     } finally {
       setBusy(false)
+    }
+  }
+
+  // ---- رفع/ختم ملف شهادة الخريج العادي ----
+  const regularCertUploadUrl = (certificate: CertificateData) => `/api/admin/certificates/${certificate.id}/upload`
+  const regularCertQrSize = (certificate: CertificateData) => certUploadQrSizeBySerial[certificate.serial] || 'M'
+  const regularCertQrPosition = (certificate: CertificateData) => certUploadQrPositionBySerial[certificate.serial] || 'BOTTOM_LEFT'
+
+  // Prefer the already-configured S3 direct-upload path. A 10MB file
+  // cannot travel through a normal Vercel Function request (4.5MB by
+  // default). Only small files fall back to multipart during local setup.
+  const directRegularCertFile = async (certificate: CertificateData, file: File) => {
+    const cached = certUploadDirectBySerial[certificate.serial]
+    if (cached?.file === file) return cached.key
+    if (file.size <= 0 || file.size > 10 * 1024 * 1024) throw new Error('حجم الشهادة يجب أن يكون بين 1 بايت و10MB')
+    const ext = file.name.toLowerCase().split('.').pop()
+    const mimeType = ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : ['jpg', 'jpeg'].includes(ext || '') ? 'image/jpeg' : ''
+    if (!mimeType) throw new Error('الصيغة المسموحة PDF أو JPG أو PNG فقط')
+    const res = await fetch(regularCertUploadUrl(certificate), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'PRESIGN', size: file.size, mimeType }),
+    })
+    if (!res.ok) {
+      if (res.status === 422 && file.size <= 4 * 1024 * 1024) return null
+      const error = await res.json().catch(() => ({}))
+      throw new Error(String(error?.error || 'تعذر تجهيز الرفع المباشر للتخزين'))
+    }
+    const { uploadUrl, key } = await res.json()
+    const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': mimeType }, body: file })
+    if (!put.ok) throw new Error(`فشل نقل الملف إلى التخزين (HTTP ${put.status})`)
+    setCertUploadDirectBySerial((prev) => ({ ...prev, [certificate.serial]: { file, key } }))
+    return String(key)
+  }
+
+  const previewRegularCertFile = async (certificate: CertificateData) => {
+    const id = certificate.id
+    if (!id) return toast({ title: 'تعذر المعاينة', description: 'معرّف الشهادة غير متوفر.', variant: 'destructive' })
+    const file = certUploadFileBySerial[certificate.serial] || null
+    setCertUploadBusy(`cert-preview-${certificate.serial}`)
+    try {
+      if (file) {
+        const key = await directRegularCertFile(certificate, file)
+        if (key) {
+          const result = await api<{ previewUrl: string }>(regularCertUploadUrl(certificate), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'PREVIEW', key, size: file.size, fileName: file.name,
+              qrPosition: regularCertQrPosition(certificate), qrSize: regularCertQrSize(certificate) }),
+          })
+          const prev = certUploadPreviewUrlBySerial[certificate.serial]
+          if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+          setCertUploadPreviewUrlBySerial((old) => ({ ...old, [certificate.serial]: result.previewUrl }))
+          return
+        }
+        // ملف جديد لم يُحفظ بعد: المعاينة تمر عبر POST (مثل شاشة الخريجين
+        // السابقين) لأن متصفحات الهواتف ترفض عرض blob: PDF داخل الإطارات.
+        const fd = new FormData()
+        fd.append('file', file)
+        fd.append('qrPosition', regularCertQrPosition(certificate))
+        fd.append('qrSize', regularCertQrSize(certificate))
+        const res = await fetch(`${regularCertUploadUrl(certificate)}?preview=true`, { method: 'POST', body: fd })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(String(data?.error || 'تعذر إنشاء المعاينة'))
+        }
+        const blob = await res.blob()
+        const prev = certUploadPreviewUrlBySerial[certificate.serial]
+        if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+        setCertUploadPreviewUrlBySerial((prevState) => ({ ...prevState, [certificate.serial]: URL.createObjectURL(blob) }))
+      } else {
+        if (!certificate.uploadedFileKey) return toast({ title: 'ارفع ملف الشهادة أولاً', variant: 'destructive' })
+        // الملف المخزّن يُعاين برابط GET نظامي حتى يعرضه متصفح التلفون
+        // داخل الإطار.
+        setCertUploadPreviewUrlBySerial((prevState) => ({
+          ...prevState,
+          [certificate.serial]: `${regularCertUploadUrl(certificate)}?qrSize=${regularCertQrSize(certificate)}&layout=${encodeURIComponent(regularCertQrPosition(certificate))}&t=${Date.now()}`,
+        }))
+      }
+    } catch (e: any) {
+      toast({ title: 'فشل إنشاء المعاينة', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setCertUploadBusy(null)
+    }
+  }
+
+  const uploadRegularCertFile = async (certificate: CertificateData) => {
+    const id = certificate.id
+    if (!id) return toast({ title: 'تعذر الحفظ', description: 'معرّف الشهادة غير متوفر.', variant: 'destructive' })
+    const file = certUploadFileBySerial[certificate.serial] || null
+    if (!file && !certificate.uploadedFileKey) return toast({ title: 'ارفع ملف الشهادة أولاً', variant: 'destructive' })
+    setCertUploadBusy(`cert-upload-${certificate.serial}`)
+    try {
+      const key = file ? await directRegularCertFile(certificate, file) : null
+      let data: { stampedFileKey?: string }
+      if (key && file) {
+        data = await api<{ stampedFileKey?: string }>(regularCertUploadUrl(certificate), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'SAVE', key, size: file.size, fileName: file.name,
+            qrPosition: regularCertQrPosition(certificate), qrSize: regularCertQrSize(certificate) }),
+        })
+      } else {
+        const fd = new FormData()
+        if (file) fd.append('file', file)
+        fd.append('qrPosition', regularCertQrPosition(certificate))
+        fd.append('qrSize', regularCertQrSize(certificate))
+        data = await api<{ stampedFileKey?: string }>(regularCertUploadUrl(certificate), { method: 'POST', body: fd })
+      }
+      toast({ title: 'تم حفظ الشهادة المختومة', description: data.stampedFileKey || certificate.serial })
+      setCertUploadFileBySerial((prev) => ({ ...prev, [certificate.serial]: null }))
+      setCertUploadDirectBySerial((prev) => ({ ...prev, [certificate.serial]: undefined }))
+      setCertUploadPreviewUrlBySerial((prev) => ({ ...prev, [certificate.serial]: null }))
+      load()
+    } catch (e: any) {
+      toast({ title: 'فشل حفظ الملف المختوم', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setCertUploadBusy(null)
     }
   }
 
@@ -3026,6 +3150,65 @@ export function AdminCertificatesTab() {
                     <Button size="sm" variant="outline" disabled={busy} className="w-full border-slate-200 font-bold text-[#0f2b46]" onClick={() => editCertificateEnglishFields(c)}>تعديل الحقول الإنجليزية</Button>
                     {c.valid !== false && <Button size="sm" variant="outline" disabled={busy} className="w-full border-red-200 font-bold text-red-600" onClick={() => revokeCertificate(c)}><XCircle className="ml-1 h-3.5 w-3.5" /> إلغاء الشهادة</Button>}
                   </div>
+                  {!c.legacy && !c.comprehensiveExamId && c.type === 'PROGRAM_COMPLETION' && (
+                    <div className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
+                        <span>رفع شهادة جاهزة وختم QR والرقم</span>
+                        <span className="font-bold text-slate-500">الرقم: <span dir="ltr">{c.serial}</span></span>
+                        {c.stampedFileKey ? <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">ملف مختوم</Badge> : <Badge variant="outline">بلا ملف مختوم</Badge>}
+                      </div>
+                      <p className="rounded-xl border border-emerald-100 bg-emerald-50 p-2 text-[11px] font-bold leading-5 text-emerald-900">
+                        الشهادة الأصلية لا يُعاد رسمها. يتم فقط إضافة QR والرقم التسلسلي فوق الملف كما رفعته.
+                      </p>
+                      <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => {
+                        const oldUrl = certUploadPreviewUrlBySerial[c.serial]
+                        if (oldUrl?.startsWith('blob:')) URL.revokeObjectURL(oldUrl)
+                        setCertUploadPreviewUrlBySerial((prev) => ({ ...prev, [c.serial]: null }))
+                        setCertUploadDirectBySerial((prev) => ({ ...prev, [c.serial]: undefined }))
+                        setCertUploadFileBySerial((prev) => ({ ...prev, [c.serial]: e.target.files?.[0] || null }))
+                      }} />
+                      {certUploadFileBySerial[c.serial] && <p className="text-[11px] text-slate-500">{certUploadFileBySerial[c.serial]?.name}</p>}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[11px] font-black text-slate-600">حجم QR</Label>
+                          <Select value={regularCertQrSize(c)} onValueChange={(v) => setCertUploadQrSizeBySerial((prev) => ({ ...prev, [c.serial]: v }))}>
+                            <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="S">صغير</SelectItem>
+                              <SelectItem value="M">متوسط</SelectItem>
+                              <SelectItem value="L">كبير</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px] font-black text-slate-600">موضع QR</Label>
+                          <Select value={regularCertQrPosition(c)} onValueChange={(v) => setCertUploadQrPositionBySerial((prev) => ({ ...prev, [c.serial]: v }))}>
+                            <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="BOTTOM_LEFT">أسفل اليسار</SelectItem>
+                              <SelectItem value="BOTTOM_RIGHT">أسفل اليمين</SelectItem>
+                              <SelectItem value="TOP_LEFT">أعلى اليسار</SelectItem>
+                              <SelectItem value="TOP_RIGHT">أعلى اليمين</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {certUploadPreviewUrlBySerial[c.serial] && (
+                        <div className="space-y-1">
+                          <Label className="text-[11px] font-black text-slate-600">معاينة بالمواضع الحالية — لم تُحفظ بعد</Label>
+                          <iframe title="معاينة الشهادة المختومة" src={certUploadPreviewUrlBySerial[c.serial] || ''} className="h-96 w-full rounded-xl border border-slate-200 bg-white" />
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => previewRegularCertFile(c)} disabled={Boolean(certUploadBusy)}>
+                          {certUploadBusy === `cert-preview-${c.serial}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} معاينة
+                        </Button>
+                        <Button size="sm" onClick={() => uploadRegularCertFile(c)} disabled={Boolean(certUploadBusy)}>
+                          {certUploadBusy === `cert-upload-${c.serial}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} حفظ المختوم
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
                 )}
               </Card>
