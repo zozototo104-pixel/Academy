@@ -402,6 +402,26 @@ describe('regular certificate stamp preview GET', () => {
 })
 
 describe('PDF route serves the stamped file for regular certificates', () => {
+  test('private certificate IDs are inaccessible to anonymous visitors, but QR token access stays public', async () => {
+    seedRegularCert({ stampedFileKey: 'certificates/regular-stamped/private.pdf' })
+    storedFiles.set('certificates/regular-stamped/private.pdf', { buffer: await minimalPdf(), mimeType: 'application/pdf' })
+    currentAdmin = null
+    const byId = await pdfRoute.GET({} as any, { params: { id: 'cert-1' } } as any)
+    expect(byId.status).toBe(403)
+    const bySerial = await pdfRoute.GET({} as any, { params: { id: 'AACT-C-2026-00042' } } as any)
+    expect(bySerial.status).toBe(403)
+    const byQr = await pdfRoute.GET({} as any, { params: { id: 'qr-reg-1' } } as any)
+    expect(byQr.status).toBe(200)
+  })
+
+  test('an unrelated logged-in user cannot fetch a stamped certificate by ID', async () => {
+    seedRegularCert({ stampedFileKey: 'certificates/regular-stamped/private.pdf' })
+    storedFiles.set('certificates/regular-stamped/private.pdf', { buffer: await minimalPdf(), mimeType: 'application/pdf' })
+    currentAdmin = { id: 'other-user', name: 'Other', role: 'STUDENT', email: 'other@example.test' }
+    const res = await pdfRoute.GET({} as any, { params: { id: 'cert-1' } } as any)
+    expect(res.status).toBe(403)
+  })
+
   test('stamped file is preferred when present', async () => {
     const stampedPdf = await minimalPdf()
     seedRegularCert({ stampedFileKey: 'certificates/legacy-stamped/stamped.pdf' })
