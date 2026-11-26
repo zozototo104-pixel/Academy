@@ -61,6 +61,11 @@ function fakeComplete(reply: string) {
   }
 }
 
+const fakeVerify: any = async ({ questions }: any) => questions.map((question: any) => ({
+  ...question,
+  qualityFlags: ['SOURCE_GROUNDED'],
+}))
+
 async function expectCode(promise: Promise<unknown>): Promise<string> {
   let code = ''
   try {
@@ -136,11 +141,55 @@ describe('buildInternetQuestionPrompt', () => {
 })
 
 describe('generateInternetQuestions', () => {
+  test('independent verifier rejects a cited question whose answer is unsupported', async () => {
+    const out = await generateInternetQuestions(
+      RESULTS,
+      { topic: 'مبادئ المحاسبة', programTitleAr: 'الماجستير المهني في إدارة الأعمال', count: 2 },
+      {
+        completeJson: fakeComplete(GOOD_REPLY),
+        verifyQuestions: (async ({ questions }: any) => questions.map((question: any, i: number) => ({
+          ...question,
+          qualityFlags: i === 0 ? [] : ['SOURCE_GROUNDED'],
+          verifierReason: i === 0 ? 'VERIFIER_REJECTED' : undefined,
+        }))) as any,
+      },
+    )
+    expect(out.questions).toHaveLength(1)
+    expect(out.questions[0].type).toBe('TF')
+    expect(out.rejected[0].reason).toBe('VERIFIER_REJECTED')
+  })
+
+  test('does not save a degree-admissions question merely because its citation is literal', async () => {
+    const academicReply = JSON.parse(GOOD_REPLY)
+    academicReply[0].text = 'من هي الفئة المستهدفة للالتحاق ببرنامج دكتوراه إدارة الأعمال DBA؟'
+    const out = await generateInternetQuestions(
+      RESULTS,
+      { topic: 'مبادئ المحاسبة', programTitleAr: 'الدكتوراه المهنية في إدارة الأعمال', count: 2 },
+      { completeJson: fakeComplete(JSON.stringify(academicReply)), verifyQuestions: fakeVerify },
+    )
+    expect(out.questions).toHaveLength(1)
+    expect(out.questions[0].type).toBe('TF')
+    expect(out.rejectedCount).toBe(1)
+    expect(out.rejected[0]?.reason).toBe('DEGREE_ADMISSIONS_QUESTION')
+  })
+
+  test('preserves a model answer in the second option instead of shifting it to the first', async () => {
+    const corrected = JSON.parse(GOOD_REPLY)
+    corrected[0].options = ['المباني', 'النقدية', 'براءات الاختراع', 'الشهرة']
+    corrected[0].correctAnswer = 'النقدية'
+    const out = await generateInternetQuestions(
+      RESULTS,
+      { topic: 'مبادئ المحاسبة', programTitleAr: 'الماجستير المهني في إدارة الأعمال', count: 2 },
+      { completeJson: fakeComplete(JSON.stringify(corrected)), verifyQuestions: fakeVerify },
+    )
+    expect(out.questions[0]?.correctAnswer).toBe('1')
+  })
+
   test('accepts evidence-grounded MCQ/TF and attaches each snippet url', async () => {
     const out = await generateInternetQuestions(
       RESULTS,
       { topic: 'مبادئ المحاسبة', programTitleAr: 'الماجستير المهني في إدارة الأعمال', count: 2 },
-      { completeJson: fakeComplete(GOOD_REPLY) },
+      { completeJson: fakeComplete(GOOD_REPLY), verifyQuestions: fakeVerify },
     )
     expect(out.requested).toBe(2)
     expect(out.accepted).toBe(2)
@@ -175,7 +224,7 @@ describe('generateInternetQuestions', () => {
     const out = await generateInternetQuestions(
       RESULTS,
       { topic: 'مبادئ المحاسبة', programTitleAr: 'الماجستير المهني في إدارة الأعمال', count: 2 },
-      { completeJson: fakeComplete(reply) },
+      { completeJson: fakeComplete(reply), verifyQuestions: fakeVerify },
     )
     expect(out.accepted).toBe(1)
     expect(out.questions.length).toBe(1)
@@ -192,7 +241,7 @@ describe('generateInternetQuestions', () => {
         count: 2,
         previousQuestionTexts: ['أي مما يلي يُعد من الأصول المتداولة؟'],
       },
-      { completeJson: fakeComplete(GOOD_REPLY) },
+      { completeJson: fakeComplete(GOOD_REPLY), verifyQuestions: fakeVerify },
     )
     expect(out.accepted).toBe(1)
     expect(out.questions[0].type).toBe('TF')
@@ -218,7 +267,7 @@ describe('generateInternetQuestions', () => {
       generateInternetQuestions(
         RESULTS,
         { topic: 'مبادئ المحاسبة', programTitleAr: 'الماجستير المهني في إدارة الأعمال', count: 1 },
-        { completeJson: fakeComplete(reply) },
+        { completeJson: fakeComplete(reply), verifyQuestions: fakeVerify },
       ),
     )
     expect(code).toBe('VALIDATION_REJECTED')
@@ -241,7 +290,7 @@ describe('generateInternetQuestions', () => {
       generateInternetQuestions(
         RESULTS,
         { topic: 'مبادئ المحاسبة', programTitleAr: 'الماجستير المهني في إدارة الأعمال', count: 1 },
-        { completeJson: fakeComplete(reply) },
+        { completeJson: fakeComplete(reply), verifyQuestions: fakeVerify },
       ),
     )
     expect(code).toBe('INSUFFICIENT_SOURCE')
