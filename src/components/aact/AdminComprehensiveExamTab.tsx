@@ -147,16 +147,20 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
-  const loadDetail = async (examId: string) => {
-    setDetailLoading(true)
+  const loadDetail = async (examId: string, showLoading = true) => {
+    // Keep the question list mounted for in-place review updates.
+    // Hiding a long panel during refresh collapses the page and moves scroll.
+    if (showLoading) setDetailLoading(true)
     try {
       const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${examId}`, { cache: 'no-store' }), 'تعذر تحميل الامتحان')
       setDetail({ exam: data.exam, counts: data.counts, questions: data.questions })
+      const pendingIds = new Set((data.questions as ExamQuestion[]).filter((q) => q.status === 'PENDING_REVIEW').map((q) => q.id))
+      setSelectedQuestionIds((ids) => ids.filter((id) => pendingIds.has(id)))
       setSelectedId(examId)
     } catch (e: any) {
       toast({ title: 'تعذر تحميل الامتحان', description: e.message || 'حدث خطأ', variant: 'destructive' })
     } finally {
-      setDetailLoading(false)
+      if (showLoading) setDetailLoading(false)
     }
   }
 
