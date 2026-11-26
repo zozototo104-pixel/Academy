@@ -415,4 +415,13 @@ describe('PDF route serves the stamped file for regular certificates', () => {
     const res = await pdfRoute.GET({} as any, { params: { id: 'nope' } } as any)
     expect(res.status).toBe(404)
   })
+
+  test('large stamped certificates download through a short-lived signed redirect', async () => {
+    seedRegularCert({ stampedFileKey: 'certificates/regular-stamped/big.pdf' })
+    storedFiles.set('certificates/regular-stamped/big.pdf', { buffer: Buffer.alloc(5 * 1024 * 1024, 17), mimeType: 'application/pdf' })
+    const res = await pdfRoute.GET({ url: 'https://aactacademy.test/api/pdf/certificates/cert-1' } as any, { params: { id: 'cert-1' } } as any)
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toContain('https://storage.example.test/certificates/regular-stamped/big.pdf?signed=1')
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+  })
 })
