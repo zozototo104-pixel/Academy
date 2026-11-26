@@ -69,8 +69,14 @@ const fakeDb: any = {
     },
   },
   enrollment: {
-    upsert: async ({ create, update }: any) => {
-      const row = { id: `enr-${enrollments.length + 1}`, ...create, ...update }
+    upsert: async ({ where, create, update }: any) => {
+      const key = where?.userId_programId
+      const existing = enrollments.find((e) => e.userId === key?.userId && e.programId === key?.programId)
+      if (existing) {
+        Object.assign(existing, update)
+        return existing
+      }
+      const row = { id: `enr-${enrollments.length + 1}`, ...create }
       enrollments.push(row)
       return row
     },
