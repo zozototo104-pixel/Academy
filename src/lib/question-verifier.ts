@@ -4,7 +4,10 @@ import { applyOcrDerivedFlags, type TextProvenance } from './text-provenance'
 import { modelFamily, resolvedTextAiModelFamily, textAiCompleteJson, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from './text-ai'
 import type { StageRouting } from './ai-stage-runner'
 
+type ExamScope = { specialty: string; topic: string; level?: string }
+
 export type QuestionVerifierResult = {
+  academicFit?: boolean
   index: number
   valid: boolean
   answerSupported: boolean
@@ -56,6 +59,7 @@ const verifierItemSchema = z.object({
   index: z.number().int().nonnegative(),
   valid: z.boolean(),
   answerSupported: z.boolean(),
+  academicFit: z.boolean().optional(),
   evidenceSupportsQuestion: z.boolean(),
   reason: z.string().min(1).max(1000),
 }).transform((item) => ({
@@ -109,12 +113,15 @@ function validationRejected(reason: string): never {
   throw error
 }
 
-function assertVerifierCoverage(raw: string, expectedIndices: readonly number[]): { results: QuestionVerifierResult[] } {
+function assertVerifierCoverage(raw: string, expectedIndices: readonly number[], examScope?: ExamScope): { results: QuestionVerifierResult[] } {
   let parsed: { results: QuestionVerifierResult[] }
   try {
     parsed = parseVerifierJson(raw)
   } catch {
     validationRejected('INVALID_VERIFIER_RESPONSE')
+  }
+  if (examScope && parsed.results.some((item) => typeof item.academicFit !== 'boolean')) {
+    validationRejected('MISSING_EXAM_SCOPE_VERDICT')
   }
   const expected = [...expectedIndices].sort((a, b) => a - b)
   const actual = parsed.results.map((item) => item.index).sort((a, b) => a - b)
@@ -152,7 +159,7 @@ function buildQuestionPrompt(question: VerifiableQuestion & { index?: number }, 
   return `index: ${question.index ?? 0}\nsourceRef: ${sourceRef}\nنوع السؤال: ${clean(question.type, 40)}\nالسؤال: ${clean(question.text, 1600)}\nالخيارات:\n${options}\nالإجابة الصحيحة أو النموذجية: ${correctAnswerForPrompt(question)}\nsourceEvidence: ${sourceEvidence(question)}`
 }
 
-function buildBatchPrompt(items: { index: number; question: VerifiableQuestion; sourceText: string }[]): string {
+function buildBatchPrompt(items: { index: number; question: VerifiableQuestion; sourceText: string }[], examScope?: ExamScope): string {
   const sourceRefs = new Map<string, number>()
   const sources: { ref: number; text: string }[] = []
   for (const item of items) {
@@ -162,7 +169,10 @@ function buildBatchPrompt(items: { index: number; question: VerifiableQuestion; 
       sources.push({ ref, text: item.sourceText })
     }
   }
-  return `أنت محقق أكاديمي مستقل. تحقق فقط من العلاقة بين السؤال والدليل ونص المصدر الأصلي المحدد لكل سؤال. لا تستخدم معرفة عامة ولا أي مصدر خارج النص المرفق.\n\nأرجع JSON صالحاً فقط بهذا الشكل:\n{\n  "results": [\n    { "index": 0, "valid": true, "answerSupported": true, "evidenceSupportsQuestion": true, "reason": "سبب موجز" }\n  ]\n}\n\nالقواعد:\n- غطِّ كل index مرسل مرة واحدة بالضبط.\n- valid=true فقط إذا كانت answerSupported و evidenceSupportsQuestion كلتاهما true.\n- إذا كان الدليل لا يدعم السؤال أو الإجابة الصحيحة مباشرةً، اجعل valid=false.\n- استخدم فقط النص الموجود في sourceRef الخاص بكل سؤال.\n\nالمصادر الأصلية المرسلة لهذه الدفعة فقط:\n${sources.map((source) => `[sourceRef ${source.ref}]\n"""\n${clean(source.text, 12000)}\n"""`).join('\n\n')}\n\nالأسئلة:\n${items.map((item) => buildQuestionPrompt({ ...item.question, index: item.index }, sourceRefs.get(item.sourceText) || 0)).join('\n\n---\n\n')}`
+  const scopeRule = examScope
+    ? ` قيّم أيضاً ملاءمة كل سؤال للتخصص «${clean(examScope.specialty, 260)}»، والمحور «${clean(examScope.topic, 400)}»، والمستوى «${clean(examScope.level || examScope.specialty, 260)}». اجعل academicFit=true فقط إذا قاس السؤال كفاءة علمية محددة في هذا المحور وبعمق مناسب للمستوى. ارفض معلومات القبول والدرجات والعموميات حتى لو صحت في المصدر. اشرح سبب الرفض.`
+    : ''
+  return `أنت محقق أكاديمي مستقل. تحقق فقط من العلاقة بين السؤال والدليل ونص المصدر الأصلي المحدد لكل سؤال.${scopeRule} لا تستخدم معرفة عامة ولا أي مصدر خارج النص المرفق.\n\nأرجع JSON صالحاً فقط بهذا الشكل:\n{\n  "results": [\n    { "index": 0, "valid": true, ${examScope ? '"academicFit": true, ' : ''}"answerSupported": true, "evidenceSupportsQuestion": true, "reason": "سبب موجز" }\n  ]\n}\n\nالقواعد:\n- غطِّ كل index مرسل مرة واحدة بالضبط.\n- valid=true فقط إذا كانت answerSupported و evidenceSupportsQuestion كلتاهما true.\n- إذا كان الدليل لا يدعم السؤال أو الإجابة الصحيحة مباشرةً، اجعل valid=false.\n- استخدم فقط النص الموجود في sourceRef الخاص بكل سؤال.\n\nالمصادر الأصلية المرسلة لهذه الدفعة فقط:\n${sources.map((source) => `[sourceRef ${source.ref}]\n"""\n${clean(source.text, 12000)}\n"""`).join('\n\n')}\n\nالأسئلة:\n${items.map((item) => buildQuestionPrompt({ ...item.question, index: item.index }, sourceRefs.get(item.sourceText) || 0)).join('\n\n---\n\n')}`
 }
 
 function applyPending<T extends VerifiableQuestion>(question: T, reason: string): T {
@@ -300,6 +310,7 @@ export const __testVerifierFamilyAllowedForTests = verifierFamilyAllowed
 
 export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuestion>(opts: {
   questions: readonly T[]
+  examScope?: ExamScope
   sources: readonly VerificationSource[]
   generatorProvider?: string | null
   generatorModel?: string | null
@@ -381,7 +392,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     try {
       const raw = await textAiCompleteJson({
         system: 'أنت محقق أكاديمي مستقل للأسئلة. أرجع JSON فقط.',
-        history: [{ role: 'user', text: buildBatchPrompt(prepared) }],
+        history: [{ role: 'user', text: buildBatchPrompt(prepared, opts.examScope) }],
         temperature: 0.1,
         maxOutputTokens: 3000,
         taskLevel: 'ACADEMIC_CRITICAL',
@@ -403,10 +414,10 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
             if (!familyCheck.ok) validationRejected(familyCheck.reason)
           }
           verifierContext = context || {}
-          assertVerifierCoverage(text, prepared.map((item) => item.index))
+          assertVerifierCoverage(text, prepared.map((item) => item.index), opts.examScope)
         },
       })
-      parsed = assertVerifierCoverage(raw, prepared.map((item) => item.index))
+      parsed = assertVerifierCoverage(raw, prepared.map((item) => item.index), opts.examScope)
       anyResponse = true
     } catch (error: any) {
       const reason = error?.code === 'AI_VERIFIER_UNAVAILABLE'
@@ -451,7 +462,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     const byIndex = new Map(parsed.results.map((result) => [result.index, result]))
     for (const item of prepared) {
       const result = byIndex.get(item.index) || null
-      if (item.literalPass && result?.valid) {
+      if (item.literalPass && result?.valid && (!opts.examScope || result.academicFit === true)) {
         output[item.index] = applyAccepted(item.question, result, verifierContext, opts.allowOcrGrounding === true)
         logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason: result.reason })
       } else {
