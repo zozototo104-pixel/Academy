@@ -7,9 +7,13 @@ import { searchTavily, TavilySearchError } from '@/lib/tavily-search'
 import { internetAcademicTopicIssue } from '@/lib/comprehensive-exam'
 import {
   INTERNET_MAX_SEARCH_RESULTS,
+  buildSpecialtyInternetQuery,
+  buildSpecialtyResearchQueries,
   clampInternetQuestionCount,
+  diverseInternetEvidence,
   generateInternetQuestions,
   internetSourceId,
+  suggestComprehensiveInternetPlan,
 } from '@/lib/comprehensive-exam-internet'
 
 export const runtime = 'nodejs'
@@ -47,7 +51,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params
     const exam = await db.comprehensiveExam.findUnique({
       where: { id },
-      select: { id: true, status: true, title: true, programId: true, specializationProgramId: true },
+      select: { id: true, status: true, title: true, level: true, programId: true, specializationProgramId: true },
     })
     if (!exam) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
     if (exam.status !== 'DRAFT') {
@@ -58,6 +62,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       body = await req.json()
     } catch {
       body = {}
+    }
+    if (body?.action === 'PLAN') {
+      if (!exam.specializationProgramId) return NextResponse.json({ error: 'الامتحان غير مربوط بتخصص علمي محدد' }, { status: 422 })
+      const specialty = await db.program.findUnique({
+        where: { id: exam.specializationProgramId },
+        select: { titleAr: true, category: true,
+          units: { where: { status: 'APPROVED' }, orderBy: [{ semester: 'asc' }, { order: 'asc' }], select: { title: true } },
+        },
+      })
+      if (!specialty) return NextResponse.json({ error: 'لم يُعثر على تخصص الامتحان' }, { status: 422 })
+      try {
+        const plan = await suggestComprehensiveInternetPlan({ specialtyTitle: specialty.titleAr, category: specialty.category,
+          approvedUnitTitles: specialty.units.map((unit) => unit.title) })
+        return NextResponse.json({ ...plan, specialtyTitle: specialty.titleAr, needsReview: true })
+      } catch (error: any) {
+        console.error('comprehensive exam internet blueprint error:', error)
+        return NextResponse.json({ error: 'تعذّر إعداد محاور التخصص. يمكنك كتابتها يدوياً أو إعادة المحاولة بعد فحص مزود التوليد.' }, { status: 502 })
+      }
     }
     const topic = String(body?.topic || '').trim()
     if (!topic) {
@@ -72,7 +94,29 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (topicIssue) {
       return NextResponse.json({ error: topicIssue, code: 'ACADEMIC_TOPIC_REQUIRED' }, { status: 422 })
     }
-    const count = clampInternetQuestionCount(body?.count)
+    const comprehensive = body?.mode === 'COMPREHENSIVE'
+    const axisTarget = Number(body?.axisTarget)
+    if (comprehensive && (!exam.specializationProgramId || !Number.isInteger(axisTarget) || axisTarget < 1 || axisTarget > 100)) {
+      return NextResponse.json({ error: 'خطة الامتحان الشامل تتطلب تخصصاً ومحوراً بعدد أسئلة مستهدف صحيح' }, { status: 400 })
+    }
+    let count = clampInternetQuestionCount(body?.count)
+    let axisExisting = 0
+    if (comprehensive) {
+      // Repeating a partial batch is safe: count what is already saved
+      // under this axis, and never silently overfill the 100-question exam.
+      const [existingForAxis, totalEligible] = await Promise.all([
+        db.comprehensiveExamQuestion.count({ where: { examId: id, source: 'AI_INTERNET', sourceBookId: internetSourceId(topic), status: { in: ['APPROVED', 'PENDING_REVIEW'] } } }),
+        db.comprehensiveExamQuestion.count({ where: { examId: id, status: { in: ['APPROVED', 'PENDING_REVIEW'] } } }),
+      ])
+      axisExisting = existingForAxis
+      count = Math.min(count, axisTarget - existingForAxis, 100 - totalEligible)
+      if (count <= 0) {
+        return NextResponse.json({ ok: true, imported: 0, requested: 0, accepted: 0, rejected: [], rejectedCount: 0, skipped: true,
+          examFull: totalEligible >= 100,
+          axisRemaining: Math.max(0, axisTarget - existingForAxis),
+          search: { topic, resultsFound: 0, chunksUsed: 0, creditsUsed: 0 } })
+      }
+    }
     const apiKey = await readTavilyApiKey()
     if (!apiKey) {
       return NextResponse.json(
@@ -85,8 +129,27 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       )
     }
     let search
+    let distinctDomains = 0
     try {
-      search = await searchTavily({ apiKey, query: topic, maxResults: INTERNET_MAX_SEARCH_RESULTS })
+      if (comprehensive) {
+        // Three independent advanced searches for this *one selected axis*:
+        // theory, research evidence, professional cases. A single website
+        // or generic admission brochure cannot drive a doctoral exam.
+        const queries = buildSpecialtyResearchQueries(topic, specialtyTitle)
+        const outcomes = await Promise.all(queries.map((query) => searchTavily({
+          apiKey, query, searchDepth: 'advanced', chunksPerSource: 3,
+          maxResults: Math.min(8, INTERNET_MAX_SEARCH_RESULTS),
+        })))
+        const diverse = diverseInternetEvidence(outcomes.map((outcome) => outcome.results))
+        distinctDomains = diverse.distinctDomains
+        const reportedCredits = outcomes.map((outcome) => outcome.creditsUsed).filter((value): value is number => typeof value === 'number')
+        search = {
+          results: diverse.results,
+          creditsUsed: reportedCredits.length === outcomes.length ? reportedCredits.reduce((sum, credits) => sum + credits, 0) : null,
+        }
+      } else {
+        search = await searchTavily({ apiKey, query: exam.specializationProgramId ? buildSpecialtyInternetQuery(topic, specialtyTitle) : topic, maxResults: INTERNET_MAX_SEARCH_RESULTS })
+      }
     } catch (e: any) {
       const kind = e instanceof TavilySearchError ? e.kind : 'SERVER'
       console.error('comprehensive exam internet search error:', e)
@@ -94,6 +157,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         { error: String(e?.message || 'تعذر البحث عبر الإنترنت — حاول لاحقاً'), code: 'TAVILY_SEARCH_FAILED', tavilyErrorKind: kind },
         { status: 502 },
       )
+    }
+    if (comprehensive && (search.results.length < 6 || distinctDomains < 3)) {
+      return NextResponse.json({
+        error: 'المراجع العلمية غير متنوعة أو غير كافية لهذا المحور: نحتاج 6 مقاطع صالحة على الأقل من 3 مواقع مستقلة؛ جرّب تنقيح اسم المحور.',
+        code: 'INADEQUATE_SOURCE_DIVERSITY',
+        search: { topic, resultsFound: search.results.length, distinctDomains, creditsUsed: search.creditsUsed },
+      }, { status: 422 })
     }
     if (!search.results.length) {
       return NextResponse.json(
@@ -118,7 +188,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         {
           topic,
           programTitleAr: specialtyTitle,
+          programLevel: exam.level,
           count,
+          comprehensive,
           previousQuestionTexts: previous.map((q: any) => q.text),
         },
       )
@@ -152,6 +224,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         { status: 422 },
       )
     }
+    // Generation and cross-provider review may take minutes; re-check the
+    // active counts right before saving to cover questions added meanwhile.
+    let permitted = count
+    if (comprehensive) {
+      const [freshAxis, freshTotal] = await Promise.all([
+        db.comprehensiveExamQuestion.count({ where: { examId: id, source: 'AI_INTERNET', sourceBookId: internetSourceId(topic), status: { in: ['APPROVED', 'PENDING_REVIEW'] } } }),
+        db.comprehensiveExamQuestion.count({ where: { examId: id, status: { in: ['APPROVED', 'PENDING_REVIEW'] } } }),
+      ])
+      axisExisting = freshAxis
+      permitted = Math.min(count, axisTarget - freshAxis, 100 - freshTotal)
+    }
+    if (permitted <= 0) {
+      return NextResponse.json({ error: 'اكتمل نصيب المحور أو بلغ الامتحان 100 سؤال أثناء التوليد؛ لم تُضف أسئلة زائدة', code: 'EXAM_CAP_REACHED' }, { status: 409 })
+    }
+    const savedQuestions = generated.questions.slice(0, permitted)
+    const truncated = Math.max(0, generated.questions.length - savedQuestions.length)
     const last = await db.comprehensiveExamQuestion.findFirst({
       where: { examId: id },
       orderBy: { order: 'desc' },
@@ -159,7 +247,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     })
     let order = last?.order ?? 0
     await db.comprehensiveExamQuestion.createMany({
-      data: generated.questions.map((q) => ({
+      data: savedQuestions.map((q) => ({
         examId: id,
         order: ++order,
         type: q.type,
@@ -179,16 +267,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       'GENERATE_COMPREHENSIVE_EXAM_QUESTIONS_FROM_INTERNET',
       'ComprehensiveExam',
       id,
-      `توليد ${generated.questions.length} سؤالاً من بحث الإنترنت (Tavily) عن «${topic}» (${generated.search.resultsFound} نتيجة، ${generated.search.chunksUsed} مقطعاً) إلى الامتحان الشامل «${exam.title}» — كلها بانتظار المراجعة؛ ${generated.rejectedCount} سؤالاً مرفوضاً بالتحقق`,
+      `توليد ${savedQuestions.length} سؤالاً من بحث الإنترنت (Tavily) عن «${topic}» (${generated.search.resultsFound} نتيجة، ${generated.search.chunksUsed} مقطعاً) إلى الامتحان الشامل «${exam.title}» — كلها بانتظار المراجعة؛ ${generated.rejectedCount + truncated} سؤالاً لم يُحفظ بعد التدقيق والسقف`,
     )
     return NextResponse.json({
       ok: true,
       source: 'AI_INTERNET',
-      imported: generated.questions.length,
+      imported: savedQuestions.length,
       requested: generated.requested,
-      accepted: generated.accepted,
+      accepted: savedQuestions.length,
+      ...(comprehensive ? { axisRemaining: Math.max(0, axisTarget - axisExisting - savedQuestions.length) } : {}),
       rejected: generated.rejected,
-      rejectedCount: generated.rejectedCount,
+      rejectedCount: generated.rejectedCount + truncated,
       provider: generated.provider || null,
       model: generated.model || null,
       search: {
@@ -196,6 +285,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         resultsFound: generated.search.resultsFound,
         chunksUsed: generated.search.chunksUsed,
         creditsUsed: search.creditsUsed,
+        ...(comprehensive ? { distinctDomains, researchDirections: 3 } : {}),
       },
     })
   } catch (e: any) {
