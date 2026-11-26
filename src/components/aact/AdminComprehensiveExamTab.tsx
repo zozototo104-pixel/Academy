@@ -592,6 +592,7 @@ export function AdminComprehensiveExamTab() {
               <button
                 key={exam.id}
                 type="button"
+                disabled={bulkApproveBusy}
                 onClick={() => loadDetail(exam.id)}
                 className={`w-full rounded-lg border p-3 text-right ${selectedId === exam.id ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'}`}
               >
