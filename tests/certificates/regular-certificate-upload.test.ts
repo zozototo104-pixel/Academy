@@ -118,6 +118,7 @@ function seedRegularCert(over: AnyRecord = {}) {
     legacySerial: null,
     issuedAt: new Date('2026-11-26T00:00:00Z'),
     valid: true,
+    userId: 'user-1',
     uploadedFileKey: null,
     uploadedFileName: null,
     uploadedMime: null,
