@@ -83,6 +83,8 @@ const fakeDb: any = {
       return { count: 1 }
     },
   },
+  comprehensiveExamAttempt: { count: async () => startedAttempts },
+  comprehensiveExamInvitation: { count: async () => pendingInvitations },
   comprehensiveExamQuestion: {
     groupBy: async ({ where }: any = {}) => {
       const counts = new Map<string, number>()
