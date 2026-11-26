@@ -46,6 +46,7 @@ function candidateShape(c: any) {
     status: c.status,
     rejectedReason: c.rejectedReason,
     submittedBy: c.submittedBy,
+    manualPayment: c.manualPayment || null,
     reviewedById: c.reviewedById,
     reviewedAt: c.reviewedAt,
     createdAt: c.createdAt,
