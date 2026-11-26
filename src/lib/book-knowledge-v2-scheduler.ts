@@ -837,9 +837,16 @@ export async function runReviewFillAllStep(
         where: { id: item.chunkId, programId, bookId: item.bookId },
         select: { id: true, status: true, text: true, pageStart: true, pageEnd: true },
       })
-      if (!freshItem || !freshChunk || freshChunk.status !== 'ANALYZED' || !freshChunk.text ||
+      if (!freshItem || freshItem.updatedAt.getTime() !== item.updatedAt.getTime() ||
+          !isManualReviewQueueItem(freshItem)) {
+        // A manual correction made while the AI was running wins.
+        // Never use the newly fetched timestamp to overwrite that edit.
+        count('SAVE_CONFLICT')
+        continue
+      }
+      if (!freshChunk || freshChunk.status !== 'ANALYZED' || !freshChunk.text ||
           item.pageStart < freshChunk.pageStart || item.pageEnd > freshChunk.pageEnd || item.pageStart > item.pageEnd) {
-        count(!freshItem ? 'SAVE_CONFLICT' : 'SOURCE_UNVERIFIED')
+        count('SOURCE_UNVERIFIED')
         continue
       }
       const checked = validateReviewFillFields(filled.fields, freshChunk.text)
