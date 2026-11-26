@@ -110,8 +110,8 @@ export async function GET(req: NextRequest) {
         attemptId: attempt.id,
         questions: display,
         remainingSeconds: left,
-        durationMin: exam.durationMin,
-        passScore: exam.passScore,
+        durationMin: terms.durationMin,
+        passScore: terms.passScore,
         examTitle: exam.title,
         programTitle,
       })
