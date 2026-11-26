@@ -433,7 +433,7 @@ export async function PATCH(req: NextRequest) {
           orderBy: { createdAt: 'asc' },
           select: { docType: true, fileName: true, mimeType: true, size: true, storageKey: true },
         })
-        const createdCandidate = await createComprehensiveCandidateFromApplication(db as any, {
+        const createdCandidate = await db.$transaction((tx) => createComprehensiveCandidateFromApplication(tx, {
           application: {
             id: app.id,
             fullName: app.fullName,
