@@ -24,7 +24,7 @@ function cleanText(value: unknown, max = 300) {
 async function loadCandidate(examId: string, candidateId: string) {
   return db.comprehensiveExamCandidate.findFirst({
     where: { id: candidateId, examId },
-    include: { exam: { select: { id: true, programId: true, title: true, status: true } } },
+    include: { exam: { select: { id: true, programId: true, specializationProgramId: true, title: true, status: true } } },
   })
 }
 
@@ -104,11 +104,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       select: { id: true, titleAr: true, titleEn: true },
     })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+    if (!candidate.exam.specializationProgramId) {
+      return NextResponse.json({ error: 'الامتحان بلا تخصص — حدّد تخصص الامتحان قبل إعادة التأهيل' }, { status: 409 })
+    }
+    const specialization = await db.program.findUnique({
+      where: { id: candidate.exam.specializationProgramId },
+      select: { id: true, titleAr: true, titleEn: true },
+    })
+    if (!specialization) return NextResponse.json({ error: 'برنامج التخصص غير موجود' }, { status: 404 })
     const result = await db.$transaction(async (tx) =>
       qualifyComprehensiveExamCandidate(tx, {
-        candidate: { id: candidate.id, fullName: candidate.fullName, nationalId: candidate.nationalId, email: candidate.email, phone: candidate.phone },
+        candidate: { id: candidate.id, userId: candidate.userId, fullName: candidate.fullName, nationalId: candidate.nationalId, email: candidate.email, phone: candidate.phone },
         exam: { id: candidate.exam.id, programId: candidate.exam.programId },
         program,
+        specialization,
         attempt: { id: attempt.id, score: attempt.score as number },
         admin: { id: admin.id, name: admin.name },
       }),

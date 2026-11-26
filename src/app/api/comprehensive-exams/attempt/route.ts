@@ -31,7 +31,7 @@ async function loadInvitationByToken(token: string) {
     where: { token },
     include: {
       candidate: {
-        select: { id: true, fullName: true, nationalId: true, email: true, phone: true, status: true, examId: true, reviewedById: true },
+        select: { id: true, userId: true, fullName: true, nationalId: true, email: true, phone: true, status: true, examId: true, reviewedById: true },
       },
     },
   })
@@ -40,14 +40,20 @@ async function loadInvitationByToken(token: string) {
   if (!invitation || !tokensEqual(token, invitation.token)) return null
   const exam = await db.comprehensiveExam.findUnique({
     where: { id: invitation.candidate.examId },
-    select: { id: true, status: true, programId: true, title: true, durationMin: true, passScore: true },
+    select: { id: true, status: true, programId: true, specializationProgramId: true, title: true, durationMin: true, passScore: true },
   })
   if (!exam) return null
   const program = await db.program.findUnique({
     where: { id: exam.programId },
     select: { id: true, titleAr: true, titleEn: true },
   })
-  return { invitation, candidate: invitation.candidate, exam, program }
+  const specialization = exam.specializationProgramId
+    ? await db.program.findUnique({
+        where: { id: exam.specializationProgramId },
+        select: { id: true, titleAr: true, titleEn: true },
+      })
+    : null
+  return { invitation, candidate: invitation.candidate, exam, program, specialization }
 }
 
 // GET /api/comprehensive-exams/attempt?token=… — بدء محاولة أو استئنافها.
@@ -59,8 +65,9 @@ export async function GET(req: NextRequest) {
     if (!token) return NextResponse.json({ error: 'رابط الدعوة ناقص' }, { status: 400 })
     const loaded = await loadInvitationByToken(token)
     if (!loaded) return NextResponse.json({ error: 'رابط الدعوة غير صحيح أو منتهي', code: 'INVALID_TOKEN' }, { status: 404 })
-    const { invitation, candidate, exam, program } = loaded
-    const programTitle = String(program?.titleAr || program?.titleEn || exam.title)
+    const { invitation, candidate, exam, program, specialization } = loaded
+    // ما يراه الطالب هو التخصص الذي يعادله، لا برنامج المعادلة نفسه.
+    const programTitle = String(specialization?.titleAr || specialization?.titleEn || program?.titleAr || program?.titleEn || exam.title)
 
     if (invitation.status === 'REVOKED') {
       return NextResponse.json({ error: 'هذه الدعوة ملغاة — تواصل مع الإدارة', code: 'INVITATION_REVOKED' }, { status: 410 })
@@ -181,7 +188,7 @@ export async function POST(req: NextRequest) {
     if (!token) return NextResponse.json({ error: 'رابط الدعوة ناقص' }, { status: 400 })
     const loaded = await loadInvitationByToken(token)
     if (!loaded) return NextResponse.json({ error: 'رابط الدعوة غير صحيح أو منتهي', code: 'INVALID_TOKEN' }, { status: 404 })
-    const { invitation, candidate, exam, program } = loaded
+    const { invitation, candidate, exam, program, specialization } = loaded
     if (invitation.status === 'REVOKED') {
       return NextResponse.json({ error: 'هذه الدعوة ملغاة — تواصل مع الإدارة', code: 'INVITATION_REVOKED' }, { status: 410 })
     }
@@ -246,13 +253,14 @@ export async function POST(req: NextRequest) {
     let qualified = false
     let certificateSerial: string | null = null
     let qualificationError: string | null = null
-    if (graded.passed && program) {
+    if (graded.passed && program && specialization) {
       try {
         const result = await db.$transaction(async (tx) =>
           qualifyComprehensiveExamCandidate(tx, {
-            candidate: { id: candidate.id, fullName: candidate.fullName, nationalId: candidate.nationalId, email: candidate.email, phone: candidate.phone },
+            candidate: { id: candidate.id, userId: candidate.userId, fullName: candidate.fullName, nationalId: candidate.nationalId, email: candidate.email, phone: candidate.phone },
             exam: { id: exam.id, programId: exam.programId },
             program: { id: program.id, titleAr: program.titleAr, titleEn: program.titleEn },
+            specialization: { id: specialization.id, titleAr: specialization.titleAr, titleEn: specialization.titleEn },
             attempt: { id: attempt.id, score: graded.score },
             admin: { id: candidate.reviewedById || null, name: 'النظام' },
           }),
@@ -265,6 +273,8 @@ export async function POST(req: NextRequest) {
             ? e.message
             : 'تعذر إصدار الشهادة — راجع الإدارة'
       }
+    } else if (graded.passed) {
+      qualificationError = 'الامتحان بلا تخصص — تواصل مع الإدارة لإكمال التأهيل'
     }
     return NextResponse.json({
       ok: true,

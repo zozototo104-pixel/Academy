@@ -114,6 +114,11 @@ const fakeDb: any = {
           const ok = where.OR.some((cond: any) => (cond.legacy === true && c.legacy === true) || (cond.type && c.type === cond.type))
           if (!ok) return false
         }
+        if (where?.comprehensiveExam) {
+          const ce = where.comprehensiveExam
+          if (ce.specializationProgramId !== undefined && c.specializationProgramId !== ce.specializationProgramId) return false
+          if (ce.programId !== undefined && c.examProgramId !== ce.programId) return false
+        }
         return true
       })
       return rows[0] || null
@@ -125,7 +130,8 @@ const fakeDb: any = {
     },
   },
   user: {
-    findUnique: async ({ where }: any = {}) => users.find((u) => u.email === where?.email) || null,
+    findUnique: async ({ where }: any = {}) =>
+      users.find((u) => (where?.id ? u.id === where.id : u.email === where?.email)) || null,
     create: async ({ data }: any) => {
       const row = { id: `user-${++seq}`, country: null, ...data }
       users.push(row)
@@ -170,15 +176,18 @@ const lib = await import('../../src/lib/comprehensive-exam-phase2')
 const attemptRoute = await import('../../src/app/api/comprehensive-exams/attempt/route')
 
 function reset() {
-  programs = [{ id: 'prog-1', titleAr: 'برنامج أ', titleEn: 'Program A' }]
-  exams = [{ id: 'exam-1', programId: 'prog-1', title: 'الامتحان الشامل — برنامج أ', status: 'READY', durationMin: 120, passScore: 60 }]
+  programs = [
+    { id: 'prog-1', titleAr: 'برنامج المعادلة', titleEn: 'Equivalency Program', slug: 'training-certificates-equivalency', category: 'SERVICE' },
+    { id: 'spec-1', titleAr: 'دكتوراه في إدارة الأعمال', titleEn: 'PhD in Business Administration', category: 'DOCTORATE' },
+  ]
+  exams = [{ id: 'exam-1', programId: 'prog-1', specializationProgramId: 'spec-1', title: 'الامتحان الشامل — دكتوراه في إدارة الأعمال', status: 'READY', durationMin: 120, passScore: 60 }]
   questions = [
     { id: 'q1', examId: 'exam-1', order: 0, type: 'MCQ', text: 'س1', options: JSON.stringify(['أ', 'ب', 'ج', 'د']), correctAnswer: '1', status: 'APPROVED' },
     { id: 'q2', examId: 'exam-1', order: 1, type: 'TF', text: 'س2', options: JSON.stringify(['صح', 'خطأ']), correctAnswer: '0', status: 'APPROVED' },
     { id: 'q3', examId: 'exam-1', order: 2, type: 'MCQ', text: 'س3', options: JSON.stringify(['أ', 'ب', 'ج']), correctAnswer: '2', status: 'APPROVED' },
   ]
   candidates = [
-    { id: 'cand-1', examId: 'exam-1', fullName: 'أحمد محمد', nationalId: '123456789', email: 'a@b.com', phone: '0599123456', status: 'APPROVED', reviewedById: 'admin-1' },
+    { id: 'cand-1', examId: 'exam-1', userId: 'user-1', fullName: 'أحمد محمد', nationalId: '123456789', email: 'a@b.com', phone: '0599123456', status: 'APPROVED', reviewedById: 'admin-1' },
   ]
   invitations = [
     { id: 'inv-1', candidateId: 'cand-1', token: 'tok-valid-1', expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), status: 'PENDING', createdAt: new Date(), updatedAt: new Date() },
@@ -186,7 +195,7 @@ function reset() {
   attempts = []
   answers = []
   certificates = []
-  users = []
+  users = [{ id: 'user-1', email: 'a@b.com', name: 'أحمد محمد', role: 'STUDENT', status: 'ACTIVE', country: null, phone: null }]
   enrollments = []
   auditRows = []
   serialSeq = 41
@@ -276,10 +285,15 @@ describe('attempt POST — submit and grade', () => {
     expect(certificates.length).toBe(1)
     expect(certificates[0].type).toBe('COMPREHENSIVE_EXAM')
     expect(certificates[0].legacy).toBe(false)
+    expect(certificates[0].program).toBe('دكتوراه في إدارة الأعمال')
     expect(certificates[0].comprehensiveExamId).toBe('exam-1')
+    // The candidate links to the pre-registered student — no account
+    // is created at qualification time.
     expect(users.length).toBe(1)
     expect(users[0].email).toBe('a@b.com')
+    expect(certificates[0].userId).toBe('user-1')
     expect(enrollments[0].status).toBe('COMPLETED')
+    expect(enrollments[0].programId).toBe('prog-1')
     expect(answers.length).toBe(3)
     expect(answers.every((a) => a.isCorrect)).toBe(true)
   })
@@ -307,7 +321,8 @@ describe('attempt POST — submit and grade', () => {
     expect(data.score).toBe(0)
     expect(data.qualified).toBe(false)
     expect(certificates.length).toBe(0)
-    expect(users.length).toBe(0)
+    // No account is created on a fail — the seeded student stays as-is.
+    expect(users.length).toBe(1)
   })
   test('submitting after the time runs out is 410 and the attempt expires', async () => {
     await attemptRoute.GET(getReq('tok-valid-1'))
@@ -322,7 +337,7 @@ describe('attempt POST — submit and grade', () => {
     await attemptRoute.GET(getReq('tok-valid-1'))
     // A legacy graduate record for the same email appears between the
     // invite and the submit.
-    certificates.push({ type: 'PROGRAM_COMPLETION', legacy: true, userEmail: 'a@b.com', enrollmentId: 'e-old', programId: 'prog-1' })
+    certificates.push({ type: 'PROGRAM_COMPLETION', legacy: true, userEmail: 'a@b.com', enrollmentId: 'e-old', programId: 'spec-1' })
     const res = await attemptRoute.POST(postReq({ token: 'tok-valid-1', answers: correctAnswersForAttempt() }))
     expect(res.status).toBe(200)
     const data = await res.json()

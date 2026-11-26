@@ -28,6 +28,8 @@ function candidateShape(c: any) {
   return {
     id: c.id,
     examId: c.examId,
+    userId: c.userId || null,
+    admissionApplicationId: c.admissionApplicationId || null,
     fullName: c.fullName,
     nationalId: c.nationalId,
     email: c.email,
@@ -67,7 +69,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     await requireAdmin()
     const { id } = await ctx.params
-    const exam = await db.comprehensiveExam.findUnique({ where: { id }, select: { id: true } })
+    const exam = await db.comprehensiveExam.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        specializationProgramId: true,
+        specializationProgram: { select: { id: true, titleAr: true, titleEn: true, category: true } },
+      },
+    })
     if (!exam) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
     const candidates = await db.comprehensiveExamCandidate.findMany({
       where: { examId: id },
@@ -101,10 +111,34 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         ],
       ),
     )
+    const specialization = exam.specializationProgram
+      ? { id: exam.specializationProgram.id, titleAr: exam.specializationProgram.titleAr, titleEn: exam.specializationProgram.titleEn, category: exam.specializationProgram.category }
+      : null
+    // رسوم الخدمة للمرشحين القادمين من طلبات: دفعة SERVICE_FEE مدفوعة
+    // (أو معفاة) على الطلب المرتبط. المرشح اليدوي بلا طلب مرتبط — لا
+    // بوابة دفع عليه. تُحسب هنا مرة واحدة لكل القائمة حتى يعرض التبويب
+    // سبب المنع قبل أن يضغط المدير أي زر.
+    const admissionIds = candidates
+      .map((c: any) => c.admissionApplicationId)
+      .filter((id): id is string => Boolean(id))
+    const serviceFeePaidByAdmission = new Map<string, boolean>()
+    if (admissionIds.length) {
+      const feePayments = await db.payment.findMany({
+        where: { admissionId: { in: admissionIds }, purpose: 'SERVICE_FEE', status: { in: ['PAID', 'WAIVED'] } },
+        select: { admissionId: true },
+      })
+      for (const p of feePayments) serviceFeePaidByAdmission.set(p.admissionId, true)
+    }
     return NextResponse.json({
       ok: true,
+      specialization,
       candidates: candidates.map((c: any) => {
         const shaped: any = candidateShape(c)
+        shaped.specialization = specialization
+        const serviceFeePaid = c.admissionApplicationId ? serviceFeePaidByAdmission.has(c.admissionApplicationId) : null
+        shaped.serviceFeePaid = serviceFeePaid
+        shaped.inviteBlockedReason =
+          exam.status !== 'READY' ? 'EXAM_NOT_READY' : serviceFeePaid === false ? 'PAYMENT_REQUIRED' : null
         if (shaped.attempt) {
           const certInfo = certificateByEmail.get(c.email)
           shaped.attempt.certificateSerial = certInfo?.serial || null
@@ -131,7 +165,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params
     const exam = await db.comprehensiveExam.findUnique({
       where: { id },
-      select: { id: true, status: true, programId: true, title: true },
+      select: { id: true, status: true, programId: true, specializationProgramId: true, title: true },
     })
     if (!exam) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
     if (exam.status !== 'READY') {
@@ -147,9 +181,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     })
     if (!checked.ok) return NextResponse.json({ error: checked.errors.join('؛ '), code: 'INVALID_CANDIDATE' }, { status: 400 })
 
+    // الإدخال اليدوي لمرشح مسجل أصلاً: البريد يجب أن ينتمي لحساب طالب
+    // موجود — لا يُنشأ حساب هنا أبداً، والتأهيل لاحقاً يربط بهذا المستخدم.
+    const existingUser = await db.user.findUnique({ where: { email: checked.data.email }, select: { id: true, role: true } })
+    if (!existingUser) {
+      return NextResponse.json({ error: 'لا يوجد حساب طالب مسجل بهذا البريد — سجّل الطالب أولاً ثم أدخله', code: 'STUDENT_USER_NOT_FOUND' }, { status: 409 })
+    }
+    if (existingUser.role !== 'STUDENT') {
+      return NextResponse.json({ error: 'هذا البريد مرتبط بحساب إداري ولا يمكن تسجيله كمرشح', code: 'NON_STUDENT_ACCOUNT' }, { status: 409 })
+    }
+
     const duplicate = await checkComprehensiveCandidateDuplicate(db as any, {
       examId: exam.id,
       programId: exam.programId,
+      specializationProgramId: exam.specializationProgramId,
       nationalId: checked.data.nationalId,
       email: checked.data.email,
     })
@@ -161,6 +206,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const candidate = await db.comprehensiveExamCandidate.create({
       data: {
         examId: exam.id,
+        userId: existingUser.id,
         fullName: checked.data.fullName,
         nationalId: checked.data.nationalId,
         email: checked.data.email,

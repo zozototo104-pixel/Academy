@@ -4,6 +4,8 @@ import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import {
   buildComprehensiveExamInviteUrl,
+  checkComprehensiveInviteGateError,
+  checkComprehensiveInviteGates,
   comprehensiveExamInviteExpiresAt,
   createComprehensiveExamInviteToken,
   ComprehensiveExamPhase2Error,
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       where: { id: invitationId, candidateId },
       include: {
         candidate: {
-          select: { id: true, fullName: true, email: true, phone: true, examId: true },
+          select: { id: true, fullName: true, email: true, phone: true, examId: true, admissionApplicationId: true },
         },
       },
     })
@@ -96,9 +98,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       select: { id: true, status: true, title: true, durationMin: true, programId: true },
     })
     if (!exam) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
-    if (exam.status !== 'READY') {
-      return NextResponse.json({ error: 'التجديد يتطلب امتحاناً منشوراً' }, { status: 409 })
-    }
+    // التجديد يعيد الإرسال، فيخضع لنفس بوابتي الإصدار.
+    const gate = await checkComprehensiveInviteGates(db as any, { candidate: invitation.candidate, exam })
+    const gateError = checkComprehensiveInviteGateError(gate)
+    if (gateError) return NextResponse.json({ error: gateError.message, code: gateError.code }, { status: gateError.status })
     const program = await db.program.findUnique({
       where: { id: exam.programId },
       select: { id: true, titleAr: true, titleEn: true },

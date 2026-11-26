@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { audit, notify, AUDIT_ACTIONS } from '@/lib/notify'
 import { getSettings, nextInvoiceNo } from '@/lib/settings'
 import { emailAdmissionDecision, emailAdmissionDocumentsRequested, emailCertificateIssued } from '@/lib/mailer'
-import { getServiceFlow } from '@/lib/service-flows'
+import { getServiceFlow, isCertificateEquivalencyFlow } from '@/lib/service-flows'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
 import { TUITION_PURPOSES, inferTotalTuition, tuitionPaidTotal, roundMoney } from '@/lib/tuition-installments'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
@@ -19,6 +19,10 @@ import {
 } from '@/lib/admission-document-replacement'
 import { getStorageDownloadPathForKey } from '@/lib/storage'
 import { resolveProgramAdmissionDocumentRequirements } from '@/lib/admission-document-requirements'
+import {
+  ComprehensiveExamPhase2Error,
+  createComprehensiveCandidateFromApplication,
+} from '@/lib/comprehensive-exam-phase2'
 
 // آلة الحالات الرسمية وفق دليل الإجراءات (الترتيب الصحيح):
 // AWAITING_FEE (بانتظار سداد رسوم التقديم 30$ عند التقديم) → UNDER_REVIEW (قيد دراسة الإدارة بعد السداد)
@@ -418,6 +422,33 @@ export async function PATCH(req: NextRequest) {
     if (!isStudyRequest && status === 'RESULT_APPROVED') {
       data.status = 'RESULT_APPROVED'
       if (!app.approvedAt) data.approvedAt = new Date()
+      // خدمة المعادلة: اعتماد الطلب ينشئ مرشح الامتحان الشامل من الطلب
+      // نفسه (المستخدم المسجل + التخصص + المرفقات) — بلا مراجعة ثانية
+      // لنفس الملف. يُنفَّذ قبل الفاتورة حتى لا يبقى اعتماد ناقص عند
+      // فشله: بلا امتحان حي للتخصص يُرفض الاعتماد برسالة واضحة.
+      let comprehensiveExamCandidateId: string | null = null
+      if (isCertificateEquivalencyFlow(serviceFlow)) {
+        const appFiles = await db.admissionDocument.findMany({
+          where: { admissionId: id },
+          orderBy: { createdAt: 'asc' },
+          select: { docType: true, fileName: true, mimeType: true, size: true, storageKey: true },
+        })
+        const createdCandidate = await createComprehensiveCandidateFromApplication(db as any, {
+          application: {
+            id: app.id,
+            fullName: app.fullName,
+            nationalId: app.nationalId,
+            email: app.email,
+            phone: app.phone,
+            userId: app.userId,
+            programId: app.programId,
+            specializationProgramId: app.specializationProgramId || null,
+          },
+          files: appFiles,
+          admin: { id: user.id, name: user.name },
+        })
+        comprehensiveExamCandidateId = createdCandidate.candidateId
+      }
       const existingServiceInvoice = await db.payment.findFirst({
         where: { admissionId: id, purpose: 'SERVICE_FEE' },
       })
@@ -453,9 +484,9 @@ export async function PATCH(req: NextRequest) {
         'dashboard'
       )
       await audit(user, AUDIT_ACTIONS['APPROVE_ADMISSION'] || 'APPROVE_SERVICE_REQUEST', 'AdmissionApplication', id,
-        `اعتماد طلب خدمة ${app.fullName} (${app.reference}) — أُصدرت فاتورة الخدمة`)
+        `اعتماد طلب خدمة ${app.fullName} (${app.reference}) — أُصدرت فاتورة الخدمة${comprehensiveExamCandidateId ? ' — أُنشئ مرشح الامتحان الشامل' : ''}`)
       emailAdmissionDecision(app.email, app.fullName, app.reference, app.program, true, 'تم قبول طلب الخدمة. يرجى سداد فاتورة الخدمة من حسابك ليتم تسليم المخرج النهائي.').catch(() => {})
-      return NextResponse.json({ ok: true, application: updated })
+      return NextResponse.json({ ok: true, application: updated, comprehensiveExamCandidateId })
     }
 
     // ===== حارس تسلسل الحالات للمسار العام (فرع الإقرار بالقبول أعلاه محروس بانضباط الحالات المصدر نفسه) =====
@@ -638,6 +669,9 @@ export async function PATCH(req: NextRequest) {
   } catch (e: any) {
     if (e?.message === 'INVALID_ENGLISH_NAME') {
       return NextResponse.json({ error: "الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط" }, { status: 400 })
+    }
+    if (e instanceof ComprehensiveExamPhase2Error) {
+      return NextResponse.json({ error: e.message, code: e.code }, { status: e.status })
     }
     console.error('admin admissions PATCH error:', e)
     return NextResponse.json({ error: 'تعذر تحديث الطلب' }, { status: 500 })

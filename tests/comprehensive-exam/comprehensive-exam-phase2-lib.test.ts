@@ -39,6 +39,11 @@ const fakeDb: any = {
           )
           if (!ok) return false
         }
+        if (where?.comprehensiveExam) {
+          const ce = where.comprehensiveExam
+          if (ce.specializationProgramId !== undefined && c.specializationProgramId !== ce.specializationProgramId) return false
+          if (ce.programId !== undefined && c.examProgramId !== ce.programId) return false
+        }
         return true
       })
       return rows[0] || null
@@ -50,7 +55,8 @@ const fakeDb: any = {
     },
   },
   user: {
-    findUnique: async ({ where }: any = {}) => users.find((u) => u.email === where?.email) || null,
+    findUnique: async ({ where }: any = {}) =>
+      users.find((u) => (where?.id ? u.id === where.id : u.email === where?.email)) || null,
     create: async ({ data }: any) => {
       const row = { id: `user-${users.length + 1}`, country: null, ...data }
       users.push(row)
@@ -279,60 +285,115 @@ describe('dedupe', () => {
     const r = await lib.checkComprehensiveCandidateDuplicate(fakeDb, { examId: 'exam-1', programId: 'prog-1', nationalId: '111', email: 'a@b.com' })
     expect(r).toBeNull()
   })
-  test('an existing graduate certificate for the email blocks', async () => {
+  test('an existing graduate certificate for the email blocks the same specialization', async () => {
     reset()
-    certificates.push({ type: 'COMPREHENSIVE_EXAM', userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'prog-1' })
-    const r = await lib.checkComprehensiveCandidateDuplicate(fakeDb, { examId: 'exam-1', programId: 'prog-1', nationalId: '222', email: 'a@b.com' })
+    certificates.push({
+      type: 'COMPREHENSIVE_EXAM', userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'prog-1',
+      specializationProgramId: 'spec-1', examProgramId: 'prog-1',
+    })
+    const r = await lib.checkComprehensiveCandidateDuplicate(fakeDb, { examId: 'exam-1', programId: 'prog-1', specializationProgramId: 'spec-1', nationalId: '222', email: 'a@b.com' })
     expect(r?.code).toBe('EMAIL_ALREADY_GRADUATE')
   })
-  test('a legacy graduate certificate for the email also blocks', async () => {
+  test('the same email is allowed for a different specialization', async () => {
     reset()
-    certificates.push({ type: 'PROGRAM_COMPLETION', legacy: true, userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'prog-1' })
-    const r = await lib.checkComprehensiveCandidateDuplicate(fakeDb, { examId: 'exam-1', programId: 'prog-1', nationalId: '222', email: 'a@b.com' })
-    expect(r?.code).toBe('EMAIL_ALREADY_GRADUATE')
+    certificates.push({
+      type: 'COMPREHENSIVE_EXAM', userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'prog-1',
+      specializationProgramId: 'spec-1', examProgramId: 'prog-1',
+    })
+    const r = await lib.checkComprehensiveCandidateDuplicate(fakeDb, { examId: 'exam-2', programId: 'prog-1', specializationProgramId: 'spec-2', nationalId: '222', email: 'a@b.com' })
+    expect(r).toBeNull()
+  })
+  test('a legacy graduate certificate for the email blocks the same specialization only', async () => {
+    reset()
+    certificates.push({ type: 'PROGRAM_COMPLETION', legacy: true, userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'spec-1' })
+    const same = await lib.checkComprehensiveCandidateDuplicate(fakeDb, { examId: 'exam-1', programId: 'prog-1', specializationProgramId: 'spec-1', nationalId: '222', email: 'a@b.com' })
+    expect(same?.code).toBe('EMAIL_ALREADY_GRADUATE')
+    const other = await lib.checkComprehensiveCandidateDuplicate(fakeDb, { examId: 'exam-2', programId: 'prog-1', specializationProgramId: 'spec-2', nationalId: '222', email: 'a@b.com' })
+    expect(other).toBeNull()
   })
 })
 
 describe('qualification transaction', () => {
-  test('creates user + completed enrollment + COMPREHENSIVE_EXAM certificate in one tx', async () => {
-    reset()
-    const result = await lib.qualifyComprehensiveExamCandidate(fakeDb, {
-      candidate: { id: 'cand-1', fullName: 'أحمد محمد', nationalId: '111', email: 'a@b.com', phone: '0599' },
-      exam: { id: 'exam-1', programId: 'prog-1' },
-      program: { id: 'prog-1', titleAr: 'برنامج أ', titleEn: null },
-      attempt: { id: 'att-1', score: 85 },
-      admin: { id: null, name: null },
-    })
-    expect(result.userCreated).toBe(true)
-    expect(result.certificate.serial).toMatch(/^AACT-C-\d{4}-\d{5}$/)
-    expect(enrollments[0].status).toBe('COMPLETED')
-    expect(certificates[0].type).toBe('COMPREHENSIVE_EXAM')
-    expect(certificates[0].legacy).toBe(false)
-    expect(certificates[0].grade).toBe('85%')
-    expect(certificates[0].comprehensiveExamId).toBe('exam-1')
-    expect(auditRows[0].action).toBe('QUALIFY_COMPREHENSIVE_EXAM')
-  })
-  test('re-uses an existing student user instead of creating a second one', async () => {
+  test('qualifies an existing student user — never creates an account', async () => {
     reset()
     users.push({ id: 'user-9', email: 'a@b.com', name: 'أحمد محمد', role: 'STUDENT', status: 'ACTIVE', country: null, phone: null })
     const result = await lib.qualifyComprehensiveExamCandidate(fakeDb, {
       candidate: { id: 'cand-1', fullName: 'أحمد محمد', nationalId: '111', email: 'a@b.com', phone: '0599' },
       exam: { id: 'exam-1', programId: 'prog-1' },
-      program: { id: 'prog-1', titleAr: 'برنامج أ', titleEn: null },
+      program: { id: 'prog-1', titleAr: 'برنامج المعادلة', titleEn: null },
+      specialization: { id: 'spec-1', titleAr: 'دكتوراه في إدارة الأعمال', titleEn: null },
+      attempt: { id: 'att-1', score: 85 },
+      admin: { id: null, name: null },
+    })
+    expect(result.userCreated).toBe(false)
+    expect(result.user.id).toBe('user-9')
+    expect(users.length).toBe(1)
+    expect(result.certificate.serial).toMatch(/^AACT-C-\d{4}-\d{5}$/)
+    expect(enrollments[0].status).toBe('COMPLETED')
+    expect(enrollments[0].programId).toBe('prog-1')
+    expect(certificates[0].type).toBe('COMPREHENSIVE_EXAM')
+    expect(certificates[0].legacy).toBe(false)
+    expect(certificates[0].program).toBe('دكتوراه في إدارة الأعمال')
+    expect(certificates[0].grade).toBe('85%')
+    expect(certificates[0].comprehensiveExamId).toBe('exam-1')
+    expect(auditRows[0].action).toBe('QUALIFY_COMPREHENSIVE_EXAM')
+  })
+  test('resolves the linked user by id first, even when the email differs', async () => {
+    reset()
+    users.push({ id: 'user-9', email: 'old@b.com', name: 'أحمد محمد', role: 'STUDENT', status: 'ACTIVE', country: null, phone: null })
+    const result = await lib.qualifyComprehensiveExamCandidate(fakeDb, {
+      candidate: { id: 'cand-1', userId: 'user-9', fullName: 'أحمد محمد', nationalId: '111', email: 'a@b.com', phone: '0599' },
+      exam: { id: 'exam-1', programId: 'prog-1' },
+      program: { id: 'prog-1', titleAr: 'برنامج المعادلة', titleEn: null },
+      specialization: { id: 'spec-1', titleAr: 'دكتوراه في إدارة الأعمال', titleEn: null },
       attempt: { id: 'att-1', score: 70 },
       admin: { id: null, name: null },
     })
     expect(result.userCreated).toBe(false)
+    expect(result.user.id).toBe('user-9')
     expect(users.length).toBe(1)
+    expect(certificates.length).toBe(1)
   })
-  test('a duplicate inside the transaction aborts qualification', async () => {
+  test('a missing user is a visible 409 USER_NOT_FOUND and creates nothing', async () => {
     reset()
-    certificates.push({ type: 'PROGRAM_COMPLETION', legacy: true, userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'prog-1' })
     await expect(
       lib.qualifyComprehensiveExamCandidate(fakeDb, {
         candidate: { id: 'cand-1', fullName: 'أحمد محمد', nationalId: '111', email: 'a@b.com', phone: '0599' },
         exam: { id: 'exam-1', programId: 'prog-1' },
-        program: { id: 'prog-1', titleAr: 'برنامج أ', titleEn: null },
+        program: { id: 'prog-1', titleAr: 'برنامج المعادلة', titleEn: null },
+        specialization: { id: 'spec-1', titleAr: 'دكتوراه في إدارة الأعمال', titleEn: null },
+        attempt: { id: 'att-1', score: 70 },
+        admin: { id: null, name: null },
+      }),
+    ).rejects.toMatchObject({ code: 'USER_NOT_FOUND', status: 409 })
+    expect(users.length).toBe(0)
+    expect(certificates.length).toBe(0)
+    expect(enrollments.length).toBe(0)
+  })
+  test('a non-student account is 409 NON_STUDENT_ACCOUNT', async () => {
+    reset()
+    users.push({ id: 'user-9', email: 'a@b.com', name: 'مدير', role: 'ADMIN', status: 'ACTIVE', country: null, phone: null })
+    await expect(
+      lib.qualifyComprehensiveExamCandidate(fakeDb, {
+        candidate: { id: 'cand-1', fullName: 'أحمد محمد', nationalId: '111', email: 'a@b.com', phone: '0599' },
+        exam: { id: 'exam-1', programId: 'prog-1' },
+        program: { id: 'prog-1', titleAr: 'برنامج المعادلة', titleEn: null },
+        specialization: { id: 'spec-1', titleAr: 'دكتوراه في إدارة الأعمال', titleEn: null },
+        attempt: { id: 'att-1', score: 70 },
+        admin: { id: null, name: null },
+      }),
+    ).rejects.toMatchObject({ code: 'NON_STUDENT_ACCOUNT', status: 409 })
+    expect(certificates.length).toBe(0)
+  })
+  test('a duplicate inside the transaction aborts qualification', async () => {
+    reset()
+    certificates.push({ type: 'PROGRAM_COMPLETION', legacy: true, userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'spec-1' })
+    await expect(
+      lib.qualifyComprehensiveExamCandidate(fakeDb, {
+        candidate: { id: 'cand-1', fullName: 'أحمد محمد', nationalId: '111', email: 'a@b.com', phone: '0599' },
+        exam: { id: 'exam-1', programId: 'prog-1' },
+        program: { id: 'prog-1', titleAr: 'برنامج المعادلة', titleEn: null },
+        specialization: { id: 'spec-1', titleAr: 'دكتوراه في إدارة الأعمال', titleEn: null },
         attempt: { id: 'att-1', score: 70 },
         admin: { id: null, name: null },
       }),

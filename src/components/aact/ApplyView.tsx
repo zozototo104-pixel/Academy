@@ -73,7 +73,7 @@ if (typeof window !== 'undefined') {
 
 // قراءة مسودة طلب الالتحاق/الخدمة المحفوظة قبل الدخول — null عند
 // غيابها أو فسادها، مع تسجيل التحذير بدل ابتلاع الخطأ بصمت.
-function readApplyDraft(): { form?: Record<string, string>; selectedCategory?: string; acknowledged?: boolean } | null {
+function readApplyDraft(): { form?: Record<string, string>; selectedCategory?: string; specializationProgramId?: string; acknowledged?: boolean } | null {
   if (typeof window === 'undefined') return null
   try {
     let raw = sessionStorage.getItem(APPLY_DRAFT_KEY)
@@ -235,6 +235,7 @@ export function ApplyView() {
   const { user, applyProgramTitle, applyProgramId, navigate } = useAppStore()
   const [programs, setPrograms] = useState<ProgramLite[]>([])
   const [selectedCategory, setSelectedCategory] = useState(() => readApplyDraft()?.selectedCategory || '')
+  const [specializationProgramId, setSpecializationProgramId] = useState(() => readApplyDraft()?.specializationProgramId || '')
   const [generalDisclosureConsentText, setGeneralDisclosureConsentText] = useState('')
   const [activeTab, setActiveTab] = useState('apply')
   const [loading, setLoading] = useState(false)
@@ -398,6 +399,14 @@ export function ApplyView() {
   )
   const selectedFlow = getServiceFlow(selectedProgram?.slug)
   const isServiceRequest = selectedFlow ? !selectedFlow.isStudyProgram : selectedCategory === 'SERVICE'
+  const isEquivalencyService = selectedFlow?.kind === 'CERTIFICATE_EQUIVALENCY'
+  // التخصص المطلوب للمعادلة: كل برامج الدراسة — الطلب هو ما
+  // يكشف وين في طلب، والإدارة تجهز امتحان التخصص الذي يصلها طلب عليه.
+  // (قائمة البرامج هنا من ملخص البرامج العامة، وهو نشط فقط أصلاً.)
+  const specializationOptions = useMemo(
+    () => programs.filter((p) => p.category !== 'SERVICE'),
+    [programs]
+  )
   const selectedProgramId = selectedProgram?.id || ''
   const selectedRules = selectedProgram?.admissionRules || null
   const resolvedDocs = resolveAdmissionRequiredDocuments({
@@ -528,7 +537,7 @@ export function ApplyView() {
     }
     if (!user) {
       // بوابة الدخول: حفظ المسودة نصوصاً ثم رسالة وزر لشاشة الدخول.
-      try { sessionStorage.setItem(APPLY_DRAFT_KEY, JSON.stringify({ form, selectedCategory, acknowledged })) } catch (e) { console.warn('Failed to save application draft.', e) }
+      try { sessionStorage.setItem(APPLY_DRAFT_KEY, JSON.stringify({ form, selectedCategory, specializationProgramId, acknowledged })) } catch (e) { console.warn('Failed to save application draft.', e) }
       setLoginPrompt(true)
       return
     }
@@ -540,6 +549,10 @@ export function ApplyView() {
       toast({ title: 'تنبيه', description: isServiceRequest ? 'يرجى اختيار الخدمة المطلوبة' : 'يرجى اختيار التخصص أو البرنامج المرغوب', variant: 'destructive' })
       return
     }
+    if (isEquivalencyService && !specializationProgramId) {
+      toast({ title: 'تنبيه', description: 'يرجى اختيار التخصص المطلوب للمعادلة', variant: 'destructive' })
+      return
+    }
     if (selectedProgram?.registrationStatus && selectedProgram.registrationStatus !== 'OPEN') {
       toast({ title: 'التسجيل مغلق', description: 'التسجيل في هذا البرنامج غير مفتوح حالياً. يرجى اختيار برنامج آخر أو متابعة الإعلانات الرسمية عند إعادة فتح التسجيل.', variant: 'destructive' })
       return
@@ -547,7 +560,7 @@ export function ApplyView() {
     const validationError = validateApplicantFullName(form.fullName, 3)
       || validatePhone(form.phone)
       || (!SUPPORTED_COUNTRIES.includes(form.country) ? 'يرجى اختيار الدولة من القائمة المعتمدة بدلاً من كتابتها يدوياً.' : null)
-      || (!isServiceRequest ? validateNationalIdOrPassport(form.nationalId, form.country) : null)
+      || (!isServiceRequest || isEquivalencyService ? validateNationalIdOrPassport(form.nationalId, form.country) : null)
       || (!isServiceRequest && selectedRules?.minAge ? validateBirthDateForMinAge(form.birthDate, Number(selectedRules.minAge)) : null)
     if (validationError) {
       toast({ title: 'راجع البيانات الشخصية', description: validationError, variant: 'destructive' })
@@ -578,6 +591,7 @@ export function ApplyView() {
       fd.set('fullName', form.fullName.trim().replace(/\s+/g, ' '))
       fd.set('phone', normalizePhone(form.phone))
       fd.append('programId', selectedProgramId)
+      if (isEquivalencyService && specializationProgramId) fd.append('specializationProgramId', specializationProgramId)
       fd.append('acknowledged', 'true')
       fd.append('stagedUpload', 'true')
 
@@ -995,9 +1009,9 @@ export function ApplyView() {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="ad-nid" className="flex items-center gap-1"><IdCard className="h-3.5 w-3.5 text-[#a8841a]" /> رقم الهوية / جواز السفر {isServiceRequest ? '(اختياري)' : '*'}</Label>
-                          <Input id="ad-nid" required={!isServiceRequest} dir="ltr" className="text-left" value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} placeholder="رقم الهوية أو الرقم الوطني أو جواز السفر" />
-                          {!isServiceRequest && <p className="text-[10px] font-bold text-slate-400">يقبل النظام أرقام الهويات الدولية وجوازات السفر من 5 إلى 25 خانة.</p>}
+                          <Label htmlFor="ad-nid" className="flex items-center gap-1"><IdCard className="h-3.5 w-3.5 text-[#a8841a]" /> رقم الهوية / جواز السفر {(!isServiceRequest || isEquivalencyService) ? '*' : '(اختياري)'}</Label>
+                          <Input id="ad-nid" required={!isServiceRequest || isEquivalencyService} dir="ltr" className="text-left" value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} placeholder="رقم الهوية أو الرقم الوطني أو جواز السفر" />
+                          {(!isServiceRequest || isEquivalencyService) && <p className="text-[10px] font-bold text-slate-400">يقبل النظام أرقام الهويات الدولية وجوازات السفر من 5 إلى 25 خانة.</p>}
                         </div>
                       </div>
 
@@ -1051,6 +1065,7 @@ export function ApplyView() {
                             value={selectedCategory}
                             onValueChange={(v) => {
                               setSelectedCategory(v)
+                              setSpecializationProgramId('')
                               setForm((f) => ({ ...f, program: '' }))
                             }}
                           >
@@ -1063,7 +1078,7 @@ export function ApplyView() {
 
                         <div className="space-y-2">
                           <Label>{selectedCategory === 'SERVICE' ? 'الخدمة المطلوبة *' : selectedCategory === 'MASTERS' || selectedCategory === 'DOCTORATE' ? 'التخصص المطلوب *' : 'البرنامج / الدبلوم *'}</Label>
-                          <Select value={form.program} onValueChange={(v) => setForm({ ...form, program: v })} disabled={!selectedCategory}>
+                          <Select value={form.program} onValueChange={(v) => { setSpecializationProgramId(''); setForm({ ...form, program: v }) }} disabled={!selectedCategory}>
                             <SelectTrigger><SelectValue placeholder={selectedCategory === 'SERVICE' ? 'اختر الخدمة المطلوبة' : selectedCategory ? 'اختر التخصص أو البرنامج' : 'اختر نوع الطلب أولاً'} /></SelectTrigger>
                             <SelectContent className="max-h-72">
                               {filteredPrograms.map((p) => (
@@ -1075,6 +1090,23 @@ export function ApplyView() {
                           </Select>
                         </div>
                       </div>
+
+                      {isEquivalencyService && (
+                        <div className="space-y-2">
+                          <Label>التخصص المطلوب للمعادلة *</Label>
+                          <Select value={specializationProgramId} onValueChange={setSpecializationProgramId}>
+                            <SelectTrigger><SelectValue placeholder="اختر التخصص" /></SelectTrigger>
+                            <SelectContent className="max-h-72">
+                              {specializationOptions.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {(p.category === 'MASTERS' || p.category === 'DOCTORATE') ? (p.specialty || p.titleAr) : p.titleAr} — {PROGRAM_CATEGORY_LABEL[p.category] || p.category}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] font-bold text-slate-400">اختر التخصص الذي تريد معادلة مؤهلك فيه — الإدارة تجهز امتحانه عند وصول طلبك، ولا يُرسَل رابط الامتحان إلا بعد سداد رسوم الخدمة.</p>
+                        </div>
+                      )}
 
                       {selectedProgramId && <ScholarshipProgramNotice programId={selectedProgramId} />}
 

@@ -11,29 +11,57 @@ let qSeq = 0
 
 const program = {
   id: 'program-1',
+  titleAr: 'برنامج الشهادات المهنية ونظام معادلة الخبرات المهنية',
+  titleEn: 'Professional Certificates and Professional Experience Equivalency Program',
+  slug: 'training-certificates-equivalency',
+  category: 'SERVICE',
+  active: true,
+}
+
+const specializationProgram = {
+  id: 'spec-1',
   titleAr: 'الماجستير المهني في إدارة الأعمال',
   titleEn: 'Professional Master in Business Administration',
   category: 'MASTERS',
   active: true,
 }
 
+const otherServiceProgram = {
+  id: 'service-2',
+  titleAr: 'خدمة مهنية أخرى',
+  titleEn: 'Another Service',
+  slug: 'other-service',
+  category: 'SERVICE',
+  active: true,
+}
+
+const programs = [program, specializationProgram, otherServiceProgram]
+
 const fakeDb: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(fakeDb),
   program: {
-    findUnique: async ({ where }: any) => (where?.id === program.id ? { ...program } : null),
+    findUnique: async ({ where }: any) => {
+      const p = programs.find((x) => x.id === where?.id)
+      return p ? { ...p } : null
+    },
   },
   comprehensiveExam: {
-    findMany: async ({ where }: any = {}) => exams.filter((e) => !where?.programId || e.programId === where.programId),
+    findMany: async ({ where }: any = {}) =>
+      exams
+        .filter((e) => !where?.programId || e.programId === where.programId)
+        .map((e) => ({ ...e, program: { ...program }, specializationProgram: { ...specializationProgram }, _count: { questions: questions.filter((q) => q.examId === e.id).length } })),
     findFirst: async ({ where }: any = {}) =>
       exams.find(
         (e) =>
           (!where?.programId || e.programId === where.programId) &&
-          (!where?.status?.in || where.status.in.includes(e.status)),
+          (!where?.specializationProgramId || e.specializationProgramId === where.specializationProgramId) &&
+          (!where?.status?.in || where.status.in.includes(e.status)) &&
+          (!where?.id?.not || e.id !== where.id.not),
       ) || null,
     findUnique: async ({ where }: any) => {
       const e = exams.find((x) => x.id === where?.id)
       if (!e) return null
-      return { ...e, program: { ...program }, questions: questions.filter((q) => q.examId === e.id).sort((a, b) => a.order - b.order) }
+      return { ...e, program: { ...program }, specializationProgram: { ...specializationProgram }, questions: questions.filter((q) => q.examId === e.id).sort((a, b) => a.order - b.order) }
     },
     create: async ({ data }: any) => {
       const e = { id: `exam-${exams.length + 1}`, ...data, publishedAt: null, createdAt: new Date(), updatedAt: new Date() }
@@ -160,21 +188,21 @@ beforeEach(() => {
   qSeq = 0
   bankItems = [
     {
-      id: 'bank-1', programId: 'program-1', type: 'MCQ', status: 'APPROVED',
+      id: 'bank-1', programId: 'spec-1', type: 'MCQ', status: 'APPROVED',
       text: 'أي مما يلي يُعد من الأصول المتداولة؟',
       options: JSON.stringify(['النقدية', 'المباني', 'الشهرة']),
       correctAnswer: '0', sourceEvidence: 'تعريف الأصول المتداولة.', bookId: 'book-1',
     },
     {
-      id: 'bank-2', programId: 'program-1', type: 'ESSAY', status: 'APPROVED',
+      id: 'bank-2', programId: 'spec-1', type: 'ESSAY', status: 'APPROVED',
       text: 'اشرح الأصول المتداولة بالتفصيل.',
       options: null, correctAnswer: null, sourceEvidence: null, bookId: 'book-1',
     },
   ]
 })
 
-async function createExam() {
-  const res = await examsRoute.POST(req('/api/admin/comprehensive-exams', 'POST', { programId: 'program-1', passScore: 60, durationMin: 120 }))
+async function createExam(over: Record<string, unknown> = {}) {
+  const res = await examsRoute.POST(req('/api/admin/comprehensive-exams', 'POST', { programId: 'program-1', specializationProgramId: 'spec-1', passScore: 60, durationMin: 120, ...over }))
   const body = await res.json()
   expect(res.status).toBe(201)
   return body.examId as string
@@ -192,13 +220,23 @@ describe('POST /api/admin/comprehensive-exams', () => {
 
   test('refuses a second live exam for the same program', async () => {
     await createExam()
-    const res = await examsRoute.POST(req('/api/admin/comprehensive-exams', 'POST', { programId: 'program-1' }))
+    const res = await examsRoute.POST(req('/api/admin/comprehensive-exams', 'POST', { programId: 'program-1', specializationProgramId: 'spec-1' }))
     expect(res.status).toBe(409)
   })
 
   test('refuses an unknown program', async () => {
-    const res = await examsRoute.POST(req('/api/admin/comprehensive-exams', 'POST', { programId: 'no-such' }))
+    const res = await examsRoute.POST(req('/api/admin/comprehensive-exams', 'POST', { programId: 'no-such', specializationProgramId: 'spec-1' }))
     expect(res.status).toBe(404)
+  })
+
+  test('refuses a study program as the exam program — only the equivalency service program qualifies', async () => {
+    const res = await examsRoute.POST(req('/api/admin/comprehensive-exams', 'POST', { programId: 'spec-1', specializationProgramId: 'program-1' }))
+    expect(res.status).toBe(409)
+  })
+
+  test('refuses a SERVICE-category program as the specialization', async () => {
+    const res = await examsRoute.POST(req('/api/admin/comprehensive-exams', 'POST', { programId: 'program-1', specializationProgramId: 'service-2' }))
+    expect(res.status).toBe(400)
   })
 })
 

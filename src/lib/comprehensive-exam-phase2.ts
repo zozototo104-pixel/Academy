@@ -12,7 +12,6 @@ import { gradeObjectiveAnswer } from '@/lib/answer-completeness'
 import { normalizeDigits, normalizePhone, validatePhone } from '@/lib/admission-validation'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { emailTemplate, sendEmailDetailed } from '@/lib/mailer'
-import { hashPassword } from '@/lib/password'
 import { createCertificateQrToken, nextCertificateSerial } from '@/lib/certificate-identity'
 import { sendOfficialWhatsAppTemplate } from '@/lib/whatsapp-cloud'
 import { storeFileBuffer } from '@/lib/storage'
@@ -105,13 +104,21 @@ export type ComprehensiveCandidateDuplicate =
   | { code: 'EMAIL_ALREADY_GRADUATE'; message: string }
   | null
 
-// One person, one program, one graduate record. Checked at application
-// time, at invitation time, and again inside the qualification
-// transaction. REJECTED candidates never block a re-application;
-// the candidate being checked never blocks itself.
+// One person, one program, one graduate record — scoped per SPECIALIZATION
+// (phase 3). Checked at application time, at invitation time, and again
+// inside the qualification transaction. REJECTED candidates never block
+// a re-application; the candidate being checked never blocks itself.
+// A graduate of one specialization may always apply for another.
+// The two graduate branches split because the two record kinds live in
+// different programs: a legacy record's enrollment IS a study program
+// (i.e. the specialization itself), while a comprehensive-exam record's
+// enrollment is in the equivalency program and its specialization lives
+// on its exam. Comparing the legacy branch against the equivalency
+// program would never match (legacy enrollments never sit there) and
+// would let a legacy graduate of specialization X re-qualify in X.
 export async function checkComprehensiveCandidateDuplicate(
   tx: Prisma.TransactionClient,
-  input: { examId: string; programId: string; nationalId: string; email: string; excludeCandidateId?: string | null },
+  input: { examId: string; programId: string; specializationProgramId?: string | null; nationalId: string; email: string; excludeCandidateId?: string | null },
 ): Promise<ComprehensiveCandidateDuplicate> {
   const otherCandidate = await tx.comprehensiveExamCandidate.findFirst({
     where: {
@@ -128,16 +135,33 @@ export async function checkComprehensiveCandidateDuplicate(
       message: 'يوجد طلب بهذا الرقم الوطني لنفس البرنامج — لا يمكن إنشاء طلب ثانٍ',
     }
   }
-  const existingGraduate = await tx.certificate.findFirst({
+  // The specialization in question: the exam's specialization, or — for
+  // pre-phase-3 exams, whose program WAS the specialization — the program.
+  const specializationId = input.specializationProgramId || input.programId
+  const legacyGraduate = await tx.certificate.findFirst({
     where: {
-      enrollment: { programId: input.programId },
+      enrollment: { programId: specializationId },
       user: { email: input.email },
-      OR: [{ legacy: true }, { type: 'COMPREHENSIVE_EXAM' }],
+      legacy: true,
     },
     select: { id: true },
   })
-  if (existingGraduate) {
+  if (legacyGraduate) {
     return { code: 'EMAIL_ALREADY_GRADUATE', message: 'موجود أصلاً كخريج' }
+  }
+  if (input.specializationProgramId) {
+    const examGraduate = await tx.certificate.findFirst({
+      where: {
+        enrollment: { programId: input.programId },
+        user: { email: input.email },
+        type: 'COMPREHENSIVE_EXAM',
+        comprehensiveExam: { specializationProgramId: input.specializationProgramId },
+      },
+      select: { id: true },
+    })
+    if (examGraduate) {
+      return { code: 'EMAIL_ALREADY_GRADUATE', message: 'موجود أصلاً كخريج' }
+    }
   }
   return null
 }
@@ -147,6 +171,45 @@ export function checkComprehensiveDuplicateError(
 ): ComprehensiveExamPhase2Error | null {
   if (!duplicate) return null
   return new ComprehensiveExamPhase2Error(409, duplicate.code, duplicate.message)
+}
+
+// ---- Invite gates (corrected design §6) ----
+
+export type ComprehensiveInviteGate =
+  | { code: 'EXAM_NOT_READY'; message: string }
+  | { code: 'PAYMENT_REQUIRED'; message: string }
+  | null
+
+// The two invite gates. The exam must be READY — the admin prepares it
+// on demand for the specialization that got an application (never for
+// all 124 programs at once) — and an application-sourced candidate's
+// service fee must be PAID (or WAIVED). Manual candidates carry no
+// admission link, so the payment gate does not apply to them: the
+// admin's explicit creation is the gate. Used by issue + renew, and by
+// the candidates list so the panel can show the reason before the admin
+// presses anything.
+export async function checkComprehensiveInviteGates(
+  tx: Prisma.TransactionClient,
+  input: { candidate: { admissionApplicationId?: string | null }; exam: { status: string } },
+): Promise<ComprehensiveInviteGate> {
+  if (input.exam.status !== 'READY') {
+    return { code: 'EXAM_NOT_READY', message: 'الامتحان غير منشور بعد — جهّزه وانشره أولاً' }
+  }
+  if (input.candidate.admissionApplicationId) {
+    const paid = await tx.payment.findFirst({
+      where: { admissionId: input.candidate.admissionApplicationId, purpose: 'SERVICE_FEE', status: { in: ['PAID', 'WAIVED'] } },
+      select: { id: true },
+    })
+    if (!paid) {
+      return { code: 'PAYMENT_REQUIRED', message: 'رسوم الخدمة لم تُسدد بعد — لا يُرسَل الرابط قبل السداد' }
+    }
+  }
+  return null
+}
+
+export function checkComprehensiveInviteGateError(gate: ComprehensiveInviteGate): ComprehensiveExamPhase2Error | null {
+  if (!gate) return null
+  return new ComprehensiveExamPhase2Error(409, gate.code, gate.message)
 }
 
 // ---- Invitations ----
@@ -453,17 +516,24 @@ function normalizeQualificationEmail(email: unknown): string {
   return String(email || '').trim().toLowerCase()
 }
 
-// Mirrors createLegacyGraduate's user/enrollment pattern, but the
-// certificate is a SEPARATE type (COMPREHENSIVE_EXAM, legacy: false)
-// so it never lands in the previous-graduates lists. Must be called
-// inside db.$transaction — the dedupe re-check, the user, the
-// enrollment and the certificate all commit or none do.
+// Mirrors createLegacyGraduate's enrollment pattern, but the USER is
+// never created here — the candidate links to the existing registered
+// user (userId first, email as fallback); a missing user fails visibly.
+// The certificate is a SEPARATE type (COMPREHENSIVE_EXAM, legacy: false)
+// so it never lands in the previous-graduates lists. The enrollment
+// stays in the EQUIVALENCY program (input.program); the certificate
+// itself is issued IN THE SPECIALIZATION (input.specialization) —
+// certificate.program is the specialization program's name, so the
+// certificate IS in that specialization, issued via equivalency.
+// Must be called inside db.$transaction — the dedupe re-check, the
+// user, the enrollment and the certificate all commit or none do.
 export async function qualifyComprehensiveExamCandidate(
   tx: Prisma.TransactionClient,
   input: {
-    candidate: { id: string; fullName: string; nationalId: string; email: string; phone: string | null }
+    candidate: { id: string; userId?: string | null; fullName: string; nationalId: string; email: string; phone: string | null }
     exam: { id: string; programId: string }
     program: { id: string; titleAr: string | null; titleEn: string | null }
+    specialization: { id: string; titleAr: string | null; titleEn: string | null }
     attempt: { id: string; score: number }
     admin: { id: string | null; name: string | null }
   },
@@ -472,13 +542,17 @@ export async function qualifyComprehensiveExamCandidate(
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new ComprehensiveExamPhase2Error(400, 'INVALID_EMAIL', 'البريد الإلكتروني غير صالح')
   }
+  if (!input.specialization?.id) {
+    throw new ComprehensiveExamPhase2Error(400, 'SPECIALIZATION_REQUIRED', 'الامتحان بلا تخصص — حدّد تخصص الامتحان قبل التأهيل')
+  }
 
   // Dedupe re-check INSIDE the transaction: another candidate with the
   // same national ID, or an already-issued graduate certificate for
-  // this email + program — either way, no second record.
+  // this email + specialization — either way, no second record.
   const duplicate = await checkComprehensiveCandidateDuplicate(tx, {
     examId: input.exam.id,
     programId: input.exam.programId,
+    specializationProgramId: input.specialization.id,
     nationalId: input.candidate.nationalId,
     email,
     excludeCandidateId: input.candidate.id,
@@ -486,25 +560,24 @@ export async function qualifyComprehensiveExamCandidate(
   const duplicateError = checkComprehensiveDuplicateError(duplicate)
   if (duplicateError) throw duplicateError
 
-  let user = await tx.user.findUnique({ where: { email } })
-  if (user && user.role !== 'STUDENT') {
+  // The candidate links to an EXISTING registered user — the platform
+  // accepts no application without login, so the user already exists.
+  // NEVER create an account here: a missing user is a visible error
+  // for the admin to fix (a wrong link), not a reason to invent one.
+  // The linked user wins; the email is only a fallback for candidates
+  // created before the link existed.
+  let user = input.candidate.userId ? await tx.user.findUnique({ where: { id: input.candidate.userId } }) : null
+  if (!user) {
+    user = await tx.user.findUnique({ where: { email } })
+  }
+  if (!user) {
+    throw new ComprehensiveExamPhase2Error(409, 'USER_NOT_FOUND', 'لا يوجد حساب مسجل لهذا المرشح — سجّل الطالب أولاً ثم أعد التأهيل')
+  }
+  if (user.role !== 'STUDENT') {
     throw new ComprehensiveExamPhase2Error(409, 'NON_STUDENT_ACCOUNT', 'هذا البريد مرتبط بحساب إداري ولا يمكن تسجيله كخريج')
   }
-  const userCreated = !user
-  if (!user) {
-    const holderName = String(input.candidate.fullName || '').trim()
-    if (!holderName) throw new ComprehensiveExamPhase2Error(400, 'NAME_REQUIRED', 'اسم الخريج مطلوب عند إنشاء حساب جديد')
-    user = await tx.user.create({
-      data: {
-        email,
-        password: hashPassword(randomBytes(32).toString('base64url')),
-        name: holderName,
-        phone: input.candidate.phone || null,
-        role: 'STUDENT',
-        status: 'ACTIVE',
-      },
-    })
-  } else if (!user.phone && input.candidate.phone) {
+  const userCreated = false
+  if (!user.phone && input.candidate.phone) {
     user = await tx.user.update({ where: { id: user.id }, data: { phone: input.candidate.phone } })
   }
 
@@ -523,14 +596,14 @@ export async function qualifyComprehensiveExamCandidate(
     throw new ComprehensiveExamPhase2Error(409, 'CERTIFICATE_ALREADY_EXISTS', 'موجود أصلاً كخريج')
   }
 
-  const programTitle = String(input.program.titleAr || input.program.titleEn || input.program.id)
+  const programTitle = String(input.specialization.titleAr || input.specialization.titleEn || input.specialization.id)
   const certificate = await tx.certificate.create({
     data: {
       type: 'COMPREHENSIVE_EXAM',
       legacy: false,
       holderName,
       program: programTitle,
-      programEn: input.program.titleEn || null,
+      programEn: input.specialization.titleEn || null,
       grade: `${score}%`,
       country: user.country || null,
       issuedAt: new Date(),
@@ -554,7 +627,7 @@ export async function qualifyComprehensiveExamCandidate(
       action: 'QUALIFY_COMPREHENSIVE_EXAM',
       entity: 'Certificate',
       entityId: certificate.id,
-      details: `${certificate.serial} — ${holderName} — ${email} — امتحان شامل ${score}%`,
+      details: `${certificate.serial} — ${holderName} — ${email} — امتحان شامل ${score}% — التخصص: ${programTitle}`,
     },
   })
 
@@ -566,8 +639,140 @@ export async function qualifyComprehensiveExamCandidate(
   }
 }
 
-// ---- Candidate file upload (shared by the public apply route and
-// the admin create route) ----
+// ---- Candidate from an approved equivalency application ----
+
+export type ComprehensiveApplicationFileInput = {
+  docType: string
+  fileName: string
+  mimeType: string
+  size: number
+  storageKey: string | null
+}
+
+export type ComprehensiveCandidateFromApplicationResult = {
+  created: boolean
+  candidateId: string | null
+  examId: string | null
+}
+
+// Creates the exam candidate when the admin approves an equivalency
+// service application (RESULT_APPROVED branch of the admin admissions
+// PATCH). The candidate is created as APPROVED — the admin's approval
+// IS the file review, no second identical review in the panel.
+// Idempotent: the same application never creates a second candidate
+// (looked up by admissionApplicationId, not by exam+nationalId, so a
+// re-approval after the exam was archived still finds its candidate).
+// The exam is resolved as the live (READY first, else DRAFT) exam for
+// (equivalency program, specialization); when no live exam exists the
+// approval is BLOCKED with EXAM_NOT_PREPARED — creating the draft takes
+// seconds, and the block guarantees every approved equivalency
+// application has a candidate. Applications without a specialization
+// (submitted before the picker existed) are skipped, not blocked —
+// the admin files those candidates manually from the panel.
+// Documents come from the application's files: the service flow's
+// required documents are ordered, so FLOW_DOC_1 is the training
+// certificate and FLOW_DOC_4 is the ID/passport; the fallbacks cover
+// applications whose files were attached under other types.
+export async function createComprehensiveCandidateFromApplication(
+  tx: Prisma.TransactionClient,
+  input: {
+    application: {
+      id: string
+      fullName: string
+      nationalId: string | null
+      email: string
+      phone: string | null
+      userId: string | null
+      programId: string | null
+      specializationProgramId: string | null
+    }
+    files: ComprehensiveApplicationFileInput[]
+    admin: { id: string | null; name: string | null }
+  },
+): Promise<ComprehensiveCandidateFromApplicationResult> {
+  const app = input.application
+  if (!app.specializationProgramId || !app.programId) {
+    return { created: false, candidateId: null, examId: null }
+  }
+  const existing = await tx.comprehensiveExamCandidate.findFirst({
+    where: { admissionApplicationId: app.id },
+    select: { id: true, examId: true },
+  })
+  if (existing) {
+    return { created: false, candidateId: existing.id, examId: existing.examId }
+  }
+  const nationalId = normalizeComprehensiveNationalId(app.nationalId)
+  if (!/^[A-Za-z0-9]{6,30}$/.test(nationalId)) {
+    throw new ComprehensiveExamPhase2Error(400, 'NATIONAL_ID_REQUIRED', 'رقم الهوية مطلوب لمرشح المعادلة — أكمله على الطلب قبل الاعتماد')
+  }
+  const email = normalizeQualificationEmail(app.email)
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new ComprehensiveExamPhase2Error(400, 'INVALID_EMAIL', 'البريد الإلكتروني غير صالح')
+  }
+  const liveExam =
+    (await tx.comprehensiveExam.findFirst({
+      where: { programId: app.programId, specializationProgramId: app.specializationProgramId, status: 'READY' },
+      select: { id: true, programId: true, specializationProgramId: true },
+    })) ||
+    (await tx.comprehensiveExam.findFirst({
+      where: { programId: app.programId, specializationProgramId: app.specializationProgramId, status: 'DRAFT' },
+      select: { id: true, programId: true, specializationProgramId: true },
+    }))
+  if (!liveExam) {
+    throw new ComprehensiveExamPhase2Error(
+      409,
+      'EXAM_NOT_PREPARED',
+      'لا يوجد امتحان شامل لهذا التخصص بعد — أنشئ مسودة الامتحان من تبويب الامتحان الشامل ثم اعتمد الطلب',
+    )
+  }
+  const certificateFile = input.files.find((f) => f.docType === 'FLOW_DOC_1') || input.files[0] || null
+  const idFile = input.files.find((f) => f.docType === 'FLOW_DOC_4') || input.files[input.files.length - 1] || null
+  if (!certificateFile || !idFile || !certificateFile.storageKey || !idFile.storageKey) {
+    throw new ComprehensiveExamPhase2Error(409, 'APPLICATION_FILES_REQUIRED', 'لا توجد مرفقات على الطلب — أرفق الشهادة والهوية أولاً')
+  }
+  const duplicate = await checkComprehensiveCandidateDuplicate(tx, {
+    examId: liveExam.id,
+    programId: liveExam.programId,
+    specializationProgramId: liveExam.specializationProgramId,
+    nationalId,
+    email,
+  })
+  const duplicateError = checkComprehensiveDuplicateError(duplicate)
+  if (duplicateError) throw duplicateError
+  const candidate = await tx.comprehensiveExamCandidate.create({
+    data: {
+      examId: liveExam.id,
+      userId: app.userId || null,
+      admissionApplicationId: app.id,
+      fullName: String(app.fullName || '').trim(),
+      nationalId,
+      email,
+      phone: app.phone || null,
+      externalCertificateFileKey: certificateFile.storageKey,
+      externalCertificateFileName: certificateFile.fileName.slice(0, 180),
+      idDocumentFileKey: idFile.storageKey,
+      idDocumentFileName: idFile.fileName.slice(0, 180),
+      status: 'APPROVED',
+      submittedBy: 'CANDIDATE',
+      reviewedById: input.admin.id || null,
+      reviewedAt: new Date(),
+      createdById: input.admin.id || null,
+    },
+  })
+  await tx.auditLog.create({
+    data: {
+      actorId: input.admin.id || null,
+      actorName: input.admin.name || 'النظام',
+      action: 'CREATE_COMPREHENSIVE_EXAM_CANDIDATE_FROM_APPLICATION',
+      entity: 'ComprehensiveExamCandidate',
+      entityId: candidate.id,
+      details: `مرشح معادلة من الطلب ${app.id}: ${candidate.fullName} — ${email} — التخصص ${liveExam.specializationProgramId}`,
+    },
+  })
+  return { created: true, candidateId: candidate.id, examId: liveExam.id }
+}
+
+// ---- Candidate file upload (admin create route) ----
 
 export type ComprehensiveCandidateParsedForm = {
   fields: Record<string, string>

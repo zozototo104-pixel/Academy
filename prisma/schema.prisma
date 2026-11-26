@@ -50,6 +50,7 @@ model User {
   theses         ThesisSubmission[]
   supervisedAdmissions AdmissionApplication[] @relation("Supervisor")
   ownedAdmissions      AdmissionApplication[] @relation("AdmissionOwner")
+  comprehensiveExamCandidates ComprehensiveExamCandidate[] @relation("ComprehensiveExamCandidateUser")
   auditLogs      AuditLog[]
   programExamAttempts ProgramExamAttempt[]
   assignmentSubmissions AssignmentSubmission[]
@@ -395,7 +396,9 @@ model Program {
   studyGuides ProgramStudyGuide[]
   assignments ProgramAssignment[]
   programExams ProgramExam[]
-  comprehensiveExams ComprehensiveExam[]
+  comprehensiveExams ComprehensiveExam[] @relation("ComprehensiveExamProgram")
+  specializationForExams ComprehensiveExam[] @relation("ComprehensiveExamSpecialization")
+  specializationApplications AdmissionApplication[] @relation("AdmissionSpecialization")
   studyScheduleItems StudyScheduleItem[]
   lectureSeries LectureSeries[]
   lectureVideos LectureVideoResource[]
@@ -1818,6 +1821,10 @@ model AdmissionApplication {
   program    String // اسم البرنامج المختار
   programId  String? // ربط بكائن البرنامج (للتسعير والتسجيل النهائي التلقائي)
   programRef Program? @relation(fields: [programId], references: [id])
+  // التخصص المطلوب للمعادلة (خدمة المعادلة فقط): مرجع إلى صف برنامج
+  // دراسي — لا نص حر؛ يُملأ من نموذج التقديم، لا من قواعد القبول.
+  specializationProgramId String?
+  specializationProgram   Program? @relation("AdmissionSpecialization", fields: [specializationProgramId], references: [id], onDelete: SetNull)
   documents  String   @default("[]") // JSON array من أسماء الوثائق المقدمة
   notes      String?
   acknowledged Boolean @default(false) // إقرار الطالب (صحة البيانات + الالتزام + رسوم غير مستردة)
@@ -1848,6 +1855,7 @@ model AdmissionApplication {
   payments   Payment[]
   certificates Certificate[]
   files      AdmissionDocument[]
+  comprehensiveExamCandidates ComprehensiveExamCandidate[] @relation("ComprehensiveExamAdmission")
   deliverables ServiceDeliverable[]
   scholarshipFull Boolean @default(false) // منحة كاملة معتمدة: أي فواتير دراسية لاحقة لهذا الطلب تُنشأ معفاة تلقائياً
   // نوع الإشراف الأكاديمي: AI = مشرف ذكي فقط، HUMAN = مشرف بشري معيّن من الإدارة، HYBRID = الاثنين معاً
@@ -3045,8 +3053,12 @@ model ScholarshipWaitlistEntry {
 model ComprehensiveExam {
   id            String   @id @default(cuid())
   programId     String
-  program       Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
-  level         String   // لقطة من Program.category وقت الإنشاء: DIPLOMA | MASTERS | DOCTORATE | ACCREDITATION
+  program       Program  @relation("ComprehensiveExamProgram", fields: [programId], references: [id], onDelete: Cascade)
+  // التخصص المنظم (المرحلة 3): مرجع إلى صف برنامج دراسي — لا نص حر.
+  // برنامج المعادلة نفسه لا يحمل تخصصاً؛ التخصص اختيار ثانٍ داخله.
+  specializationProgramId String?
+  specializationProgram   Program? @relation("ComprehensiveExamSpecialization", fields: [specializationProgramId], references: [id], onDelete: Restrict)
+  level         String   // لقطة من فئة برنامج التخصص وقت الإنشاء: DIPLOMA | MASTERS | DOCTORATE | ACCREDITATION
   title         String   // «امتحان شامل — <عنوان البرنامج>»
   status        String   @default("DRAFT") // DRAFT | READY | ARCHIVED
   passScore     Int      @default(60) // 1..100
@@ -3063,8 +3075,9 @@ model ComprehensiveExam {
   attempts   ComprehensiveExamAttempt[]
   certificates Certificate[]
 
-  @@unique([programId, status]) // امتحان حي واحد (مسودة أو منشور) لكل برنامج
+  @@unique([programId, specializationProgramId, status]) // امتحان حي واحد (مسودة أو منشور) لكل (برنامج معادلة، تخصص) — تخصصان مختلفان مسموحان؛ بوستغريس تعتبر NULLs متميزة لذا يحرس الكود حالة NULL أيضاً
   @@index([programId])
+  @@index([specializationProgramId])
 }
 
 model ComprehensiveExamQuestion {
@@ -3105,6 +3118,15 @@ model ComprehensiveExamCandidate {
   id                          String   @id @default(cuid())
   examId                      String
   exam                        ComprehensiveExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  // المستخدم المسجل المرتبط بالمرشح — يُملأ من الطلب (أو من إدخال
+  // الإدارة بعد التحقق من وجود حساب طالب)؛ التأهيل يربط بهذا المستخدم
+  // فقط ولا ينشئ حساباً أبداً.
+  userId                      String?
+  user                        User? @relation("ComprehensiveExamCandidateUser", fields: [userId], references: [id], onDelete: SetNull)
+  // الطلب الأصلي (لمرشحي التقديم): منه تُقرأ رسوم الخدمة عند إصدار
+  // الدعوة — لا دعوة قبل سدادها. مرشحو الإدارة اليدويون بلا رابط.
+  admissionApplicationId      String?
+  admissionApplication        AdmissionApplication? @relation("ComprehensiveExamAdmission", fields: [admissionApplicationId], references: [id], onDelete: SetNull)
   fullName                    String
   nationalId                  String   // رقم الهوية — لا يوجد حقل هوية في المنصة اليوم
   email                       String
@@ -3128,6 +3150,8 @@ model ComprehensiveExamCandidate {
   @@index([examId, status])
   @@index([examId, nationalId])
   @@index([email])
+  @@index([userId])
+  @@index([admissionApplicationId])
 }
 
 model ComprehensiveExamInvitation {

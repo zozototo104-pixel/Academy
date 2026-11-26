@@ -12,10 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Check, Download, FileSpreadsheet, Loader2, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react'
 
-type ProgramOption = { id: string; titleAr: string; titleEn?: string | null; slug?: string | null; active?: boolean | null; category?: string | null }
+type ProgramOption = { id: string; titleAr: string; titleEn?: string | null; slug?: string | null; active?: boolean | null; category?: string | null; serviceKind?: string | null }
 type ExamCounts = { approved: number; pending: number; rejected: number }
 type ExamListItem = {
-  id: string; programId: string; programTitleAr: string; programCategory: string; categoryLabel: string; specialtyLabel: string
+  id: string; programId: string; programTitleAr: string; programCategory: string
+  specializationProgramId?: string | null; specializationTitleAr?: string | null; specializationTitleEn?: string | null; specializationCategory?: string | null
+  categoryLabel: string; specialtyLabel: string
   level: string; title: string; status: string; passScore: number; durationMin: number; totalPoints: number
   publishedAt?: string | null; counts: ExamCounts
 }
@@ -56,6 +58,7 @@ export function AdminComprehensiveExamTab() {
   const [detail, setDetail] = useState<{ exam: ExamListItem; counts: ExamCounts; questions: ExamQuestion[] } | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [programId, setProgramId] = useState('')
+  const [specializationProgramId, setSpecializationProgramId] = useState('')
   const [passScore, setPassScore] = useState('60')
   const [durationMin, setDurationMin] = useState('120')
   const [creating, setCreating] = useState(false)
@@ -99,6 +102,10 @@ export function AdminComprehensiveExamTab() {
         loadExams(),
       ])
       setPrograms((progData.programs || []).filter((p: ProgramOption) => p.active !== false))
+      // برنامج المعادلة هو برنامج خدمة المعادلة من بيانات المنصة
+      // (نوع مساره CERTIFICATE_EQUIVALENCY) — ثابت لإنشاء الامتحانات.
+      const equivalency = (progData.programs || []).find((p: ProgramOption) => p.serviceKind === 'CERTIFICATE_EQUIVALENCY')
+      if (equivalency) setProgramId(equivalency.id)
     } catch (e: any) {
       toast({ title: 'تعذر التحميل', description: e.message || 'حدث خطأ', variant: 'destructive' })
     } finally {
@@ -129,6 +136,8 @@ export function AdminComprehensiveExamTab() {
         const examsData = await jsonOrThrow(await fetch('/api/admin/comprehensive-exams', { cache: 'no-store' }), 'تعذر تحميل الامتحانات الشاملة')
         if (cancelled) return
         setPrograms((progData.programs || []).filter((p: ProgramOption) => p.active !== false))
+        const equivalency = (progData.programs || []).find((p: ProgramOption) => p.serviceKind === 'CERTIFICATE_EQUIVALENCY')
+        if (equivalency) setProgramId(equivalency.id)
         setExams(examsData.exams || [])
       } catch (e: any) {
         if (!cancelled) toast({ title: 'تعذر التحميل', description: e.message || 'حدث خطأ', variant: 'destructive' })
@@ -153,7 +162,11 @@ export function AdminComprehensiveExamTab() {
 
   const createExam = async () => {
     if (!programId) {
-      toast({ title: 'اختر البرنامج أولاً', variant: 'destructive' })
+      toast({ title: 'برنامج المعادلة غير موجود — أنشئ برنامج خدمة المعادلة أولاً', variant: 'destructive' })
+      return
+    }
+    if (!specializationProgramId) {
+      toast({ title: 'اختر التخصص أولاً', variant: 'destructive' })
       return
     }
     setCreating(true)
@@ -162,7 +175,7 @@ export function AdminComprehensiveExamTab() {
         await fetch('/api/admin/comprehensive-exams', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ programId, passScore: Number(passScore) || 60, durationMin: Number(durationMin) || 120 }),
+          body: JSON.stringify({ programId, specializationProgramId, passScore: Number(passScore) || 60, durationMin: Number(durationMin) || 120 }),
         }),
         'تعذر إنشاء الامتحان',
       )
@@ -217,7 +230,7 @@ export function AdminComprehensiveExamTab() {
     setBankLoading(true)
     try {
       const data = await jsonOrThrow(
-        await fetch(`/api/admin/question-bank?programId=${encodeURIComponent(detail.exam.programId)}&status=APPROVED`, { cache: 'no-store' }),
+        await fetch(`/api/admin/question-bank?programId=${encodeURIComponent(detail.exam.specializationProgramId || detail.exam.programId)}&status=APPROVED`, { cache: 'no-store' }),
         'تعذر تحميل بنك الأسئلة',
       )
       setBankItems((data.items || []).filter((it: BankItem) => it.type === 'MCQ' || it.type === 'TF'))
@@ -445,24 +458,32 @@ export function AdminComprehensiveExamTab() {
           <div>
             <h3 className="text-base font-black">تجهيز امتحان شامل لاجتياز البرنامج</h3>
             <p className="text-xs text-slate-500">
-              امتحان من 100 سؤال (صح/خطأ واختيار متعدد فقط — لا مقالي) لخريج درس البرنامج في مؤسسة أخرى. يُنشر فقط عند اكتمال 100 سؤال معتمد،
-              والنجاح فيه يؤهل صاحبه كخريج. مصدر «الذكاء من الإنترنت» يبحث في الويب عبر Tavily (مفتاح مجاني يُحفظ في إعدادات النظام) ويولّد أسئلة بدليل حرفي ورابط مصدر لكل سؤال.
+              امتحان من 100 سؤال (صح/خطأ واختيار متعدد فقط — لا مقالي) لخريج درس التخصص في مؤسسة أخرى. يُنشر فقط عند اكتمال 100 سؤال معتمد،
+              والنجاح فيه يؤهل صاحبه كخريج في ذلك التخصص. الامتحان يعيش على برنامج خدمة المعادلة فقط — برامج الدراسة العادية لا يظهر عليها الامتحان أبداً.
+              مصدر «الذكاء من الإنترنت» يبحث في الويب عبر Tavily (مفتاح مجاني يُحفظ في إعدادات النظام) ويولّد أسئلة بدليل حرفي ورابط مصدر لكل سؤال.
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-[1fr_120px_140px_auto]">
+          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_120px_140px_auto]">
             <div className="space-y-1">
-              <Label>البرنامج والتخصص</Label>
-              <Select value={programId} onValueChange={setProgramId}>
-                <SelectTrigger><SelectValue placeholder="اختر البرنامج" /></SelectTrigger>
+              <Label>برنامج المعادلة</Label>
+              <div className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900">
+                {selectedProgram ? selectedProgram.titleAr : 'لم يُنشأ برنامج المعادلة بعد — أنشئ برنامج خدمة المعادلة أولاً'}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>التخصص</Label>
+              <Select value={specializationProgramId} onValueChange={setSpecializationProgramId}>
+                <SelectTrigger><SelectValue placeholder="اختر التخصص" /></SelectTrigger>
                 <SelectContent>
-                  {programs.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.titleAr} — {p.category || ''}
-                    </SelectItem>
-                  ))}
+                  {programs
+                    .filter((p) => p.id !== programId && p.category !== 'SERVICE')
+                    .map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.titleAr} — {p.category || ''}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
-              {selectedProgram && <p className="text-[11px] text-slate-500">المستوى: {selectedProgram.category || '—'}</p>}
             </div>
             <div className="space-y-1">
               <Label>علامة النجاح %</Label>
@@ -473,7 +494,7 @@ export function AdminComprehensiveExamTab() {
               <Input type="number" min={10} max={480} value={durationMin} onChange={(e: ChangeEvent<HTMLInputElement>) => setDurationMin(e.target.value)} />
             </div>
             <div className="flex items-end">
-              <Button onClick={createExam} disabled={creating || !programId}>
+              <Button onClick={createExam} disabled={creating || !programId || !specializationProgramId}>
                 {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} إنشاء المسودة
               </Button>
             </div>
@@ -948,6 +969,9 @@ type CandidateItem = {
   rejectedReason: string | null
   submittedBy: string
   createdAt: string
+  serviceFeePaid?: boolean | null
+  inviteBlockedReason?: 'EXAM_NOT_READY' | 'PAYMENT_REQUIRED' | null
+  specialization?: { id: string; titleAr: string; titleEn?: string | null; category?: string | null } | null
   invitation: CandidateInvitation | null
   attempt: CandidateAttempt | null
 }
@@ -971,6 +995,7 @@ function DeliveryLine({ label, status, error }: { label: string; status: string 
 
 function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; examStatus: string; examTitle: string }) {
   const [candidates, setCandidates] = useState<CandidateItem[]>([])
+  const [specialization, setSpecialization] = useState<{ id: string; titleAr: string; titleEn?: string | null; category?: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [fullName, setFullName] = useState('')
@@ -994,6 +1019,7 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
     try {
       const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${examId}/candidates`, { cache: 'no-store' }), 'تعذر تحميل المرشحين')
       setCandidates(data.candidates || [])
+      setSpecialization(data.specialization || null)
     } catch (e: any) {
       toast({ title: 'تعذر تحميل المرشحين', description: e.message || 'حدث خطأ', variant: 'destructive' })
     } finally {
@@ -1010,6 +1036,7 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
       .then((data) => {
         if (!alive) return
         setCandidates(data.candidates || [])
+        setSpecialization(data.specialization || null)
         setLoading(false)
       })
       .catch((e: any) => {
@@ -1232,7 +1259,10 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
     <Card>
       <CardContent className="space-y-3 pt-4">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-black">المرشحون والدعوات والمحاولات — {examTitle}</h4>
+          <div>
+            <h4 className="text-sm font-black">المرشحون والدعوات والمحاولات — {examTitle}</h4>
+            <p className="mt-0.5 text-[11px] font-bold text-slate-500">التخصص: {specialization?.titleAr || '—'}</p>
+          </div>
           <Button variant="outline" size="sm" onClick={loadCandidates}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
         </div>
 
@@ -1290,6 +1320,8 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
                   <span className="text-xs font-normal text-slate-500" dir="ltr">{c.phone || ''}</span>
                 </div>
                 <p className="mt-1 text-[11px] text-slate-500">
+                  التخصص: {c.specialization?.titleAr || '—'}
+                  {' — '}
                   الهوية: <span dir="ltr">{c.nationalId}</span>
                   {' — '}
                   <a className="text-teal-700 underline" href={c.externalCertificateDownloadUrl} target="_blank" rel="noreferrer">الشهادة: {c.externalCertificateFileName || 'ملف'}</a>
@@ -1393,15 +1425,20 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
                       </Button>
                     </>
                   )}
-                  {c.status === 'APPROVED' && examStatus === 'READY' && (
-                    <Button size="sm" onClick={() => issueInvitation(c)} disabled={busy === `issue-${c.id}`}>
+                  {c.status === 'APPROVED' && (
+                    <Button size="sm" onClick={() => issueInvitation(c)} disabled={busy === `issue-${c.id}` || !!c.inviteBlockedReason}>
                       {busy === `issue-${c.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} إصدار دعوة
                     </Button>
                   )}
                   {inv && (inv.status === 'PENDING' || inv.status === 'EXPIRED') && (
-                    <Button size="sm" variant="outline" onClick={() => invitationAction(c, inv, 'renew')} disabled={busy === `renew-${inv.id}`}>
+                    <Button size="sm" variant="outline" onClick={() => invitationAction(c, inv, 'renew')} disabled={busy === `renew-${inv.id}` || !!c.inviteBlockedReason}>
                       {busy === `renew-${inv.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} تجديد الدعوة
                     </Button>
+                  )}
+                  {c.inviteBlockedReason && (
+                    <p className="mt-1 w-full text-[11px] font-bold text-amber-700">
+                      {c.inviteBlockedReason === 'PAYMENT_REQUIRED' ? 'رسوم الخدمة لم تُسدد بعد — لا يُرسَل الرابط قبل السداد' : 'الامتحان غير منشور بعد — جهّزه وانشره أولاً'}
+                    </p>
                   )}
                   {inv && inv.status === 'PENDING' && (
                     <Button size="sm" variant="outline" onClick={() => invitationAction(c, inv, 'revoke')} disabled={busy === `revoke-${inv.id}`}>

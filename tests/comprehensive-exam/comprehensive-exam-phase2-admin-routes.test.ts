@@ -10,12 +10,16 @@ let attempts: any[] = []
 let certificates: any[] = []
 let users: any[] = []
 let enrollments: any[] = []
+let payments: any[] = []
 let auditRows: any[] = []
 let settings: Record<string, string> = {}
 let serialSeq = 41
 let seq = 0
 
-const program = { id: 'prog-1', titleAr: 'برنامج أ', titleEn: 'Program A' }
+const programs = [
+  { id: 'prog-1', titleAr: 'برنامج المعادلة', titleEn: 'Equivalency Program', slug: 'training-certificates-equivalency', category: 'SERVICE' },
+  { id: 'spec-1', titleAr: 'دكتوراه في إدارة الأعمال', titleEn: 'PhD in Business Administration', category: 'DOCTORATE' },
+]
 
 const fakeDb: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(fakeDb),
@@ -24,12 +28,20 @@ const fakeDb: any = {
     findUnique: async ({ where }: any) => (settings[where?.key] ? { key: where.key, value: settings[where.key] } : null),
   },
   program: {
-    findUnique: async ({ where }: any) => (where?.id === program.id ? { ...program } : null),
+    findUnique: async ({ where }: any) => {
+      const p = programs.find((x) => x.id === where?.id)
+      return p ? { ...p } : null
+    },
   },
   comprehensiveExam: {
-    findUnique: async ({ where }: any) => exams.find((e) => e.id === where?.id) || null,
+    findUnique: async ({ where }: any) => {
+      const row = exams.find((e) => e.id === where?.id) || null
+      if (!row) return null
+      const spec = row.specializationProgramId ? programs.find((p) => p.id === row.specializationProgramId) : null
+      return { ...row, specializationProgram: spec ? { id: spec.id, titleAr: spec.titleAr, titleEn: spec.titleEn, category: spec.category } : null }
+    },
     findFirst: async ({ where }: any = {}) =>
-      exams.find((e) => (!where?.programId || e.programId === where.programId) && (!where?.status || e.status === where.status)) || null,
+      exams.find((e) => (!where?.programId || e.programId === where.programId) && (!where?.status || e.status === where.status) && (!where?.specializationProgramId || e.specializationProgramId === where.specializationProgramId)) || null,
   },
   comprehensiveExamCandidate: {
     findFirst: async ({ where, include }: any = {}) => {
@@ -45,7 +57,7 @@ const fakeDb: any = {
       if (!row) return null
       if (include?.exam) {
         const exam = exams.find((e) => e.id === row.examId)
-        return { ...row, exam: exam ? { id: exam.id, programId: exam.programId, title: exam.title, status: exam.status } : null }
+        return { ...row, exam: exam ? { id: exam.id, programId: exam.programId, specializationProgramId: exam.specializationProgramId, title: exam.title, status: exam.status } : null }
       }
       return row
     },
@@ -82,7 +94,7 @@ const fakeDb: any = {
       if (!row) return null
       if (include?.candidate) {
         const cand = candidates.find((c) => c.id === row.candidateId)
-        return { ...row, candidate: cand ? { id: cand.id, fullName: cand.fullName, email: cand.email, phone: cand.phone, examId: cand.examId } : null }
+        return { ...row, candidate: cand ? { id: cand.id, fullName: cand.fullName, email: cand.email, phone: cand.phone, examId: cand.examId, admissionApplicationId: cand.admissionApplicationId ?? null } : null }
       }
       return row
     },
@@ -117,6 +129,11 @@ const fakeDb: any = {
         if (Array.isArray(where?.OR)) {
           const ok = where.OR.some((cond: any) => (cond.legacy === true && c.legacy === true) || (cond.type && c.type === cond.type))
           if (!ok) return false
+        }
+        if (where?.comprehensiveExam) {
+          const ce = where.comprehensiveExam
+          if (ce.specializationProgramId !== undefined && c.specializationProgramId !== ce.specializationProgramId) return false
+          if (ce.programId !== undefined && c.examProgramId !== ce.programId) return false
         }
         return true
       })
@@ -162,6 +179,23 @@ const fakeDb: any = {
       return row
     },
   },
+  payment: {
+    findFirst: async ({ where }: any = {}) =>
+      payments.find(
+        (p) =>
+          (!where?.admissionId || p.admissionId === where.admissionId) &&
+          (!where?.purpose || p.purpose === where.purpose) &&
+          (!where?.status?.in || where.status.in.includes(p.status)),
+      ) || null,
+    findMany: async ({ where }: any = {}) =>
+      payments.filter(
+        (p) =>
+          (!where?.admissionId?.in || where.admissionId.in.includes(p.admissionId)) &&
+          (!where?.admissionId || where.admissionId.in || p.admissionId === where.admissionId) &&
+          (!where?.purpose || p.purpose === where.purpose) &&
+          (!where?.status?.in || where.status.in.includes(p.status)),
+      ),
+  },
   auditLog: {
     create: async ({ data }: any) => {
       const row = { id: `audit-${++seq}`, ...data }
@@ -194,13 +228,18 @@ const invitationRoute = await import('../../src/app/api/admin/comprehensive-exam
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d])
 
 function reset() {
-  exams = [{ id: 'exam-1', programId: 'prog-1', title: 'الامتحان الشامل — إدارة الأعمال', status: 'READY', durationMin: 120, passScore: 60 }]
+  exams = [{ id: 'exam-1', programId: 'prog-1', specializationProgramId: 'spec-1', title: 'الامتحان الشامل — إدارة الأعمال', status: 'READY', durationMin: 120, passScore: 60 }]
   candidates = []
   invitations = []
   attempts = []
   certificates = []
-  users = []
+  users = [
+    { id: 'user-1', email: 'a@b.com', role: 'STUDENT' },
+    { id: 'user-2', email: 'other@b.com', role: 'STUDENT' },
+    { id: 'user-3', email: 'admin@b.com', role: 'ADMIN' },
+  ]
   enrollments = []
+  payments = []
   auditRows = []
   settings = { COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE: 'comprehensive_exam_invite_ar' }
   serialSeq = 41
@@ -271,7 +310,7 @@ describe('admin candidates — create (admin entry)', () => {
     expect((await res.json()).code).toBe('NATIONAL_ID_DUPLICATE')
   })
   test('duplicate graduate email is 409', async () => {
-    certificates.push({ type: 'PROGRAM_COMPLETION', legacy: true, userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'prog-1' })
+    certificates.push({ type: 'PROGRAM_COMPLETION', legacy: true, userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'spec-1' })
     const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates', {
       method: 'POST',
       body: candidateForm({ nationalId: '987654321' }),
@@ -285,6 +324,60 @@ describe('admin candidates — create (admin entry)', () => {
     const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates', { method: 'POST', body: candidateForm() })
     const res = await candidatesRoute.POST(req, ctx())
     expect(res.status).toBe(409)
+  })
+  test('created candidate stores the existing student user id — never creates an account', async () => {
+    const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates', { method: 'POST', body: candidateForm() })
+    const res = await candidatesRoute.POST(req, ctx())
+    expect(res.status).toBe(201)
+    const data = await res.json()
+    expect(data.candidate.userId).toBe('user-1')
+    expect(users.length).toBe(3)
+  })
+  test('unknown email is 409 STUDENT_USER_NOT_FOUND', async () => {
+    const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates', {
+      method: 'POST',
+      body: candidateForm({ email: 'ghost@b.com' }),
+    })
+    const res = await candidatesRoute.POST(req, ctx())
+    expect(res.status).toBe(409)
+    expect((await res.json()).code).toBe('STUDENT_USER_NOT_FOUND')
+  })
+  test('non-student account is 409 NON_STUDENT_ACCOUNT', async () => {
+    const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates', {
+      method: 'POST',
+      body: candidateForm({ email: 'admin@b.com' }),
+    })
+    const res = await candidatesRoute.POST(req, ctx())
+    expect(res.status).toBe(409)
+    expect((await res.json()).code).toBe('NON_STUDENT_ACCOUNT')
+  })
+})
+
+describe('admin candidates — list shows the invite gate', () => {
+  test('application candidate without a paid fee is PAYMENT_REQUIRED; manual candidate is free', async () => {
+    seedApprovedCandidate({ admissionApplicationId: 'adm-1' })
+    seedApprovedCandidate({ id: 'cand-manual', nationalId: '987654321', email: 'other@b.com', admissionApplicationId: null })
+    const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates')
+    const res = await candidatesRoute.GET(req, { params: Promise.resolve({ id: 'exam-1' }) })
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    const fromApplication = data.candidates.find((c: any) => c.admissionApplicationId === 'adm-1')
+    const manual = data.candidates.find((c: any) => c.id === 'cand-manual')
+    expect(fromApplication.serviceFeePaid).toBe(false)
+    expect(fromApplication.inviteBlockedReason).toBe('PAYMENT_REQUIRED')
+    expect(manual.serviceFeePaid).toBe(null)
+    expect(manual.inviteBlockedReason).toBe(null)
+  })
+  test('a PAID fee clears the gate; a DRAFT exam blocks everyone with EXAM_NOT_READY', async () => {
+    payments.push({ id: 'pay-1', admissionId: 'adm-1', purpose: 'SERVICE_FEE', status: 'PAID' })
+    seedApprovedCandidate({ admissionApplicationId: 'adm-1' })
+    const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates')
+    const paid = await (await candidatesRoute.GET(req, { params: Promise.resolve({ id: 'exam-1' }) })).json()
+    expect(paid.candidates[0].serviceFeePaid).toBe(true)
+    expect(paid.candidates[0].inviteBlockedReason).toBe(null)
+    exams[0].status = 'DRAFT'
+    const draft = await (await candidatesRoute.GET(req, { params: Promise.resolve({ id: 'exam-1' }) })).json()
+    expect(draft.candidates[0].inviteBlockedReason).toBe('EXAM_NOT_READY')
   })
 })
 
@@ -323,6 +416,8 @@ describe('admin candidates — qualify retry', () => {
     const data = await res.json()
     expect(data.certificate.serial).toMatch(/^AACT-C-/)
     expect(certificates[0].type).toBe('COMPREHENSIVE_EXAM')
+    expect(certificates[0].program).toBe('دكتوراه في إدارة الأعمال')
+    expect(enrollments[0].programId).toBe('prog-1')
   })
   test('no passed attempt is 409', async () => {
     const c = seedApprovedCandidate()
@@ -365,6 +460,35 @@ describe('admin invitations — issue', () => {
     const req = new NextRequest('http://localhost/x', { method: 'POST' })
     expect((await invitationsRoute.POST(req, ctx('exam-1', c.id))).status).toBe(409)
   })
+  test('application candidate without a paid fee is 409 PAYMENT_REQUIRED', async () => {
+    const c = seedApprovedCandidate({ admissionApplicationId: 'adm-1' })
+    const req = new NextRequest('http://localhost/x', { method: 'POST' })
+    const res = await invitationsRoute.POST(req, ctx('exam-1', c.id))
+    expect(res.status).toBe(409)
+    expect((await res.json()).code).toBe('PAYMENT_REQUIRED')
+    expect(invitations.length).toBe(0)
+  })
+  test('a PENDING fee does not pass the gate; PAID and WAIVED do', async () => {
+    const c = seedApprovedCandidate({ admissionApplicationId: 'adm-1' })
+    payments.push({ id: 'pay-1', admissionId: 'adm-1', purpose: 'SERVICE_FEE', status: 'PENDING' })
+    const pendingReq = new NextRequest('http://localhost/x', { method: 'POST' })
+    expect((await invitationsRoute.POST(pendingReq, ctx('exam-1', c.id))).status).toBe(409)
+    payments[0].status = 'PAID'
+    const paidReq = new NextRequest('http://localhost/x', { method: 'POST' })
+    expect((await invitationsRoute.POST(paidReq, ctx('exam-1', c.id))).status).toBe(201)
+    const c2 = seedApprovedCandidate({ id: 'cand-waived', nationalId: '222222222', email: 'other@b.com', admissionApplicationId: 'adm-2' })
+    payments.push({ id: 'pay-2', admissionId: 'adm-2', purpose: 'SERVICE_FEE', status: 'WAIVED' })
+    const waivedReq = new NextRequest('http://localhost/x', { method: 'POST' })
+    expect((await invitationsRoute.POST(waivedReq, ctx('exam-1', c2.id))).status).toBe(201)
+  })
+  test('a DRAFT exam blocks the invitation with EXAM_NOT_READY', async () => {
+    exams[0].status = 'DRAFT'
+    const c = seedApprovedCandidate()
+    const req = new NextRequest('http://localhost/x', { method: 'POST' })
+    const res = await invitationsRoute.POST(req, ctx('exam-1', c.id))
+    expect(res.status).toBe(409)
+    expect((await res.json()).code).toBe('EXAM_NOT_READY')
+  })
 })
 
 describe('admin invitations — renew and revoke', () => {
@@ -404,5 +528,14 @@ describe('admin invitations — renew and revoke', () => {
     invitations[0].status = 'REVOKED'
     const renewReq = new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify({ action: 'renew' }) })
     expect((await invitationRoute.POST(renewReq, { params: Promise.resolve({ id: 'exam-1', candidateId: c.id, invitationId: invId }) })).status).toBe(409)
+  })
+  test('renewal for an unpaid application candidate is 409 PAYMENT_REQUIRED', async () => {
+    const c = seedApprovedCandidate({ admissionApplicationId: 'adm-1' })
+    invitations.push({ id: 'inv-1', candidateId: c.id, token: 'tok-1', status: 'PENDING', expiresAt: new Date(Date.now() + 1000), createdAt: new Date(), updatedAt: new Date() })
+    const renewReq = new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify({ action: 'renew' }) })
+    const res = await invitationRoute.POST(renewReq, { params: Promise.resolve({ id: 'exam-1', candidateId: c.id, invitationId: 'inv-1' }) })
+    expect(res.status).toBe(409)
+    expect((await res.json()).code).toBe('PAYMENT_REQUIRED')
+    expect(invitations[0].status).toBe('PENDING')
   })
 })

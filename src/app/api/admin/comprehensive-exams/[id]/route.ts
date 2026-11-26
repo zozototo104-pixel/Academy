@@ -30,6 +30,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       where: { id },
       include: {
         program: { select: { id: true, titleAr: true, titleEn: true, slug: true, category: true } },
+        specializationProgram: { select: { id: true, titleAr: true, titleEn: true, category: true } },
         questions: { orderBy: { order: 'asc' } },
       },
     })
@@ -41,8 +42,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         programId: exam.programId,
         programTitleAr: exam.program.titleAr,
         programCategory: exam.program.category,
-        categoryLabel: PROGRAM_CATEGORY_AR[exam.program.category] || exam.program.category,
-        specialtyLabel: programSpecialtyLabel({ titleAr: exam.program.titleAr, category: exam.program.category }),
+        specializationProgramId: exam.specializationProgramId || null,
+        specializationTitleAr: exam.specializationProgram?.titleAr || null,
+        specializationTitleEn: exam.specializationProgram?.titleEn || null,
+        specializationCategory: exam.specializationProgram?.category || null,
+        categoryLabel: PROGRAM_CATEGORY_AR[exam.specializationProgram?.category || exam.program.category] || exam.program.category,
+        specialtyLabel: exam.specializationProgram
+          ? programSpecialtyLabel({ titleAr: exam.specializationProgram.titleAr, category: exam.specializationProgram.category })
+          : programSpecialtyLabel({ titleAr: exam.program.titleAr, category: exam.program.category }),
         level: exam.level,
         title: exam.title,
         status: exam.status,

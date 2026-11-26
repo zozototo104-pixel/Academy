@@ -6,6 +6,8 @@ import {
   buildComprehensiveExamInviteUrl,
   checkComprehensiveCandidateDuplicate,
   checkComprehensiveDuplicateError,
+  checkComprehensiveInviteGateError,
+  checkComprehensiveInviteGates,
   comprehensiveExamInviteExpiresAt,
   createComprehensiveExamInviteToken,
   ComprehensiveExamPhase2Error,
@@ -41,7 +43,7 @@ function invitationShape(inv: any, inviteUrl?: string) {
 async function loadExamAndCandidate(examId: string, candidateId: string) {
   const exam = await db.comprehensiveExam.findUnique({
     where: { id: examId },
-    select: { id: true, status: true, programId: true, title: true, durationMin: true, passScore: true },
+    select: { id: true, status: true, programId: true, specializationProgramId: true, title: true, durationMin: true, passScore: true },
   })
   if (!exam) return { exam: null, candidate: null, program: null }
   const candidate = await db.comprehensiveExamCandidate.findFirst({
@@ -91,9 +93,10 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     if (candidate.status !== 'APPROVED') {
       return NextResponse.json({ error: 'الدعوة تتطلب مرشحاً معتمداً — راجع الطلب أولاً' }, { status: 409 })
     }
-    if (exam.status !== 'READY') {
-      return NextResponse.json({ error: 'الدعوة تتطلب امتحاناً منشوراً' }, { status: 409 })
-    }
+    // بوابتا الدعوة: امتحان منشور + (لمرشحي الطلبات) رسوم خدمة مسددة.
+    const gate = await checkComprehensiveInviteGates(db as any, { candidate, exam })
+    const gateError = checkComprehensiveInviteGateError(gate)
+    if (gateError) return NextResponse.json({ error: gateError.message, code: gateError.code }, { status: gateError.status })
     const passedAttempt = await db.comprehensiveExamAttempt.findFirst({
       where: { candidateId: candidate.id, status: 'GRADED', passed: true },
       select: { id: true },
@@ -111,6 +114,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const duplicate = await checkComprehensiveCandidateDuplicate(db as any, {
       examId: exam.id,
       programId: exam.programId,
+      specializationProgramId: exam.specializationProgramId,
       nationalId: candidate.nationalId,
       email: candidate.email,
       excludeCandidateId: candidate.id,

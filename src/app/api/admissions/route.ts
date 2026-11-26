@@ -8,7 +8,7 @@ import { notify, audit } from '@/lib/notify'
 import { emailAdminNewAdmissionRequest, emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
 import { getStorageDownloadPathForKey, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 import { clientIpFromHeaders, enforceApiRateLimit } from '@/lib/rate-limit'
-import { buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
+import { buildServiceAdmissionDefaults, getServiceFlow, isCertificateEquivalencyFlow } from '@/lib/service-flows'
 import { parseAdmissionRules, REQUIRED_ADMISSION_DOCS, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
 import { resolveRules } from '@/lib/admission-ai'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
@@ -241,7 +241,7 @@ export async function POST(req: NextRequest) {
     const { fields, files } = await readAdmissionPayload(req)
     const {
       fullName, fullNameEn, email, phone, country, nationalId, birthDate, address,
-      education, program, programId, notes, acknowledged,
+      education, program, programId, specializationProgramId, notes, acknowledged,
     } = fields
     const stagedUpload = fields.stagedUpload === 'true' || fields.stagedUpload === '1'
 
@@ -304,13 +304,31 @@ export async function POST(req: NextRequest) {
       ? resolveRules(programRec?.category || 'DIPLOMA', parsedAdmissionRules, !isServiceRequest)
       : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(programRec?.category || 'DIPLOMA', parsedAdmissionRules, !isServiceRequest))
 
-    if (!isServiceRequest) {
+    // خدمة المعادلة وحدها تطلب تخصصاً: التخصص اختيار منظم من برامج
+    // الدراسة النشطة (كلها — الطلب هو ما يكشف وين في طلب، والإدارة
+    // تجهز امتحان التخصص الذي يصلها طلب عليه). لا يُشترط امتحان منشور
+    // وقت التقديم، ولا يُشترط أن يكون التسجيل في برنامج التخصص مفتوحاً
+    // — الطالب لا يلتحق للدراسة، بل يعادل مؤهلاً سابقاً.
+    const isEquivalencyService = isCertificateEquivalencyFlow(serviceFlow)
+    let specializationProgram: { id: string; category: string } | null = null
+    if (isEquivalencyService) {
+      const specId = String(specializationProgramId || '').trim()
+      if (!specId) {
+        return NextResponse.json({ error: 'التخصص المطلوب للمعادلة مطلوب — اختر التخصص من القائمة' }, { status: 400 })
+      }
+      specializationProgram = await withTiming('db_admissions_specialization_lookup', () => db.program.findFirst({ where: { id: specId, active: true }, select: { id: true, category: true } }))
+      if (!specializationProgram || specializationProgram.category === 'SERVICE') {
+        return NextResponse.json({ error: 'التخصص المحدد غير موجود أو غير متاح — اختر تخصصاً دراسياً من القائمة' }, { status: 400 })
+      }
+    }
+
+    if (!isServiceRequest || isEquivalencyService) {
       const nationalError = validateNationalIdOrPassport(String(nationalId || ''), country)
       if (nationalError) return NextResponse.json({ error: nationalError }, { status: 400 })
-      if (programRules?.minAge) {
-        const birthError = validateBirthDateForMinAge(String(birthDate || ''), Number(programRules.minAge))
-        if (birthError) return NextResponse.json({ error: birthError }, { status: 400 })
-      }
+    }
+    if (!isServiceRequest && programRules?.minAge) {
+      const birthError = validateBirthDateForMinAge(String(birthDate || ''), Number(programRules.minAge))
+      if (birthError) return NextResponse.json({ error: birthError }, { status: 400 })
     }
 
     // ===== الخطوة 2: المستندات الرسمية أو مرفقات الخدمة المخصصة =====
@@ -434,6 +452,7 @@ export async function POST(req: NextRequest) {
           education: educationValue,
           program: selectedTitle,
           programId: programRec?.id || null,
+          specializationProgramId: specializationProgram?.id || null,
           documents: JSON.stringify(uniqueFiles.map((f) => f.docType)),
           notes: notes?.trim() ? String(notes).slice(0, 2000) : null,
           acknowledged: true,
@@ -595,6 +614,7 @@ export async function GET(req: NextRequest) {
     const include: any = {
       supervisor: { select: { name: true } },
       programRef: { select: { slug: true, category: true, titleAr: true, admissionRules: true } },
+      specializationProgram: { select: { id: true, titleAr: true, titleEn: true, category: true } },
       files: { select: { id: true, docType: true, fileName: true, size: true, storageKey: true } },
       payments: {
         select: {
@@ -639,6 +659,8 @@ export async function GET(req: NextRequest) {
       fullName: app.fullName,
       program: app.program,
       programSlug: app.programRef?.slug || null,
+      specializationProgramId: app.specializationProgramId || null,
+      specializationProgramTitle: app.specializationProgram?.titleAr || null,
       requestKind,
       requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),
       isStudyProgram,

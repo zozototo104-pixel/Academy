@@ -416,6 +416,15 @@ export function getServiceFlow(slug?: string | null): ServiceFlow | null {
   return SERVICE_FLOWS[slug] || null
 }
 
+// The equivalency service is identified by its flow KIND, not by a flag,
+// a slug literal, or a program name: exactly one service flow carries
+// CERTIFICATE_EQUIVALENCY. The comprehensive exam, the admissions form
+// and the admissions approval all resolve the equivalency service
+// through this helper, so renaming the program never breaks the link.
+export function isCertificateEquivalencyFlow(flow: ServiceFlow | null | undefined): boolean {
+  return flow?.kind === 'CERTIFICATE_EQUIVALENCY'
+}
+
 export function serviceDocType(index: number): string {
   return `FLOW_DOC_${index + 1}`
 }
