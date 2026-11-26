@@ -3200,10 +3200,10 @@ export function AdminCertificatesTab() {
                         </div>
                       )}
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => previewRegularCertFile(c)} disabled={certUploadBusy === `cert-preview-${c.serial}`}>
+                        <Button size="sm" variant="outline" onClick={() => previewRegularCertFile(c)} disabled={Boolean(certUploadBusy)}>
                           {certUploadBusy === `cert-preview-${c.serial}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} معاينة
                         </Button>
-                        <Button size="sm" onClick={() => uploadRegularCertFile(c)} disabled={certUploadBusy === `cert-upload-${c.serial}`}>
+                        <Button size="sm" onClick={() => uploadRegularCertFile(c)} disabled={Boolean(certUploadBusy)}>
                           {certUploadBusy === `cert-upload-${c.serial}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} حفظ المختوم
                         </Button>
                       </div>
