@@ -405,6 +405,15 @@ describe('admin candidates — review', () => {
     expect(candidates[0].status).toBe('REJECTED')
     expect(candidates[0].rejectedReason).toBe('الشهادة غير واضحة')
   })
+  test('simultaneous approve/reject clicks cannot both change a candidate', async () => {
+    const c = seedApprovedCandidate({ status: 'PENDING_REVIEW', reviewedById: null, reviewedAt: null })
+    const responses = await Promise.all([
+      candidateRoute.PATCH(new NextRequest('http://localhost/x', { method: 'PATCH', body: JSON.stringify({ action: 'approve' }) }), ctx('exam-1', c.id)),
+      candidateRoute.PATCH(new NextRequest('http://localhost/x', { method: 'PATCH', body: JSON.stringify({ action: 'reject', rejectedReason: 'ملف مرفوض' }) }), ctx('exam-1', c.id)),
+    ])
+    expect(responses.map((res) => res.status).sort()).toEqual([200, 409])
+    expect(['APPROVED', 'REJECTED']).toContain(candidates[0].status)
+  })
   test('a second review of the same candidate is 409', async () => {
     const c = seedApprovedCandidate({ status: 'APPROVED' })
     const req = new NextRequest('http://localhost/x', { method: 'PATCH', body: JSON.stringify({ action: 'approve' }) })
