@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
       snapshot,
       display,
       answers,
-      passScore: exam.passScore,
+      passScore: terms.passScore,
     })
     const submittedAt = new Date()
     const durationUsedMin = Math.max(
