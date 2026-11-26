@@ -3076,7 +3076,7 @@ model ComprehensiveExam {
   attempts   ComprehensiveExamAttempt[]
   certificates Certificate[]
 
-  @@unique([programId, specializationProgramId, status]) // امتحان حي واحد (مسودة أو منشور) لكل (برنامج معادلة، تخصص) — تخصصان مختلفان مسموحان؛ بوستغريس تعتبر NULLs متميزة لذا يحرس الكود حالة NULL أيضاً
+  @@index([programId, specializationProgramId, status]) // سجل الامتحانات يشمل نسخ ARCHIVED متعددة؛ الحيّ تحميه معاملة Serializable في الإنشاء
   @@index([programId])
   @@index([specializationProgramId])
 }
