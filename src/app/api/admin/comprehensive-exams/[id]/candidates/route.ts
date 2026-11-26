@@ -142,7 +142,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       candidates: candidates.map((c: any) => {
         const shaped: any = candidateShape(c)
         shaped.specialization = specialization
-        const serviceFeePaid = c.admissionApplicationId ? serviceFeePaidByAdmission.has(c.admissionApplicationId) : null
+        const serviceFeePaid = c.admissionApplicationId
+          ? serviceFeePaidByAdmission.has(c.admissionApplicationId)
+          : c.submittedBy === 'ADMIN' ? c.manualPayment?.status === 'PAID' : null
         shaped.serviceFeePaid = serviceFeePaid
         shaped.inviteBlockedReason =
           exam.status !== 'READY' ? 'EXAM_NOT_READY' : serviceFeePaid === false ? 'PAYMENT_REQUIRED' : null
