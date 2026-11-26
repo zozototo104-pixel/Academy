@@ -118,6 +118,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const token = createComprehensiveExamInviteToken()
     const expiresAt = comprehensiveExamInviteExpiresAt()
     const result = await db.$transaction(async (tx) => {
+      const readyExam = await tx.comprehensiveExam.findFirst({ where: { id: exam.id, status: 'READY' }, select: { id: true } })
+      if (!readyExam) throw new ComprehensiveExamPhase2Error(409, 'EXAM_NOT_READY', 'أُلغي نشر الامتحان أثناء إصدار الدعوة')
       const live = await tx.comprehensiveExamInvitation.findFirst({
         where: { candidateId: candidate.id, status: 'PENDING' },
         select: { id: true },
