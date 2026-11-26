@@ -111,6 +111,7 @@ mock.module('@/lib/admission-document-requirements', () => ({
   resolvePostReplacementAdmissionStatus: () => 'UNDER_REVIEW',
 }))
 mock.module('@/lib/admission-upload-token', () => ({ verifyAdmissionUploadToken: () => true }))
+mock.module('@/lib/whatsapp-cloud', () => ({ sendOfficialWhatsAppTemplate: async () => ({ ok: true }) }))
 mock.module('@/lib/demo-accounts', () => ({
   DEMO_ACCOUNTS: {},
   ensurePlatformDemoAccounts: async () => { demoEnsureCalls++; return { created: 0 } },
