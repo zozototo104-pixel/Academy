@@ -13,6 +13,12 @@ const {
   clampInternetQuestionCount,
   formatInternetChunksForPrompt,
   generateInternetQuestions,
+  diverseInternetEvidence,
+  normalizeSpecialtyAxes,
+  curriculumCoverageAxes,
+  parseSuggestedSpecialtyAxes,
+  buildSpecialtyResearchQueries,
+  buildSpecialtyInternetQuery,
   internetSourceId,
   tavilyResultsToExamChunks,
 } = lib
@@ -65,6 +71,30 @@ const fakeVerify: any = async ({ questions }: any) => questions.map((question: a
   ...question,
   qualityFlags: ['SOURCE_GROUNDED'],
 }))
+
+describe('reviewable specialty blueprint', () => {
+  const specialty = 'الدكتوراه المهنية في إدارة الأعمال'
+  const titles = [
+    'الإدارة الاستراتيجية وتحليل البيئة التنافسية', 'القيادة التحويلية والتغيير التنظيمي',
+    'التحليل المالي واتخاذ القرارات الاستثمارية', 'مناهج البحث التطبيقي وتحليل البيانات',
+    'إدارة المخاطر والحوكمة المؤسسية', 'إدارة العمليات وتحسين الأداء المؤسسي',
+    'إدارة الموارد البشرية والسلوك التنظيمي', 'إدارة الابتكار والتحول الرقمي',
+  ]
+  test('rejects admissions, repeated titles and malformed AI proposals', () => {
+    const axes = normalizeSpecialtyAxes([...titles, titles[0], 'مقدمة', 'شروط القبول في الدكتوراه'], specialty, 'CURRICULUM')
+    expect(axes.map((axis: any) => axis.topic)).toEqual(titles)
+    expect(parseSuggestedSpecialtyAxes('invalid', specialty)).toEqual([])
+  })
+  test('draws from the entire approved curriculum and combines research directions', () => {
+    const many = Array.from({ length: 30 }, (_, i) => `تحليل الموضوع التخصصي ${i + 1} وتطبيقه في المؤسسات`)
+    const axes = curriculumCoverageAxes(many, specialty)
+    expect(axes).toHaveLength(10)
+    expect(axes[0].topic).toContain('1')
+    expect(axes[9].topic).toContain('30')
+    expect(buildSpecialtyInternetQuery('القيادة التحويلية', specialty)).toContain('إدارة الأعمال')
+    expect(new Set(buildSpecialtyResearchQueries('القيادة التحويلية', specialty)).size).toBe(3)
+  })
+})
 
 async function expectCode(promise: Promise<unknown>): Promise<string> {
   let code = ''
@@ -123,6 +153,23 @@ describe('tavilyResultsToExamChunks', () => {
   })
 })
 
+describe('diverseInternetEvidence', () => {
+  test('samples all search directions and caps each domain to two cited pages', () => {
+    const content = 'منهجية علمية مفصلة لتقييم البدائل الاستراتيجية وتحليل نتائج الدراسات ومقارنة القرارات المهنية تحت ظروف عدم اليقين.'
+    const groups = Array.from({ length: 3 }, (_, angle) => Array.from({ length: 6 }, (_, i) => ({
+      title: `بحث ${angle}-${i}`,
+      url: `https://source${i % 3}.edu/study/${angle}-${i}`,
+      content,
+    })))
+    const diverse = diverseInternetEvidence(groups)
+    expect(diverse.results).toHaveLength(6)
+    expect(diverse.distinctDomains).toBe(3)
+    expect(diverse.results.some((item: any) => item.url.endsWith('0-0'))).toBe(true)
+    expect(diverse.results.some((item: any) => item.url.endsWith('1-0'))).toBe(true)
+    expect(diverse.results.some((item: any) => item.url.endsWith('2-0'))).toBe(false) // domain quota prevents monopoly
+  })
+})
+
 describe('buildInternetQuestionPrompt', () => {
   test('MCQ/TF only, essay forbidden, evidence must be verbatim from a snippet', () => {
     const prompt = buildInternetQuestionPrompt({
@@ -137,6 +184,21 @@ describe('buildInternetQuestionPrompt', () => {
     expect(prompt).toContain('ممنوع تماماً أي سؤال مقالي أو سؤال قصير')
     expect(prompt).toContain('اقتباساً حرفياً')
     expect(prompt).not.toContain('ESSAY')
+  })
+
+  test('comprehensive mode requires application and case analysis, still evidence-grounded', () => {
+    const prompt = buildInternetQuestionPrompt({
+      topic: 'القيادة التحويلية والتغيير التنظيمي',
+      programTitleAr: 'الدكتوراه المهنية في إدارة الأعمال',
+      programLevel: 'DOCTORATE',
+      count: 10,
+      comprehensive: true,
+      chunksSection: SNIPPET_1,
+      previousTexts: [],
+    })
+    expect(prompt).toContain('60% تحليل حالات متقدمة')
+    expect(prompt).toContain('فلا تختلق واحدة')
+    expect(prompt).toContain('المقاطع المختارة الوحيدة المسموح استخدامها كمصدر')
   })
 })
 
