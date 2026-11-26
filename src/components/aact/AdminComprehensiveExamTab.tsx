@@ -1473,6 +1473,19 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
                       </Button>
                     </>
                   )}
+                  {c.submittedBy === 'ADMIN' && (
+                    <Button size="sm" variant="outline" onClick={() => resendAccountSetup(c)} disabled={busy === `setup-${c.id}`}>
+                      إعادة إرسال تعليمات الدخول
+                    </Button>
+                  )}
+                  {c.submittedBy === 'ADMIN' && c.status === 'APPROVED' && c.manualPayment?.status !== 'PAID' && (
+                    <Button size="sm" variant="outline" onClick={() => {
+                      setPaymentCandidateId(paymentCandidateId === c.id ? null : c.id)
+                      setPaidAmount(c.manualPayment ? String(c.manualPayment.amount) : '')
+                    }} disabled={busy === `payment-${c.id}`}>
+                      تم الدفع — تسجيل المبلغ
+                    </Button>
+                  )}
                   {c.status === 'APPROVED' && (
                     <Button size="sm" onClick={() => issueInvitation(c)} disabled={busy === `issue-${c.id}` || !!c.inviteBlockedReason}>
                       {busy === `issue-${c.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} إصدار دعوة
