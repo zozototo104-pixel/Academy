@@ -319,6 +319,38 @@ describe('attempt POST — submit and grade', () => {
     expect(answers.length).toBe(3)
     expect(answers.every((a) => a.isCorrect)).toBe(true)
   })
+  test('a running attempt retains its original pass score and duration even if the admin edits the exam', async () => {
+    const start = await (await attemptRoute.GET(getReq('tok-valid-1'))).json()
+    expect(start.passScore).toBe(60)
+    expect(start.durationMin).toBe(120)
+    exams[0].passScore = 100
+    exams[0].durationMin = 10
+    const resumed = await (await attemptRoute.GET(getReq('tok-valid-1'))).json()
+    expect(resumed.passScore).toBe(60)
+    expect(resumed.durationMin).toBe(120)
+    expect(resumed.remainingSeconds).toBeGreaterThan(10 * 60)
+    const partial = correctAnswersForAttempt()
+    const snapshot = lib.parseComprehensiveAttemptSnapshot(attempts[0].questionSnapshot)
+    const display = lib.buildComprehensiveAttemptDisplay(attempts[0].id, snapshot)
+    const lastQuestion = display.find((d: any) => d.questionId === partial[2].questionId)!
+    partial[2].selectedOption = (partial[2].selectedOption + 1) % lastQuestion.displayOptions.length
+    const graded = await (await attemptRoute.POST(postReq({ token: 'tok-valid-1', answers: partial }))).json()
+    expect(graded.score).toBeGreaterThanOrEqual(60)
+    expect(graded.score).toBeLessThan(100)
+    expect(graded.passed).toBe(true)
+  })
+  test('parallel submits grade once and issue only one certificate', async () => {
+    await attemptRoute.GET(getReq('tok-valid-1'))
+    const payload = { token: 'tok-valid-1', answers: correctAnswersForAttempt() }
+    const responses = await Promise.all([
+      attemptRoute.POST(postReq(payload)),
+      attemptRoute.POST(postReq(payload)),
+    ])
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 409])
+    expect(answers).toHaveLength(3)
+    expect(certificates).toHaveLength(1)
+    expect(attempts[0].status).toBe('GRADED')
+  })
   test('a second submit is 409 ALREADY_SUBMITTED', async () => {
     await attemptRoute.GET(getReq('tok-valid-1'))
     await attemptRoute.POST(postReq({ token: 'tok-valid-1', answers: correctAnswersForAttempt() }))
