@@ -154,6 +154,24 @@ async function minimalPdf() {
   return Buffer.from(await pdf.save())
 }
 
+async function presignRegularFile(size: number, mimeType = 'application/pdf') {
+  const names = ['AACT_S3_ENDPOINT', 'AACT_S3_BUCKET', 'AACT_S3_ACCESS_KEY_ID', 'AACT_S3_SECRET_ACCESS_KEY'] as const
+  const previous = names.map((name) => process.env[name])
+  Object.assign(process.env, {
+    AACT_S3_ENDPOINT: 'https://r2.example.test', AACT_S3_BUCKET: 'test-bucket',
+    AACT_S3_ACCESS_KEY_ID: 'test-key', AACT_S3_SECRET_ACCESS_KEY: 'test-secret',
+  })
+  try {
+    const response = await uploadRoute.POST(jsonActionReq({ action: 'PRESIGN', size, mimeType }), ctx())
+    return { response, payload: (await response.json()) as AnyRecord }
+  } finally {
+    names.forEach((name, index) => {
+      if (previous[index] === undefined) delete process.env[name]
+      else process.env[name] = previous[index]
+    })
+  }
+}
+
 beforeEach(reset)
 
 describe('regular certificate upload guards', () => {
