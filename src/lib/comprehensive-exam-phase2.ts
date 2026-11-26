@@ -15,6 +15,7 @@ import { emailTemplate, sendEmailDetailed } from '@/lib/mailer'
 import { createCertificateQrToken, nextCertificateSerial } from '@/lib/certificate-identity'
 import { sendOfficialWhatsAppTemplate } from '@/lib/whatsapp-cloud'
 import { storeFileBuffer } from '@/lib/storage'
+import { createPasswordResetToken, passwordResetUrl } from '@/lib/password-reset'
 
 export const COMPREHENSIVE_EXAM_INVITE_VALIDITY_DAYS = 7
 export const COMPREHENSIVE_EXAM_INVITE_TOKEN_BYTES = 32
