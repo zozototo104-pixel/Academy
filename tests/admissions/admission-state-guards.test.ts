@@ -85,7 +85,7 @@ mock.module('@/lib/mailer', () => ({
   emailAdmissionSubmitted: async () => { submittedEmails++ },
   emailServiceRequestSubmitted: async () => { serviceSubmittedEmails++ },
 }))
-mock.module('@/lib/service-flows', () => ({ getServiceFlow: () => null }))
+mock.module('@/lib/service-flows', () => ({ getServiceFlow: () => null, isCertificateEquivalencyFlow: () => false }))
 mock.module('@/lib/service-workflows', () => ({ deriveServiceWorkflowState: () => null }))
 mock.module('@/lib/admin-query', () => ({
   adminPaginationMeta: () => ({}),
