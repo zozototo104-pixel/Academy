@@ -176,6 +176,11 @@ async function presignRegularFile(size: number, mimeType = 'application/pdf') {
 beforeEach(reset)
 
 describe('regular certificate upload guards', () => {
+  test('admin upload UI excludes comprehensive exam certificates, matching the API guard', () => {
+    const adminUI = readFileSync('src/components/aact/AdminExtras.tsx', 'utf8')
+    expect(adminUI).toContain("!c.legacy && !c.comprehensiveExamId && c.type === 'PROGRAM_COMPLETION'")
+  })
+
   test('legacy certificate is 404', async () => {
     certificates.set('cert-legacy', {
       id: 'cert-legacy', type: 'PROGRAM_COMPLETION', legacy: true, serial: 'AACT-C-2026-00001', qrToken: 'qr-1',
