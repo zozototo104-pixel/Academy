@@ -650,6 +650,9 @@ function DetailPanel(props: any) {
               {exam.status === 'READY' && (
                 <Button variant="outline" onClick={() => props.onPublish('unpublish')}>إلغاء النشر</Button>
               )}
+              {(exam.status === 'DRAFT' || exam.status === 'READY') && (
+                <Button variant="outline" onClick={() => props.onPublish('archive')}>أرشفة الامتحان</Button>
+              )}
             </div>
           </div>
           {!canPublish && exam.status === 'DRAFT' && (
