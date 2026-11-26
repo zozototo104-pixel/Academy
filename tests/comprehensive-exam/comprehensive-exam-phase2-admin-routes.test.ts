@@ -227,10 +227,26 @@ const fakeDb: any = {
 
 mock.module('@/lib/db', () => ({ db: fakeDb }))
 mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1', name: 'مدير الاختبار', role: 'ADMIN' }) }))
-mock.module('@/lib/notify', () => ({ audit: async () => null }))
+mock.module('@/lib/notify', () => ({ audit: async () => null, notify: async () => null }))
 mock.module('@/lib/mailer', () => ({
   emailTemplate: (t: string, b: string) => `<h1>${t}</h1>${b}`,
   sendEmailDetailed: async () => 'SENT',
+  emailPaymentReceipt: async () => true,
+}))
+mock.module('@/lib/settings', () => ({
+  nextInvoiceNo: async () => `AACT-INV-2026-${String(payments.length + 1).padStart(4, '0')}`,
+}))
+mock.module('@/lib/settle-payment', () => ({
+  markInvoicePaid: async (invoiceNo: string, method: string) => {
+    const payment = payments.find((p) => p.invoiceNo === invoiceNo)
+    if (!payment) return { ok: false, error: 'INVOICE_NOT_FOUND' }
+    if (payment.status === 'UNPAID') {
+      payment.status = 'PAID'
+      payment.method = method
+      payment.receiptNo = `AACT-REC-2026-${String(payments.length).padStart(4, '0')}`
+    }
+    return { ok: true, payment, receiptNo: payment.receiptNo }
+  },
 }))
 mock.module('@/lib/whatsapp-cloud', () => ({
   sendOfficialWhatsAppTemplate: async () => ({ ok: true }),
