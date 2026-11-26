@@ -75,8 +75,8 @@ const fakeDb: any = {
       return row
     },
     update: async ({ where, data }: any) => {
-      const row = candidates.find((c) => c.id === where?.id)
-      if (!row) throw new Error('NOT_FOUND')
+      const row = candidates.find((c) => c.id === where?.id && (!where.status || c.status === where.status))
+      if (!row) throw Object.assign(new Error('NOT_FOUND'), { code: 'P2025' })
       Object.assign(row, data, { updatedAt: new Date() })
       return row
     },
