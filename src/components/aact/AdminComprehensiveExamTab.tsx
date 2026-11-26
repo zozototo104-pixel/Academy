@@ -201,7 +201,7 @@ export function AdminComprehensiveExamTab() {
         }),
         'تعذر تنفيذ الإجراء',
       )
-      toast({ title: action === 'publish' ? 'تم نشر الامتحان الشامل — 100 سؤال معتمد' : 'تم إلغاء النشر — عاد الامتحان مسودة' })
+      toast({ title: action === 'publish' ? 'تم نشر الامتحان الشامل — 100 سؤال معتمد' : action === 'archive' ? 'تمت أرشفة الامتحان مع الاحتفاظ بنتائجه' : 'تم إلغاء النشر — عاد الامتحان مسودة' })
       await refreshDetailAndList(detail.exam.id)
     } catch (e: any) {
       toast({ title: 'تعذر النشر', description: e.message || 'حدث خطأ', variant: 'destructive' })
