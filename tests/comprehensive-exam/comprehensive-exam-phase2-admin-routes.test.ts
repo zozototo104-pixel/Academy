@@ -361,22 +361,34 @@ describe('admin candidates — create (admin entry)', () => {
     const res = await candidatesRoute.POST(req, ctx())
     expect(res.status).toBe(409)
   })
-  test('created candidate stores the existing student user id — never creates an account', async () => {
+  test('existing student account is linked without creating a duplicate', async () => {
     const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates', { method: 'POST', body: candidateForm() })
     const res = await candidatesRoute.POST(req, ctx())
     expect(res.status).toBe(201)
     const data = await res.json()
     expect(data.candidate.userId).toBe('user-1')
+    expect(data.userCreated).toBe(false)
+    expect(data.emailStatus).toBe('SKIPPED_EXISTING_USER')
     expect(users.length).toBe(3)
   })
-  test('unknown email is 409 STUDENT_USER_NOT_FOUND', async () => {
+  test('unknown email creates a student account and sends secure login setup instructions', async () => {
     const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates', {
       method: 'POST',
       body: candidateForm({ email: 'ghost@b.com' }),
     })
     const res = await candidatesRoute.POST(req, ctx())
-    expect(res.status).toBe(409)
-    expect((await res.json()).code).toBe('STUDENT_USER_NOT_FOUND')
+    expect(res.status).toBe(201)
+    const data = await res.json()
+    expect(data.userCreated).toBe(true)
+    expect(data.emailStatus).toBe('SENT')
+    const student = users.find((u) => u.email === 'ghost@b.com')
+    expect(student.role).toBe('STUDENT')
+    expect(student.status).toBe('ACTIVE')
+    expect(student.password).not.toBe('123456')
+    expect(student.passwordResetTokenHash).toBeTruthy()
+    expect(student.passwordResetExpiresAt.getTime()).toBeGreaterThan(Date.now() + 6 * 24 * 60 * 60 * 1000)
+    expect(data.candidate.userId).toBe(student.id)
+    expect(users).toHaveLength(4)
   })
   test('non-student account is 409 NON_STUDENT_ACCOUNT', async () => {
     const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates', {
