@@ -212,7 +212,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     // Repeat the duplicate/published checks inside a serializable
     // transaction. Two admins submitting at once cannot both pass the
     // earlier pre-upload check and create duplicate candidate records.
-    const candidate = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx) => {
       const ready = await tx.comprehensiveExam.findFirst({
         where: { id: exam.id, status: 'READY' }, select: { id: true },
       })
