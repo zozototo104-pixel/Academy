@@ -143,6 +143,15 @@ export async function GET(req: NextRequest) {
     const snapshot = buildComprehensiveAttemptSnapshot(questions as any)
     const display = buildComprehensiveAttemptDisplay(attemptId, snapshot)
     await db.$transaction(async (tx) => {
+      // Claim a pending invitation before creating a unique attempt.
+      // A second tab cannot create or replace another attempt.
+      const claim = await tx.comprehensiveExamInvitation.updateMany({
+        where: { id: invitation.id, status: 'PENDING' },
+        data: { status: 'USED' },
+      })
+      if (claim.count !== 1) {
+        throw new ComprehensiveExamPhase2Error(409, 'INVITATION_ALREADY_USED', 'بدأ الامتحان في نافذة أخرى — حدّث الصفحة للاستئناف')
+      }
       await tx.comprehensiveExamAttempt.create({
         data: {
           id: attemptId,
@@ -153,10 +162,6 @@ export async function GET(req: NextRequest) {
           status: 'STARTED',
           startedAt: new Date(),
         },
-      })
-      await tx.comprehensiveExamInvitation.update({
-        where: { id: invitation.id },
-        data: { status: 'USED' },
       })
     })
     return NextResponse.json({
