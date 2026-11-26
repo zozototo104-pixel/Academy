@@ -532,6 +532,14 @@ function createCertificateObjectUploadUrl(key: string): string | null {
   return `${endpoint.origin}${uri}?${canonicalQuery}&X-Amz-Signature=${signature}`
 }
 
+export function createLegacyCertificateZipUploadUrl(key: string): string | null {
+  return isLegacyCertificateZipImportKey(key) ? createCertificateObjectUploadUrl(key) : null
+}
+
+export function createRegularCertificateUploadUrl(key: string, certificateId: string): string | null {
+  return isRegularCertificateUploadKey(key, certificateId) ? createCertificateObjectUploadUrl(key) : null
+}
+
 export async function readLegacyCertificateZipImport(key: string): Promise<Buffer | null> {
   if (!isLegacyCertificateZipImportKey(key)) return null
   const stored = (await readStoredFile({ provider: 's3', key, mimeType: 'application/zip', maxBytes: LEGACY_CERTIFICATE_ZIP_MAX_BYTES }).catch(() => null))
