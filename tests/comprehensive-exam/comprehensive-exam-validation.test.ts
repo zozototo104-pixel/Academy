@@ -1,5 +1,8 @@
 // Comprehensive exam — question validation (closed questions only).
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { approvePendingQuestionsInBatches } from '../../src/components/aact/AdminComprehensiveExamTab'
 import {
   parseComprehensiveCorrectAnswer,
   parseComprehensiveType,
