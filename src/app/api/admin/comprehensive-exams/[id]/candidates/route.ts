@@ -186,13 +186,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     })
     if (!checked.ok) return NextResponse.json({ error: checked.errors.join('؛ '), code: 'INVALID_CANDIDATE' }, { status: 400 })
 
-    // الإدخال اليدوي لمرشح مسجل أصلاً: البريد يجب أن ينتمي لحساب طالب
-    // موجود — لا يُنشأ حساب هنا أبداً، والتأهيل لاحقاً يربط بهذا المستخدم.
+    // كما في الخريجين السابقين: إذا لم يوجد حساب ينشأ داخل نفس
+    // معاملة المرشح، وتُرسل تعليمات اختيار كلمة المرور بعد الحفظ.
     const existingUser = await db.user.findUnique({ where: { email: checked.data.email }, select: { id: true, role: true } })
-    if (!existingUser) {
-      return NextResponse.json({ error: 'لا يوجد حساب طالب مسجل بهذا البريد — سجّل الطالب أولاً ثم أدخله', code: 'STUDENT_USER_NOT_FOUND' }, { status: 409 })
-    }
-    if (existingUser.role !== 'STUDENT') {
+    if (existingUser && existingUser.role !== 'STUDENT') {
       return NextResponse.json({ error: 'هذا البريد مرتبط بحساب إداري ولا يمكن تسجيله كمرشح', code: 'NON_STUDENT_ACCOUNT' }, { status: 409 })
     }
 
