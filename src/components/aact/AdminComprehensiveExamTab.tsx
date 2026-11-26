@@ -53,6 +53,28 @@ function parseOptions(raw: string | null): string[] {
   }
 }
 
+type SavedInternetExamPlan = { axesText: string; selectedTopics: Record<string, boolean>; basis: string; reviewed: true }
+
+function internetExamPlanStorageKey(examId: string) {
+  return `aact:comprehensive-exam-internet-plan:v1:${examId}`
+}
+
+// Persist only the administrator-approved blueprint in this browser. The
+// server remains authoritative for the saved question count and axis caps.
+export function parseSavedInternetExamPlan(raw: string | null): SavedInternetExamPlan | null {
+  if (!raw || raw.length > 8000) return null
+  try {
+    const data = JSON.parse(raw)
+    if (typeof data?.axesText !== 'string' || data.axesText.length > 4000 || data.reviewed !== true) return null
+    const axes = data.axesText.split('\n').map((axis: string) => axis.trim()).filter(Boolean)
+    if (!axes.length || axes.length > 20 || axes.some((axis: string) => axis.length < 10 || axis.length > 160)) return null
+    if (!data.selectedTopics || typeof data.selectedTopics !== 'object' || Array.isArray(data.selectedTopics)) return null
+    const selectedTopics = Object.fromEntries(axes.filter((axis: string) => data.selectedTopics[axis] === true).map((axis: string) => [axis, true]))
+    if (!Object.keys(selectedTopics).length || Object.keys(selectedTopics).length > 10) return null
+    return { axesText: axes.join('\n'), selectedTopics, basis: String(data.basis || 'MANUAL').slice(0, 30), reviewed: true }
+  } catch { return null }
+}
+
 type BulkReviewQuestion = { id: string; order: number }
 
 // Reuse the single-question approval endpoint for every item, including all
@@ -117,6 +139,7 @@ export function AdminComprehensiveExamTab() {
   const [internetPlanBasis, setInternetPlanBasis] = useState('')
   const [internetPlanBusy, setInternetPlanBusy] = useState(false)
   const [internetPlanReviewed, setInternetPlanReviewed] = useState(false)
+  const [internetPlanStored, setInternetPlanStored] = useState(false)
   const [internetRunBusy, setInternetRunBusy] = useState(false)
   const [internetRunProgress, setInternetRunProgress] = useState<{axis: number; total: number; imported: number; errors: string[]} | null>(null)
   const internetStopRef = useRef(false)
@@ -167,13 +190,17 @@ export function AdminComprehensiveExamTab() {
     // Keep the question list mounted for in-place review updates.
     // Hiding a long panel during refresh collapses the page and moves scroll.
     if (selectedId !== examId) {
-      // Switching exams invalidates the previous specialty blueprint.
+      // Switching exams restores this exam's last reviewed blueprint. A
+      // refresh must not discard the ability to resume a partial run.
       internetStopRef.current = true
       activeExamIdRef.current = examId
-      setInternetAxesText('')
-      setInternetSelectedTopics({})
-      setInternetPlanBasis('')
-      setInternetPlanReviewed(false)
+      let saved: SavedInternetExamPlan | null = null
+      try { saved = parseSavedInternetExamPlan(localStorage.getItem(internetExamPlanStorageKey(examId))) } catch { /* private browsing may deny storage */ }
+      setInternetAxesText(saved?.axesText || '')
+      setInternetSelectedTopics(saved?.selectedTopics || {})
+      setInternetPlanBasis(saved?.basis || '')
+      setInternetPlanReviewed(Boolean(saved?.reviewed))
+      setInternetPlanStored(Boolean(saved))
       setInternetRunProgress(null)
     }
     if (showLoading) setDetailLoading(true)
@@ -222,6 +249,11 @@ export function AdminComprehensiveExamTab() {
 
   const refreshDetailAndList = async (examId: string) => {
     await Promise.all([loadDetail(examId, false), loadExams()])
+  }
+
+  const discardSavedInternetPlan = (examId: string) => {
+    try { localStorage.removeItem(internetExamPlanStorageKey(examId)) } catch { /* no browser storage */ }
+    setInternetPlanStored(false)
   }
 
   const createExam = async () => {
