@@ -105,8 +105,65 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       await audit({ id: admin.id, name: admin.name }, 'RESEND_COMPREHENSIVE_CANDIDATE_SETUP', 'ComprehensiveExamCandidate', candidate.id, `تعليمات الدخول للمرشح — ${emailStatus}`)
       return NextResponse.json({ ok: emailStatus === 'SENT', emailStatus }, { status: emailStatus === 'SENT' ? 200 : 503 })
     }
+    if (action === 'record_paid') {
+      if (candidate.submittedBy !== 'ADMIN' || candidate.admissionApplicationId || candidate.status !== 'APPROVED' || !candidate.userId) {
+        return NextResponse.json({ error: 'تسجيل الدفع المباشر متاح فقط لمرشح أدخلته الإدارة وتم اعتماده' }, { status: 409 })
+      }
+      const rawAmount = String(body?.amount ?? '').trim().replace(',', '.')
+      if (!/^(?:0|[1-9]\\d{0,5})(?:\\.\\d{1,2})?$/.test(rawAmount)) {
+        return NextResponse.json({ error: 'أدخل المبلغ المستلم بالدولار، بحد أقصى منزلتين عشريتين' }, { status: 400 })
+      }
+      const amountCents = Math.round(Number(rawAmount) * 100)
+      if (amountCents <= 0) return NextResponse.json({ error: 'المبلغ المدفوع يجب أن يكون أكبر من صفر' }, { status: 400 })
+      const note = cleanText(body?.note, 300)
+      if (note.length < 6) return NextResponse.json({ error: 'أدخل ملاحظة استلام واضحة (6 أحرف على الأقل)' }, { status: 400 })
+
+      // Lock the candidate and enforce one official SERVICE_FEE invoice.
+      // The unique candidate FK is the final guard against duplicate clicks.
+      const invoice = await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "ComprehensiveExamCandidate" WHERE id = ${candidate.id} FOR UPDATE`
+        const fresh = await tx.comprehensiveExamCandidate.findFirst({
+          where: { id: candidate.id, examId: id, status: 'APPROVED', submittedBy: 'ADMIN' },
+          select: { id: true },
+        })
+        if (!fresh) throw new ComprehensiveExamPhase2Error(409, 'CANDIDATE_CHANGED', 'تغيّرت حالة المرشح — حدّث القائمة')
+        const existing = await tx.payment.findFirst({ where: { comprehensiveExamCandidateId: candidate.id } })
+        if (existing) {
+          const existingCents = existing.amountCents ?? Math.round(Number(existing.amount) * 100)
+          if (existingCents !== amountCents) throw new ComprehensiveExamPhase2Error(409, 'PAYMENT_ALREADY_RECORDED', 'سُجلت دفعة لهذا المرشح بمبلغ مختلف — راجع قسم المالية')
+          if (existing.status === 'WAIVED') throw new ComprehensiveExamPhase2Error(409, 'PAYMENT_WAIVED', 'الفاتورة معفاة ولا يمكن تحويلها إلى دفع نقدي')
+          return { payment: existing, created: false }
+        }
+        const payment = await tx.payment.create({ data: {
+          comprehensiveExamCandidateId: candidate.id,
+          userId: candidate.userId,
+          invoiceNo: await nextInvoiceNo(),
+          purpose: 'SERVICE_FEE',
+          description: `رسوم معادلة الشهادة — ${candidate.exam.title}`,
+          amount: amountCents / 100,
+          amountCents,
+          currency: 'USD',
+          method: 'DIRECT_PAYMENT',
+          status: 'UNPAID',
+          manualApprovalReference: `CEX-${candidate.id}`,
+          manualApprovalNote: note,
+          payerName: candidate.fullName,
+          payerEmail: candidate.email,
+        } })
+        return { payment, created: true }
+      }, { isolationLevel: 'Serializable' })
+      const settled = await markInvoicePaid(invoice.payment.invoiceNo, 'DIRECT_PAYMENT', { actor: { id: admin.id, name: admin.name } })
+      if (!settled.ok) return NextResponse.json({ error: settled.error || 'تعذرت تسوية الدفعة' }, { status: 409 })
+      if (invoice.created) {
+        await audit({ id: admin.id, name: admin.name }, 'RECORD_COMPREHENSIVE_EXAM_DIRECT_PAYMENT', 'ComprehensiveExamCandidate', candidate.id,
+          `استلمت الإدارة ${(amountCents / 100).toFixed(2)}$ — فاتورة ${invoice.payment.invoiceNo} — إيصال ${settled.receiptNo} — ${note}`)
+        await notify(candidate.userId, 'PAYMENT', 'تم تسجيل سداد رسوم المعادلة', `تم توثيق مبلغ ${(amountCents / 100).toFixed(2)}$ للمعادلة — إيصال ${settled.receiptNo}`, 'dashboard').catch(() => null)
+        await emailPaymentReceipt(candidate.email, candidate.fullName, invoice.payment.invoiceNo, invoice.payment.description, amountCents / 100, settled.receiptNo || '').catch(() => false)
+      }
+      return NextResponse.json({ ok: true, payment: { id: settled.payment?.id, invoiceNo: invoice.payment.invoiceNo, amount: amountCents / 100, status: 'PAID', receiptNo: settled.receiptNo }, created: invoice.created })
+    }
     if (action !== 'qualify') {
-      return NextResponse.json({ error: 'الإجراء غير معروف — المسموح: qualify أو resend_account_setup' }, { status: 400 })
+      return NextResponse.json({ error: 'الإجراء غير معروف — المسموح: qualify أو resend_account_setup أو record_paid' }, { status: 400 })
     }
     const attempt = await db.comprehensiveExamAttempt.findFirst({
       where: { candidateId: candidate.id, status: 'GRADED', passed: true },
