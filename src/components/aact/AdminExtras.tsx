@@ -2512,13 +2512,25 @@ export function AdminCertificatesTab() {
     if (!file && !certificate.uploadedFileKey) return toast({ title: 'ارفع ملف الشهادة أولاً', variant: 'destructive' })
     setCertUploadBusy(`cert-upload-${certificate.serial}`)
     try {
-      const fd = new FormData()
-      if (file) fd.append('file', file)
-      fd.append('qrPosition', regularCertQrPosition(certificate))
-      fd.append('qrSize', regularCertQrSize(certificate))
-      const data = await api<{ stampedFileKey?: string }>(regularCertUploadUrl(certificate), { method: 'POST', body: fd })
+      const key = file ? await directRegularCertFile(certificate, file) : null
+      let data: { stampedFileKey?: string }
+      if (key && file) {
+        data = await api<{ stampedFileKey?: string }>(regularCertUploadUrl(certificate), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'SAVE', key, size: file.size, fileName: file.name,
+            qrPosition: regularCertQrPosition(certificate), qrSize: regularCertQrSize(certificate) }),
+        })
+      } else {
+        const fd = new FormData()
+        if (file) fd.append('file', file)
+        fd.append('qrPosition', regularCertQrPosition(certificate))
+        fd.append('qrSize', regularCertQrSize(certificate))
+        data = await api<{ stampedFileKey?: string }>(regularCertUploadUrl(certificate), { method: 'POST', body: fd })
+      }
       toast({ title: 'تم حفظ الشهادة المختومة', description: data.stampedFileKey || certificate.serial })
       setCertUploadFileBySerial((prev) => ({ ...prev, [certificate.serial]: null }))
+      setCertUploadDirectBySerial((prev) => ({ ...prev, [certificate.serial]: undefined }))
+      setCertUploadPreviewUrlBySerial((prev) => ({ ...prev, [certificate.serial]: null }))
       load()
     } catch (e: any) {
       toast({ title: 'فشل حفظ الملف المختوم', description: e.message || 'حدث خطأ', variant: 'destructive' })
