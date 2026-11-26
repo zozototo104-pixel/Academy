@@ -166,6 +166,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     )
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (e?.code === 'P2034') return NextResponse.json({ error: 'صدرت دعوة لهذا المرشح بالتزامن — حدّث القائمة', code: 'LIVE_INVITATION_EXISTS' }, { status: 409 })
     return phase2ErrorResponse(e, 'تعذر إصدار الدعوة')
   }
 }
