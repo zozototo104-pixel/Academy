@@ -96,8 +96,9 @@ export async function GET(req: NextRequest) {
       if (attempt.status === 'EXPIRED') {
         return NextResponse.json({ error: 'انتهى وقت الامتحان', code: 'ATTEMPT_EXPIRED' }, { status: 410 })
       }
-      // STARTED — resume if time remains, else expire it.
-      const left = remainingSeconds(attempt.startedAt, exam.durationMin)
+      // STARTED — use terms frozen at the moment this attempt began.
+      const terms = parseComprehensiveAttemptTerms(attempt.questionSnapshot, exam)
+      const left = remainingSeconds(attempt.startedAt, terms.durationMin)
       if (left <= 0) {
         await db.comprehensiveExamAttempt.update({ where: { id: attempt.id }, data: { status: 'EXPIRED' } })
         return NextResponse.json({ error: 'انتهى وقت الامتحان', code: 'ATTEMPT_EXPIRED' }, { status: 410 })
