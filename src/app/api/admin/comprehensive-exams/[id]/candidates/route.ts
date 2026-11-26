@@ -10,6 +10,7 @@ import {
   checkComprehensiveDuplicateError,
   ComprehensiveExamPhase2Error,
   parseComprehensiveCandidateForm,
+  sendComprehensiveCandidatePasswordSetup,
   storeComprehensiveCandidateFile,
   validateComprehensiveCandidateInput,
 } from '@/lib/comprehensive-exam-phase2'
