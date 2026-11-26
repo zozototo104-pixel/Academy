@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { pinThresholdIfPublished } from '@/lib/exam-threshold'
+import { getServiceFlow } from '@/lib/service-flows'
 
 export const runtime = 'nodejs'
 
@@ -44,7 +45,12 @@ export async function GET(req: NextRequest) {
         orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
         select: { id: true, titleAr: true, titleEn: true, slug: true, active: true, category: true },
       })
-      return NextResponse.json({ ok: true, programs }, { headers: { 'Cache-Control': 'no-store' } })
+      // نوع مسار الخدمة (لا علامة): برنامج المعادلة هو صاحب المسار
+      // CERTIFICATE_EQUIVALENCY، فيعرفه التبويب من بيانات المنصة نفسها.
+      return NextResponse.json(
+        { ok: true, programs: programs.map((p) => ({ ...p, serviceKind: getServiceFlow(p.slug)?.kind || null })) },
+        { headers: { 'Cache-Control': 'no-store' } },
+      )
     }
 
     const programs = await db.program.findMany({

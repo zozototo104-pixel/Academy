@@ -67,18 +67,25 @@ mock.module('@/lib/notify', () => ({
   AUDIT_ACTIONS: {},
 }))
 mock.module('@/lib/settings', () => ({
+  getSetting: async () => null,
   getSettings: async () => ({}),
   getSettingNum: async () => 30,
+  getSettingJson: async (_key: string, fallback: any) => fallback,
+  getHomeStats: async () => ({}),
+  getOfficialContact: async () => ({}),
   nextInvoiceNo: async () => 'AACT-INV-2026-9999',
 }))
 mock.module('@/lib/mailer', () => ({
+  // The comprehensive-exam helper is imported transitively by admission routes.
+  emailTemplate: () => '',
+  sendEmailDetailed: async () => 'SENT',
   emailAdmissionDecision: async () => { decisionEmails++ },
   emailAdmissionDocumentsRequested: async () => {},
   emailCertificateIssued: async () => {},
   emailAdmissionSubmitted: async () => { submittedEmails++ },
   emailServiceRequestSubmitted: async () => { serviceSubmittedEmails++ },
 }))
-mock.module('@/lib/service-flows', () => ({ getServiceFlow: () => null }))
+mock.module('@/lib/service-flows', () => ({ getServiceFlow: () => null, isCertificateEquivalencyFlow: () => false }))
 mock.module('@/lib/service-workflows', () => ({ deriveServiceWorkflowState: () => null }))
 mock.module('@/lib/admin-query', () => ({
   adminPaginationMeta: () => ({}),
@@ -93,7 +100,7 @@ mock.module('@/lib/admission-document-replacement', () => ({
   extractAdmissionDocumentReplacement: () => null,
   stripAdmissionDocumentReplacement: (notes: any) => notes,
 }))
-mock.module('@/lib/storage', () => ({ getStorageDownloadPathForKey: () => '' }))
+mock.module('@/lib/storage', () => ({ getStorageDownloadPathForKey: () => '', storeFileBuffer: async () => ({ key: 'test', mimeType: 'application/pdf', size: 1 }) }))
 mock.module('@/lib/admission-document-requirements', () => ({
   resolveProgramAdmissionDocumentRequirements: () => ({
     isServiceRequest: docReqIsService,
@@ -104,6 +111,7 @@ mock.module('@/lib/admission-document-requirements', () => ({
   resolvePostReplacementAdmissionStatus: () => 'UNDER_REVIEW',
 }))
 mock.module('@/lib/admission-upload-token', () => ({ verifyAdmissionUploadToken: () => true }))
+mock.module('@/lib/whatsapp-cloud', () => ({ sendOfficialWhatsAppTemplate: async () => ({ ok: true }) }))
 mock.module('@/lib/demo-accounts', () => ({
   DEMO_ACCOUNTS: {},
   ensurePlatformDemoAccounts: async () => { demoEnsureCalls++; return { created: 0 } },

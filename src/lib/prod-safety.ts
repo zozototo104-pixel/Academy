@@ -15,6 +15,9 @@ export const PRIVATE_STORAGE_PREFIXES = [
   // برابط عام مباشر لأن البادئة «agent-documents/» لم تكن في القائمة
   // (فحص 2026-11-18): لا رابط عام، والقراءة عبر /api/files بفحص ملكية.
   'agent-documents/',
+  // وثائق مرشحي الامتحان الشامل (الشهادة الخارجية + الهوية) — هوية
+  // شخصية لا يجوز أن تُخزَّن برابط عام مباشر أبداً.
+  'comprehensive-exam-candidates/',
 ] as const
 
 export function normalizeStorageKeyForPolicy(value: unknown): string {

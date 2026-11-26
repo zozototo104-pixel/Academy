@@ -50,6 +50,7 @@ model User {
   theses         ThesisSubmission[]
   supervisedAdmissions AdmissionApplication[] @relation("Supervisor")
   ownedAdmissions      AdmissionApplication[] @relation("AdmissionOwner")
+  comprehensiveExamCandidates ComprehensiveExamCandidate[] @relation("ComprehensiveExamCandidateUser")
   auditLogs      AuditLog[]
   programExamAttempts ProgramExamAttempt[]
   assignmentSubmissions AssignmentSubmission[]
@@ -395,6 +396,9 @@ model Program {
   studyGuides ProgramStudyGuide[]
   assignments ProgramAssignment[]
   programExams ProgramExam[]
+  comprehensiveExams ComprehensiveExam[] @relation("ComprehensiveExamProgram")
+  specializationForExams ComprehensiveExam[] @relation("ComprehensiveExamSpecialization")
+  specializationApplications AdmissionApplication[] @relation("AdmissionSpecialization")
   studyScheduleItems StudyScheduleItem[]
   lectureSeries LectureSeries[]
   lectureVideos LectureVideoResource[]
@@ -906,6 +910,8 @@ model Payment {
   enrollment  Enrollment? @relation(fields: [enrollmentId], references: [id])
   agentId     String? // فاتورة مرتبطة بطلب وكالة/اعتماد (رسوم التقديم 100$ غير مستردة)
   agent       AgentApplication? @relation(fields: [agentId], references: [id])
+  comprehensiveExamCandidateId String? @unique
+  comprehensiveExamCandidate ComprehensiveExamCandidate? @relation("ComprehensiveExamCandidatePayment", fields: [comprehensiveExamCandidateId], references: [id], onDelete: SetNull)
   invoiceNo   String   @unique // AACT-INV-2026-XXXX
   purpose     String   // APPLICATION_FEE (30$) | TUITION | ACCREDITATION_APP (100$) | ACCREDITATION | OTHER
   description String
@@ -1050,6 +1056,8 @@ model Certificate {
   admissionId String?
   agentId     String?
   agent       AgentApplication? @relation(fields: [agentId], references: [id])
+  comprehensiveExamId String? // الامتحان الشامل الذي أهل صاحبه (المرحلة 2) — فارغ لغير شهادات المعادلة
+  comprehensiveExam   ComprehensiveExam? @relation(fields: [comprehensiveExamId], references: [id])
 
   @@unique([enrollmentId, type])
   @@index([valid, revokedAt])
@@ -1815,6 +1823,10 @@ model AdmissionApplication {
   program    String // اسم البرنامج المختار
   programId  String? // ربط بكائن البرنامج (للتسعير والتسجيل النهائي التلقائي)
   programRef Program? @relation(fields: [programId], references: [id])
+  // التخصص المطلوب للمعادلة (خدمة المعادلة فقط): مرجع إلى صف برنامج
+  // دراسي — لا نص حر؛ يُملأ من نموذج التقديم، لا من قواعد القبول.
+  specializationProgramId String?
+  specializationProgram   Program? @relation("AdmissionSpecialization", fields: [specializationProgramId], references: [id], onDelete: SetNull)
   documents  String   @default("[]") // JSON array من أسماء الوثائق المقدمة
   notes      String?
   acknowledged Boolean @default(false) // إقرار الطالب (صحة البيانات + الالتزام + رسوم غير مستردة)
@@ -1845,6 +1857,7 @@ model AdmissionApplication {
   payments   Payment[]
   certificates Certificate[]
   files      AdmissionDocument[]
+  comprehensiveExamCandidates ComprehensiveExamCandidate[] @relation("ComprehensiveExamAdmission")
   deliverables ServiceDeliverable[]
   scholarshipFull Boolean @default(false) // منحة كاملة معتمدة: أي فواتير دراسية لاحقة لهذا الطلب تُنشأ معفاة تلقائياً
   // نوع الإشراف الأكاديمي: AI = مشرف ذكي فقط، HUMAN = مشرف بشري معيّن من الإدارة، HYBRID = الاثنين معاً
@@ -1852,6 +1865,7 @@ model AdmissionApplication {
   @@index([status, createdAt])
   @@index([supervisorId])
   @@index([userId])
+  @@index([specializationProgramId])
 }
 
 model TuitionInstallmentAppeal {
@@ -3037,4 +3051,169 @@ model ScholarshipWaitlistEntry {
 
   @@unique([definitionId, userId])
   @@index([definitionId, status, createdAt])
+}
+
+model ComprehensiveExam {
+  id            String   @id @default(cuid())
+  programId     String
+  program       Program  @relation("ComprehensiveExamProgram", fields: [programId], references: [id], onDelete: Cascade)
+  // التخصص المنظم (المرحلة 3): مرجع إلى صف برنامج دراسي — لا نص حر.
+  // برنامج المعادلة نفسه لا يحمل تخصصاً؛ التخصص اختيار ثانٍ داخله.
+  specializationProgramId String?
+  specializationProgram   Program? @relation("ComprehensiveExamSpecialization", fields: [specializationProgramId], references: [id], onDelete: Restrict)
+  level         String   // لقطة من فئة برنامج التخصص وقت الإنشاء: DIPLOMA | MASTERS | DOCTORATE | ACCREDITATION
+  title         String   // «امتحان شامل — <عنوان البرنامج>»
+  status        String   @default("DRAFT") // DRAFT | READY | ARCHIVED
+  passScore     Int      @default(60) // 1..100
+  durationMin   Int      @default(120) // 10..480 دقيقة
+  totalPoints   Int      @default(0) // نقطتان لكل سؤال معتمد
+  publishedAt   DateTime?
+  publishedById String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  questions ComprehensiveExamQuestion[]
+  candidates ComprehensiveExamCandidate[]
+  attempts   ComprehensiveExamAttempt[]
+  certificates Certificate[]
+
+  @@index([programId, specializationProgramId, status]) // سجل الامتحانات يشمل نسخ ARCHIVED متعددة؛ الحيّ تحميه معاملة Serializable في الإنشاء
+  @@index([programId])
+  @@index([specializationProgramId])
+}
+
+model ComprehensiveExamQuestion {
+  id             String   @id @default(cuid())
+  examId         String
+  exam           ComprehensiveExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  order          Int
+  type           String   // MCQ | TF فقط — لا مقالي في أي طبقة
+  text           String
+  options        String?  // JSON: MCQ من 3 إلى 4 خيارات؛ TF ثابت ["صح","خطأ"]
+  correctAnswer  String?  // رقم الخيار "0".."3"؛ TF: "0"=صح، "1"=خطأ
+  source         String   // BANK | MANUAL | EXCEL_IMPORT | DOC_IMPORT | AI_INTERNET
+  sourceBookId   String?
+  sourceEvidence String?  // الدليل الحرفي من الكتاب إن وجد
+  sourceUrl      String?  // رابط صفحة الويب المصدر — لمصدر «الذكاء من الإنترنت» فقط
+  bankItemId     String?  // أصل بنك الأسئلة إن كان المصدر BANK
+  status         String   @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | REJECTED
+  rejectedReason String?
+  approvedById   String?
+  approvedAt     DateTime?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([examId, order])
+  @@index([examId, status])
+}
+
+// Phase 2 — candidates, invitations, attempts, answers for the
+// comprehensive exam. Additive only; the publish gate and the
+// question model are untouched. No DB unique on [examId, nationalId]:
+// a rejected candidate must be able to re-apply, so dedupe is
+// code-checked (REJECTED excluded). No DB unique on invitation
+// candidateId either: renewal creates a second row while the old one
+// is REVOKED/EXPIRED — code enforces at most one PENDING invitation
+// per candidate.
+model ComprehensiveExamCandidate {
+  id                          String   @id @default(cuid())
+  examId                      String
+  exam                        ComprehensiveExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  // المستخدم المسجل المرتبط بالمرشح — يُملأ من الطلب (أو من إدخال
+  // الإدارة بعد التحقق من وجود حساب طالب)؛ التأهيل يربط بهذا المستخدم
+  // فقط ولا ينشئ حساباً أبداً.
+  userId                      String?
+  user                        User? @relation("ComprehensiveExamCandidateUser", fields: [userId], references: [id], onDelete: SetNull)
+  // الطلب الأصلي (لمرشحي التقديم): منه تُقرأ رسوم الخدمة عند إصدار
+  // الدعوة — لا دعوة قبل سدادها. مرشحو الإدارة اليدويون بلا رابط.
+  admissionApplicationId      String?
+  admissionApplication        AdmissionApplication? @relation("ComprehensiveExamAdmission", fields: [admissionApplicationId], references: [id], onDelete: SetNull)
+  fullName                    String
+  nationalId                  String   // رقم الهوية — لا يوجد حقل هوية في المنصة اليوم
+  email                       String
+  phone                       String?
+  externalCertificateFileKey  String
+  externalCertificateFileName String
+  idDocumentFileKey           String
+  idDocumentFileName          String
+  status                      String   @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | REJECTED
+  rejectedReason              String?
+  submittedBy                 String   @default("CANDIDATE") // CANDIDATE | ADMIN — من أدخل البيانات
+  reviewedById                String?
+  reviewedAt                  DateTime?
+  createdById                 String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  invitations ComprehensiveExamInvitation[]
+  attempts    ComprehensiveExamAttempt[]
+  manualPayment Payment? @relation("ComprehensiveExamCandidatePayment")
+
+  @@index([examId, status])
+  @@index([examId, nationalId])
+  @@index([email])
+  @@index([userId])
+  @@index([admissionApplicationId])
+}
+
+model ComprehensiveExamInvitation {
+  id             String   @id @default(cuid())
+  candidateId    String
+  candidate      ComprehensiveExamCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  token          String   @unique // 32 بايت عشوائي (64 حرف سداسي)
+  expiresAt      DateTime
+  status         String   @default("PENDING") // PENDING | USED | EXPIRED | REVOKED
+  emailStatus    String?  // SENT | SKIPPED | FAILED — حالة إرسال الدعوة بالبريد (ظاهرة للإدارة)
+  emailError     String?
+  whatsappStatus String?  // SENT | FAILED | NOT_CONFIGURED — حالة إرسال الدعوة واتساب (ظاهرة للإدارة)
+  whatsappError  String?
+  lastSentAt     DateTime?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  attempt ComprehensiveExamAttempt?
+
+  @@index([candidateId, status])
+  @@index([expiresAt])
+}
+
+model ComprehensiveExamAttempt {
+  id               String   @id @default(cuid())
+  invitationId     String   @unique
+  invitation       ComprehensiveExamInvitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  candidateId      String
+  candidate        ComprehensiveExamCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  examId           String
+  exam             ComprehensiveExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questionSnapshot String?  // JSON: لقطة الأسئلة وقت بدء المحاولة (النص والخيارات والإجابة) — العرض والتصحيح منها فلا تؤثر تعديلات لاحقة
+  score            Float?
+  passed           Boolean?
+  status           String   @default("STARTED") // STARTED | EXPIRED | SUBMITTED | GRADED
+  startedAt        DateTime @default(now())
+  submittedAt      DateTime?
+  durationUsedMin  Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  answers ComprehensiveExamAnswer[]
+
+  @@index([candidateId])
+  @@index([examId, status])
+}
+
+model ComprehensiveExamAnswer {
+  id             String   @id @default(cuid())
+  attemptId      String
+  attempt        ComprehensiveExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId     String   // بلا علاقة خارجية — السؤال قد يُعدَّل بعد لقطة المحاولة
+  selectedOption Int?
+  isCorrect      Boolean?
+  points         Float?
+  createdAt      DateTime @default(now())
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
 }
