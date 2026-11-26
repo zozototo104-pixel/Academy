@@ -213,33 +213,36 @@ export async function POST(req: NextRequest, context: RouteContext) {
       },
     })
 
-    if (preview) {
-      return new NextResponse(stampedBuffer, {
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `inline; filename="${stampedFileName(cert.serial)}"`,
-          'Cache-Control': 'no-store',
+    if (preview) return previewResponse(stampedBuffer, cert.id, admin.id, stampedFileName(cert.serial), req, json)
+
+    let originalStored: Awaited<ReturnType<typeof storeRegularCertificateOriginal>> | null = null
+    let stampedStored: Awaited<ReturnType<typeof storeRegularCertificateStamped>> | null = null
+    let updated
+    try {
+      originalStored = hasNewFile ? await storeRegularCertificateOriginal(originalBuffer, originalFileName, originalMime) : null
+      stampedStored = await storeRegularCertificateStamped(stampedBuffer, stampedFileName(cert.serial))
+      updated = await db.certificate.update({
+        where: { id: cert.id },
+        data: {
+          ...(originalStored ? {
+            uploadedFileKey: originalStored.key,
+            uploadedFileName: originalFileName,
+            uploadedMime: originalMime,
+          } : {}),
+          stampedFileKey: stampedStored.key,
+          qrPosition: serializedStampLayout,
+          qrSize: 'CUSTOM',
         },
       })
+    } catch (error) {
+      if (originalStored) await deleteStoredFile(originalStored.key).catch(() => false)
+      if (stampedStored) await deleteStoredFile(stampedStored.key).catch(() => false)
+      throw error
     }
-
-    const originalStored = hasNewFile
-      ? await storeLegacyCertificateOriginal(originalBuffer, originalFileName, originalMime)
-      : null
-    const stampedStored = await storeLegacyCertificateStamped(stampedBuffer, stampedFileName(cert.serial))
-    const updated = await db.certificate.update({
-      where: { id: cert.id },
-      data: {
-        ...(originalStored ? {
-          uploadedFileKey: originalStored.key,
-          uploadedFileName: originalFileName,
-          uploadedMime: originalMime,
-        } : {}),
-        stampedFileKey: stampedStored.key,
-        qrPosition: serializedStampLayout,
-        qrSize: 'CUSTOM',
-      },
-    })
+    // The finalized originals are stored under their own private keys;
+    // temporary browser uploads and stamp previews are no longer needed.
+    if (directKey) await deleteStoredFile(directKey).catch(() => false)
+    await deleteStoredFile(regularCertificatePreviewKey(cert.id, admin.id)).catch(() => false)
 
     await db.auditLog.create({
       data: {
