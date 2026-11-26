@@ -250,6 +250,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ ok: true, candidate: candidateShape({ ...candidate, invitations: [], attempts: [] }) }, { status: 201 })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (e?.code === 'P2034') return NextResponse.json({ error: 'أُنشئ مرشح مطابق بالتزامن — حدّث القائمة', code: 'CANDIDATE_CONFLICT' }, { status: 409 })
     return phase2ErrorResponse(e, 'تعذر إدخال المرشح')
   }
 }
