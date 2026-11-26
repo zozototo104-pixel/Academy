@@ -5,6 +5,7 @@ import { audit } from '@/lib/notify'
 import {
   ComprehensiveExamPhase2Error,
   qualifyComprehensiveExamCandidate,
+  sendComprehensiveCandidatePasswordSetup,
 } from '@/lib/comprehensive-exam-phase2'
 
 export const runtime = 'nodejs'
