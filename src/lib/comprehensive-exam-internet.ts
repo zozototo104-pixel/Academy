@@ -356,6 +356,7 @@ export async function generateInternetQuestions(
     ? await (deps.verifyQuestions || verifyQuestionsWithCrossProvider)({
         questions: candidates.map((item) => ({ ...item.question, sourceIndex: item.sourceIndex, textProvenance: 'NATIVE_TEXT' as const })) as VerifiableQuestion[],
         sources: selected.map((chunk) => ({ text: chunk.text, textProvenance: chunk.textProvenance })),
+        examScope: { specialty: input.programTitleAr, topic: input.topic, level: input.programLevel },
         generatorProvider: core.provider,
         generatorModel: core.model,
         routing: reviewPlan?.routing,
