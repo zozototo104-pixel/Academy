@@ -343,6 +343,16 @@ describe('POST .../publish (archiving)', () => {
     expect(exams[0].status).toBe('ARCHIVED')
     expect(exams[1].status).toBe('DRAFT')
   })
+  test('refuses to unpublish while a candidate has an outstanding invitation', async () => {
+    const id = await createExam()
+    seedApproved(id, 100)
+    const published = await publishRoute.POST(req(`/api/admin/comprehensive-exams/${id}/publish`, 'POST', { action: 'publish' }), ctx(id))
+    expect(published.status).toBe(200)
+    pendingInvitations = 1
+    const blocked = await publishRoute.POST(req(`/api/admin/comprehensive-exams/${id}/publish`, 'POST', { action: 'unpublish' }), ctx(id))
+    expect(blocked.status).toBe(409)
+    expect(exams[0].status).toBe('READY')
+  })
   test('refuses to archive an exam with active attempts or pending invitations', async () => {
     const id = await createExam()
     startedAttempts = 1
