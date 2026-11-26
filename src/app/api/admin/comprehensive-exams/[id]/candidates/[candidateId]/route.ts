@@ -73,6 +73,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ ok: true, candidate: { id: updated.id, status: updated.status, rejectedReason: updated.rejectedReason } })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (e?.code === 'P2025') return NextResponse.json({ error: 'رُوجع المرشح بالتزامن — حدّث القائمة', code: 'CANDIDATE_ALREADY_REVIEWED' }, { status: 409 })
     return phase2ErrorResponse(e, 'تعذر مراجعة المرشح')
   }
 }
