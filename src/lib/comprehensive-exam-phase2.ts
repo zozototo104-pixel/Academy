@@ -180,17 +180,13 @@ export type ComprehensiveInviteGate =
   | { code: 'PAYMENT_REQUIRED'; message: string }
   | null
 
-// The two invite gates. The exam must be READY — the admin prepares it
-// on demand for the specialization that got an application (never for
-// all 124 programs at once) — and an application-sourced candidate's
-// service fee must be PAID (or WAIVED). Manual candidates carry no
-// admission link, so the payment gate does not apply to them: the
-// admin's explicit creation is the gate. Used by issue + renew, and by
-// the candidates list so the panel can show the reason before the admin
-// presses anything.
+// Exam must be published, and payment must be officially recorded.
+// Application candidates use their SERVICE_FEE invoice; direct admin
+// candidates use a separate one-to-one Payment linked to the candidate.
+// Used consistently by issuing, renewing and displaying invitations.
 export async function checkComprehensiveInviteGates(
   tx: Prisma.TransactionClient,
-  input: { candidate: { admissionApplicationId?: string | null }; exam: { status: string } },
+  input: { candidate: { id?: string; submittedBy?: string; admissionApplicationId?: string | null }; exam: { status: string } },
 ): Promise<ComprehensiveInviteGate> {
   if (input.exam.status !== 'READY') {
     return { code: 'EXAM_NOT_READY', message: 'الامتحان غير منشور بعد — جهّزه وانشره أولاً' }
@@ -202,6 +198,14 @@ export async function checkComprehensiveInviteGates(
     })
     if (!paid) {
       return { code: 'PAYMENT_REQUIRED', message: 'رسوم الخدمة لم تُسدد بعد — لا يُرسَل الرابط قبل السداد' }
+    }
+  } else if (input.candidate.submittedBy === 'ADMIN') {
+    const paid = input.candidate.id ? await tx.payment.findFirst({
+      where: { comprehensiveExamCandidateId: input.candidate.id, purpose: 'SERVICE_FEE', status: 'PAID' },
+      select: { id: true },
+    }) : null
+    if (!paid) {
+      return { code: 'PAYMENT_REQUIRED', message: 'سجّل المبلغ المستلم من زر «تم الدفع» قبل إصدار رابط الامتحان' }
     }
   }
   return null
