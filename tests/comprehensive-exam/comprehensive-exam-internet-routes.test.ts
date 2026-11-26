@@ -18,6 +18,7 @@ let advancedSingleDomain = false
 let generateResult: any = null
 let generateError: any = null
 let generateInput: any = null
+let duringGeneration: (() => void) | undefined
 
 class TestTavilySearchError extends Error {
   kind: string
@@ -30,6 +31,7 @@ class TestTavilySearchError extends Error {
 
 const fakeDb: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(fakeDb),
+  $queryRaw: async (_query: TemplateStringsArray, examId: string) => exams.filter((exam) => exam.id === examId),
   setting: {
     findUnique: async ({ where }: any) =>
       where?.key === 'TAVILY_API_KEY' && tavilyKey ? { key: 'TAVILY_API_KEY', value: tavilyKey } : null,
@@ -50,8 +52,8 @@ const fakeDb: any = {
       (!where?.sourceBookId || q.sourceBookId === where.sourceBookId) &&
       (!where?.status?.in || where.status.in.includes(q.status)),
     ).length,
-    findMany: async ({ where }: any = {}) =>
-      questions.filter((q) => !where?.examId || q.examId === where.examId).sort((a, b) => a.order - b.order),
+    findMany: async ({ where, take }: any = {}) =>
+      questions.filter((q) => !where?.examId || q.examId === where.examId).sort((a, b) => a.order - b.order).slice(0, take),
     findFirst: async ({ where, orderBy }: any = {}) => {
       const rows = questions.filter((q) => !where?.examId || q.examId === where.examId)
       if (orderBy?.order === 'desc') rows.sort((a, b) => b.order - a.order)
@@ -116,6 +118,7 @@ mock.module('@/lib/comprehensive-exam-internet', () => ({
   },
   internetSourceId: (topic: string) => `tavily:${String(topic || '').slice(0, 8)}`,
   generateInternetQuestions: async (_results: unknown, input: unknown) => {
+    duringGeneration?.()
     generateInput = input
     if (generateError) throw generateError
     return generateResult
@@ -196,6 +199,7 @@ beforeEach(() => {
   generateResult = defaultGeneration()
   generateError = null
   generateInput = null
+  duringGeneration = undefined
   delete process.env.TAVILY_API_KEY
 })
 
@@ -265,6 +269,51 @@ describe('POST from-internet — happy path', () => {
     expect(searchCalls).toHaveLength(3)
     expect(searchCalls.every((call) => call.searchDepth === 'advanced' && call.chunksPerSource === 3)).toBe(true)
     expect(questions).toHaveLength(2)
+  })
+
+  test('checks late questions and skips duplicates added while the model was running', async () => {
+    const examId = seedExam()
+    questions = Array.from({ length: 85 }, (_, i) => ({
+      examId, order: i + 1, text: `سؤال إداري سابق رقم ${i + 1}`, status: 'APPROVED',
+    }))
+    const lastText = questions[84].text
+    duringGeneration = () => questions.push({ examId, order: 86, text: generateResult.questions[0].text, status: 'PENDING_REVIEW' })
+    const res = await route.POST(jsonReq(examId, { topic: 'مبادئ المحاسبة', count: 2 }), ctx(examId))
+    expect(generateInput.previousQuestionTexts).toContain(lastText)
+    expect(res.status).toBe(200)
+    expect((await res.json()).imported).toBe(1)
+    expect(questions.at(-1).order).toBe(87)
+    expect(questions.at(-1).text).toBe(generateResult.questions[1].text)
+  })
+
+  test('a draft archived during generation receives no new questions', async () => {
+    const examId = seedExam()
+    duringGeneration = () => { exams[0].status = 'ARCHIVED' }
+    const res = await route.POST(jsonReq(examId, { topic: 'مبادئ المحاسبة', count: 2 }), ctx(examId))
+    expect(res.status).toBe(409)
+    expect(questions).toHaveLength(0)
+  })
+
+  test('simultaneous internet batches share the last free slot', async () => {
+    const examId = seedExam('DRAFT', 'exam-concurrent', 'specialization-1')
+    questions = Array.from({ length: 99 }, (_, i) => ({ examId, order: i + 1, text: `سؤال ${i}`, status: 'APPROVED' }))
+    // Model the database serialization of the final save transaction.
+    let queue = Promise.resolve()
+    const original = fakeDb.$transaction
+    fakeDb.$transaction = (work: (tx: any) => Promise<any>) => {
+      const result = queue.then(() => work(fakeDb))
+      queue = result.then(() => undefined)
+      return result
+    }
+    try {
+      const body = { mode: 'COMPREHENSIVE', topic: 'التحليل المالي واتخاذ القرارات الاستثمارية', axisTarget: 10, count: 10 }
+      const responses = await Promise.all([1, 2].map(() => route.POST(jsonReq(examId, body), ctx(examId))))
+      const results = await Promise.all(responses.map((res) => res.json()))
+      expect(results.map((r) => r.imported).sort()).toEqual([0, 1])
+      expect(questions).toHaveLength(100)
+    } finally {
+      fakeDb.$transaction = original
+    }
   })
 
   test('refuses to generate a specialty-wide exam from one repeated website', async () => {
