@@ -4,8 +4,8 @@
 // this module — not in the schema, not in validation, not in import.
 import * as XLSX from 'xlsx'
 
-// Academic-scope guards: prevent degree admissions/program trivia from becoming
-// professional specialty questions even if a retrieved source is genuinely quoted.
+// Academic-scope guards: questions must test the scientific specialty, not
+// admissions, program advertising, or the order of academic degrees.
 function normalizeInternetAcademicText(value: string): string {
   return String(value || '')
     .toLowerCase()
@@ -21,6 +21,7 @@ function normalizeInternetAcademicText(value: string): string {
 const DEGREE_WORDS = /(?:\bdba\b|\bmba\b|\bphd\b|دكتوراه|ماجستير|دبلوم|بكالوريوس)/u
 const ADMISSION_WORDS = /(?:القبول|الالتحاق|التسجيل|رسوم الدراسه|الرسوم الدراسيه|تكاليف الدراسه|شروط التقديم|الفئه المستهدفه|خريجي الماجستير)/u
 const PROGRAM_META_WORDS = /(?:برنامج|درجه|شهاده|مؤسسه|كليه|جامعه|القبول|الالتحاق|التسجيل|الفئه المستهدفه|مدة الدراسه|مده الدراسه)/u
+const DEGREE_SEQUENCE_WORDS = /(?:بعد|قبل|اعلي|ادني|يسبق|يلي|تتطلب|يتطلب|يشترط|مؤهل|مؤهلات|ترتيب الدرجات)/u
 const PROGRAM_ONLY_WORDS = new Set(['برنامج', 'دكتوراه', 'ماجستير', 'دبلوم', 'مهنيه', 'المهنيه', 'الدراسه', 'الاعمال', 'اداره', 'في', 'ال', 'الـ', 'dba', 'mba', 'phd'])
 
 export function internetAcademicTopicIssue(topic: string, specializationTitle: string): string | null {
@@ -44,9 +45,8 @@ export function internetQuestionAcademicIssue(questionText: string): string | nu
   if (ADMISSION_WORDS.test(question) && (DEGREE_WORDS.test(question) || /برنامج|مؤسسه|كليه|جامعه/u.test(question))) {
     return 'DEGREE_ADMISSIONS_QUESTION'
   }
-  if (DEGREE_WORDS.test(question) && PROGRAM_META_WORDS.test(question)) {
-    return 'DEGREE_PROGRAM_METADATA_QUESTION'
-  }
+  if (DEGREE_WORDS.test(question) && DEGREE_SEQUENCE_WORDS.test(question)) return 'DEGREE_SEQUENCE_QUESTION'
+  if (DEGREE_WORDS.test(question) && PROGRAM_META_WORDS.test(question)) return 'DEGREE_PROGRAM_METADATA_QUESTION'
   return null
 }
 
