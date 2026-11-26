@@ -93,8 +93,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     } catch {
       body = {}
     }
-    if (String(body?.action || '') !== 'qualify') {
-      return NextResponse.json({ error: 'الإجراء غير معروف — المسموح: qualify' }, { status: 400 })
+    const action = String(body?.action || '')
+    if (action === 'resend_account_setup') {
+      if (candidate.submittedBy !== 'ADMIN' || !candidate.userId) {
+        return NextResponse.json({ error: 'إرسال تعليمات الدخول متاح فقط لحسابات المرشحين المدخلين من الإدارة' }, { status: 409 })
+      }
+      const emailStatus = await sendComprehensiveCandidatePasswordSetup(req, candidate.userId)
+      await audit({ id: admin.id, name: admin.name }, 'RESEND_COMPREHENSIVE_CANDIDATE_SETUP', 'ComprehensiveExamCandidate', candidate.id, `تعليمات الدخول للمرشح — ${emailStatus}`)
+      return NextResponse.json({ ok: emailStatus === 'SENT', emailStatus }, { status: emailStatus === 'SENT' ? 200 : 503 })
+    }
+    if (action !== 'qualify') {
+      return NextResponse.json({ error: 'الإجراء غير معروف — المسموح: qualify أو resend_account_setup' }, { status: 400 })
     }
     const attempt = await db.comprehensiveExamAttempt.findFirst({
       where: { candidateId: candidate.id, status: 'GRADED', passed: true },
