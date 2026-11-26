@@ -209,11 +209,15 @@ describe('generateInternetQuestions', () => {
       { topic: 'مبادئ المحاسبة', programTitleAr: 'الماجستير المهني في إدارة الأعمال', count: 2 },
       {
         completeJson: fakeComplete(GOOD_REPLY),
-        verifyQuestions: (async ({ questions }: any) => questions.map((question: any, i: number) => ({
-          ...question,
-          qualityFlags: i === 0 ? [] : ['SOURCE_GROUNDED'],
-          verifierReason: i === 0 ? 'VERIFIER_REJECTED' : undefined,
-        }))) as any,
+        verifyQuestions: (async ({ questions, examScope }: any) => {
+          expect(examScope.specialty).toBe('الماجستير المهني في إدارة الأعمال')
+          expect(examScope.topic).toBe('مبادئ المحاسبة')
+          return questions.map((question: any, i: number) => ({
+            ...question,
+            qualityFlags: i === 0 ? [] : ['SOURCE_GROUNDED'],
+            verifierReason: i === 0 ? 'VERIFIER_REJECTED' : undefined,
+          }))
+        }) as any,
       },
     )
     expect(out.questions).toHaveLength(1)
