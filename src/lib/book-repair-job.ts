@@ -327,9 +327,25 @@ function reconcileRepairProgress(
     progress.distortedChunkIds = progress.distortedChunkIds.filter((row) => row !== id)
     changed++
   }
+  const itemById = new Map(items.map((item) => [item.id, item]))
   for (const id of progress.distortedItemIds.filter((row) => isUnresolved(row, progress.correctedItemIds, progress.reviewItemIds))) {
+    const item = itemById.get(id)
+    if (!item) {
+      // Deleted item: remove stale work, but never claim it was repaired.
+      progress.distortedItemIds = progress.distortedItemIds.filter((row) => row !== id)
+      changed++
+      continue
+    }
+    const sourceChunk = item.chunkId ? chunkById.get(item.chunkId) : null
+    if (!sourceChunk || !sourceChunk.text.trim()) {
+      // A distorted orphan cannot enter the healthy-chunk repair loop.
+      // Keep the item untouched and visible for manual source review.
+      if (!progress.reviewItemIds.includes(id)) progress.reviewItemIds.push(id)
+      changed++
+      continue
+    }
     if (freshDistortedItems.has(id)) continue
-    // Clean now, or its row is gone: resolved (healthy), not "corrected".
+    // Clean now: resolved (healthy), not "corrected".
     progress.distortedItemIds = progress.distortedItemIds.filter((row) => row !== id)
     changed++
   }
