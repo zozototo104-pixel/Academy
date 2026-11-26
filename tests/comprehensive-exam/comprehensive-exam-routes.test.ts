@@ -194,6 +194,8 @@ beforeEach(() => {
   exams = []
   questions = []
   qSeq = 0
+  startedAttempts = 0
+  pendingInvitations = 0
   bankItems = [
     {
       id: 'bank-1', programId: 'spec-1', type: 'MCQ', status: 'APPROVED',
