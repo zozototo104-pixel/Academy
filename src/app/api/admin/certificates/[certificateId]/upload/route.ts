@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { createSignedStorageUrlForKey, deleteStoredFile } from '@/lib/storage'
 import {
   LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES,
+  createRegularCertificateUploadUrl,
+  isRegularCertificateUploadKey,
+  newRegularCertificateUploadKey,
   normalizeQrSize,
   normalizeStampLayout,
   readLegacyCertificateStoredFile,
+  readRegularCertificateDirectUpload,
+  regularCertificatePreviewKey,
   serializeStampLayout,
   sniffLegacyCertificateMime,
   stampLegacyCertificatePdf,
-  storeLegacyCertificateOriginal,
-  storeLegacyCertificateStamped,
+  storeRegularCertificateOriginal,
+  storeRegularCertificatePreview,
+  storeRegularCertificateStamped,
+  type LegacyCertificateMime,
 } from '@/lib/legacy-certificate-files'
 
 function isPreview(value: unknown) {
