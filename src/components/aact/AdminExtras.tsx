@@ -2208,6 +2208,7 @@ export function AdminCertificatesTab() {
   // وقسم شهادة المعادلة): الملف الأصلي لا يُعاد رسمه؛ يُضاف QR والرقم
   // التسلسلي فقط فوق الملف كما رُفع. الحالة لكل شهادة برقمها التسلسلي.
   const [certUploadFileBySerial, setCertUploadFileBySerial] = useState<Record<string, File | null>>({})
+  const [certUploadDirectBySerial, setCertUploadDirectBySerial] = useState<Record<string, { file: File; key: string } | undefined>>({})
   const [certUploadQrSizeBySerial, setCertUploadQrSizeBySerial] = useState<Record<string, string>>({})
   const [certUploadQrPositionBySerial, setCertUploadQrPositionBySerial] = useState<Record<string, string>>({})
   const [certUploadPreviewUrlBySerial, setCertUploadPreviewUrlBySerial] = useState<Record<string, string | null>>({})
