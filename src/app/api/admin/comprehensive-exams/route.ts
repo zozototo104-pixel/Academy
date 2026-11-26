@@ -158,6 +158,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, examId: exam.id, status: exam.status }, { status: 201 })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (e?.code === 'P2034') return NextResponse.json({ error: 'تم إنشاء امتحان حي بالتزامن — حدّث القائمة', code: 'LIVE_EXAM_CONFLICT' }, { status: 409 })
     console.error('comprehensive exam create error:', e)
     return NextResponse.json({ error: 'تعذر إنشاء الامتحان الشامل' }, { status: 500 })
   }
