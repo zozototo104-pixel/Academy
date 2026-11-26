@@ -7,6 +7,7 @@ import {
   ComprehensiveExamPhase2Error,
   gradeComprehensiveAttempt,
   parseComprehensiveAttemptSnapshot,
+  parseComprehensiveAttemptTerms,
   qualifyComprehensiveExamCandidate,
   tokensEqual,
 } from '@/lib/comprehensive-exam-phase2'
