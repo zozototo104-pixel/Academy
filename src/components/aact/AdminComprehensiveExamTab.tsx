@@ -927,7 +927,7 @@ function DetailPanel(props: any) {
         <CardContent className="space-y-3 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-black">أسئلة الامتحان ({detail.questions.length})</h4>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={setStatusFilter} disabled={props.bulkApproveBusy}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">كل الحالات</SelectItem>
