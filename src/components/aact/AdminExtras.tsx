@@ -2429,6 +2429,32 @@ export function AdminCertificatesTab() {
   const regularCertQrSize = (certificate: CertificateData) => certUploadQrSizeBySerial[certificate.serial] || 'M'
   const regularCertQrPosition = (certificate: CertificateData) => certUploadQrPositionBySerial[certificate.serial] || 'BOTTOM_LEFT'
 
+  // Prefer the already-configured S3 direct-upload path. A 10MB file
+  // cannot travel through a normal Vercel Function request (4.5MB by
+  // default). Only small files fall back to multipart during local setup.
+  const directRegularCertFile = async (certificate: CertificateData, file: File) => {
+    const cached = certUploadDirectBySerial[certificate.serial]
+    if (cached?.file === file) return cached.key
+    if (file.size <= 0 || file.size > 10 * 1024 * 1024) throw new Error('حجم الشهادة يجب أن يكون بين 1 بايت و10MB')
+    const ext = file.name.toLowerCase().split('.').pop()
+    const mimeType = ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : ['jpg', 'jpeg'].includes(ext || '') ? 'image/jpeg' : ''
+    if (!mimeType) throw new Error('الصيغة المسموحة PDF أو JPG أو PNG فقط')
+    const res = await fetch(regularCertUploadUrl(certificate), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'PRESIGN', size: file.size, mimeType }),
+    })
+    if (!res.ok) {
+      if (res.status === 422 && file.size <= 4 * 1024 * 1024) return null
+      const error = await res.json().catch(() => ({}))
+      throw new Error(String(error?.error || 'تعذر تجهيز الرفع المباشر للتخزين'))
+    }
+    const { uploadUrl, key } = await res.json()
+    const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': mimeType }, body: file })
+    if (!put.ok) throw new Error(`فشل نقل الملف إلى التخزين (HTTP ${put.status})`)
+    setCertUploadDirectBySerial((prev) => ({ ...prev, [certificate.serial]: { file, key } }))
+    return String(key)
+  }
+
   const previewRegularCertFile = async (certificate: CertificateData) => {
     const id = certificate.id
     if (!id) return toast({ title: 'تعذر المعاينة', description: 'معرّف الشهادة غير متوفر.', variant: 'destructive' })
