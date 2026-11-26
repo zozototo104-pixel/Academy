@@ -316,6 +316,27 @@ export function parseComprehensiveAttemptSnapshot(raw: string | null | undefined
   }
 }
 
+// The exam's settings may change after a candidate starts (for example
+// when an administrator unpublishes a later exam). Existing legacy array
+// snapshots use the current values; new snapshots freeze both settings.
+export function parseComprehensiveAttemptTerms(
+  raw: string | null | undefined,
+  fallback: { passScore: number; durationMin: number },
+): { passScore: number; durationMin: number } {
+  try {
+    const saved = JSON.parse(raw || '')
+    if (!saved || Array.isArray(saved) || !Array.isArray(saved.questions)) return fallback
+    const passScore = saved.passScore
+    const durationMin = saved.durationMin
+    return {
+      passScore: Number.isSafeInteger(passScore) && passScore >= 1 && passScore <= 100 ? passScore : fallback.passScore,
+      durationMin: Number.isSafeInteger(durationMin) && durationMin >= 10 && durationMin <= 480 ? durationMin : fallback.durationMin,
+    }
+  } catch {
+    return fallback
+  }
+}
+
 export function buildComprehensiveAttemptSnapshot(
   questions: Array<{ id: string; order: number; type: string; text: string; options: string | null; correctAnswer: string | null }>,
 ): ComprehensiveAttemptSnapshotQuestion[] {
