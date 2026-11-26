@@ -43,7 +43,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: 'لا يمكن إضافة أسئلة لامتحان منشور — ألغِ نشره أولاً' }, { status: 409 })
     }
     const body = await req.json()
-    const checked = validateComprehensiveQuestion(body || {})
+    const checked = validateComprehensiveQuestion({
+      ...(body || {}),
+      correctAnswerIndexBase: body?.correctAnswerIndexBase === 0 ? 0 : 1,
+    })
     if (!checked.ok) return NextResponse.json({ error: checked.errors.join('؛ ') }, { status: 400 })
     const last = await db.comprehensiveExamQuestion.findFirst({
       where: { examId: id },
