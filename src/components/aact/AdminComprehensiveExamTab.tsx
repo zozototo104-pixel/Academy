@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { toast } from '@/hooks/use-toast'
+import { useAdminActionDialog } from './AdminActionDialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -82,6 +84,7 @@ export async function approvePendingQuestionsInBatches(
 }
 
 export function AdminComprehensiveExamTab() {
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [exams, setExams] = useState<ExamListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -125,6 +128,8 @@ export function AdminComprehensiveExamTab() {
   const [manualAnswer, setManualAnswer] = useState('0')
   const [manualEvidence, setManualEvidence] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const editTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [editText, setEditText] = useState('')
   const [editOptions, setEditOptions] = useState<string[]>([])
   const [editAnswer, setEditAnswer] = useState('0')
@@ -250,7 +255,14 @@ export function AdminComprehensiveExamTab() {
 
   const publishExam = async (action: 'publish' | 'unpublish' | 'archive') => {
     if (!detail) return
-    if (action === 'archive' && !window.confirm('أرشفة الامتحان نهائياً؟ تبقى نتائجه وسجلاته، ويمكن بعدها إنشاء نسخة جديدة للتخصص.')) return
+    if (action === 'archive') {
+      const confirmed = await confirmAction({
+        title: 'أرشفة الامتحان',
+        description: `هل تريد أرشفة «${detail.exam.title}»؟ تبقى نتائجه وسجلاته محفوظة، ويمكنك إنشاء نسخة جديدة للتخصص.`,
+        confirmLabel: 'أرشفة الامتحان', tone: 'warning',
+      })
+      if (!confirmed) return
+    }
     try {
       const data = await jsonOrThrow(
         await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/publish`, {
@@ -603,7 +615,12 @@ export function AdminComprehensiveExamTab() {
   }
 
   const saveEdit = async (q: ExamQuestion) => {
-    if (!detail) return
+    if (!detail || savingEdit) return
+    if (q.type === 'MCQ' && !editOptions[Number(editAnswer)]?.trim()) {
+      toast({ title: 'اختر إجابة صحيحة لها نص قبل الحفظ', variant: 'destructive' })
+      return
+    }
+    setSavingEdit(true)
     try {
       await jsonOrThrow(
         await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/${q.id}`, {
@@ -612,7 +629,7 @@ export function AdminComprehensiveExamTab() {
           body: JSON.stringify({
             text: editText,
             options: q.type === 'TF' ? ['صح', 'خطأ'] : editOptions.filter((o) => o.trim() !== ''),
-            correctAnswer: editAnswer,
+            correctAnswer: q.type === 'TF' ? editAnswer : String(editOptions.slice(0, Number(editAnswer)).filter((o) => o.trim()).length),
             correctAnswerIndexBase: 0,
           }),
         }),
@@ -623,11 +640,19 @@ export function AdminComprehensiveExamTab() {
       await refreshDetailAndList(detail.exam.id)
     } catch (e: any) {
       toast({ title: 'تعذر حفظ التعديل', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setSavingEdit(false)
     }
   }
 
   const deleteQuestion = async (q: ExamQuestion) => {
-    if (!detail || !window.confirm('حذف هذا السؤال من المسودة؟')) return
+    if (!detail) return
+    const confirmed = await confirmAction({
+      title: `حذف السؤال رقم ${q.order}؟`,
+      description: `سيُحذف السؤال التالي من مسودة الامتحان «${detail.exam.title}».\n${q.text}`,
+      confirmLabel: 'حذف السؤال', tone: 'danger',
+    })
+    if (!confirmed) return
     try {
       await jsonOrThrow(
         await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/${q.id}`, { method: 'DELETE' }),
@@ -640,12 +665,15 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
-  const startEdit = (q: ExamQuestion) => {
+  const startEdit = (q: ExamQuestion, trigger: HTMLButtonElement) => {
+    editTriggerRef.current = trigger
     setEditingId(q.id)
     setEditText(q.text)
     setEditOptions(q.type === 'TF' ? ['صح', 'خطأ'] : parseOptions(q.options))
     setEditAnswer(q.correctAnswer || '0')
   }
+
+  const editingQuestion = editingId ? detail?.questions.find((q) => q.id === editingId) : null
 
   if (loading) {
     return (
@@ -808,14 +836,6 @@ export function AdminComprehensiveExamTab() {
           manualEvidence={manualEvidence}
           setManualEvidence={setManualEvidence}
           onAddManual={addManualQuestion}
-          editingId={editingId}
-          setEditingId={setEditingId}
-          editText={editText}
-          setEditText={setEditText}
-          editOptions={editOptions}
-          setEditOptions={setEditOptions}
-          editAnswer={editAnswer}
-          setEditAnswer={setEditAnswer}
           rejectReason={rejectReason}
           setRejectReason={setRejectReason}
           selectedQuestionIds={selectedQuestionIds}
@@ -824,10 +844,54 @@ export function AdminComprehensiveExamTab() {
           bulkApproveProgress={bulkApproveProgress}
           onApproveSelected={approveSelectedQuestions}
           onReview={reviewQuestion}
-          onSaveEdit={saveEdit}
           onDelete={deleteQuestion}
           onStartEdit={startEdit}
         />
+      )}
+
+      {actionDialog}
+      {editingQuestion && (
+        <Dialog open onOpenChange={(open) => { if (!open && !savingEdit) setEditingId(null) }}>
+          <DialogContent dir="rtl" showCloseButton={!savingEdit}
+            className="max-h-[92dvh] overflow-y-auto rounded-2xl sm:max-w-lg"
+            onCloseAutoFocus={(event) => {
+              if (editTriggerRef.current?.isConnected) {
+                event.preventDefault()
+                editTriggerRef.current.focus({ preventScroll: true })
+              }
+            }}>
+            <DialogHeader className="text-right sm:text-right">
+              <DialogTitle>تعديل السؤال رقم {editingQuestion.order}</DialogTitle>
+              <DialogDescription>عدّل نص السؤال وحدّد الإجابة الصحيحة. حفظ التعديلات يعيد السؤال المعتمد إلى المراجعة.</DialogDescription>
+            </DialogHeader>
+            <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void saveEdit(editingQuestion) }}>
+              <fieldset disabled={savingEdit} className="min-w-0 space-y-3">
+                <Label htmlFor="exam-question-text">نص السؤال</Label>
+                <Textarea id="exam-question-text" value={editText} onChange={(event) => setEditText(event.target.value)} rows={3} />
+                <fieldset className="min-w-0 space-y-2">
+                  <legend className="text-sm font-bold">الخيارات والإجابة الصحيحة</legend>
+                  {editOptions.map((option, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input type="radio" id={`exam-edit-answer-${index}`} name="exam-edit-answer"
+                        aria-label={`تعيين الخيار ${index + 1} إجابة صحيحة`} checked={editAnswer === String(index)}
+                        onChange={() => setEditAnswer(String(index))} />
+                      {editingQuestion.type === 'TF'
+                        ? <Label htmlFor={`exam-edit-answer-${index}`}>{option}</Label>
+                        : <Input aria-label={`نص الخيار ${index + 1}`} value={option} onChange={(event) => {
+                            const value = event.target.value
+                            setEditOptions((previous) => previous.map((item, i) => i === index ? value : item))
+                          }} />}
+                    </div>
+                  ))}
+                </fieldset>
+              </fieldset>
+              <DialogFooter>
+                <Button type="button" variant="outline" disabled={savingEdit} onClick={() => setEditingId(null)}>إلغاء</Button>
+                <Button type="submit" disabled={savingEdit}>{savingEdit ? 'جارٍ الحفظ…' : 'حفظ التعديل'}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
 
       {detail && !detailLoading && (
@@ -1179,7 +1243,6 @@ function DetailPanel(props: any) {
 function QuestionRow(props: any) {
   const { q, isDraft } = props
   const options = parseOptions(q.options)
-  const editing = props.editingId === q.id
   return (
     <div className="rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -1203,71 +1266,43 @@ function QuestionRow(props: any) {
         </Badge>
         <span className="text-slate-500">المصدر: {SOURCE_LABEL[q.source] || q.source}</span>
       </div>
-      {editing ? (
-        <div className="mt-2 space-y-2">
-          <Textarea value={props.editText} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => props.setEditText(e.target.value)} rows={2} />
-          {q.type === 'MCQ' && (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {props.editOptions.map((opt: string, i: number) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input type="radio" name={`edit-answer-${q.id}`} checked={props.editAnswer === String(i)} onChange={() => props.setEditAnswer(String(i))} aria-label={`الخيار ${i + 1} صحيح`} />
-                  <Input value={opt} onChange={(e: ChangeEvent<HTMLInputElement>) => { const next = [...props.editOptions]; next[i] = e.target.value; props.setEditOptions(next) }} />
-                </div>
-              ))}
-            </div>
+      <p className="mt-2 text-sm font-bold">{q.text}</p>
+      <ul className="mt-1 space-y-0.5 text-xs">
+        {options.map((opt: string, i: number) => (
+          <li key={i} className={String(i) === q.correctAnswer ? 'font-bold text-emerald-700' : 'text-slate-600'}>
+            {i + 1}. {opt} {String(i) === q.correctAnswer ? '✓ (الصحيحة)' : ''}
+          </li>
+        ))}
+      </ul>
+      {q.sourceEvidence && <p className="mt-1 text-[11px] text-slate-500">الدليل: {q.sourceEvidence}</p>}
+      {q.sourceUrl && (
+        <p className="mt-1 text-[11px] text-slate-500">
+          المصدر:{' '}
+          <a className="text-emerald-700 underline" href={q.sourceUrl} target="_blank" rel="noreferrer">
+            {q.sourceUrl}
+          </a>
+        </p>
+      )}
+      {q.status === 'REJECTED' && q.rejectedReason && <p className="mt-1 text-[11px] text-red-600">سبب الرفض: {q.rejectedReason}</p>}
+      {isDraft && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {q.status !== 'APPROVED' && (
+            <Button size="sm" variant="outline" disabled={props.bulkApproveBusy} onClick={() => props.onReview(q, 'APPROVED')}><Check className="h-3.5 w-3.5" /> اعتماد</Button>
           )}
-          {q.type === 'TF' && (
-            <div className="flex gap-4 text-sm">
-              <label className="flex items-center gap-1"><input type="radio" name={`edit-tf-${q.id}`} checked={props.editAnswer === '0'} onChange={() => props.setEditAnswer('0')} /> صح</label>
-              <label className="flex items-center gap-1"><input type="radio" name={`edit-tf-${q.id}`} checked={props.editAnswer === '1'} onChange={() => props.setEditAnswer('1')} /> خطأ</label>
-            </div>
+          {q.status !== 'REJECTED' && (
+            <>
+              <Input
+                value={props.rejectReason}
+                placeholder="سبب الرفض (مطلوب للرفض)"
+                className="w-48"
+                onChange={(e: ChangeEvent<HTMLInputElement>) => props.setRejectReason(e.target.value)}
+              />
+              <Button size="sm" variant="outline" disabled={props.bulkApproveBusy} onClick={() => props.onReview(q, 'REJECTED')}><X className="h-3.5 w-3.5" /> رفض</Button>
+            </>
           )}
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => props.onSaveEdit(q)}>حفظ التعديل</Button>
-            <Button size="sm" variant="outline" onClick={() => props.setEditingId(null)}>إلغاء</Button>
-          </div>
+          <Button size="sm" variant="outline" onClick={(e) => props.onStartEdit(q, e.currentTarget)}>تعديل</Button>
+          <Button size="sm" variant="outline" onClick={() => props.onDelete(q)}><Trash2 className="h-3.5 w-3.5" /> حذف</Button>
         </div>
-      ) : (
-        <>
-          <p className="mt-2 text-sm font-bold">{q.text}</p>
-          <ul className="mt-1 space-y-0.5 text-xs">
-            {options.map((opt: string, i: number) => (
-              <li key={i} className={String(i) === q.correctAnswer ? 'font-bold text-emerald-700' : 'text-slate-600'}>
-                {i + 1}. {opt} {String(i) === q.correctAnswer ? '✓ (الصحيحة)' : ''}
-              </li>
-            ))}
-          </ul>
-          {q.sourceEvidence && <p className="mt-1 text-[11px] text-slate-500">الدليل: {q.sourceEvidence}</p>}
-          {q.sourceUrl && (
-            <p className="mt-1 text-[11px] text-slate-500">
-              المصدر:{' '}
-              <a className="text-emerald-700 underline" href={q.sourceUrl} target="_blank" rel="noreferrer">
-                {q.sourceUrl}
-              </a>
-            </p>
-          )}
-          {q.status === 'REJECTED' && q.rejectedReason && <p className="mt-1 text-[11px] text-red-600">سبب الرفض: {q.rejectedReason}</p>}
-          {isDraft && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {q.status !== 'APPROVED' && (
-                <Button size="sm" variant="outline" disabled={props.bulkApproveBusy} onClick={() => props.onReview(q, 'APPROVED')}><Check className="h-3.5 w-3.5" /> اعتماد</Button>
-              )}
-              {q.status !== 'REJECTED' && (
-                <>
-                  <Input
-                    value={props.rejectReason}
-                    placeholder="سبب الرفض (مطلوب للرفض)"
-                    className="w-48"
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => props.setRejectReason(e.target.value)}
-                  />
-                  <Button size="sm" variant="outline" disabled={props.bulkApproveBusy} onClick={() => props.onReview(q, 'REJECTED')}><X className="h-3.5 w-3.5" /> رفض</Button>
-                </>
-              )}
-              <Button size="sm" variant="outline" onClick={() => props.onStartEdit(q)}>تعديل</Button>
-              <Button size="sm" variant="outline" onClick={() => props.onDelete(q)}><Trash2 className="h-3.5 w-3.5" /> حذف</Button>
-            </div>
-          )}
-        </>
       )}
     </div>
   )
