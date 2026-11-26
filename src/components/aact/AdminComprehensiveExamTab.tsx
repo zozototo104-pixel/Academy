@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Check, Download, FileSpreadsheet, Loader2, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react'
 
 type ProgramOption = { id: string; titleAr: string; titleEn?: string | null; slug?: string | null; active?: boolean | null; category?: string | null; serviceKind?: string | null }
+type InternetExamAxis = { topic: string; origin: 'CURRICULUM' | 'AI_SUGGESTION' }
 type ExamCounts = { approved: number; pending: number; rejected: number }
 type ExamListItem = {
   id: string; programId: string; programTitleAr: string; programCategory: string
@@ -108,6 +109,16 @@ export function AdminComprehensiveExamTab() {
   const [internetResult, setInternetResult] = useState<any>(null)
   const [internetBusy, setInternetBusy] = useState(false)
   const [internetKeyMissing, setInternetKeyMissing] = useState(false)
+  const [internetAxesText, setInternetAxesText] = useState('')
+  const [internetSelectedTopics, setInternetSelectedTopics] = useState<Record<string, boolean>>({})
+  const [internetPlanBasis, setInternetPlanBasis] = useState('')
+  const [internetPlanBusy, setInternetPlanBusy] = useState(false)
+  const [internetPlanReviewed, setInternetPlanReviewed] = useState(false)
+  const [internetRunBusy, setInternetRunBusy] = useState(false)
+  const [internetRunProgress, setInternetRunProgress] = useState<{axis: number; total: number; imported: number; errors: string[]} | null>(null)
+  const internetStopRef = useRef(false)
+  const internetRunLock = useRef(false)
+  const activeExamIdRef = useRef<string | null>(null)
   const [manualType, setManualType] = useState('MCQ')
   const [manualText, setManualText] = useState('')
   const [manualOptions, setManualOptions] = useState(['', '', '', ''])
@@ -150,6 +161,16 @@ export function AdminComprehensiveExamTab() {
   const loadDetail = async (examId: string, showLoading = true) => {
     // Keep the question list mounted for in-place review updates.
     // Hiding a long panel during refresh collapses the page and moves scroll.
+    if (selectedId !== examId) {
+      // Switching exams invalidates the previous specialty blueprint.
+      internetStopRef.current = true
+      activeExamIdRef.current = examId
+      setInternetAxesText('')
+      setInternetSelectedTopics({})
+      setInternetPlanBasis('')
+      setInternetPlanReviewed(false)
+      setInternetRunProgress(null)
+    }
     if (showLoading) setDetailLoading(true)
     try {
       const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${examId}`, { cache: 'no-store' }), 'تعذر تحميل الامتحان')
@@ -414,6 +435,113 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
+  const createInternetPlan = async () => {
+    if (!detail) return
+    const examId = detail.exam.id
+    setInternetPlanBusy(true)
+    setInternetPlanReviewed(false)
+    setInternetAxesText('')
+    setInternetSelectedTopics({})
+    setInternetPlanBasis('')
+    setInternetRunProgress(null)
+    try {
+      const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${examId}/questions/from-internet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'PLAN' }),
+      }), 'تعذر تحضير محاور التخصص')
+      if (activeExamIdRef.current !== examId) return
+      setInternetAxesText((data.axes as InternetExamAxis[]).map((axis) => axis.topic).join('\n'))
+      setInternetPlanBasis(data.basis)
+      toast({ title: `تم تحضير ${data.axes.length} محاور — اختر التي تريدها`, description: data.warning || 'تستطيع تعديل القائمة قبل تحديد المحاور' })
+    } catch (e: any) {
+      toast({ title: 'تعذر تحضير مخطط الامتحان', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setInternetPlanBusy(false)
+    }
+  }
+
+  const openManualInternetPlan = () => {
+    setInternetAxesText('')
+    setInternetSelectedTopics({})
+    setInternetPlanBasis('MANUAL')
+    setInternetPlanReviewed(false)
+    setInternetRunProgress(null)
+  }
+
+  const runComprehensiveInternetPlan = async () => {
+    if (!detail || internetBusy || internetRunLock.current || !internetPlanReviewed) return
+    const examId = detail.exam.id
+    const writtenAxes = internetAxesText.split('\n').map((line) => line.trim()).filter(Boolean)
+    const chosenAxes = writtenAxes.filter((topic) => internetSelectedTopics[topic])
+    if (!chosenAxes.length || chosenAxes.length > 10 || chosenAxes.some((topic) => topic.length < 10) || new Set(chosenAxes).size !== chosenAxes.length) {
+      toast({ title: 'حدد المحاور التي تريد الامتحان فيها، وتأكّد أنها علمية وصالحة وغير مكررة', variant: 'destructive' })
+      return
+    }
+    // Academic-scope validation is also enforced by each guarded API
+    // request. The UI only distributes the administrator's chosen axes.
+    const perAxis = Math.floor(100 / chosenAxes.length)
+    const allocations = chosenAxes.map((topic, index) => ({ topic, target: perAxis + (index < 100 % chosenAxes.length ? 1 : 0) }))
+    internetStopRef.current = false
+    internetRunLock.current = true
+    setInternetRunBusy(true)
+    setInternetKeyMissing(false)
+    let imported = 0
+    let completedAxes = 0
+    let fatal = false
+    const errors: string[] = []
+    try {
+      for (const [index, axis] of allocations.entries()) {
+        if (internetStopRef.current || fatal) break
+        let remaining = axis.target
+        // One request produces at most ten questions. Permit enough
+        // batches for the chosen axis share, plus two partial retries;
+        // never loop indefinitely when real evidence is exhausted.
+        const maxAttempts = Math.ceil(axis.target / 10) + 2
+        for (let attempt = 0; attempt < maxAttempts && remaining > 0 && !internetStopRef.current; attempt++) {
+          setInternetRunProgress({ axis: index + 1, total: allocations.length, imported, errors: [...errors] })
+          try {
+            const res = await fetch(`/api/admin/comprehensive-exams/${examId}/questions/from-internet`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mode: 'COMPREHENSIVE', topic: axis.topic, count: Math.min(10, remaining), axisTarget: axis.target }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) {
+              if (data?.code === 'TAVILY_KEY_MISSING') {
+                setInternetKeyMissing(true)
+                fatal = true
+              }
+              if (res.status === 401 || res.status === 409) fatal = true
+              throw new Error(apiErrorMessage(data, 'تعذر توليد أسئلة المحور'))
+            }
+            imported += Number(data.imported || 0)
+            remaining = Number(data.axisRemaining ?? 0)
+            if (data.examFull) fatal = true
+            if (data.skipped || !data.imported) break
+          } catch (e: any) {
+            errors.push(`«${axis.topic}»: ${String(e?.message || 'تعذر التوليد')}`)
+            break
+          }
+        }
+        if (remaining > 0 && !internetStopRef.current && !fatal && !errors.some((entry) => entry.startsWith(`«${axis.topic}»`))) {
+          errors.push(`«${axis.topic}»: نقص ${remaining} سؤالاً لعدم كفاية الأسئلة الموثقة`)
+        }
+        completedAxes = index + 1
+      }
+      setInternetRunProgress({ axis: completedAxes, total: allocations.length, imported, errors })
+      toast({
+        title: `انتهى توليد ${imported} سؤالاً جديداً — جميعها بانتظار مراجعتك`,
+        description: internetStopRef.current ? 'تم الإيقاف بعد حفظ الدفعات السابقة' : errors.length ? `${errors.length} محاور فيها نقص أو تعذّر` : 'راجع المحتوى ووزن المحاور قبل الاعتماد',
+      })
+    } finally {
+      setInternetRunBusy(false)
+      internetRunLock.current = false
+      if (activeExamIdRef.current === examId) await refreshDetailAndList(examId).catch(() => null)
+      else await loadExams().catch(() => null)
+    }
+  }
+
   const reviewQuestion = async (q: ExamQuestion, status: 'APPROVED' | 'REJECTED') => {
     if (!detail) return
     if (status === 'REJECTED' && !rejectReason.trim()) {
@@ -652,6 +780,22 @@ export function AdminComprehensiveExamTab() {
           internetBusy={internetBusy}
           internetKeyMissing={internetKeyMissing}
           onRunInternet={runInternet}
+          internetAxesText={internetAxesText}
+          setInternetAxesText={(value: string) => { setInternetAxesText(value); setInternetSelectedTopics({}); setInternetPlanReviewed(false) }}
+          internetSelectedTopics={internetSelectedTopics}
+          onToggleInternetAxis={(topic: string, checked: boolean) => { setInternetSelectedTopics((prev) => ({ ...prev, [topic]: checked })); setInternetPlanReviewed(false) }}
+          onSelectAllInternetAxes={() => { setInternetSelectedTopics(Object.fromEntries(internetAxesText.split('\n').map((topic) => topic.trim()).filter(Boolean).map((topic) => [topic, true]))); setInternetPlanReviewed(false) }}
+          onClearInternetAxes={() => { setInternetSelectedTopics({}); setInternetPlanReviewed(false) }}
+          internetPlanBasis={internetPlanBasis}
+          internetPlanBusy={internetPlanBusy}
+          internetPlanReviewed={internetPlanReviewed}
+          setInternetPlanReviewed={setInternetPlanReviewed}
+          internetRunBusy={internetRunBusy}
+          internetRunProgress={internetRunProgress}
+          onCreateInternetPlan={createInternetPlan}
+          onOpenManualInternetPlan={openManualInternetPlan}
+          onRunComprehensiveInternetPlan={runComprehensiveInternetPlan}
+          onStopInternetPlan={() => { internetStopRef.current = true }}
           examId={detail.exam.id}
           manualType={manualType}
           setManualType={setManualType}
@@ -701,6 +845,8 @@ function DetailPanel(props: any) {
   const selectable = (filteredQuestions as ExamQuestion[]).filter((q) => q.status === 'PENDING_REVIEW')
   const selectedVisible = selectable.filter((q) => props.selectedQuestionIds.includes(q.id))
   const allVisibleSelected = selectable.length > 0 && selectedVisible.length === selectable.length
+  const suggestedAxes = String(props.internetAxesText || '').split('\n').map((axis) => axis.trim()).filter(Boolean)
+  const chosenAxesCount = suggestedAxes.filter((axis) => props.internetSelectedTopics?.[axis]).length
 
   return (
     <div className="space-y-4">
@@ -886,8 +1032,64 @@ function DetailPanel(props: any) {
           <Card>
             <CardContent className="space-y-3 pt-4">
               <h4 className="text-sm font-black">بحث الذكاء عبر الإنترنت</h4>
+              <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 space-y-2">
+                <h5 className="text-sm font-bold text-indigo-900">امتحان شامل موزع على محاور التخصص</h5>
+                <p className="text-xs text-indigo-900">
+                  يحضّر مخططاً من 5 إلى 10 محاور من وحدات التخصص المعتمدة أو مقترحات الذكاء. راجع المحاور وعدّلها أولاً، ثم يبحث عن مصادر لكل محور
+                  ويولّد أسئلة فهم وتطبيق وتحليل بالتتابع حتى سقف 100 سؤال. أي سؤال يُحفظ بانتظار مراجعتك؛ النقص في المصادر يظهر بوضوح ولا يُملأ بأسئلة مخترعة.
+                </p>
+                <Button variant="outline" disabled={!isDraft || props.internetBusy || props.internetPlanBusy || props.internetRunBusy} onClick={props.onCreateInternetPlan}>
+                  {props.internetPlanBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  تحضير محاور التخصص
+                </Button>
+                <Button variant="outline" disabled={!isDraft || props.internetRunBusy || props.internetPlanBusy} onClick={props.onOpenManualInternetPlan}>كتابة المحاور يدوياً</Button>
+                {props.internetPlanBusy && <p className="text-xs text-indigo-700">جارٍ إعداد المحاور — قد تستغرق العملية دقيقة…</p>}
+                {!!props.internetPlanBasis && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-indigo-800">
+                      {props.internetPlanBasis === 'CURRICULUM' ? 'المحاور مأخوذة من الوحدات المعتمدة للتخصص.' : props.internetPlanBasis === 'MIXED' ? 'المحاور تجمع وحدات معتمدة ومقترحات ذكاء لإكمال التغطية؛ راجع المقترحات قبل التشغيل.' : props.internetPlanBasis === 'MANUAL' ? 'اكتب المحاور العلمية التي تريد إضافتها، كل محور بسطر، ثم حدد المحاور المطلوب الامتحان فيها.' : 'هذه محاور مقترحة بالذكاء، وليست منهجاً معتمداً. راجع ملاءمتها للتخصص قبل التشغيل.'}
+                    </p>
+                    <Textarea rows={10} dir="rtl" value={props.internetAxesText} disabled={props.internetRunBusy} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => props.setInternetAxesText(e.target.value)} aria-label="محاور الامتحان الشامل — محور في كل سطر" />
+                    <p className="text-[11px] text-slate-600">المحاور المقترحة: {suggestedAxes.length}. حدّد فقط المحاور التي تريدها؛ الاختيار النهائي لك. عند تحرير القائمة ستُلغى التحديدات السابقة.</p>
+                    <div className="rounded-md border border-indigo-200 bg-white p-2 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-bold text-indigo-900">المحاور المختارة: {chosenAxesCount} من {suggestedAxes.length}</p>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" disabled={props.internetRunBusy || !suggestedAxes.length} onClick={props.onSelectAllInternetAxes}>تحديد جميع المحاور</Button>
+                          <Button size="sm" variant="outline" disabled={props.internetRunBusy || !chosenAxesCount} onClick={props.onClearInternetAxes}>إلغاء التحديد</Button>
+                        </div>
+                      </div>
+                      {suggestedAxes.map((axis, index) => (
+                        <label key={`${index}-${axis}`} className="flex items-start gap-2 text-xs text-slate-800 cursor-pointer">
+                          <input type="checkbox" className="mt-0.5" disabled={props.internetRunBusy} checked={Boolean(props.internetSelectedTopics?.[axis])} onChange={(e: ChangeEvent<HTMLInputElement>) => props.onToggleInternetAxis(axis, e.target.checked)} />
+                          <span>{axis}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {chosenAxesCount > 0 && chosenAxesCount < 5 && <p className="text-xs text-amber-800">تنبيه: اختيار أقل من خمسة محاور يعني تغطية أضيق للتخصص، لكنه مسموح إذا كان هذا مقصوداً.</p>}
+                    <p className="text-[11px] text-indigo-800">لكل محور مختار: ثلاثة أبحاث ويب متقدمة (نظريات، دراسات علمية، وحالات تطبيقية) من مواقع مستقلة. يوزّع النظام العدد المستهدف بالتساوي، ويبلغك بالنقص بدل اختراع الأسئلة. البحث المتقدم يستهلك نقاط Tavily أكثر من البحث العادي.</p>
+                    <label className="flex items-start gap-2 text-xs text-indigo-900">
+                      <input type="checkbox" checked={props.internetPlanReviewed} disabled={props.internetRunBusy || !chosenAxesCount} onChange={(e: ChangeEvent<HTMLInputElement>) => props.setInternetPlanReviewed(e.target.checked)} className="mt-1" />
+                      راجعت المحاور المختارة وتأكدت أنها تمثل كفاءات التخصص العلمية ولا تتناول شروط القبول أو وصف الدرجة، وأوافق على استهلاك رصيد Tavily للبحث المتقدم (نحو 6 نقاط لكل دفعة من ثلاثة أبحاث).
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button disabled={!isDraft || props.internetBusy || !chosenAxesCount || !props.internetPlanReviewed || props.internetRunBusy || props.internetPlanBusy} onClick={props.onRunComprehensiveInternetPlan}>
+                        {props.internetRunBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        توليد الأسئلة حسب المخطط
+                      </Button>
+                      {props.internetRunBusy && <Button variant="outline" onClick={props.onStopInternetPlan}>إيقاف بعد الدفعة الحالية</Button>}
+                    </div>
+                    {props.internetRunProgress && (
+                      <div className="text-xs text-indigo-900 space-y-1" role="status" aria-live="polite">
+                        <p>المحور {props.internetRunProgress.axis} من {props.internetRunProgress.total} — أُضيف {props.internetRunProgress.imported} سؤالاً بانتظار المراجعة</p>
+                        {props.internetRunProgress.errors.map((error: string, index: number) => <p key={`${index}-${error}`} className="text-amber-800">{error}</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               <p className="text-[11px] text-slate-500">
-                يبحث الذكاء في الويب (Tavily) عن محور علمي داخل تخصص الامتحان، ثم يولّد أسئلة كفاءة تخصصية بدليل حرفي ورابط مصدر، وكلها بانتظار المراجعة.
+                أو ابحث في محور واحد فقط: يبحث الذكاء في الويب (Tavily) عن محور علمي داخل تخصص الامتحان، ثم يولّد أسئلة كفاءة تخصصية بدليل حرفي ورابط مصدر، وكلها بانتظار المراجعة.
                 اكتب موضوعاً مثل «الإدارة الاستراتيجية وتحليل المنافسة» أو «مناهج البحث التطبيقي»؛ لا تكتب اسم الدرجة (DBA) وحده، أو شروط قبولها، فهذه ليست أسئلة تخصصية.
                 يتطلب ذلك مفتاح Tavily محفوظاً في إعدادات النظام.
               </p>
@@ -900,7 +1102,7 @@ function DetailPanel(props: any) {
                     onChange={(e: ChangeEvent<HTMLInputElement>) => props.setInternetCount(e.target.value)} className="w-20"
                   />
                 </div>
-                <Button disabled={props.internetBusy || !props.internetTopic?.trim()} onClick={props.onRunInternet}>
+                <Button disabled={!isDraft || props.internetBusy || props.internetRunBusy || !props.internetTopic?.trim()} onClick={props.onRunInternet}>
                   {props.internetBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} بحث وتوليد أسئلة
                 </Button>
               </div>
