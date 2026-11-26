@@ -206,13 +206,15 @@ describe('regular certificate upload guards', () => {
     currentAdmin = { id: 'admin-1', name: 'Admin', role: 'ADMIN' }
   })
 
-  test('comprehensive-exam certificate is accepted here (guard is legacy-only)', async () => {
-    seedRegularCert({ type: 'COMPREHENSIVE_EXAM', comprehensiveExamId: 'exam-1' })
-    const fd = new FormData()
-    fd.append('file', new File([await minimalPdf()], 'grad.pdf', { type: 'application/pdf' }))
-    const res = await uploadRoute.POST(formReq(fd, 'https://aactacademy.test/api/admin/certificates/cert-1/upload'), ctx())
-    expect(res.status).toBe(200)
-    expect(audits[0].action).toBe('UPLOAD_REGULAR_CERTIFICATE_FILE')
+  test('comprehensive, agency and accreditation certificates cannot use the regular-graduate route', async () => {
+    for (const type of ['COMPREHENSIVE_EXAM', 'AGENCY', 'ACCREDITATION']) {
+      seedRegularCert({ type, comprehensiveExamId: type === 'COMPREHENSIVE_EXAM' ? 'exam-1' : null })
+      const fd = new FormData()
+      fd.append('file', new File([await minimalPdf()], 'grad.pdf', { type: 'application/pdf' }))
+      expect((await uploadRoute.POST(formReq(fd, 'https://aactacademy.test/api/admin/certificates/cert-1/upload'), ctx())).status).toBe(404)
+      expect((await uploadRoute.GET(jsonReq('https://aactacademy.test/api/admin/certificates/cert-1/upload'), ctx())).status).toBe(404)
+    }
+    expect(audits).toHaveLength(0)
   })
 })
 
