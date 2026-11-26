@@ -36,14 +36,32 @@ function stampedFileName(serial: string) {
   return `${String(serial || 'certificate').replace(/[^a-zA-Z0-9._-]+/g, '-')}-stamped.pdf`
 }
 
-// The certificate must be a REGULAR (non-legacy) graduate certificate.
-// Legacy graduate certificates have their own upload route, and
-// comprehensive-exam certificates have theirs; anything else — a missing
-// certificate or a legacy one — is 404 here.
+// Only regular program-completion certificates belong to this route.
+// Legacy graduates, comprehensive exams, accreditation and agency
+// certificates all have separate business workflows.
 async function loadRegularCertificate(certificateId: string) {
   const cert = await db.certificate.findUnique({ where: { id: certificateId } })
-  if (!cert || cert.legacy) return null
+  if (!cert || cert.legacy || cert.type !== 'PROGRAM_COMPLETION' || cert.comprehensiveExamId) return null
   return cert
+}
+
+async function previewResponse(buffer: Buffer, certificateId: string, adminId: string, filename: string, req: NextRequest, json = false) {
+  if (buffer.byteLength <= INLINE_PREVIEW_MAX_BYTES && !json) {
+    return new NextResponse(new Uint8Array(buffer), {
+      headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${filename}"`, 'Cache-Control': 'no-store' },
+    })
+  }
+  // Keep large PDFs off Vercel's function response (default 4.5 MB cap).
+  // A fixed per-admin key replaces older previews, instead of leaking an
+  // unlimited number of temporary stamped objects.
+  const key = regularCertificatePreviewKey(certificateId, adminId)
+  await storeRegularCertificatePreview(buffer, key)
+  const url = createSignedStorageUrlForKey(key, 300)
+  if (!url) throw new Error('PREVIEW_SIGNING_UNAVAILABLE')
+  if (json) return NextResponse.json({ ok: true, previewUrl: url }, { headers: { 'Cache-Control': 'no-store' } })
+  const redirect = NextResponse.redirect(new URL(url, req.url), 302)
+  redirect.headers.set('Cache-Control', 'no-store')
+  return redirect
 }
 
 // GET — معاينة الختم على الملف الأصلي المخزّن، برابط نظامي (مش blob) حتى
@@ -51,7 +69,7 @@ async function loadRegularCertificate(certificateId: string) {
 // (مطابق لمسار رفع الخريجين السابقين؛ الفرق الوحيد حارس نوع الشهادة.)
 export async function GET(req: NextRequest, context: RouteContext) {
   try {
-    await requireAdmin()
+    const admin = await requireAdmin()
     const { certificateId } = await context.params
     const cert = await loadRegularCertificate(certificateId)
     if (!cert) return NextResponse.json({ error: 'الشهادة غير موجودة' }, { status: 404 })
