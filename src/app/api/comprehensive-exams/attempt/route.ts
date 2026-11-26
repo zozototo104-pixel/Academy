@@ -211,8 +211,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'انتهى وقت الامتحان', code: 'ATTEMPT_EXPIRED' }, { status: 410 })
     }
     const terms = parseComprehensiveAttemptTerms(attempt.questionSnapshot, exam)
-    const left = remainingSeconds(attempt.startedAt, terms.durationMin)
-    if (left <= 0) {
+    // The browser auto-submits at 00:00. A strict deadline check here
+    // discarded those answers because the request reaches the server
+    // milliseconds later. Allow only a short network grace for submission;
+    // starting or resuming the exam still has the exact hard deadline.
+    const deadlineMs = new Date(attempt.startedAt).getTime() + terms.durationMin * 60_000
+    const SUBMISSION_NETWORK_GRACE_MS = 15_000
+    if (Date.now() > deadlineMs + SUBMISSION_NETWORK_GRACE_MS) {
       await db.comprehensiveExamAttempt.updateMany({ where: { id: attempt.id, status: 'STARTED' }, data: { status: 'EXPIRED' } })
       return NextResponse.json({ error: 'انتهى وقت الامتحان قبل الإرسال', code: 'ATTEMPT_EXPIRED' }, { status: 410 })
     }
