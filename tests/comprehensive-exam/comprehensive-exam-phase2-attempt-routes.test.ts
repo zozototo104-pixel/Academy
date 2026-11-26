@@ -378,6 +378,15 @@ describe('attempt POST — submit and grade', () => {
     // No account is created on a fail — the seeded student stays as-is.
     expect(users.length).toBe(1)
   })
+  test('auto-submit at 00:00 is accepted during the short network grace period', async () => {
+    await attemptRoute.GET(getReq('tok-valid-1'))
+    attempts[0].startedAt = new Date(Date.now() - 120 * 60 * 1000 - 1000)
+    const res = await attemptRoute.POST(postReq({ token: 'tok-valid-1', answers: correctAnswersForAttempt() }))
+    expect(res.status).toBe(200)
+    expect((await res.json()).score).toBe(100)
+    expect(attempts[0].status).toBe('GRADED')
+    expect(certificates).toHaveLength(1)
+  })
   test('submitting after the time runs out is 410 and the attempt expires', async () => {
     await attemptRoute.GET(getReq('tok-valid-1'))
     attempts[0].startedAt = new Date(Date.now() - 3 * 60 * 60 * 1000)
