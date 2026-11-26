@@ -24,12 +24,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     if (action === 'unpublish') {
       if (exam.status !== 'READY') return NextResponse.json({ error: 'الامتحان ليس منشوراً' }, { status: 409 })
-      const updated = await db.comprehensiveExam.update({
-        where: { id },
-        data: { status: 'DRAFT', publishedAt: null, publishedById: null },
-      })
+      const result = await db.$transaction(async (tx) => {
+        const activeAttempts = await tx.comprehensiveExamAttempt.count({ where: { examId: id, status: 'STARTED' } })
+        const pendingInvitations = await tx.comprehensiveExamInvitation.count({
+          where: { status: 'PENDING', candidate: { examId: id } },
+        })
+        if (activeAttempts || pendingInvitations) return { blocked: true, count: 0 }
+        const change = await tx.comprehensiveExam.updateMany({
+          where: { id, status: 'READY' },
+          data: { status: 'DRAFT', publishedAt: null, publishedById: null },
+        })
+        return { blocked: false, count: change.count }
+      }, { isolationLevel: 'Serializable' })
+      if (result.blocked) {
+        return NextResponse.json({ error: 'لا يمكن إلغاء نشر امتحان لديه دعوات سارية أو محاولات جارية', code: 'EXAM_HAS_ACTIVE_INVITATIONS_OR_ATTEMPTS' }, { status: 409 })
+      }
+      if (result.count !== 1) return NextResponse.json({ error: 'تغيرت حالة الامتحان — حدّث القائمة', code: 'EXAM_STATUS_CHANGED' }, { status: 409 })
       await audit({ id: admin.id, name: admin.name }, 'UNPUBLISH_COMPREHENSIVE_EXAM', 'ComprehensiveExam', id, `إلغاء نشر الامتحان الشامل «${exam.title}» — عاد مسودة`)
-      return NextResponse.json({ ok: true, status: updated.status })
+      return NextResponse.json({ ok: true, status: 'DRAFT' })
     }
 
     if (action === 'archive') {
