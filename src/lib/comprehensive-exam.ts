@@ -4,6 +4,52 @@
 // this module — not in the schema, not in validation, not in import.
 import * as XLSX from 'xlsx'
 
+// Academic-scope guards: prevent degree admissions/program trivia from becoming
+// professional specialty questions even if a retrieved source is genuinely quoted.
+function normalizeInternetAcademicText(value: string): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670]/g, '')
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/[ىي]/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const DEGREE_WORDS = /(?:\bdba\b|\bmba\b|\bphd\b|دكتوراه|ماجستير|دبلوم|بكالوريوس)/u
+const ADMISSION_WORDS = /(?:القبول|الالتحاق|التسجيل|رسوم الدراسه|الرسوم الدراسيه|تكاليف الدراسه|شروط التقديم|الفئه المستهدفه|خريجي الماجستير)/u
+const PROGRAM_META_WORDS = /(?:برنامج|درجه|شهاده|مؤسسه|كليه|جامعه|القبول|الالتحاق|التسجيل|الفئه المستهدفه|مدة الدراسه|مده الدراسه)/u
+const PROGRAM_ONLY_WORDS = new Set(['برنامج', 'دكتوراه', 'ماجستير', 'دبلوم', 'مهنيه', 'المهنيه', 'الدراسه', 'الاعمال', 'اداره', 'في', 'ال', 'الـ', 'dba', 'mba', 'phd'])
+
+export function internetAcademicTopicIssue(topic: string, specializationTitle: string): string | null {
+  const term = normalizeInternetAcademicText(topic)
+  if (!term || term.length < 5) return 'اكتب محوراً علمياً واضحاً من التخصص، لا اسم الدرجة فقط.'
+  if (ADMISSION_WORDS.test(term)) return 'موضوع القبول أو التسجيل لا يقيس كفاءة التخصص؛ اختر محوراً علمياً من المنهج.'
+  const programWords = new Set(normalizeInternetAcademicText(specializationTitle).split(' ').filter(Boolean))
+  const specializedWords = term.split(' ').filter((word) => word.length >= 3 && !PROGRAM_ONLY_WORDS.has(word) && !programWords.has(word))
+  if (!specializedWords.length) return 'اسم برنامج الدكتوراه وحده ينتج أسئلة عن الالتحاق؛ اكتب موضوعاً تخصصياً مثل الإدارة الاستراتيجية أو مناهج البحث التطبيقي.'
+  return null
+}
+
+export function internetSourceAcademicIssue(title: string, content: string): string | null {
+  const excerpt = normalizeInternetAcademicText(`${title} ${content}`)
+  if (DEGREE_WORDS.test(excerpt) && ADMISSION_WORDS.test(excerpt)) return 'DEGREE_ADMISSIONS_SOURCE'
+  return null
+}
+
+export function internetQuestionAcademicIssue(questionText: string): string | null {
+  const question = normalizeInternetAcademicText(questionText)
+  if (ADMISSION_WORDS.test(question) && (DEGREE_WORDS.test(question) || /برنامج|مؤسسه|كليه|جامعه/u.test(question))) {
+    return 'DEGREE_ADMISSIONS_QUESTION'
+  }
+  if (DEGREE_WORDS.test(question) && PROGRAM_META_WORDS.test(question)) {
+    return 'DEGREE_PROGRAM_METADATA_QUESTION'
+  }
+  return null
+}
+
 export const COMPREHENSIVE_EXAM_QUESTION_COUNT = 100
 export const COMPREHENSIVE_EXAM_POINTS_PER_QUESTION = 2
 export const COMPREHENSIVE_EXAM_TF_OPTIONS = ['صح', 'خطأ'] as const
@@ -57,12 +103,15 @@ export function parseComprehensiveType(value: unknown): ComprehensiveExamQuestio
   return null
 }
 
-// Accepts a 1-based number, a 0-based index string, the option text
-// itself, or صح/خطأ for TF. Returns the 0-based index string or null.
+// Numeric MCQ answers are ambiguous ("1" can mean the first option in
+// Excel or the second option in the stored/UI zero-based contract).
+// Callers must choose their index base explicitly when using zero-based
+// values. The default preserves the legacy 1-based import format.
 export function parseComprehensiveCorrectAnswer(
   type: ComprehensiveExamQuestionType,
   value: unknown,
   options: string[],
+  numericIndexBase: 0 | 1 = 1,
 ): string | null {
   const raw = String(value ?? '').trim()
   if (!raw) return null
@@ -72,8 +121,12 @@ export function parseComprehensiveCorrectAnswer(
     return null
   }
   const n = Number(raw)
-  if (Number.isInteger(n) && n >= 1 && n <= options.length) return String(n - 1)
-  if (Number.isInteger(n) && n >= 0 && n < options.length && String(n) === raw) return String(n)
+  if (numericIndexBase === 0) {
+    if (Number.isInteger(n) && n >= 0 && n < options.length && String(n) === raw) return String(n)
+  } else {
+    if (Number.isInteger(n) && n >= 1 && n <= options.length) return String(n - 1)
+    if (Number.isInteger(n) && n >= 0 && n < options.length && String(n) === raw) return String(n)
+  }
   const idx = options.findIndex((o) => o === raw || normHeader(o) === normHeader(raw))
   return idx >= 0 ? String(idx) : null
 }
@@ -89,6 +142,7 @@ export function validateComprehensiveQuestion(raw: {
   text?: unknown
   options?: unknown
   correctAnswer?: unknown
+  correctAnswerIndexBase?: 0 | 1
   sourceEvidence?: unknown
 }): ValidatedComprehensiveQuestion {
   const errors: string[] = []
@@ -101,7 +155,7 @@ export function validateComprehensiveQuestion(raw: {
   if (text.length < 10) errors.push('نص السؤال قصير جداً (10 أحرف على الأقل)')
   const options = normalizeComprehensiveOptions(type, raw?.options)
   if (!options) errors.push(type === 'MCQ' ? 'الاختيار المتعدد يحتاج 3–4 خيارات' : 'سؤال صح/خطأ يحتاج خيارين')
-  const correctAnswer = options ? parseComprehensiveCorrectAnswer(type, raw?.correctAnswer, options) : null
+  const correctAnswer = options ? parseComprehensiveCorrectAnswer(type, raw?.correctAnswer, options, raw?.correctAnswerIndexBase ?? 1) : null
   if (!correctAnswer) errors.push('الإجابة الصحيحة غير صالحة — رقم خيار أو نص خيار أو صح/خطأ')
   if (errors.length) return { ok: false, errors }
   return {
@@ -323,6 +377,7 @@ export function toComprehensiveQuestionFromBankItem(
     text: item.text,
     options: item.options ? safeJsonArray(item.options) : [],
     correctAnswer: item.correctAnswer,
+    correctAnswerIndexBase: 0,
     sourceEvidence: item.sourceEvidence,
   })
   if (!checked.ok) return null
