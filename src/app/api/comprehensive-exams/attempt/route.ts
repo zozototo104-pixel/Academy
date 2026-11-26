@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
       const terms = parseComprehensiveAttemptTerms(attempt.questionSnapshot, exam)
       const left = remainingSeconds(attempt.startedAt, terms.durationMin)
       if (left <= 0) {
-        await db.comprehensiveExamAttempt.update({ where: { id: attempt.id }, data: { status: 'EXPIRED' } })
+        await db.comprehensiveExamAttempt.updateMany({ where: { id: attempt.id, status: 'STARTED' }, data: { status: 'EXPIRED' } })
         return NextResponse.json({ error: 'انتهى وقت الامتحان', code: 'ATTEMPT_EXPIRED' }, { status: 410 })
       }
       const snapshot = parseComprehensiveAttemptSnapshot(attempt.questionSnapshot)
