@@ -131,6 +131,13 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
               ) : null}
             </div>
 
+            {cert.type === 'COMPREHENSIVE_EXAM' ? (
+              <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4">
+                <p className="text-sm font-black text-teal-900">صدرت بناءً على اجتياز امتحان شامل لمعادلة مؤهل سابق</p>
+                <p className="mt-1 text-xs font-bold leading-6 text-teal-800">النتيجة: {cert.grade || '—'} — تاريخ الإصدار: {fmt(cert.issuedAt)}</p>
+              </div>
+            ) : null}
+
             {viaToken ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-black text-[#0f2b46]">روابط التحقق</p>

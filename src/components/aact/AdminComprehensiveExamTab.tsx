@@ -580,6 +580,10 @@ export function AdminComprehensiveExamTab() {
           onStartEdit={startEdit}
         />
       )}
+
+      {detail && !detailLoading && (
+        <CandidatesPanel examId={detail.exam.id} examStatus={detail.exam.status} examTitle={detail.exam.title} />
+      )}
     </div>
   )
 }
@@ -914,5 +918,391 @@ function QuestionRow(props: any) {
         </>
       )}
     </div>
+  )
+}
+
+// ---- المرحلة الثانية: المرشحون والدعوات والمحاولات ----
+type CandidateInvitation = {
+  id: string
+  status: string
+  expiresAt: string
+  emailStatus: string | null
+  emailError: string | null
+  whatsappStatus: string | null
+  whatsappError: string | null
+  lastSentAt: string | null
+  inviteUrl?: string | null
+}
+type CandidateAttempt = { id: string; status: string; score: number | null; passed: boolean | null; startedAt: string; submittedAt: string | null; certificateSerial?: string | null }
+type CandidateItem = {
+  id: string
+  fullName: string
+  nationalId: string
+  email: string
+  phone: string | null
+  externalCertificateFileName: string | null
+  externalCertificateDownloadUrl: string
+  idDocumentFileName: string | null
+  idDocumentDownloadUrl: string
+  status: string
+  rejectedReason: string | null
+  submittedBy: string
+  createdAt: string
+  invitation: CandidateInvitation | null
+  attempt: CandidateAttempt | null
+}
+
+const CHANNEL_LABEL: Record<string, string> = { SENT: 'وصل', SKIPPED: 'تخطّى', FAILED: 'فشل', NOT_CONFIGURED: 'غير مهيأ' }
+
+function DeliveryLine({ label, status, error }: { label: string; status: string | null; error: string | null }) {
+  const shown = status || '—'
+  const ok = status === 'SENT'
+  const bad = status === 'FAILED'
+  return (
+    <span className="block text-[11px] leading-5">
+      <span className="font-black">{label}: </span>
+      <span className={ok ? 'font-black text-emerald-700' : bad ? 'font-black text-red-700' : 'font-bold text-amber-700'}>
+        {CHANNEL_LABEL[shown] || shown}
+      </span>
+      {error && <span className="block text-slate-500">{error}</span>}
+    </span>
+  )
+}
+
+function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; examStatus: string; examTitle: string }) {
+  const [candidates, setCandidates] = useState<CandidateItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [fullName, setFullName] = useState('')
+  const [nationalId, setNationalId] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [certificateFile, setCertificateFile] = useState<File | null>(null)
+  const [idFile, setIdFile] = useState<File | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [rejectReasonById, setRejectReasonById] = useState<Record<string, string>>({})
+  const [invitationsByCandidate, setInvitationsByCandidate] = useState<Record<string, CandidateInvitation[]>>({})
+  const [showInvitations, setShowInvitations] = useState<Record<string, boolean>>({})
+  const [inviteUrlByCandidate, setInviteUrlByCandidate] = useState<Record<string, string>>({})
+
+  const loadCandidates = async () => {
+    setLoading(true)
+    try {
+      const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${examId}/candidates`, { cache: 'no-store' }), 'تعذر تحميل المرشحين')
+      setCandidates(data.candidates || [])
+    } catch (e: any) {
+      toast({ title: 'تعذر تحميل المرشحين', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadCandidates()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examId])
+
+  const deliverySummary = (d: any) =>
+    `البريد: ${CHANNEL_LABEL[d?.email?.status] || d?.email?.status || '—'} — واتساب: ${CHANNEL_LABEL[d?.whatsapp?.status] || d?.whatsapp?.status || '—'}`
+
+  const createCandidate = async () => {
+    if (!certificateFile) return toast({ title: 'ملف الشهادة مطلوب', variant: 'destructive' })
+    if (!idFile) return toast({ title: 'ملف الهوية مطلوب', variant: 'destructive' })
+    const form = new FormData()
+    form.append('fullName', fullName)
+    form.append('nationalId', nationalId)
+    form.append('email', email)
+    form.append('phone', phone)
+    form.append('certificateFile', certificateFile)
+    form.append('idDocumentFile', idFile)
+    setCreating(true)
+    try {
+      await jsonOrThrow(
+        await fetch(`/api/admin/comprehensive-exams/${examId}/candidates`, { method: 'POST', body: form }),
+        'تعذر إدخال المرشح',
+      )
+      toast({ title: 'أُدخل المرشح', description: 'راجعه من القائمة واعتمده قبل إصدار الدعوة' })
+      setFullName('')
+      setNationalId('')
+      setEmail('')
+      setPhone('')
+      setCertificateFile(null)
+      setIdFile(null)
+      await loadCandidates()
+    } catch (e: any) {
+      toast({ title: 'تعذر إدخال المرشح', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const reviewCandidate = async (c: CandidateItem, action: 'approve' | 'reject') => {
+    const reason = (rejectReasonById[c.id] || '').trim()
+    if (action === 'reject' && !reason) return toast({ title: 'رفض المرشح يتطلب سبباً', variant: 'destructive' })
+    setBusy(`review-${c.id}`)
+    try {
+      await jsonOrThrow(
+        await fetch(`/api/admin/comprehensive-exams/${examId}/candidates/${c.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, rejectedReason: reason }),
+        }),
+        'تعذر مراجعة المرشح',
+      )
+      toast({ title: action === 'approve' ? 'اعتُمد المرشح' : 'رُفض المرشح', description: action === 'approve' ? 'يمكنك الآن إصدار الدعوة' : '' })
+      await loadCandidates()
+    } catch (e: any) {
+      toast({ title: 'تعذر مراجعة المرشح', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const issueInvitation = async (c: CandidateItem) => {
+    setBusy(`issue-${c.id}`)
+    try {
+      const data = await jsonOrThrow(
+        await fetch(`/api/admin/comprehensive-exams/${examId}/candidates/${c.id}/invitations`, { method: 'POST' }),
+        'تعذر إصدار الدعوة',
+      )
+      if (data?.invitation?.inviteUrl) setInviteUrlByCandidate((prev) => ({ ...prev, [c.id]: data.invitation.inviteUrl }))
+      toast({ title: 'صدرت الدعوة', description: deliverySummary(data?.delivery) })
+      await loadCandidates()
+    } catch (e: any) {
+      toast({ title: 'تعذر إصدار الدعوة', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const invitationAction = async (c: CandidateItem, inv: CandidateInvitation, action: 'renew' | 'revoke') => {
+    setBusy(`${action}-${inv.id}`)
+    try {
+      const data = await jsonOrThrow(
+        await fetch(`/api/admin/comprehensive-exams/${examId}/candidates/${c.id}/invitations/${inv.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        }),
+        action === 'renew' ? 'تعذر تجديد الدعوة' : 'تعذر إلغاء الدعوة',
+      )
+      if (action === 'renew' && data?.invitation?.inviteUrl) {
+        setInviteUrlByCandidate((prev) => ({ ...prev, [c.id]: data.invitation.inviteUrl }))
+        toast({ title: 'جُددت الدعوة — الرابط القديم توقف', description: deliverySummary(data?.delivery) })
+      } else {
+        toast({ title: 'أُلغيت الدعوة' })
+      }
+      await loadCandidates()
+    } catch (e: any) {
+      toast({ title: action === 'renew' ? 'تعذر تجديد الدعوة' : 'تعذر إلغاء الدعوة', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const qualifyCandidate = async (c: CandidateItem) => {
+    setBusy(`qualify-${c.id}`)
+    try {
+      const data = await jsonOrThrow(
+        await fetch(`/api/admin/comprehensive-exams/${examId}/candidates/${c.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'qualify' }),
+        }),
+        'تعذر التأهيل',
+      )
+      toast({ title: 'صدرت الشهادة', description: `الرقم التسلسلي: ${data?.certificate?.serial || ''}` })
+      await loadCandidates()
+    } catch (e: any) {
+      toast({ title: 'تعذر التأهيل', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const loadInvitations = async (c: CandidateItem) => {
+    setShowInvitations((prev) => ({ ...prev, [c.id]: !prev[c.id] }))
+    if (invitationsByCandidate[c.id]) return
+    try {
+      const data = await jsonOrThrow(
+        await fetch(`/api/admin/comprehensive-exams/${examId}/candidates/${c.id}/invitations`, { cache: 'no-store' }),
+        'تعذر تحميل الدعوات',
+      )
+      setInvitationsByCandidate((prev) => ({ ...prev, [c.id]: data.invitations || [] }))
+    } catch (e: any) {
+      toast({ title: 'تعذر تحميل الدعوات', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    }
+  }
+
+  const copyInviteLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      toast({ title: 'نُسخ رابط الدعوة' })
+    } catch {
+      toast({ title: 'تعذر النسخ — انسخ الرابط يدوياً', variant: 'destructive' })
+    }
+  }
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 pt-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-black">المرشحون والدعوات والمحاولات — {examTitle}</h4>
+          <Button variant="outline" size="sm" onClick={loadCandidates}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
+        </div>
+
+        {examStatus === 'READY' ? (
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-black">إدخال مرشح من الإدارة</p>
+            <p className="text-[11px] leading-5 text-slate-500">
+              لمن لا يستطيع التقديم بنفسه ويرسل ملفاته للإدارة (مثلاً عبر واتساب). نفس الحقول ونفس فحوصات
+              التكرار ونفس مسار الموافقة والدعوة كالتقديم الذاتي.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1"><Label>الاسم الكامل *</Label><Input value={fullName} onChange={(e: ChangeEvent<HTMLInputElement>) => setFullName(e.target.value)} /></div>
+              <div className="space-y-1"><Label>رقم الهوية / الرقم الوطني *</Label><Input value={nationalId} onChange={(e: ChangeEvent<HTMLInputElement>) => setNationalId(e.target.value)} dir="ltr" /></div>
+              <div className="space-y-1"><Label>البريد الإلكتروني *</Label><Input type="email" value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} dir="ltr" /></div>
+              <div className="space-y-1"><Label>رقم الهاتف (واتساب) *</Label><Input value={phone} onChange={(e: ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)} dir="ltr" /></div>
+              <div className="space-y-1">
+                <Label>الشهادة الخارجية (صورة أو PDF) *</Label>
+                <Input type="file" accept="image/*,.pdf" onChange={(e: ChangeEvent<HTMLInputElement>) => setCertificateFile(e.target.files?.[0] || null)} />
+                {certificateFile && <p className="text-[11px] text-slate-500">{certificateFile.name}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label>الهوية (صورة أو PDF) *</Label>
+                <Input type="file" accept="image/*,.pdf" onChange={(e: ChangeEvent<HTMLInputElement>) => setIdFile(e.target.files?.[0] || null)} />
+                {idFile && <p className="text-[11px] text-slate-500">{idFile.name}</p>}
+              </div>
+            </div>
+            <Button onClick={createCandidate} disabled={creating || !fullName || !nationalId || !email || !phone}>
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} إدخال المرشح
+            </Button>
+          </div>
+        ) : (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800">
+            إدخال المرشحين والدعوات يتطلب امتحاناً منشوراً — انشر الامتحان أولاً (100 سؤال معتمد).
+          </p>
+        )}
+
+        {loading && <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> جارٍ تحميل المرشحين…</p>}
+        {!loading && candidates.length === 0 && <p className="text-xs text-slate-500">لا مرشحين بعد لهذا الامتحان.</p>}
+
+        <div className="space-y-2">
+          {candidates.map((c) => {
+            const inv = c.invitation
+            // الرابط يظهر هنا بعد الإصدار/التجديد مباشرة؛ والروابط القديمة تظهر في قائمة «عرض الدعوات».
+            const inviteUrl = inviteUrlByCandidate[c.id]
+            const needsQualify = c.attempt?.status === 'GRADED' && c.attempt?.passed && !c.attempt?.certificateSerial
+            return (
+              <div key={c.id} className="rounded-xl border border-slate-200 p-3">
+                <div className="flex flex-wrap items-center gap-2 text-sm font-bold">
+                  <span>{c.fullName}</span>
+                  <Badge variant={c.status === 'APPROVED' ? 'default' : c.status === 'REJECTED' ? 'destructive' : 'secondary'}>
+                    {STATUS_LABEL[c.status] || c.status}
+                  </Badge>
+                  <Badge variant="outline">{c.submittedBy === 'ADMIN' ? 'أدخلته الإدارة' : 'تقديم ذاتي'}</Badge>
+                  <span className="text-xs font-normal text-slate-500" dir="ltr">{c.email}</span>
+                  <span className="text-xs font-normal text-slate-500" dir="ltr">{c.phone || ''}</span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  الهوية: <span dir="ltr">{c.nationalId}</span>
+                  {' — '}
+                  <a className="text-teal-700 underline" href={c.externalCertificateDownloadUrl} target="_blank" rel="noreferrer">الشهادة: {c.externalCertificateFileName || 'ملف'}</a>
+                  {' — '}
+                  <a className="text-teal-700 underline" href={c.idDocumentDownloadUrl} target="_blank" rel="noreferrer">الهوية: {c.idDocumentFileName || 'ملف'}</a>
+                </p>
+                {c.status === 'REJECTED' && c.rejectedReason && <p className="mt-1 text-[11px] text-red-600">سبب الرفض: {c.rejectedReason}</p>}
+
+                {c.attempt && (
+                  <p className="mt-1 text-[11px] font-bold text-slate-700">
+                    المحاولة: {c.attempt.status === 'GRADED' ? `مصححة — النتيجة ${c.attempt.score ?? '—'}% — ${c.attempt.passed ? 'ناجح' : 'راسب'}` : c.attempt.status === 'STARTED' ? 'بدأت ولم تُسلَّم' : 'منتهية'}
+                    {c.attempt.certificateSerial ? ` — الشهادة: ${c.attempt.certificateSerial}` : ''}
+                  </p>
+                )}
+
+                {inv && (
+                  <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <p className="text-[11px] font-black">
+                      آخر دعوة: {STATUS_LABEL[inv.status] || inv.status} — تنتهي {new Date(inv.expiresAt).toLocaleDateString('ar-EG')}
+                    </p>
+                    <DeliveryLine label="البريد" status={inv.emailStatus} error={inv.emailError} />
+                    <DeliveryLine label="واتساب" status={inv.whatsappStatus} error={inv.whatsappError} />
+                  </div>
+                )}
+
+                {inviteUrl && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Input value={inviteUrl} readOnly dir="ltr" className="text-[11px]" />
+                    <Button size="sm" variant="outline" onClick={() => copyInviteLink(inviteUrl)}>نسخ الرابط</Button>
+                  </div>
+                )}
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {c.status === 'PENDING_REVIEW' && (
+                    <>
+                      <Button size="sm" onClick={() => reviewCandidate(c, 'approve')} disabled={busy === `review-${c.id}`}>
+                        <Check className="h-3.5 w-3.5" /> اعتماد
+                      </Button>
+                      <Input
+                        value={rejectReasonById[c.id] || ''}
+                        placeholder="سبب الرفض (مطلوب للرفض)"
+                        className="w-48"
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setRejectReasonById((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                      />
+                      <Button size="sm" variant="outline" onClick={() => reviewCandidate(c, 'reject')} disabled={busy === `review-${c.id}`}>
+                        <X className="h-3.5 w-3.5" /> رفض
+                      </Button>
+                    </>
+                  )}
+                  {c.status === 'APPROVED' && examStatus === 'READY' && (
+                    <Button size="sm" onClick={() => issueInvitation(c)} disabled={busy === `issue-${c.id}`}>
+                      {busy === `issue-${c.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} إصدار دعوة
+                    </Button>
+                  )}
+                  {inv && (inv.status === 'PENDING' || inv.status === 'EXPIRED') && (
+                    <Button size="sm" variant="outline" onClick={() => invitationAction(c, inv, 'renew')} disabled={busy === `renew-${inv.id}`}>
+                      {busy === `renew-${inv.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} تجديد الدعوة
+                    </Button>
+                  )}
+                  {inv && inv.status === 'PENDING' && (
+                    <Button size="sm" variant="outline" onClick={() => invitationAction(c, inv, 'revoke')} disabled={busy === `revoke-${inv.id}`}>
+                      <X className="h-3.5 w-3.5" /> إلغاء الدعوة
+                    </Button>
+                  )}
+                  {needsQualify && (
+                    <Button size="sm" onClick={() => qualifyCandidate(c)} disabled={busy === `qualify-${c.id}`}>
+                      {busy === `qualify-${c.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} إعادة التأهيل وإصدار الشهادة
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => loadInvitations(c)}>
+                    {showInvitations[c.id] ? 'إخفاء الدعوات' : 'عرض الدعوات'}
+                  </Button>
+                </div>
+
+                {showInvitations[c.id] && (
+                  <div className="mt-2 space-y-1 rounded-lg border border-slate-200 p-2">
+                    {(invitationsByCandidate[c.id] || []).length === 0 && <p className="text-[11px] text-slate-500">لا دعوات سابقة.</p>}
+                    {(invitationsByCandidate[c.id] || []).map((iv) => (
+                      <div key={iv.id} className="border-b border-slate-100 pb-1 text-[11px] last:border-0">
+                        <span className="font-black">{STATUS_LABEL[iv.status] || iv.status}</span>
+                        {' — تنتهي '}
+                        {new Date(iv.expiresAt).toLocaleDateString('ar-EG')}
+                        <DeliveryLine label="البريد" status={iv.emailStatus} error={iv.emailError} />
+                        <DeliveryLine label="واتساب" status={iv.whatsappStatus} error={iv.whatsappError} />
+                        {iv.inviteUrl && (
+                          <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => copyInviteLink(iv.inviteUrl as string)}>
+                            نسخ الرابط
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
   )
 }

@@ -1051,6 +1051,8 @@ model Certificate {
   admissionId String?
   agentId     String?
   agent       AgentApplication? @relation(fields: [agentId], references: [id])
+  comprehensiveExamId String? // الامتحان الشامل الذي أهل صاحبه (المرحلة 2) — فارغ لغير شهادات المعادلة
+  comprehensiveExam   ComprehensiveExam? @relation(fields: [comprehensiveExamId], references: [id])
 
   @@unique([enrollmentId, type])
   @@index([valid, revokedAt])
@@ -3057,6 +3059,9 @@ model ComprehensiveExam {
   updatedAt     DateTime @updatedAt
 
   questions ComprehensiveExamQuestion[]
+  candidates ComprehensiveExamCandidate[]
+  attempts   ComprehensiveExamAttempt[]
+  certificates Certificate[]
 
   @@unique([programId, status]) // امتحان حي واحد (مسودة أو منشور) لكل برنامج
   @@index([programId])
@@ -3086,4 +3091,101 @@ model ComprehensiveExamQuestion {
 
   @@unique([examId, order])
   @@index([examId, status])
+}
+
+// Phase 2 — candidates, invitations, attempts, answers for the
+// comprehensive exam. Additive only; the publish gate and the
+// question model are untouched. No DB unique on [examId, nationalId]:
+// a rejected candidate must be able to re-apply, so dedupe is
+// code-checked (REJECTED excluded). No DB unique on invitation
+// candidateId either: renewal creates a second row while the old one
+// is REVOKED/EXPIRED — code enforces at most one PENDING invitation
+// per candidate.
+model ComprehensiveExamCandidate {
+  id                          String   @id @default(cuid())
+  examId                      String
+  exam                        ComprehensiveExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  fullName                    String
+  nationalId                  String   // رقم الهوية — لا يوجد حقل هوية في المنصة اليوم
+  email                       String
+  phone                       String?
+  externalCertificateFileKey  String
+  externalCertificateFileName String
+  idDocumentFileKey           String
+  idDocumentFileName          String
+  status                      String   @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | REJECTED
+  rejectedReason              String?
+  submittedBy                 String   @default("CANDIDATE") // CANDIDATE | ADMIN — من أدخل البيانات
+  reviewedById                String?
+  reviewedAt                  DateTime?
+  createdById                 String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  invitations ComprehensiveExamInvitation[]
+  attempts    ComprehensiveExamAttempt[]
+
+  @@index([examId, status])
+  @@index([examId, nationalId])
+  @@index([email])
+}
+
+model ComprehensiveExamInvitation {
+  id             String   @id @default(cuid())
+  candidateId    String
+  candidate      ComprehensiveExamCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  token          String   @unique // 32 بايت عشوائي (64 حرف سداسي)
+  expiresAt      DateTime
+  status         String   @default("PENDING") // PENDING | USED | EXPIRED | REVOKED
+  emailStatus    String?  // SENT | SKIPPED | FAILED — حالة إرسال الدعوة بالبريد (ظاهرة للإدارة)
+  emailError     String?
+  whatsappStatus String?  // SENT | FAILED | NOT_CONFIGURED — حالة إرسال الدعوة واتساب (ظاهرة للإدارة)
+  whatsappError  String?
+  lastSentAt     DateTime?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  attempt ComprehensiveExamAttempt?
+
+  @@index([candidateId, status])
+  @@index([expiresAt])
+}
+
+model ComprehensiveExamAttempt {
+  id               String   @id @default(cuid())
+  invitationId     String   @unique
+  invitation       ComprehensiveExamInvitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  candidateId      String
+  candidate        ComprehensiveExamCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  examId           String
+  exam             ComprehensiveExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questionSnapshot String?  // JSON: لقطة الأسئلة وقت بدء المحاولة (النص والخيارات والإجابة) — العرض والتصحيح منها فلا تؤثر تعديلات لاحقة
+  score            Float?
+  passed           Boolean?
+  status           String   @default("STARTED") // STARTED | EXPIRED | SUBMITTED | GRADED
+  startedAt        DateTime @default(now())
+  submittedAt      DateTime?
+  durationUsedMin  Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  answers ComprehensiveExamAnswer[]
+
+  @@index([candidateId])
+  @@index([examId, status])
+}
+
+model ComprehensiveExamAnswer {
+  id             String   @id @default(cuid())
+  attemptId      String
+  attempt        ComprehensiveExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId     String   // بلا علاقة خارجية — السؤال قد يُعدَّل بعد لقطة المحاولة
+  selectedOption Int?
+  isCorrect      Boolean?
+  points         Float?
+  createdAt      DateTime @default(now())
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
 }

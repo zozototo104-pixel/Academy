@@ -379,3 +379,54 @@ export async function sendOfficialWhatsAppHumanFollowup(
   }
   return data
 }
+
+// Generic approved-template sender (used by the comprehensive-exam
+// invitations). The template NAME comes from the caller — never
+// hardcoded here — because the invite template does not exist in Meta
+// yet; the admin saves its name in settings. Body parameters are
+// positional ({{1}}, {{2}}, …) so any template with the documented
+// placeholders works. Throws the provider's own error message so the
+// caller can surface the real failure instead of a silent "sent".
+export async function sendOfficialWhatsAppTemplate(
+  to: string,
+  templateName: string,
+  bodyParameters: string[],
+  options?: { phoneNumberId?: string },
+) {
+  const config = getWhatsAppCloudConfig(options?.phoneNumberId)
+  if (!config) {
+    throw new Error('WhatsApp Cloud API is not configured. Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID.')
+  }
+  const name = String(templateName || '').trim()
+  if (!name) throw new Error('WhatsApp template name is missing.')
+  const body = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: {
+      name,
+      language: { code: 'ar' },
+      components: [
+        {
+          type: 'body',
+          parameters: bodyParameters.map((text) => ({ type: 'text', text: String(text ?? '') })),
+        },
+      ],
+    },
+  }
+
+  const response = await fetch(`https://graph.facebook.com/${config.graphVersion}/${config.phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const message = data?.error?.message || data?.error?.code || `WhatsApp template send failed with status ${response.status}`
+    throw new Error(String(message).slice(0, 500))
+  }
+  return data
+}
