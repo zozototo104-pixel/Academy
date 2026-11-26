@@ -100,7 +100,7 @@ mock.module('@/lib/admission-document-replacement', () => ({
   extractAdmissionDocumentReplacement: () => null,
   stripAdmissionDocumentReplacement: (notes: any) => notes,
 }))
-mock.module('@/lib/storage', () => ({ getStorageDownloadPathForKey: () => '' }))
+mock.module('@/lib/storage', () => ({ getStorageDownloadPathForKey: () => '', storeFileBuffer: async () => ({ key: 'test', mimeType: 'application/pdf', size: 1 }) }))
 mock.module('@/lib/admission-document-requirements', () => ({
   resolveProgramAdmissionDocumentRequirements: () => ({
     isServiceRequest: docReqIsService,
