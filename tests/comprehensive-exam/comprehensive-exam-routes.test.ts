@@ -329,6 +329,34 @@ describe('POST .../publish (the 100-question gate)', () => {
   })
 })
 
+describe('POST .../publish (archiving)', () => {
+  test('archives old versions and allows creating another exam for the same specialization', async () => {
+    const firstId = await createExam()
+    const archive = await publishRoute.POST(
+      req(`/api/admin/comprehensive-exams/${firstId}/publish`, 'POST', { action: 'archive' }),
+      ctx(firstId),
+    )
+    expect(archive.status).toBe(200)
+    expect(exams[0].status).toBe('ARCHIVED')
+    const secondId = await createExam()
+    expect(secondId).not.toBe(firstId)
+    expect(exams[0].status).toBe('ARCHIVED')
+    expect(exams[1].status).toBe('DRAFT')
+  })
+  test('refuses to archive an exam with active attempts or pending invitations', async () => {
+    const id = await createExam()
+    startedAttempts = 1
+    const first = await publishRoute.POST(req(`/api/admin/comprehensive-exams/${id}/publish`, 'POST', { action: 'archive' }), ctx(id))
+    expect(first.status).toBe(409)
+    expect((await first.json()).code).toBe('EXAM_HAS_ACTIVE_INVITATIONS_OR_ATTEMPTS')
+    startedAttempts = 0
+    pendingInvitations = 1
+    const second = await publishRoute.POST(req(`/api/admin/comprehensive-exams/${id}/publish`, 'POST', { action: 'archive' }), ctx(id))
+    expect(second.status).toBe(409)
+    expect(exams[0].status).toBe('DRAFT')
+  })
+})
+
 describe('PATCH .../questions/[questionId] (review)', () => {
   test('approving re-validates and stamps the approver', async () => {
     const examId = await createExam()
