@@ -23,6 +23,13 @@ export interface CertificateData {
   valid?: boolean
   revokedAt?: string | null
   revokedReason?: string | null
+  legacy?: boolean | null
+  uploadedFileKey?: string | null
+  uploadedFileName?: string | null
+  uploadedMime?: string | null
+  stampedFileKey?: string | null
+  qrPosition?: string | null
+  qrSize?: string | null
 }
 
 const TYPE_LABEL: Record<string, string> = {
