@@ -437,6 +437,43 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
+  const approveSelectedQuestions = async () => {
+    if (!detail || detail.exam.status !== 'DRAFT' || bulkApproveLock.current) return
+    const selected = new Set(selectedQuestionIds)
+    const questions = filteredQuestions.filter((q) => q.status === 'PENDING_REVIEW' && selected.has(q.id))
+    if (!questions.length) return
+    bulkApproveLock.current = true
+    setBulkApproveBusy(true)
+    setBulkApproveProgress({ processed: 0, total: questions.length })
+    try {
+      const result = await approvePendingQuestionsInBatches(questions, async (questionId) => {
+        await jsonOrThrow(
+          await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/${questionId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'APPROVED' }),
+          }),
+          'تعذر اعتماد السؤال',
+        )
+      }, (processed, total) => setBulkApproveProgress({ processed, total }))
+      setSelectedQuestionIds((ids) => ids.filter((id) => !result.approvedIds.includes(id)))
+      toast({
+        title: `تم اعتماد ${result.approvedIds.length} من ${questions.length} سؤالاً محدداً`,
+        description: result.failed.length
+          ? `تعذر اعتماد ${result.failed.length}: ${result.failed.slice(0, 3).map((q) => `#${q.order} (${q.reason})`).join('، ')}. صحّحها وراجعها فردياً.`
+          : undefined,
+        variant: result.failed.length ? 'destructive' : undefined,
+      })
+      await refreshDetailAndList(detail.exam.id)
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث قائمة الأسئلة بعد الاعتماد', description: e.message || 'حدّث القائمة للتأكد من الحالات', variant: 'destructive' })
+    } finally {
+      bulkApproveLock.current = false
+      setBulkApproveBusy(false)
+      setBulkApproveProgress(null)
+    }
+  }
+
   const saveEdit = async (q: ExamQuestion) => {
     if (!detail) return
     try {
