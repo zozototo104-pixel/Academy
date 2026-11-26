@@ -190,9 +190,23 @@ const fakeDb: any = {
       payments.find(
         (p) =>
           (!where?.admissionId || p.admissionId === where.admissionId) &&
+          (!where?.comprehensiveExamCandidateId || p.comprehensiveExamCandidateId === where.comprehensiveExamCandidateId) &&
           (!where?.purpose || p.purpose === where.purpose) &&
-          (!where?.status?.in || where.status.in.includes(p.status)),
+          (!where?.status || (typeof where.status === 'string' ? p.status === where.status : (!where.status.in || where.status.in.includes(p.status)))),
       ) || null,
+    findUnique: async ({ where }: any = {}) =>
+      payments.find((p) => (where.id ? p.id === where.id : p.invoiceNo === where.invoiceNo)) || null,
+    create: async ({ data }: any) => {
+      const row = { id: `pay-${++seq}`, receiptNo: null, ...data }
+      payments.push(row)
+      return row
+    },
+    updateMany: async ({ where, data }: any) => {
+      const row = payments.find((p) => p.id === where.id && (!where.status || p.status === where.status))
+      if (!row) return { count: 0 }
+      Object.assign(row, data)
+      return { count: 1 }
+    },
     findMany: async ({ where }: any = {}) =>
       payments.filter(
         (p) =>
