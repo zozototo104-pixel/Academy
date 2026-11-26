@@ -67,6 +67,7 @@ mock.module('@/lib/notify', () => ({
   AUDIT_ACTIONS: {},
 }))
 mock.module('@/lib/settings', () => ({
+  getSetting: async () => null,
   getSettings: async () => ({}),
   getSettingNum: async () => 30,
   nextInvoiceNo: async () => 'AACT-INV-2026-9999',
