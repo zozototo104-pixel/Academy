@@ -3150,7 +3150,7 @@ export function AdminCertificatesTab() {
                     <Button size="sm" variant="outline" disabled={busy} className="w-full border-slate-200 font-bold text-[#0f2b46]" onClick={() => editCertificateEnglishFields(c)}>تعديل الحقول الإنجليزية</Button>
                     {c.valid !== false && <Button size="sm" variant="outline" disabled={busy} className="w-full border-red-200 font-bold text-red-600" onClick={() => revokeCertificate(c)}><XCircle className="ml-1 h-3.5 w-3.5" /> إلغاء الشهادة</Button>}
                   </div>
-                  {!c.legacy && c.type === 'PROGRAM_COMPLETION' && (
+                  {!c.legacy && !c.comprehensiveExamId && c.type === 'PROGRAM_COMPLETION' && (
                     <div className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
                       <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
                         <span>رفع شهادة جاهزة وختم QR والرقم</span>
