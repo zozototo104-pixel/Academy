@@ -1094,6 +1094,36 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
     }
   }
 
+  const resendAccountSetup = async (c: CandidateItem) => {
+    setBusy(`setup-${c.id}`)
+    try {
+      const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${examId}/candidates/${c.id}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resend_account_setup' }),
+      }), 'تعذر إرسال تعليمات الدخول')
+      toast({ title: data.emailStatus === 'SENT' ? 'أُرسلت تعليمات الدخول' : 'تعذر التسليم', description: `البريد: ${data.emailStatus}` })
+    } catch (e: any) {
+      toast({ title: 'تعذر إرسال تعليمات الدخول', description: e.message || 'راجع إعدادات البريد', variant: 'destructive' })
+    } finally { setBusy(null) }
+  }
+
+  const recordDirectPayment = async (c: CandidateItem) => {
+    if (!paidAmount.trim()) return toast({ title: 'أدخل المبلغ الذي استلمته بالدولار', variant: 'destructive' })
+    setBusy(`payment-${c.id}`)
+    try {
+      const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${examId}/candidates/${c.id}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'record_paid', amount: paidAmount, note: paidNote }),
+      }), 'تعذر تسجيل الدفعة')
+      toast({ title: 'تم تسجيل السداد رسمياً', description: `${data.payment.amount}$ — الفاتورة ${data.payment.invoiceNo} — الإيصال ${data.payment.receiptNo}` })
+      setPaymentCandidateId(null)
+      setPaidAmount('')
+      await loadCandidates()
+    } catch (e: any) {
+      toast({ title: 'تعذر تسجيل الدفعة', description: e.message || 'راجع قسم المالية', variant: 'destructive' })
+    } finally { setBusy(null) }
+  }
+
   const reviewCandidate = async (c: CandidateItem, action: 'approve' | 'reject') => {
     const reason = (rejectReasonById[c.id] || '').trim()
     if (action === 'reject' && !reason) return toast({ title: 'رفض المرشح يتطلب سبباً', variant: 'destructive' })
