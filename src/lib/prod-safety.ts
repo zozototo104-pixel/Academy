@@ -18,6 +18,12 @@ export const PRIVATE_STORAGE_PREFIXES = [
   // وثائق مرشحي الامتحان الشامل (الشهادة الخارجية + الهوية) — هوية
   // شخصية لا يجوز أن تُخزَّن برابط عام مباشر أبداً.
   'comprehensive-exam-candidates/',
+  // ملفات الخريج العادي الأصلية والمختومة ومعاينات الرفع المؤقتة؛
+  // يُسمح بعرض الشهادة عبر مسار PDF المحمي فقط.
+  'certificates/regular-originals/',
+  'certificates/regular-stamped/',
+  'certificates/regular-pending/',
+  'certificates/regular-previews/',
 ] as const
 
 export function normalizeStorageKeyForPolicy(value: unknown): string {
