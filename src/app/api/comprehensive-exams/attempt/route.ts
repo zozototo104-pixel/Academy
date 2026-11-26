@@ -269,6 +269,7 @@ export async function POST(req: NextRequest) {
             attempt: { id: attempt.id, score: graded.score },
             admin: { id: candidate.reviewedById || null, name: 'النظام' },
           }),
+          { isolationLevel: 'Serializable' },
         )
         qualified = true
         certificateSerial = result.certificate.serial
