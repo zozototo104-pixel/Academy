@@ -328,9 +328,15 @@ describe('regular certificate direct-to-storage flow', () => {
     expect((await presignRegularFile(10 * 1024 * 1024 + 1)).response.status).toBe(413)
   })
 
-  test('a presigned original is checked, stamped and committed; temporary file is removed', async () => {
+  test('a PDF over 5 MiB is previewed, stamped and saved through the direct upload flow', async () => {
     seedRegularCert()
-    const original = await minimalPdf()
+    const { PDFDocument } = await import('pdf-lib')
+    const { randomBytes } = await import('node:crypto')
+    const pdf = await PDFDocument.create()
+    pdf.addPage([600, 800])
+    await pdf.attach(randomBytes(5 * 1024 * 1024), 'supporting-file.bin')
+    const original = Buffer.from(await pdf.save())
+    expect(original.length).toBeGreaterThan(5 * 1024 * 1024)
     const { payload } = await presignRegularFile(original.length)
     storedFiles.set(payload.key, { buffer: original, mimeType: 'application/pdf' })
     const preview = await uploadRoute.POST(jsonActionReq({ action: 'PREVIEW', key: payload.key, size: original.length, fileName: 'certificate.pdf' }), ctx())
@@ -348,6 +354,10 @@ describe('regular certificate direct-to-storage flow', () => {
     for (const key of [payload.key, cert.uploadedFileKey, cert.stampedFileKey, 'certificates/regular-previews/cert-1/admin-1.pdf']) {
       expect(isPrivateStorageKey(key)).toBe(true)
     }
+    expect(storedFiles.get(cert.uploadedFileKey)!.buffer.equals(original)).toBe(true)
+    const stamped = storedFiles.get(cert.stampedFileKey)!.buffer
+    expect(stamped.length).toBeGreaterThan(5 * 1024 * 1024)
+    expect((await PDFDocument.load(stamped)).getPageCount()).toBe(1)
     expect(storedFiles.has(payload.key)).toBe(false)
     expect(storedFiles.has('certificates/regular-previews/cert-1/admin-1.pdf')).toBe(false)
     expect(audits).toHaveLength(1)
