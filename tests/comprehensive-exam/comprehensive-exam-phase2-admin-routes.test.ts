@@ -470,6 +470,62 @@ describe('admin candidates — review', () => {
   })
 })
 
+describe('admin direct payment — official invoice and receipt', () => {
+  test('records the actual amount once, issues a receipt and unblocks the exam invitation', async () => {
+    const c = seedApprovedCandidate({ submittedBy: 'ADMIN', userId: 'user-1' })
+    const blocked = await invitationsRoute.POST(new NextRequest('http://localhost/x', { method: 'POST' }), ctx('exam-1', c.id))
+    expect(blocked.status).toBe(409)
+    expect((await blocked.json()).code).toBe('PAYMENT_REQUIRED')
+
+    const payload = { action: 'record_paid', amount: '88.50', note: 'استلمت الإدارة المبلغ نقداً' }
+    const first = await candidateRoute.POST(new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify(payload) }), ctx('exam-1', c.id))
+    expect(first.status).toBe(200)
+    const result = await first.json()
+    expect(result.created).toBe(true)
+    expect(result.payment.amount).toBe(88.5)
+    expect(result.payment.status).toBe('PAID')
+    expect(result.payment.invoiceNo).toMatch(/^AACT-INV-/)
+    expect(result.payment.receiptNo).toMatch(/^AACT-REC-/)
+    expect(payments).toHaveLength(1)
+    expect(payments[0].purpose).toBe('SERVICE_FEE')
+    expect(payments[0].userId).toBe('user-1')
+    expect(payments[0].comprehensiveExamCandidateId).toBe(c.id)
+    expect(payments[0].amountCents).toBe(8850)
+
+    const duplicate = await candidateRoute.POST(new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify(payload) }), ctx('exam-1', c.id))
+    expect(duplicate.status).toBe(200)
+    expect((await duplicate.json()).created).toBe(false)
+    expect(payments).toHaveLength(1)
+
+    const differentAmount = await candidateRoute.POST(new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify({ ...payload, amount: '90' }) }), ctx('exam-1', c.id))
+    expect(differentAmount.status).toBe(409)
+    expect((await differentAmount.json()).code).toBe('PAYMENT_ALREADY_RECORDED')
+
+    const allowed = await invitationsRoute.POST(new NextRequest('http://localhost/x', { method: 'POST' }), ctx('exam-1', c.id))
+    expect(allowed.status).toBe(201)
+  })
+
+  test('does not accept invalid money or a pending-review candidate', async () => {
+    const c = seedApprovedCandidate({ submittedBy: 'ADMIN', userId: 'user-1' })
+    const invalid = await candidateRoute.POST(new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify({ action: 'record_paid', amount: '88.999', note: 'استلام نقدي' }) }), ctx('exam-1', c.id))
+    expect(invalid.status).toBe(400)
+    const zero = await candidateRoute.POST(new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify({ action: 'record_paid', amount: '0', note: 'استلام نقدي' }) }), ctx('exam-1', c.id))
+    expect(zero.status).toBe(400)
+    c.status = 'PENDING_REVIEW'
+    const pending = await candidateRoute.POST(new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify({ action: 'record_paid', amount: '88', note: 'استلام نقدي' }) }), ctx('exam-1', c.id))
+    expect(pending.status).toBe(409)
+    expect(payments).toHaveLength(0)
+  })
+
+  test('admin can resend the one-time login setup link', async () => {
+    const c = seedApprovedCandidate({ submittedBy: 'ADMIN', userId: 'user-1' })
+    const res = await candidateRoute.POST(new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify({ action: 'resend_account_setup' }) }), ctx('exam-1', c.id))
+    expect(res.status).toBe(200)
+    expect((await res.json()).emailStatus).toBe('SENT')
+    expect(users[0].passwordResetTokenHash).toBeTruthy()
+  })
+})
+
 describe('admin candidates — qualify retry', () => {
   test('retries qualification for a passed attempt without a certificate', async () => {
     const c = seedApprovedCandidate()
