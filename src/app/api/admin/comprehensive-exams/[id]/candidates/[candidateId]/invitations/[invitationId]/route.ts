@@ -72,10 +72,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       if (invitation.status !== 'PENDING') {
         return NextResponse.json({ error: 'لا يمكن إلغاء دعوة ليست سارية' }, { status: 409 })
       }
-      const revoked = await db.comprehensiveExamInvitation.update({
-        where: { id: invitation.id },
+      const claim = await db.comprehensiveExamInvitation.updateMany({
+        where: { id: invitation.id, status: 'PENDING' },
         data: { status: 'REVOKED' },
       })
+      if (claim.count !== 1) {
+        return NextResponse.json({ error: 'تغيرت حالة الدعوة أثناء الإلغاء — حدّث القائمة', code: 'INVITATION_CHANGED' }, { status: 409 })
+      }
+      const revoked = { ...invitation, status: 'REVOKED' }
       await audit(
         { id: admin.id, name: admin.name },
         'REVOKE_COMPREHENSIVE_EXAM_INVITATION',
