@@ -673,6 +673,7 @@ export async function PATCH(req: NextRequest) {
     if (e instanceof ComprehensiveExamPhase2Error) {
       return NextResponse.json({ error: e.message, code: e.code }, { status: e.status })
     }
+    if (e?.code === 'P2034') return NextResponse.json({ error: 'تزامن تحديث آخر على طلب المعادلة — حدّث الطلب وأعد المحاولة', code: 'CONCURRENT_REVIEW' }, { status: 409 })
     console.error('admin admissions PATCH error:', e)
     return NextResponse.json({ error: 'تعذر تحديث الطلب' }, { status: 500 })
   }
