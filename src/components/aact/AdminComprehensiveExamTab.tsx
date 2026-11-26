@@ -495,6 +495,7 @@ export function AdminComprehensiveExamTab() {
         body: JSON.stringify({ action: 'PLAN' }),
       }), 'تعذر تحضير محاور التخصص')
       if (activeExamIdRef.current !== examId) return
+      discardSavedInternetPlan(examId)
       setInternetAxesText((data.axes as InternetExamAxis[]).map((axis) => axis.topic).join('\n'))
       setInternetPlanBasis(data.basis)
       toast({ title: `تم تحضير ${data.axes.length} محاور — اختر التي تريدها`, description: data.warning || 'تستطيع تعديل القائمة قبل تحديد المحاور' })
@@ -506,6 +507,7 @@ export function AdminComprehensiveExamTab() {
   }
 
   const openManualInternetPlan = () => {
+    if (detail) discardSavedInternetPlan(detail.exam.id)
     setInternetAxesText('')
     setInternetSelectedTopics({})
     setInternetPlanBasis('MANUAL')
@@ -518,7 +520,7 @@ export function AdminComprehensiveExamTab() {
     const examId = detail.exam.id
     const writtenAxes = internetAxesText.split('\n').map((line) => line.trim()).filter(Boolean)
     const chosenAxes = writtenAxes.filter((topic) => internetSelectedTopics[topic])
-    if (!chosenAxes.length || chosenAxes.length > 10 || chosenAxes.some((topic) => topic.length < 10) || new Set(chosenAxes).size !== chosenAxes.length) {
+    if (!chosenAxes.length || chosenAxes.length > 10 || writtenAxes.length > 20 || chosenAxes.some((topic) => topic.length < 10 || topic.length > 160) || new Set(chosenAxes).size !== chosenAxes.length) {
       toast({ title: 'حدد المحاور التي تريد الامتحان فيها، وتأكّد أنها علمية وصالحة وغير مكررة', variant: 'destructive' })
       return
     }
@@ -526,6 +528,19 @@ export function AdminComprehensiveExamTab() {
     // request. The UI only distributes the administrator's chosen axes.
     const perAxis = Math.floor(100 / chosenAxes.length)
     const allocations = chosenAxes.map((topic, index) => ({ topic, target: perAxis + (index < 100 % chosenAxes.length ? 1 : 0) }))
+    // Store the reviewed selection BEFORE the first request. Every batch is
+    // committed by the API, so another click after stopping/reloading may
+    // resume against the server's saved per-axis counts without duplicates.
+    try {
+      localStorage.setItem(internetExamPlanStorageKey(examId), JSON.stringify({
+        axesText: writtenAxes.join('\n'),
+        selectedTopics: Object.fromEntries(chosenAxes.map((topic) => [topic, true])),
+        basis: internetPlanBasis, reviewed: true,
+      }))
+      setInternetPlanStored(true)
+    } catch {
+      toast({ title: 'التوليد سيستمر، لكن هذا المتصفح لا يسمح بحفظ خطة الاستكمال بعد تحديث الصفحة', variant: 'destructive' })
+    }
     internetStopRef.current = false
     internetRunLock.current = true
     setInternetRunBusy(true)
@@ -841,15 +856,16 @@ export function AdminComprehensiveExamTab() {
           internetKeyMissing={internetKeyMissing}
           onRunInternet={runInternet}
           internetAxesText={internetAxesText}
-          setInternetAxesText={(value: string) => { setInternetAxesText(value); setInternetSelectedTopics({}); setInternetPlanReviewed(false) }}
+          setInternetAxesText={(value: string) => { discardSavedInternetPlan(detail.exam.id); setInternetAxesText(value); setInternetSelectedTopics({}); setInternetPlanReviewed(false) }}
           internetSelectedTopics={internetSelectedTopics}
-          onToggleInternetAxis={(topic: string, checked: boolean) => { setInternetSelectedTopics((prev) => ({ ...prev, [topic]: checked })); setInternetPlanReviewed(false) }}
-          onSelectAllInternetAxes={() => { setInternetSelectedTopics(Object.fromEntries(internetAxesText.split('\n').map((topic) => topic.trim()).filter(Boolean).map((topic) => [topic, true]))); setInternetPlanReviewed(false) }}
-          onClearInternetAxes={() => { setInternetSelectedTopics({}); setInternetPlanReviewed(false) }}
+          onToggleInternetAxis={(topic: string, checked: boolean) => { discardSavedInternetPlan(detail.exam.id); setInternetSelectedTopics((prev) => ({ ...prev, [topic]: checked })); setInternetPlanReviewed(false) }}
+          onSelectAllInternetAxes={() => { discardSavedInternetPlan(detail.exam.id); setInternetSelectedTopics(Object.fromEntries(internetAxesText.split('\n').map((topic) => topic.trim()).filter(Boolean).map((topic) => [topic, true]))); setInternetPlanReviewed(false) }}
+          onClearInternetAxes={() => { discardSavedInternetPlan(detail.exam.id); setInternetSelectedTopics({}); setInternetPlanReviewed(false) }}
           internetPlanBasis={internetPlanBasis}
           internetPlanBusy={internetPlanBusy}
           internetPlanReviewed={internetPlanReviewed}
-          setInternetPlanReviewed={setInternetPlanReviewed}
+          setInternetPlanReviewed={(checked: boolean) => { if (!checked) discardSavedInternetPlan(detail.exam.id); setInternetPlanReviewed(checked) }}
+          internetPlanStored={internetPlanStored}
           internetRunBusy={internetRunBusy}
           internetRunProgress={internetRunProgress}
           onCreateInternetPlan={createInternetPlan}
