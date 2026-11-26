@@ -2,8 +2,9 @@
 -- public page) carries the specialization, and the candidate links to the
 -- existing registered user + the application (for the invite payment gate).
 -- Additive only: one nullable FK on AdmissionApplication, two nullable
--- FKs on ComprehensiveExamCandidate. No existing rows are touched (all
--- three columns default NULL). This migration is a FILE ONLY: it must
+-- FKs on ComprehensiveExamCandidate and one nullable FK on Payment.
+-- No existing rows are touched (all four columns default NULL).
+-- This migration is a FILE ONLY: it must
 -- never be applied to a live database by this change; deployment applies
 -- it via the normal migrate path after the owner approves the branch.
 ALTER TABLE "AdmissionApplication" ADD COLUMN "specializationProgramId" TEXT;
