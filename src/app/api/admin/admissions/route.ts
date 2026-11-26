@@ -446,7 +446,7 @@ export async function PATCH(req: NextRequest) {
           },
           files: appFiles,
           admin: { id: user.id, name: user.name },
-        })
+        }), { isolationLevel: 'Serializable' })
         comprehensiveExamCandidateId = createdCandidate.candidateId
       }
       const existingServiceInvoice = await db.payment.findFirst({
