@@ -222,10 +222,31 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       })
       const conflict = checkComprehensiveDuplicateError(concurrentDuplicate)
       if (conflict) throw conflict
-      return tx.comprehensiveExamCandidate.create({
+      // Recheck in the transaction so a simultaneous admin action cannot
+      // create two accounts. A random unguessable password is never sent.
+      let studentUser = await tx.user.findUnique({ where: { email: checked.data.email } })
+      if (studentUser && studentUser.role !== 'STUDENT') {
+        throw new ComprehensiveExamPhase2Error(409, 'NON_STUDENT_ACCOUNT', 'هذا البريد مرتبط بحساب إداري')
+      }
+      const userCreated = !studentUser
+      if (!studentUser) {
+        studentUser = await tx.user.create({
+          data: {
+            email: checked.data.email,
+            password: hashPassword(randomBytes(32).toString('base64url')),
+            name: checked.data.fullName,
+            phone: checked.data.phone,
+            role: 'STUDENT',
+            status: 'ACTIVE',
+          },
+        })
+      } else if (!studentUser.phone && checked.data.phone) {
+        studentUser = await tx.user.update({ where: { id: studentUser.id }, data: { phone: checked.data.phone } })
+      }
+      const candidate = await tx.comprehensiveExamCandidate.create({
         data: {
           examId: exam.id,
-          userId: existingUser.id,
+          userId: studentUser.id,
           fullName: checked.data.fullName,
           nationalId: checked.data.nationalId,
           email: checked.data.email,
