@@ -118,6 +118,10 @@ export function AdminComprehensiveExamTab() {
   const [editOptions, setEditOptions] = useState<string[]>([])
   const [editAnswer, setEditAnswer] = useState('0')
   const [rejectReason, setRejectReason] = useState('')
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([])
+  const [bulkApproveBusy, setBulkApproveBusy] = useState(false)
+  const [bulkApproveProgress, setBulkApproveProgress] = useState<{ processed: number; total: number } | null>(null)
+  const bulkApproveLock = useRef(false)
 
   const loadExams = async () => {
     const data = await jsonOrThrow(await fetch('/api/admin/comprehensive-exams', { cache: 'no-store' }), 'تعذر تحميل الامتحانات الشاملة')
