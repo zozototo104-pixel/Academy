@@ -910,6 +910,8 @@ model Payment {
   enrollment  Enrollment? @relation(fields: [enrollmentId], references: [id])
   agentId     String? // فاتورة مرتبطة بطلب وكالة/اعتماد (رسوم التقديم 100$ غير مستردة)
   agent       AgentApplication? @relation(fields: [agentId], references: [id])
+  comprehensiveExamCandidateId String? @unique
+  comprehensiveExamCandidate ComprehensiveExamCandidate? @relation("ComprehensiveExamCandidatePayment", fields: [comprehensiveExamCandidateId], references: [id], onDelete: SetNull)
   invoiceNo   String   @unique // AACT-INV-2026-XXXX
   purpose     String   // APPLICATION_FEE (30$) | TUITION | ACCREDITATION_APP (100$) | ACCREDITATION | OTHER
   description String
