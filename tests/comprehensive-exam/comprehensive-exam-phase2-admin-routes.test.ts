@@ -403,9 +403,9 @@ describe('admin candidates — create (admin entry)', () => {
 })
 
 describe('admin candidates — list shows the invite gate', () => {
-  test('application candidate without a paid fee is PAYMENT_REQUIRED; manual candidate is free', async () => {
+  test('unpaid application and admin-entered candidates both require payment before an invite', async () => {
     seedApprovedCandidate({ admissionApplicationId: 'adm-1' })
-    seedApprovedCandidate({ id: 'cand-manual', nationalId: '987654321', email: 'other@b.com', admissionApplicationId: null })
+    seedApprovedCandidate({ id: 'cand-manual', nationalId: '987654321', email: 'other@b.com', submittedBy: 'ADMIN', admissionApplicationId: null })
     const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates')
     const res = await candidatesRoute.GET(req, { params: Promise.resolve({ id: 'exam-1' }) })
     expect(res.status).toBe(200)
@@ -414,8 +414,14 @@ describe('admin candidates — list shows the invite gate', () => {
     const manual = data.candidates.find((c: any) => c.id === 'cand-manual')
     expect(fromApplication.serviceFeePaid).toBe(false)
     expect(fromApplication.inviteBlockedReason).toBe('PAYMENT_REQUIRED')
-    expect(manual.serviceFeePaid).toBe(null)
-    expect(manual.inviteBlockedReason).toBe(null)
+    expect(manual.serviceFeePaid).toBe(false)
+    expect(manual.inviteBlockedReason).toBe('PAYMENT_REQUIRED')
+    payments.push({ id: 'pay-direct', comprehensiveExamCandidateId: manual.id, purpose: 'SERVICE_FEE', status: 'PAID', amount: 88, invoiceNo: 'AACT-INV-2026-0065', receiptNo: 'AACT-REC-2026-0065' })
+    const afterPaid = await (await candidatesRoute.GET(req, { params: Promise.resolve({ id: 'exam-1' }) })).json()
+    const paidCandidate = afterPaid.candidates.find((c: any) => c.id === manual.id)
+    expect(paidCandidate.serviceFeePaid).toBe(true)
+    expect(paidCandidate.inviteBlockedReason).toBe(null)
+    expect(paidCandidate.manualPayment.receiptNo).toBe('AACT-REC-2026-0065')
   })
   test('a PAID fee clears the gate; a DRAFT exam blocks everyone with EXAM_NOT_READY', async () => {
     payments.push({ id: 'pay-1', admissionId: 'adm-1', purpose: 'SERVICE_FEE', status: 'PAID' })
