@@ -23,3 +23,9 @@ CREATE INDEX "AdmissionApplication_specializationProgramId_idx" ON "AdmissionApp
 CREATE INDEX "ComprehensiveExamCandidate_userId_idx" ON "ComprehensiveExamCandidate"("userId");
 
 CREATE INDEX "ComprehensiveExamCandidate_admissionApplicationId_idx" ON "ComprehensiveExamCandidate"("admissionApplicationId");
+
+-- Administrative direct payments for manually entered exam candidates.
+-- The nullable one-to-one FK never changes existing payment rows.
+ALTER TABLE "Payment" ADD COLUMN "comprehensiveExamCandidateId" TEXT;
+CREATE UNIQUE INDEX "Payment_comprehensiveExamCandidateId_key" ON "Payment"("comprehensiveExamCandidateId");
+ALTER TABLE "Payment" ADD CONSTRAINT "Payment_comprehensiveExamCandidateId_fkey" FOREIGN KEY ("comprehensiveExamCandidateId") REFERENCES "ComprehensiveExamCandidate"("id") ON DELETE SET NULL ON UPDATE CASCADE;
