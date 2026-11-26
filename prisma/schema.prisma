@@ -3149,6 +3149,7 @@ model ComprehensiveExamCandidate {
 
   invitations ComprehensiveExamInvitation[]
   attempts    ComprehensiveExamAttempt[]
+  manualPayment Payment? @relation("ComprehensiveExamCandidatePayment")
 
   @@index([examId, status])
   @@index([examId, nationalId])
