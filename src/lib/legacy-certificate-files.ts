@@ -506,8 +506,7 @@ export function isLegacyCertificateZipImportKey(key: unknown): key is string {
 
 // Presigned PUT URL the browser uses to upload one bulk ZIP directly to
 // storage. Returns null when S3 storage is not configured on this server.
-export function createLegacyCertificateZipUploadUrl(key: string): string | null {
-  if (!isLegacyCertificateZipImportKey(key)) return null
+function createCertificateObjectUploadUrl(key: string): string | null {
   const cfg = getLegacyZipS3Config()
   if (!cfg) return null
   const endpoint = new URL(cfg.endpoint)
