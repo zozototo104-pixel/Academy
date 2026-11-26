@@ -937,6 +937,31 @@ function DetailPanel(props: any) {
               </SelectContent>
             </Select>
           </div>
+          {isDraft && selectable.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
+              <label className="flex cursor-pointer items-center gap-2 font-bold">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  disabled={props.bulkApproveBusy}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                    const visible = new Set(selectable.map((q) => q.id))
+                    props.setSelectedQuestionIds((ids: string[]) => e.target.checked
+                      ? [...new Set([...ids, ...visible])]
+                      : ids.filter((id) => !visible.has(id)))
+                  }}
+                />
+                تحديد الكل ({selectable.length} بانتظار المراجعة)
+              </label>
+              <Button size="sm" disabled={props.bulkApproveBusy || selectedVisible.length === 0} onClick={props.onApproveSelected}>
+                {props.bulkApproveBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                اعتماد المحدد ({selectedVisible.length})
+              </Button>
+              {props.bulkApproveBusy && props.bulkApproveProgress && (
+                <span role="status" className="text-slate-600">جارٍ معالجة {props.bulkApproveProgress.processed} من {props.bulkApproveProgress.total} سؤالاً…</span>
+              )}
+            </div>
+          )}
           <div className="space-y-2">
             {filteredQuestions.map((q: ExamQuestion) => (
               <QuestionRow key={q.id} q={q} isDraft={isDraft} {...props} />
