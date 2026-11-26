@@ -161,7 +161,7 @@ const fakeDb: any = {
     },
   },
   user: {
-    findUnique: async ({ where }: any = {}) => users.find((u) => u.email === where?.email) || null,
+    findUnique: async ({ where }: any = {}) => users.find((u) => (where?.id ? u.id === where.id : u.email === where?.email)) || null,
     create: async ({ data }: any) => {
       const row = { id: `user-${++seq}`, country: null, ...data }
       users.push(row)
