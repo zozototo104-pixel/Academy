@@ -54,10 +54,22 @@ mock.module('@/lib/auth', () => ({
   getCurrentUser: async () => currentAdmin,
 }))
 mock.module('@/lib/storage', () => ({
+  createSignedStorageUrlForKey: (key: string) => `https://storage.example.test/${key}?signed=1`,
+  getFileStreamFromStorageOrBase64: async (input: { key?: string | null }) => {
+    const found = input.key ? storedFiles.get(input.key) : null
+    if (!found) return null
+    return { size: found.buffer.length, mimeType: found.mimeType,
+      stream: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(found.buffer)); controller.close() } }),
+    }
+  },
   storeFileBuffer: async (input: { buffer: Buffer; fileName: string; mimeType?: string | null; namespace: string }) => {
     const key = `${input.namespace}/file-${++storageSeq}-${input.fileName}`
     storedFiles.set(key, { buffer: input.buffer, mimeType: input.mimeType || 'application/octet-stream' })
     return { provider: 'local', key, url: `/uploads/${key}`, size: input.buffer.byteLength, mimeType: input.mimeType || 'application/octet-stream' }
+  },
+  storeFileBufferAtKey: async (input: { buffer: Buffer; key: string; mimeType?: string | null }) => {
+    storedFiles.set(input.key, { buffer: input.buffer, mimeType: input.mimeType || 'application/octet-stream' })
+    return { provider: 's3', key: input.key, url: '', size: input.buffer.byteLength, mimeType: input.mimeType }
   },
   readStoredFile: async (input: { key?: string | null; mimeType?: string | null }) => {
     const stored = input.key ? storedFiles.get(input.key) : null
