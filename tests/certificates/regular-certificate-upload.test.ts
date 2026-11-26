@@ -316,6 +316,56 @@ describe('regular certificate upload stamping', () => {
   })
 })
 
+describe('regular certificate direct-to-storage flow', () => {
+  test('presign accepts a 5MB file without sending it through a function body', async () => {
+    seedRegularCert()
+    const { response, payload } = await presignRegularFile(5 * 1024 * 1024)
+    expect(response.status).toBe(200)
+    expect(payload.uploadUrl).toContain('X-Amz-Signature=')
+    expect(payload.key).toStartWith('certificates/regular-pending/cert-1/')
+    expect(payload.maxBytes).toBe(10 * 1024 * 1024)
+    expect(certificates.get('cert-1')!.uploadedFileKey).toBeNull()
+    expect((await presignRegularFile(10 * 1024 * 1024 + 1)).response.status).toBe(413)
+  })
+
+  test('a presigned original is checked, stamped and committed; temporary file is removed', async () => {
+    seedRegularCert()
+    const original = await minimalPdf()
+    const { payload } = await presignRegularFile(original.length)
+    storedFiles.set(payload.key, { buffer: original, mimeType: 'application/pdf' })
+    const preview = await uploadRoute.POST(jsonActionReq({ action: 'PREVIEW', key: payload.key, size: original.length, fileName: 'certificate.pdf' }), ctx())
+    expect(preview.status).toBe(200)
+    expect((await preview.json() as AnyRecord).previewUrl).toContain('signed=1')
+    expect(storedFiles.has('certificates/regular-previews/cert-1/admin-1.pdf')).toBe(true)
+    expect(certificates.get('cert-1')!.stampedFileKey).toBeNull()
+
+    const saved = await uploadRoute.POST(jsonActionReq({ action: 'SAVE', key: payload.key, size: original.length, fileName: 'certificate.pdf' }), ctx())
+    expect(saved.status).toBe(200)
+    const cert = certificates.get('cert-1')!
+    expect(cert.uploadedFileKey).toStartWith('certificates/regular-originals/')
+    expect(cert.stampedFileKey).toStartWith('certificates/regular-stamped/')
+    const { isPrivateStorageKey } = await import('../../src/lib/prod-safety')
+    for (const key of [payload.key, cert.uploadedFileKey, cert.stampedFileKey, 'certificates/regular-previews/cert-1/admin-1.pdf']) {
+      expect(isPrivateStorageKey(key)).toBe(true)
+    }
+    expect(storedFiles.has(payload.key)).toBe(false)
+    expect(storedFiles.has('certificates/regular-previews/cert-1/admin-1.pdf')).toBe(false)
+    expect(audits).toHaveLength(1)
+  })
+
+  test('cannot finalize another certificate key, an absent upload, or a mismatched file size', async () => {
+    seedRegularCert()
+    const { payload } = await presignRegularFile(100)
+    expect((await uploadRoute.POST(jsonActionReq({ action: 'SAVE', key: payload.key.replace('/cert-1/', '/cert-2/'), size: 100 }), ctx())).status).toBe(400)
+    expect((await uploadRoute.POST(jsonActionReq({ action: 'SAVE', key: payload.key, size: 100 }), ctx())).status).toBe(404)
+    storedFiles.set(payload.key, { buffer: await minimalPdf(), mimeType: 'application/pdf' })
+    expect((await uploadRoute.POST(jsonActionReq({ action: 'SAVE', key: payload.key, size: 100 }), ctx())).status).toBe(400)
+    storedFiles.set(payload.key, { buffer: Buffer.alloc(10 * 1024 * 1024 + 1), mimeType: 'application/pdf' })
+    expect((await uploadRoute.POST(jsonActionReq({ action: 'SAVE', key: payload.key, size: 100 }), ctx())).status).toBe(413)
+    expect(audits).toHaveLength(0)
+  })
+})
+
 describe('regular certificate stamp preview GET', () => {
   test('GET stamps the stored original at a real URL and the layout changes the output', async () => {
     seedRegularCert({ uploadedFileKey: 'certificates/legacy-originals/prev.pdf', uploadedMime: 'application/pdf', qrPosition: 'BOTTOM_LEFT', qrSize: 'M' })
