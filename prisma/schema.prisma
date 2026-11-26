@@ -1863,6 +1863,7 @@ model AdmissionApplication {
   @@index([status, createdAt])
   @@index([supervisorId])
   @@index([userId])
+  @@index([specializationProgramId])
 }
 
 model TuitionInstallmentAppeal {
