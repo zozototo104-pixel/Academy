@@ -70,6 +70,9 @@ mock.module('@/lib/settings', () => ({
   getSetting: async () => null,
   getSettings: async () => ({}),
   getSettingNum: async () => 30,
+  getSettingJson: async (_key: string, fallback: any) => fallback,
+  getHomeStats: async () => ({}),
+  getOfficialContact: async () => ({}),
   nextInvoiceNo: async () => 'AACT-INV-2026-9999',
 }))
 mock.module('@/lib/mailer', () => ({
