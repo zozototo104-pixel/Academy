@@ -297,8 +297,11 @@ export function parseComprehensiveAttemptSnapshot(raw: string | null | undefined
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed
+    // Old attempts store a plain array. New attempts also freeze the
+    // published time limit and pass mark beside the question snapshot.
+    const questions = Array.isArray(parsed) ? parsed : parsed?.questions
+    if (!Array.isArray(questions)) return []
+    return questions
       .filter((q) => q && typeof q.questionId === 'string' && Array.isArray(q.options) && typeof q.correctAnswer === 'string')
       .map((q) => ({
         questionId: q.questionId,
