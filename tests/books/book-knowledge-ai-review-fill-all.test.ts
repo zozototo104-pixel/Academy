@@ -337,6 +337,33 @@ describe('runReviewFillAllStep save proof', () => {
     expect(auditCalls.length).toBe(0)
   })
 
+  test('a manual edit during the AI call wins over the stale bulk fill', async () => {
+    items = [makeItem('item-1')]
+    const editedTitle = 'تصحيح المدير المعتمد للأصول المالية'
+    let calls = 0
+    const completeJson = async (opts: any) => {
+      calls++
+      // The administrator corrects this item while the model is thinking.
+      Object.assign(items[0], {
+        title: editedTitle,
+        summary: `${S1} ${S2}`,
+        excerpt: S3,
+        updatedAt: new Date('2026-11-26T10:00:00.000Z'),
+      })
+      opts.validate?.(goodAnswer)
+      return goodAnswer
+    }
+    const result = await scheduler.runReviewFillAllStep('prog-1', ADMIN, { completeJson })
+    expect(calls).toBe(1)
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.saved).toBe(0)
+    expect(result.reasons).toEqual({ SAVE_CONFLICT: 1 })
+    expect(items[0].title).toBe(editedTitle)
+    expect(items[0].excerpt).toBe(S3)
+    expect(auditCalls).toHaveLength(0)
+  })
+
   test('a lost CAS race is counted, nothing is saved, and the item stays in the queue', async () => {
     const item = makeItem('item-1')
     items = [item]
