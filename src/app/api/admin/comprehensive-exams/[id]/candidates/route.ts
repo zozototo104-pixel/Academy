@@ -104,15 +104,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       passedEmails.length > 0
         ? await db.certificate.findMany({
             where: { type: 'COMPREHENSIVE_EXAM', comprehensiveExamId: id, user: { email: { in: passedEmails } } },
-            select: { id: true, serial: true, uploadedFileKey: true, stampedFileKey: true, user: { select: { email: true } } },
+            select: { id: true, serial: true, uploadedFileKey: true, stampedFileKey: true, qrPosition: true, qrSize: true, user: { select: { email: true } } },
           })
         : []
-    type ExamCertificateInfo = { serial: string; certificateId: string; uploadedFileKey: string | null; stampedFileKey: string | null }
+    type ExamCertificateInfo = { serial: string; certificateId: string; uploadedFileKey: string | null; stampedFileKey: string | null; qrPosition: string | null; qrSize: string | null }
     const certificateByEmail = new Map<string, ExamCertificateInfo>(
       certificates.map(
         (c: any): [string, ExamCertificateInfo] => [
           c.user.email,
-          { serial: c.serial, certificateId: c.id, uploadedFileKey: c.uploadedFileKey || null, stampedFileKey: c.stampedFileKey || null },
+          { serial: c.serial, certificateId: c.id, uploadedFileKey: c.uploadedFileKey || null, stampedFileKey: c.stampedFileKey || null, qrPosition: c.qrPosition || null, qrSize: c.qrSize || null },
         ],
       ),
     )
@@ -154,6 +154,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           shaped.attempt.certificateId = certInfo?.certificateId || null
           shaped.attempt.certificateUploadedFileKey = certInfo?.uploadedFileKey || null
           shaped.attempt.certificateStampedFileKey = certInfo?.stampedFileKey || null
+          shaped.attempt.certificateQrPosition = certInfo?.qrPosition || null
+          shaped.attempt.certificateQrSize = certInfo?.qrSize || null
         }
         return shaped
       }),

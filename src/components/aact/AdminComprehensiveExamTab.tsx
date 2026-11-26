@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { toast } from '@/hooks/use-toast'
+import CertificateStampEditor, { parseCertificateStampLayout, type CertificateStampField, type CertificateStampLayout } from '@/components/aact/CertificateStampEditor'
+import { serializeStampLayout } from '@/lib/legacy-certificate-files'
 import { useAdminActionDialog } from './AdminActionDialog'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -1376,7 +1378,7 @@ type CandidateInvitation = {
   lastSentAt: string | null
   inviteUrl?: string | null
 }
-type CandidateAttempt = { id: string; status: string; score: number | null; passed: boolean | null; startedAt: string; submittedAt: string | null; certificateSerial?: string | null; certificateId?: string | null; certificateUploadedFileKey?: string | null; certificateStampedFileKey?: string | null }
+type CandidateAttempt = { id: string; status: string; score: number | null; passed: boolean | null; startedAt: string; submittedAt: string | null; certificateSerial?: string | null; certificateId?: string | null; certificateUploadedFileKey?: string | null; certificateStampedFileKey?: string | null; certificateQrPosition?: string | null; certificateQrSize?: string | null }
 type CandidateItem = {
   id: string
   fullName: string
@@ -1436,8 +1438,9 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
   const [showInvitations, setShowInvitations] = useState<Record<string, boolean>>({})
   const [inviteUrlByCandidate, setInviteUrlByCandidate] = useState<Record<string, string>>({})
   const [certFileByCandidate, setCertFileByCandidate] = useState<Record<string, File | null>>({})
-  const [certQrSizeByCandidate, setCertQrSizeByCandidate] = useState<Record<string, string>>({})
-  const [certQrPositionByCandidate, setCertQrPositionByCandidate] = useState<Record<string, string>>({})
+  const [certStampLayoutByCandidate, setCertStampLayoutByCandidate] = useState<Record<string, CertificateStampLayout>>({})
+  const [certSelectedStampFieldByCandidate, setCertSelectedStampFieldByCandidate] = useState<Record<string, CertificateStampField>>({})
+  const [certBackdropUrlByCandidate, setCertBackdropUrlByCandidate] = useState<Record<string, string | null>>({})
   const [certPreviewUrlByCandidate, setCertPreviewUrlByCandidate] = useState<Record<string, string | null>>({})
 
   const loadCandidates = async () => {
@@ -1653,8 +1656,9 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
   // الشهادة الأصلية لا يُعاد رسمها؛ يُضاف QR والرقم التسلسلي فقط فوق
   // الملف كما رُفع، بنفس مسار الختم وحقول التخطيط.
   const certUploadUrl = (c: CandidateItem) => `/api/admin/comprehensive-exams/${examId}/certificates/${c.attempt?.certificateId}/upload`
-  const certQrSize = (c: CandidateItem) => certQrSizeByCandidate[c.id] || 'M'
-  const certQrPosition = (c: CandidateItem) => certQrPositionByCandidate[c.id] || 'BOTTOM_LEFT'
+  const certStampLayout = (c: CandidateItem) => certStampLayoutByCandidate[c.id] || parseCertificateStampLayout(c.attempt?.certificateQrPosition, c.attempt?.certificateQrSize)
+  const certStampLayoutJson = (c: CandidateItem) => serializeStampLayout(certStampLayout(c))
+  const certSelectedStampField = (c: CandidateItem) => certSelectedStampFieldByCandidate[c.id] || 'qr'
 
   const previewCertFile = async (c: CandidateItem) => {
     const certId = c.attempt?.certificateId
@@ -1668,8 +1672,7 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
         // داخل الإطارات.
         const fd = new FormData()
         fd.append('file', file)
-        fd.append('qrPosition', certQrPosition(c))
-        fd.append('qrSize', certQrSize(c))
+        fd.append('stampLayout', certStampLayoutJson(c))
         const res = await fetch(`${certUploadUrl(c)}?preview=true`, { method: 'POST', body: fd })
         if (!res.ok) throw new Error(apiErrorMessage(await res.json().catch(() => ({})), 'تعذر إنشاء المعاينة'))
         const blob = await res.blob()
@@ -1682,7 +1685,7 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
         // داخل الإطار.
         setCertPreviewUrlByCandidate((prevState) => ({
           ...prevState,
-          [c.id]: `${certUploadUrl(c)}?qrSize=${certQrSize(c)}&layout=${encodeURIComponent(certQrPosition(c))}&t=${Date.now()}`,
+          [c.id]: `${certUploadUrl(c)}?layout=${encodeURIComponent(certStampLayoutJson(c))}&t=${Date.now()}`,
         }))
       }
     } catch (e: any) {
@@ -1701,11 +1704,13 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
     try {
       const fd = new FormData()
       if (file) fd.append('file', file)
-      fd.append('qrPosition', certQrPosition(c))
-      fd.append('qrSize', certQrSize(c))
+      fd.append('stampLayout', certStampLayoutJson(c))
       const data = await jsonOrThrow(await fetch(certUploadUrl(c), { method: 'POST', body: fd }), 'تعذر حفظ الشهادة المختومة')
       toast({ title: 'تم حفظ الشهادة المختومة', description: data.stampedFileKey || c.attempt?.certificateSerial || '' })
       setCertFileByCandidate((prev) => ({ ...prev, [c.id]: null }))
+      const backdrop = certBackdropUrlByCandidate[c.id]
+      if (backdrop) URL.revokeObjectURL(backdrop)
+      setCertBackdropUrlByCandidate((prev) => ({ ...prev, [c.id]: null }))
       await loadCandidates()
     } catch (e: any) {
       toast({ title: 'فشل حفظ الملف المختوم', description: e.message || 'حدث خطأ', variant: 'destructive' })
@@ -1813,33 +1818,27 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
                     <p className="rounded-xl border border-emerald-100 bg-emerald-50 p-2 text-[11px] font-bold leading-5 text-emerald-900">
                       الشهادة الأصلية لا يُعاد رسمها. يتم فقط إضافة QR والرقم التسلسلي فوق الملف كما رفعته.
                     </p>
-                    <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e: ChangeEvent<HTMLInputElement>) => setCertFileByCandidate((prev) => ({ ...prev, [c.id]: e.target.files?.[0] || null }))} />
+                    <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                      const file = e.target.files?.[0] || null
+                      const oldBackdrop = certBackdropUrlByCandidate[c.id]
+                      if (oldBackdrop) URL.revokeObjectURL(oldBackdrop)
+                      setCertBackdropUrlByCandidate((prev) => ({ ...prev, [c.id]: file && file.type.startsWith('image/') ? URL.createObjectURL(file) : null }))
+                      setCertFileByCandidate((prev) => ({ ...prev, [c.id]: file }))
+                    }} />
                     {certFileByCandidate[c.id] && <p className="text-[11px] text-slate-500">{certFileByCandidate[c.id]?.name}</p>}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-black text-slate-600">حجم QR</Label>
-                        <Select value={certQrSize(c)} onValueChange={(v) => setCertQrSizeByCandidate((prev) => ({ ...prev, [c.id]: v }))}>
-                          <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="S">صغير</SelectItem>
-                            <SelectItem value="M">متوسط</SelectItem>
-                            <SelectItem value="L">كبير</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-black text-slate-600">موضع QR</Label>
-                        <Select value={certQrPosition(c)} onValueChange={(v) => setCertQrPositionByCandidate((prev) => ({ ...prev, [c.id]: v }))}>
-                          <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="BOTTOM_LEFT">أسفل اليسار</SelectItem>
-                            <SelectItem value="BOTTOM_RIGHT">أسفل اليمين</SelectItem>
-                            <SelectItem value="TOP_LEFT">أعلى اليسار</SelectItem>
-                            <SelectItem value="TOP_RIGHT">أعلى اليمين</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                    <CertificateStampEditor
+                      layout={certStampLayout(c)}
+                      onLayoutChange={(next) => setCertStampLayoutByCandidate((prev) => ({ ...prev, [c.id]: next }))}
+                      fields={['qr', 'serial']}
+                      fieldTexts={{ qr: 'QR', serial: c.attempt?.certificateSerial || '' }}
+                      backdropUrl={certBackdropUrlByCandidate[c.id] || null}
+                      backdropEmptyText={c.attempt?.certificateUploadedFileKey
+                        ? 'الملف الأصلي PDF — اضبط المواضع هنا ثم اضغط معاينة لرؤية النتيجة تحت المحرر مباشرة.'
+                        : 'ارفع صورة للشهادة لعرضها هنا مباشرة، أو استخدم هذه المساحة لضبط الموضع ثم اضغط معاينة عند رفع PDF.'}
+                      selectedField={certSelectedStampField(c)}
+                      onSelectedFieldChange={(field) => setCertSelectedStampFieldByCandidate((prev) => ({ ...prev, [c.id]: field }))}
+                      hint="اسحب أي عنصر لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره."
+                    />
                     {certPreviewUrlByCandidate[c.id] && (
                       <div className="space-y-1">
                         <Label className="text-[11px] font-black text-slate-600">معاينة بالمواضع الحالية — لم تُحفظ بعد</Label>

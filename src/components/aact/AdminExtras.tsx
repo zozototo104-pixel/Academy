@@ -13,6 +13,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { CertificateDialog, CertificateData } from '@/components/aact/CertificateDialog'
+import CertificateStampEditor, { parseCertificateStampLayout, type CertificateStampField, type CertificateStampLayout } from '@/components/aact/CertificateStampEditor'
+import { serializeStampLayout } from '@/lib/legacy-certificate-files'
 import { AdminAITab } from '@/components/aact/AdminAITab'
 import { AdminListToolbar, AdminPager, matchesAdminSearch, pageItems, safePage } from '@/components/aact/AdminListTools'
 import { RefreshPaymentAmountButton } from '@/components/aact/RefreshPaymentAmountButton'
@@ -2209,8 +2211,9 @@ export function AdminCertificatesTab() {
   // التسلسلي فقط فوق الملف كما رُفع. الحالة لكل شهادة برقمها التسلسلي.
   const [certUploadFileBySerial, setCertUploadFileBySerial] = useState<Record<string, File | null>>({})
   const [certUploadDirectBySerial, setCertUploadDirectBySerial] = useState<Record<string, { file: File; key: string } | undefined>>({})
-  const [certUploadQrSizeBySerial, setCertUploadQrSizeBySerial] = useState<Record<string, string>>({})
-  const [certUploadQrPositionBySerial, setCertUploadQrPositionBySerial] = useState<Record<string, string>>({})
+  const [certUploadStampLayoutBySerial, setCertUploadStampLayoutBySerial] = useState<Record<string, CertificateStampLayout>>({})
+  const [certUploadSelectedStampFieldBySerial, setCertUploadSelectedStampFieldBySerial] = useState<Record<string, CertificateStampField>>({})
+  const [certUploadBackdropUrlBySerial, setCertUploadBackdropUrlBySerial] = useState<Record<string, string | null>>({})
   const [certUploadPreviewUrlBySerial, setCertUploadPreviewUrlBySerial] = useState<Record<string, string | null>>({})
   const [certUploadBusy, setCertUploadBusy] = useState<string | null>(null)
 
@@ -2426,8 +2429,9 @@ export function AdminCertificatesTab() {
 
   // ---- رفع/ختم ملف شهادة الخريج العادي ----
   const regularCertUploadUrl = (certificate: CertificateData) => `/api/admin/certificates/${certificate.id}/upload`
-  const regularCertQrSize = (certificate: CertificateData) => certUploadQrSizeBySerial[certificate.serial] || 'M'
-  const regularCertQrPosition = (certificate: CertificateData) => certUploadQrPositionBySerial[certificate.serial] || 'BOTTOM_LEFT'
+  const regularCertStampLayout = (certificate: CertificateData) => certUploadStampLayoutBySerial[certificate.serial] || parseCertificateStampLayout(certificate.qrPosition, certificate.qrSize)
+  const regularCertStampLayoutJson = (certificate: CertificateData) => serializeStampLayout(regularCertStampLayout(certificate))
+  const regularCertSelectedStampField = (certificate: CertificateData) => certUploadSelectedStampFieldBySerial[certificate.serial] || 'qr'
 
   // Prefer the already-configured S3 direct-upload path. A 10MB file
   // cannot travel through a normal Vercel Function request (4.5MB by
@@ -2467,7 +2471,7 @@ export function AdminCertificatesTab() {
           const result = await api<{ previewUrl: string }>(regularCertUploadUrl(certificate), {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'PREVIEW', key, size: file.size, fileName: file.name,
-              qrPosition: regularCertQrPosition(certificate), qrSize: regularCertQrSize(certificate) }),
+              stampLayout: regularCertStampLayoutJson(certificate) }),
           })
           const prev = certUploadPreviewUrlBySerial[certificate.serial]
           if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
@@ -2478,8 +2482,7 @@ export function AdminCertificatesTab() {
         // السابقين) لأن متصفحات الهواتف ترفض عرض blob: PDF داخل الإطارات.
         const fd = new FormData()
         fd.append('file', file)
-        fd.append('qrPosition', regularCertQrPosition(certificate))
-        fd.append('qrSize', regularCertQrSize(certificate))
+        fd.append('stampLayout', regularCertStampLayoutJson(certificate))
         const res = await fetch(`${regularCertUploadUrl(certificate)}?preview=true`, { method: 'POST', body: fd })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
@@ -2495,7 +2498,7 @@ export function AdminCertificatesTab() {
         // داخل الإطار.
         setCertUploadPreviewUrlBySerial((prevState) => ({
           ...prevState,
-          [certificate.serial]: `${regularCertUploadUrl(certificate)}?qrSize=${regularCertQrSize(certificate)}&layout=${encodeURIComponent(regularCertQrPosition(certificate))}&t=${Date.now()}`,
+          [certificate.serial]: `${regularCertUploadUrl(certificate)}?layout=${encodeURIComponent(regularCertStampLayoutJson(certificate))}&t=${Date.now()}`,
         }))
       }
     } catch (e: any) {
@@ -2518,19 +2521,21 @@ export function AdminCertificatesTab() {
         data = await api<{ stampedFileKey?: string }>(regularCertUploadUrl(certificate), {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'SAVE', key, size: file.size, fileName: file.name,
-            qrPosition: regularCertQrPosition(certificate), qrSize: regularCertQrSize(certificate) }),
+            stampLayout: regularCertStampLayoutJson(certificate) }),
         })
       } else {
         const fd = new FormData()
         if (file) fd.append('file', file)
-        fd.append('qrPosition', regularCertQrPosition(certificate))
-        fd.append('qrSize', regularCertQrSize(certificate))
+        fd.append('stampLayout', regularCertStampLayoutJson(certificate))
         data = await api<{ stampedFileKey?: string }>(regularCertUploadUrl(certificate), { method: 'POST', body: fd })
       }
       toast({ title: 'تم حفظ الشهادة المختومة', description: data.stampedFileKey || certificate.serial })
       setCertUploadFileBySerial((prev) => ({ ...prev, [certificate.serial]: null }))
       setCertUploadDirectBySerial((prev) => ({ ...prev, [certificate.serial]: undefined }))
       setCertUploadPreviewUrlBySerial((prev) => ({ ...prev, [certificate.serial]: null }))
+      const backdrop = certUploadBackdropUrlBySerial[certificate.serial]
+      if (backdrop) URL.revokeObjectURL(backdrop)
+      setCertUploadBackdropUrlBySerial((prev) => ({ ...prev, [certificate.serial]: null }))
       load()
     } catch (e: any) {
       toast({ title: 'فشل حفظ الملف المختوم', description: e.message || 'حدث خطأ', variant: 'destructive' })
@@ -3165,34 +3170,26 @@ export function AdminCertificatesTab() {
                         if (oldUrl?.startsWith('blob:')) URL.revokeObjectURL(oldUrl)
                         setCertUploadPreviewUrlBySerial((prev) => ({ ...prev, [c.serial]: null }))
                         setCertUploadDirectBySerial((prev) => ({ ...prev, [c.serial]: undefined }))
-                        setCertUploadFileBySerial((prev) => ({ ...prev, [c.serial]: e.target.files?.[0] || null }))
+                        const file = e.target.files?.[0] || null
+                        const oldBackdrop = certUploadBackdropUrlBySerial[c.serial]
+                        if (oldBackdrop) URL.revokeObjectURL(oldBackdrop)
+                        setCertUploadBackdropUrlBySerial((prev) => ({ ...prev, [c.serial]: file && file.type.startsWith('image/') ? URL.createObjectURL(file) : null }))
+                        setCertUploadFileBySerial((prev) => ({ ...prev, [c.serial]: file }))
                       }} />
                       {certUploadFileBySerial[c.serial] && <p className="text-[11px] text-slate-500">{certUploadFileBySerial[c.serial]?.name}</p>}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-black text-slate-600">حجم QR</Label>
-                          <Select value={regularCertQrSize(c)} onValueChange={(v) => setCertUploadQrSizeBySerial((prev) => ({ ...prev, [c.serial]: v }))}>
-                            <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="S">صغير</SelectItem>
-                              <SelectItem value="M">متوسط</SelectItem>
-                              <SelectItem value="L">كبير</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-black text-slate-600">موضع QR</Label>
-                          <Select value={regularCertQrPosition(c)} onValueChange={(v) => setCertUploadQrPositionBySerial((prev) => ({ ...prev, [c.serial]: v }))}>
-                            <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="BOTTOM_LEFT">أسفل اليسار</SelectItem>
-                              <SelectItem value="BOTTOM_RIGHT">أسفل اليمين</SelectItem>
-                              <SelectItem value="TOP_LEFT">أعلى اليسار</SelectItem>
-                              <SelectItem value="TOP_RIGHT">أعلى اليمين</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
+                      <CertificateStampEditor
+                        layout={regularCertStampLayout(c)}
+                        onLayoutChange={(next) => setCertUploadStampLayoutBySerial((prev) => ({ ...prev, [c.serial]: next }))}
+                        fields={['qr', 'serial']}
+                        fieldTexts={{ qr: 'QR', serial: c.serial }}
+                        backdropUrl={certUploadBackdropUrlBySerial[c.serial] || null}
+                        backdropEmptyText={c.uploadedFileKey
+                          ? 'الملف الأصلي PDF — اضبط المواضع هنا ثم اضغط معاينة لرؤية النتيجة تحت المحرر مباشرة.'
+                          : 'ارفع صورة للشهادة لعرضها هنا مباشرة، أو استخدم هذه المساحة لضبط الموضع ثم اضغط معاينة عند رفع PDF.'}
+                        selectedField={regularCertSelectedStampField(c)}
+                        onSelectedFieldChange={(field) => setCertUploadSelectedStampFieldBySerial((prev) => ({ ...prev, [c.serial]: field }))}
+                        hint="اسحب أي عنصر لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره."
+                      />
                       {certUploadPreviewUrlBySerial[c.serial] && (
                         <div className="space-y-1">
                           <Label className="text-[11px] font-black text-slate-600">معاينة بالمواضع الحالية — لم تُحفظ بعد</Label>
