@@ -110,7 +110,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         return NextResponse.json({ error: 'تسجيل الدفع المباشر متاح فقط لمرشح أدخلته الإدارة وتم اعتماده' }, { status: 409 })
       }
       const rawAmount = String(body?.amount ?? '').trim().replace(',', '.')
-      if (!/^(?:0|[1-9]\\d{0,5})(?:\\.\\d{1,2})?$/.test(rawAmount)) {
+      if (!/^(?:0|[1-9]\d{0,5})(?:\.\d{1,2})?$/.test(rawAmount)) {
         return NextResponse.json({ error: 'أدخل المبلغ المستلم بالدولار، بحد أقصى منزلتين عشريتين' }, { status: 400 })
       }
       const amountCents = Math.round(Number(rawAmount) * 100)
