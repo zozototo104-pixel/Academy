@@ -9,6 +9,9 @@
 // Closed questions ONLY (MCQ | TF). There is no essay type anywhere
 // in this module.
 import { createHash } from 'crypto'
+import { prepareStageRun } from './ai-stage-runner'
+import { verifyQuestionsWithCrossProvider, type VerifiableQuestion } from './question-verifier'
+import { internetQuestionAcademicIssue, internetSourceAcademicIssue } from './comprehensive-exam'
 import { selectExamSourceChunks, type ExamSourceChunk } from './exam-source-chunks'
 import { MAX_QUESTIONS_PER_SOURCE_CHUNK, throwComprehensiveExamInsufficientSource } from './comprehensive-exam-evidence'
 import {
@@ -41,6 +44,8 @@ export type InternetGenerationResult = {
   search: { resultsFound: number; chunksUsed: number }
 }
 
+type InternetVerifyFn = typeof verifyQuestionsWithCrossProvider
+
 export function clampInternetQuestionCount(value: unknown): number {
   const n = Number(value)
   if (!Number.isFinite(n)) return INTERNET_DEFAULT_QUESTIONS
@@ -70,6 +75,7 @@ export function tavilyResultsToExamChunks(
     const url = String(result.url || '').trim()
     const content = String(result.content || '').trim()
     if (!url || content.length < INTERNET_MIN_SNIPPET_CHARS) continue
+    if (internetSourceAcademicIssue(String(result.title || ''), content)) continue
     if (seenUrls.has(url)) continue
     seenUrls.add(url)
     chunks.push({
@@ -109,8 +115,13 @@ export function buildInternetQuestionPrompt(input: {
   return `أنت لجنة امتحانات عليا في الأكاديمية. مهمتك: بناء أسئلة امتحان جامعي (صح/خطأ واختيار متعدد فقط — لا أسئلة مقالية ولا أسئلة قصيرة) من نتائج بحث عبر الإنترنت، لامتحان شامل لخريج درس البرنامج في مؤسسة أخرى.
 
 موضوع البحث: «${input.topic}»
-البرنامج: ${input.programTitleAr}
+التخصص العلمي الذي سيمتحَن فيه الخريج: ${input.programTitleAr}
 عدد الأسئلة المطلوبة الآن: ${input.count}
+
+تنبيه أساسي: هذا امتحان كفاءة علمية ومهنية في التخصص، وليس اختبار معلومات عن برنامج الدراسة نفسه.
+ممنوع تماماً توليد أسئلة عن الفئة المستهدفة، شروط القبول أو الالتحاق، المؤهلات المطلوبة، تكاليف الدراسة، الجامعات، أو تعريف درجة DBA/MBA/الدكتوراه.
+يجب أن تختبر الأسئلة مفاهيم وتطبيقات وتحليلات ومشكلات مهنية من المحور العلمي «${input.topic}» فقط؛ لا تسأل عن اسم الدرجة أو خصائص البرنامج.
+إذا لم تتضمن المصادر مادة تخصصية صالحة للاختبار، أرجع مصفوفة فارغة ولا تختلق أسئلة بديلة.
 
 المقاطع المختارة الوحيدة المسموح استخدامها كمصدر. كل مقطع هو خلاصة من صفحة ويب، واسمه ورابطه مكتوبان فوق نصه. كل sourceEvidence يجب أن يكون اقتباساً حرفياً من المقطع المشار إليه فقط، بعدد 40 حرفاً على الأقل، ولا يجوز استخدام أي ملخص أو معرفة عامة كدليل:
 
@@ -151,7 +162,7 @@ export async function generateInternetQuestions(
     previousQuestionTexts?: string[]
     deadlineMs?: number
   },
-  deps: { completeJson?: CompleteJsonFn } = {},
+  deps: { completeJson?: CompleteJsonFn; verifyQuestions?: InternetVerifyFn } = {},
 ): Promise<InternetGenerationResult> {
   const requested = clampInternetQuestionCount(input.count)
   const previousTexts = input.previousQuestionTexts || []
@@ -179,6 +190,9 @@ export async function generateInternetQuestions(
     chunksSection: formatInternetChunksForPrompt(selected),
     previousTexts,
   })
+  // Reserve time for a separate REVIEW model to test the *meaning* of
+  // the answer against the source. A literal quote alone is insufficient.
+  const workflowDeadline = input.deadlineMs ?? Date.now() + 270_000
   const batchId = `internet-${Date.now()}`
   const core = await generateExamQuestionsFromChunks(
     {
@@ -189,20 +203,46 @@ export async function generateInternetQuestions(
       batchId,
       stickyScope: `COMPREHENSIVE_INTERNET:${batchId}`,
       detailSource: 'comprehensive-exam-internet',
-      deadlineMs: input.deadlineMs,
+      deadlineMs: workflowDeadline - 50_000,
     },
     deps,
   )
-  const questions: InternetExamQuestion[] = core.items.map((item) => ({
-    ...item.question,
-    sourceUrl: urlBySourceIndex.get(Number(item.sourceIndex)) || '',
-  }))
+  const candidates = core.items.filter((item) => !internetQuestionAcademicIssue(item.question.text))
+  const reviewPlan = candidates.length && !deps.verifyQuestions ? await prepareStageRun('REVIEW') : null
+  const remainingReviewMs = Math.max(0, Math.min(45_000, workflowDeadline - Date.now()))
+  const reviewed = candidates.length
+    ? await (deps.verifyQuestions || verifyQuestionsWithCrossProvider)({
+        questions: candidates.map((item) => ({ ...item.question, sourceIndex: item.sourceIndex, textProvenance: 'NATIVE_TEXT' as const })) as VerifiableQuestion[],
+        sources: selected.map((chunk) => ({ text: chunk.text, textProvenance: chunk.textProvenance })),
+        generatorProvider: core.provider,
+        generatorModel: core.model,
+        routing: reviewPlan?.routing,
+        timeBudgetMs: remainingReviewMs,
+        batchSize: 5,
+      })
+    : []
+  const reviewByIndex = new Map(candidates.map((item, index) => [item, reviewed[index]]))
+  const questions: InternetExamQuestion[] = []
+  const academicRejected: ExamGenerationRejected[] = []
+  for (const [index, item] of core.items.entries()) {
+    const issue = internetQuestionAcademicIssue(item.question.text)
+    if (issue) {
+      academicRejected.push({ index, reason: issue })
+      continue
+    }
+    const review = reviewByIndex.get(item)
+    if (!review?.qualityFlags?.includes('SOURCE_GROUNDED')) {
+      academicRejected.push({ index, reason: review?.verifierReason || review?.verificationReason || 'ANSWER_NOT_INDEPENDENTLY_VERIFIED' })
+      continue
+    }
+    questions.push({ ...item.question, sourceUrl: urlBySourceIndex.get(Number(item.sourceIndex)) || '' })
+  }
   return {
     questions,
     requested: core.requested,
-    accepted: core.accepted,
-    rejected: core.rejected,
-    rejectedCount: core.rejectedCount,
+    accepted: questions.length,
+    rejected: [...core.rejected, ...academicRejected],
+    rejectedCount: core.rejectedCount + academicRejected.length,
     provider: core.provider,
     model: core.model,
     search: { resultsFound: results.length, chunksUsed: selected.length },
