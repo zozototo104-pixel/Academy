@@ -205,7 +205,8 @@ export async function POST(req: NextRequest) {
     if (attempt.status === 'EXPIRED') {
       return NextResponse.json({ error: 'انتهى وقت الامتحان', code: 'ATTEMPT_EXPIRED' }, { status: 410 })
     }
-    const left = remainingSeconds(attempt.startedAt, exam.durationMin)
+    const terms = parseComprehensiveAttemptTerms(attempt.questionSnapshot, exam)
+    const left = remainingSeconds(attempt.startedAt, terms.durationMin)
     if (left <= 0) {
       await db.comprehensiveExamAttempt.update({ where: { id: attempt.id }, data: { status: 'EXPIRED' } })
       return NextResponse.json({ error: 'انتهى وقت الامتحان قبل الإرسال', code: 'ATTEMPT_EXPIRED' }, { status: 410 })
