@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       where: { id: invitationId, candidateId },
       include: {
         candidate: {
-          select: { id: true, fullName: true, email: true, phone: true, examId: true, admissionApplicationId: true },
+          select: { id: true, fullName: true, email: true, phone: true, examId: true, submittedBy: true, admissionApplicationId: true },
         },
       },
     })
