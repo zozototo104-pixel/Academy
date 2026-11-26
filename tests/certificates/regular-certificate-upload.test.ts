@@ -2,6 +2,7 @@
 // Real route code + real stamping; only the DB/auth/storage are faked
 // (same pattern as the legacy-graduates and comprehensive-exam upload tests).
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 
 type AnyRecord = Record<string, any>
 
