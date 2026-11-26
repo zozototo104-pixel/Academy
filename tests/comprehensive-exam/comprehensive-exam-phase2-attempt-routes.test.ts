@@ -80,6 +80,12 @@ const fakeDb: any = {
       Object.assign(row, data, { updatedAt: new Date() })
       return row
     },
+    updateMany: async ({ where, data }: any) => {
+      const row = attempts.find((a) => a.id === where?.id && (!where.status || a.status === where.status))
+      if (!row) return { count: 0 }
+      Object.assign(row, data, { updatedAt: new Date() })
+      return { count: 1 }
+    },
   },
   comprehensiveExamAnswer: {
     deleteMany: async ({ where }: any) => {
