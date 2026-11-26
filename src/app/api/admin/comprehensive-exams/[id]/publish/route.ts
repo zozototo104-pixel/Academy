@@ -7,6 +7,7 @@ import {
   COMPREHENSIVE_EXAM_POINTS_PER_QUESTION,
   checkComprehensivePublishGate,
 } from '@/lib/comprehensive-exam'
+import { internetQuestionAcademicIssue } from '@/lib/comprehensive-exam'
 
 export const runtime = 'nodejs'
 
@@ -85,6 +86,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       const approved = await tx.comprehensiveExamQuestion.count({ where: { examId: id, status: 'APPROVED' } })
       const gate = checkComprehensivePublishGate(approved)
       if (!gate.ok) return { gate }
+      // An older internet question may have been approved before the
+      // academic-scope guard existed. Never publish it silently.
+      const approvedQuestions = await tx.comprehensiveExamQuestion.findMany({
+        where: { examId: id, status: 'APPROVED' },
+        select: { source: true, text: true },
+      })
+      const invalidAcademicQuestion = approvedQuestions.find((q: any) =>
+        q.source === 'AI_INTERNET' && internetQuestionAcademicIssue(q.text),
+      )
+      if (invalidAcademicQuestion) return { gate, invalidAcademicQuestion: true }
       const updated = await tx.comprehensiveExam.update({
         where: { id, status: 'DRAFT' },
         data: {
@@ -101,6 +112,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         { error: result.gate.reason, approved: result.gate.approved, needed: (result.gate as any).needed ?? null, excess: (result.gate as any).excess ?? null },
         { status: 409 },
       )
+    }
+    if ('invalidAcademicQuestion' in result && result.invalidAcademicQuestion) {
+      return NextResponse.json({
+        error: 'هناك سؤال إنترنت معتمد عن الالتحاق أو تعريف الدرجة، وليس عن كفاءة التخصص. ألغِ اعتماده وصححه قبل النشر.',
+        code: 'ACADEMIC_QUESTION_OFF_TOPIC',
+      }, { status: 409 })
     }
     await audit(
       { id: admin.id, name: admin.name },
