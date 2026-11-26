@@ -16,6 +16,7 @@ let searchError: Error | null = null
 let searchCalls: any[] = []
 let generateResult: any = null
 let generateError: any = null
+let generateInput: any = null
 
 class TestTavilySearchError extends Error {
   kind: string
@@ -33,8 +34,10 @@ const fakeDb: any = {
       where?.key === 'TAVILY_API_KEY' && tavilyKey ? { key: 'TAVILY_API_KEY', value: tavilyKey } : null,
   },
   program: {
-    findUnique: async ({ where }: any) =>
-      where?.id === 'program-1' ? { id: 'program-1', titleAr: 'الماجستير المهني في إدارة الأعمال' } : null,
+    findUnique: async ({ where }: any) => {
+      if (where?.id === 'specialization-1') return { id: 'specialization-1', titleAr: 'الدكتوراه المهنية في إدارة الأعمال' }
+      return where?.id === 'program-1' ? { id: 'program-1', titleAr: 'الشهادات التدريبية ومعادلة الخبرات' } : null
+    },
   },
   comprehensiveExam: {
     findUnique: async ({ where }: any) => exams.find((x) => x.id === where?.id) || null,
@@ -75,7 +78,8 @@ mock.module('@/lib/comprehensive-exam-internet', () => ({
     return Math.max(1, Math.min(10, Math.floor(n)))
   },
   internetSourceId: (topic: string) => `tavily:${String(topic || '').slice(0, 8)}`,
-  generateInternetQuestions: async () => {
+  generateInternetQuestions: async (_results: unknown, input: unknown) => {
+    generateInput = input
     if (generateError) throw generateError
     return generateResult
   },
@@ -95,8 +99,8 @@ function jsonReq(examId: string, body: any) {
   })
 }
 
-function seedExam(status = 'DRAFT', id = 'exam-1') {
-  const exam = { id, programId: 'program-1', title: 'امتحان شامل تجريبي', status, passScore: 60, durationMin: 120 }
+function seedExam(status = 'DRAFT', id = 'exam-1', specializationProgramId?: string) {
+  const exam = { id, programId: 'program-1', specializationProgramId, title: 'امتحان شامل تجريبي', status, passScore: 60, durationMin: 120 }
   exams.push(exam)
   return exam.id
 }
@@ -153,10 +157,24 @@ beforeEach(() => {
   searchCalls = []
   generateResult = defaultGeneration()
   generateError = null
+  generateInput = null
   delete process.env.TAVILY_API_KEY
 })
 
 describe('POST from-internet — happy path', () => {
+  test('uses the actual specialization and refuses a broad degree-only query', async () => {
+    const examId = seedExam('DRAFT', 'exam-specialty', 'specialization-1')
+    const broad = await route.POST(jsonReq(examId, { topic: 'دكتوراه إدارة الأعمال DBA', count: 2 }), ctx(examId))
+    expect(broad.status).toBe(422)
+    expect((await broad.json()).code).toBe('ACADEMIC_TOPIC_REQUIRED')
+    expect(searchCalls).toHaveLength(0)
+
+    generateResult = defaultGeneration()
+    const specialized = await route.POST(jsonReq(examId, { topic: 'الإدارة الاستراتيجية وتحليل المنافسة', count: 2 }), ctx(examId))
+    expect(specialized.status).toBe(200)
+    expect(generateInput.programTitleAr).toBe('الدكتوراه المهنية في إدارة الأعمال')
+  })
+
   test('saves PENDING_REVIEW questions with source AI_INTERNET, evidence and source url', async () => {
     const examId = seedExam()
     const res = await route.POST(jsonReq(examId, { topic: 'مبادئ المحاسبة', count: 2 }), ctx(examId))
