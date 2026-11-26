@@ -1181,14 +1181,20 @@ function DetailPanel(props: any) {
                     </div>
                     {chosenAxesCount > 0 && chosenAxesCount < 5 && <p className="text-xs text-amber-800">تنبيه: اختيار أقل من خمسة محاور يعني تغطية أضيق للتخصص، لكنه مسموح إذا كان هذا مقصوداً.</p>}
                     <p className="text-[11px] text-indigo-800">لكل محور مختار: ثلاثة أبحاث ويب متقدمة (نظريات، دراسات علمية، وحالات تطبيقية) من مواقع مستقلة. يوزّع النظام العدد المستهدف بالتساوي، ويبلغك بالنقص بدل اختراع الأسئلة. البحث المتقدم يستهلك نقاط Tavily أكثر من البحث العادي.</p>
+                    {props.internetPlanStored && (
+                      <p className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900" role="status">
+                        خطة المحاور محفوظة على هذا المتصفح. يمكنك الاستكمال بعد الإيقاف أو تحديث الصفحة؛ الخادم يحسب الأسئلة المحفوظة لكل محور فلا يعيد إضافتها.
+                        المتبقي من سعة الامتحان ككل: {remainingExamSlots} من 100 سؤال.
+                      </p>
+                    )}
                     <label className="flex items-start gap-2 text-xs text-indigo-900">
                       <input type="checkbox" checked={props.internetPlanReviewed} disabled={props.internetRunBusy || !chosenAxesCount} onChange={(e: ChangeEvent<HTMLInputElement>) => props.setInternetPlanReviewed(e.target.checked)} className="mt-1" />
                       راجعت المحاور المختارة وتأكدت أنها تمثل كفاءات التخصص العلمية ولا تتناول شروط القبول أو وصف الدرجة، وأوافق على استهلاك رصيد Tavily للبحث المتقدم (نحو 6 نقاط لكل دفعة من ثلاثة أبحاث).
                     </label>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button disabled={!isDraft || props.internetBusy || !chosenAxesCount || !props.internetPlanReviewed || props.internetRunBusy || props.internetPlanBusy} onClick={props.onRunComprehensiveInternetPlan}>
-                        {props.internetRunBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                        توليد الأسئلة حسب المخطط
+                      <Button disabled={!isDraft || props.internetBusy || !chosenAxesCount || !props.internetPlanReviewed || props.internetRunBusy || props.internetPlanBusy || !remainingExamSlots} onClick={props.onRunComprehensiveInternetPlan}>
+                        {props.internetRunBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : props.internetPlanStored ? <RefreshCw className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                        {props.internetPlanStored ? 'استكمال الأسئلة الناقصة' : 'توليد الأسئلة حسب المخطط'}
                       </Button>
                       {props.internetRunBusy && <Button variant="outline" onClick={props.onStopInternetPlan}>إيقاف بعد الدفعة الحالية</Button>}
                     </div>
