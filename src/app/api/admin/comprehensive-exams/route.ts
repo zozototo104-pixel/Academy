@@ -117,30 +117,37 @@ export async function POST(req: NextRequest) {
     if (specialization.category === 'SERVICE') {
       return NextResponse.json({ error: 'التخصص يجب أن يكون برنامج دراسة — لا خدمة مهنية' }, { status: 400 })
     }
-    const live = await db.comprehensiveExam.findFirst({
-      where: { programId, specializationProgramId, status: { in: ['DRAFT', 'READY'] } },
-      select: { id: true, status: true },
-    })
-    if (live) {
+    const passScore = safePassScore(body?.passScore)
+    const durationMin = safeDurationMin(body?.durationMin)
+    // The live-exam predicate and creation must share one serializable
+    // transaction: two admins/tabs must not create parallel DRAFT exams.
+    const result = await db.$transaction(async (tx) => {
+      const live = await tx.comprehensiveExam.findFirst({
+        where: { programId, specializationProgramId, status: { in: ['DRAFT', 'READY'] } },
+        select: { id: true, status: true },
+      })
+      if (live) return { live, exam: null }
+      const exam = await tx.comprehensiveExam.create({
+        data: {
+          programId,
+          specializationProgramId,
+          level: specialization.category,
+          title: `امتحان شامل — ${specialization.titleAr}`,
+          status: 'DRAFT',
+          passScore,
+          durationMin,
+          createdById: admin.id,
+        },
+      })
+      return { live: null, exam }
+    }, { isolationLevel: 'Serializable' })
+    if (result.live) {
       return NextResponse.json(
-        { error: 'يوجد امتحان شامل حي لهذا التخصص بالفعل — أكمل تجهيزه أو أرشفه قبل إنشاء واحد جديد', examId: live.id },
+        { error: 'يوجد امتحان شامل حي لهذا التخصص بالفعل — أكمل تجهيزه أو أرشفه قبل إنشاء واحد جديد', examId: result.live.id },
         { status: 409 },
       )
     }
-    const passScore = safePassScore(body?.passScore)
-    const durationMin = safeDurationMin(body?.durationMin)
-    const exam = await db.comprehensiveExam.create({
-      data: {
-        programId,
-        specializationProgramId,
-        level: specialization.category,
-        title: `امتحان شامل — ${specialization.titleAr}`,
-        status: 'DRAFT',
-        passScore,
-        durationMin,
-        createdById: admin.id,
-      },
-    })
+    const exam = result.exam!
     await audit(
       { id: admin.id, name: admin.name },
       'CREATE_COMPREHENSIVE_EXAM',
