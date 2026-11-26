@@ -27,6 +27,8 @@ function isPreview(value: unknown) {
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const maxDuration = 300
+const INLINE_PREVIEW_MAX_BYTES = 4 * 1024 * 1024
 
 type RouteContext = { params: Promise<{ certificateId: string }> | { certificateId: string } }
 
