@@ -1137,7 +1137,7 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
         }),
         'تعذر مراجعة المرشح',
       )
-      toast({ title: action === 'approve' ? 'اعتُمد المرشح' : 'رُفض المرشح', description: action === 'approve' ? 'يمكنك الآن إصدار الدعوة' : '' })
+      toast({ title: action === 'approve' ? 'اعتُمد المرشح' : 'رُفض المرشح', description: action === 'approve' ? (c.submittedBy === 'ADMIN' ? 'وثّق المبلغ المقبوض أولاً من زر «تم الدفع»، ثم أصدر دعوة الاختبار.' : 'يمكنك الآن إصدار الدعوة بعد تحقق شرط سداد الرسوم.') : '' })
       await loadCandidates()
     } catch (e: any) {
       toast({ title: 'تعذر مراجعة المرشح', description: e.message || 'حدث خطأ', variant: 'destructive' })
