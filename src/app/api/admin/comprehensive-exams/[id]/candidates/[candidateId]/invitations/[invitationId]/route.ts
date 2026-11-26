@@ -171,6 +171,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     )
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (e?.code === 'P2034') return NextResponse.json({ error: 'تغيرت الدعوة بالتزامن — حدّث القائمة', code: 'INVITATION_CHANGED' }, { status: 409 })
     return phase2ErrorResponse(e, 'تعذر تنفيذ الإجراء على الدعوة')
   }
 }
