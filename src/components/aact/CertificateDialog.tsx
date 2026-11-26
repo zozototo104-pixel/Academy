@@ -24,6 +24,7 @@ export interface CertificateData {
   revokedAt?: string | null
   revokedReason?: string | null
   legacy?: boolean | null
+  comprehensiveExamId?: string | null
   uploadedFileKey?: string | null
   uploadedFileName?: string | null
   uploadedMime?: string | null
