@@ -53,7 +53,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       return NextResponse.json({ error: 'رفض المرشح يتطلب سبباً' }, { status: 400 })
     }
     const updated = await db.comprehensiveExamCandidate.update({
-      where: { id: candidate.id },
+      // Conditional unique update: the first review wins even if both
+      // browser tabs read PENDING_REVIEW before either submits.
+      where: { id: candidate.id, status: 'PENDING_REVIEW' },
       data: {
         status: action === 'approve' ? 'APPROVED' : 'REJECTED',
         rejectedReason: action === 'reject' ? rejectedReason : null,
