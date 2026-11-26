@@ -65,6 +65,7 @@ const fakeDb: any = {
       const rows = candidates.filter((c) => !where?.examId || c.examId === where.examId)
       return rows.map((c) => ({
         ...c,
+        manualPayment: payments.find((p) => p.comprehensiveExamCandidateId === c.id) || null,
         invitations: invitations.filter((i) => i.candidateId === c.id).sort((a, b) => b.createdAt - a.createdAt).slice(0, 1),
         attempts: attempts.filter((a) => a.candidateId === c.id).sort((a, b) => b.createdAt - a.createdAt).slice(0, 1),
       }))
