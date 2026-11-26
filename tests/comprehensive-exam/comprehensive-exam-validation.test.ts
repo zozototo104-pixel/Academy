@@ -44,6 +44,8 @@ describe('internet comprehensive exam — academic scope', () => {
     expect(internetQuestionAcademicIssue('من هي الفئة المستهدفة للالتحاق ببرنامج دكتوراه إدارة الأعمال DBA؟')).not.toBeNull()
     expect(internetQuestionAcademicIssue('ما هي الشروط الأساسية المذكورة للقبول في برنامج الـ DBA؟')).not.toBeNull()
     expect(internetQuestionAcademicIssue('يركز برنامج الـ DBA بشكل أساسي على تطبيق المعرفة النظرية لتحسين ممارسات الإدارة والأعمال.')).not.toBeNull()
+    expect(internetQuestionAcademicIssue('هل الماجستير بعد البكالوريوس؟')).toBe('DEGREE_SEQUENCE_QUESTION')
+    expect(internetQuestionAcademicIssue('هل شهادة الدكتوراه تتطلب الماجستير؟')).toBe('DEGREE_SEQUENCE_QUESTION')
     expect(internetQuestionAcademicIssue('كيف يؤثر التحليل المالي للسيولة في اتخاذ قرار تمويل رأس المال العامل؟')).toBeNull()
     expect(internetQuestionAcademicIssue('تُصنّف الذمم المدينة ضمن الأصول المتداولة في قائمة المركز المالي.')).toBeNull()
   })
@@ -184,6 +186,21 @@ describe('comprehensive exam review UX', () => {
     expect(view).toContain("body: JSON.stringify({ status: 'APPROVED' })")
     expect(view).toContain('bulkApproveLock.current = true')
     expect(view).toContain('bulkApproveLock.current = false')
+  })
+
+  test('specialty-wide internet generation requires a reviewed blueprint and supports stop/progress', () => {
+    expect(view).toContain('تحضير محاور التخصص')
+    expect(view).toContain('كتابة المحاور يدوياً')
+    expect(view).toContain('تحديد جميع المحاور')
+    expect(view).toContain('internetSelectedTopics[topic]')
+    expect(view).toContain('const chosenAxes = writtenAxes.filter')
+    expect(view).toContain('توليد الأسئلة حسب المخطط')
+    expect(view).toContain('!internetPlanReviewed')
+    expect(view).toContain("mode: 'COMPREHENSIVE'")
+    expect(view).toContain('internetStopRef.current = true')
+    expect(view).toContain('axisTarget: axis.target')
+    expect(view).toContain('await refreshDetailAndList(examId)')
+    expect(view).toContain('جميعها بانتظار مراجعتك')
   })
 
   test('batch approval preserves each success and reports failed academic validation', async () => {
