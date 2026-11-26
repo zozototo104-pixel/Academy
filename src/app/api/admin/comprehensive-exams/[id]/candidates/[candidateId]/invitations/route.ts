@@ -117,9 +117,21 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const token = createComprehensiveExamInviteToken()
     const expiresAt = comprehensiveExamInviteExpiresAt()
-    const invitation = await db.comprehensiveExamInvitation.create({
-      data: { candidateId: candidate.id, token, expiresAt, status: 'PENDING', createdById: admin.id },
-    })
+    const result = await db.$transaction(async (tx) => {
+      const live = await tx.comprehensiveExamInvitation.findFirst({
+        where: { candidateId: candidate.id, status: 'PENDING' },
+        select: { id: true },
+      })
+      if (live) return { live, invitation: null }
+      const invitation = await tx.comprehensiveExamInvitation.create({
+        data: { candidateId: candidate.id, token, expiresAt, status: 'PENDING', createdById: admin.id },
+      })
+      return { live: null, invitation }
+    }, { isolationLevel: 'Serializable' })
+    if (result.live) {
+      return NextResponse.json({ error: 'توجد دعوة سارية لهذا المرشح — جددها أو ألغِها أولاً', code: 'LIVE_INVITATION_EXISTS' }, { status: 409 })
+    }
+    const invitation = result.invitation!
     const inviteUrl = buildComprehensiveExamInviteUrl(token)
     const delivery = await sendComprehensiveExamInvite({
       fullName: candidate.fullName,
