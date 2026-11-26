@@ -124,6 +124,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         attempt: { id: attempt.id, score: attempt.score as number },
         admin: { id: admin.id, name: admin.name },
       }),
+      { isolationLevel: 'Serializable' },
     )
     return NextResponse.json({ ok: true, certificate: { id: result.certificate.id, serial: result.certificate.serial, qrToken: result.certificate.qrToken } })
   } catch (e: any) {
