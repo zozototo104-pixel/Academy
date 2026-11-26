@@ -127,7 +127,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         where: { admissionId: { in: admissionIds }, purpose: 'SERVICE_FEE', status: { in: ['PAID', 'WAIVED'] } },
         select: { admissionId: true },
       })
-      for (const p of feePayments) serviceFeePaidByAdmission.set(p.admissionId, true)
+      for (const p of feePayments) {
+        if (p.admissionId) serviceFeePaidByAdmission.set(p.admissionId, true)
+      }
     }
     return NextResponse.json({
       ok: true,
