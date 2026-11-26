@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Check, Download, FileSpreadsheet, Loader2, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Download, FileSpreadsheet, Loader2, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react'
 
 type ProgramOption = { id: string; titleAr: string; titleEn?: string | null; slug?: string | null; active?: boolean | null; category?: string | null; serviceKind?: string | null }
 type InternetExamAxis = { topic: string; origin: 'CURRICULUM' | 'AI_SUGGESTION' }
@@ -38,6 +38,23 @@ const SOURCE_LABEL: Record<string, string> = { BANK: 'بنك الأسئلة', MA
 
 function apiErrorMessage(data: any, fallback: string) {
   return String(data?.error || data?.message || fallback)
+}
+
+// One-tap collapse for the exam-prep sections, following the AdminExtras
+// pattern (a header button with aria-expanded; collapsing only hides the
+// body — the section's state lives outside it and is never reset).
+function SectionCollapseButton({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-expanded={!collapsed}
+      aria-label={collapsed ? 'فتح القسم' : 'طي القسم'}
+      onClick={onToggle}
+      className="shrink-0 rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600"
+    >
+      {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+    </button>
+  )
 }
 
 async function jsonOrThrow(res: Response, fallback: string) {
@@ -113,6 +130,8 @@ export function AdminComprehensiveExamTab() {
   const [exams, setExams] = useState<ExamListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+  const toggleSection = (key: string) => setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }))
   const [detail, setDetail] = useState<{ exam: ExamListItem; counts: ExamCounts; questions: ExamQuestion[] } | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [programId, setProgramId] = useState('')
@@ -738,14 +757,17 @@ export function AdminComprehensiveExamTab() {
     <div className="space-y-4">
       <Card>
         <CardContent className="space-y-3 pt-4">
-          <div>
+          <div className="flex items-center justify-between gap-2">
             <h3 className="text-base font-black">تجهيز امتحان شامل لاجتياز البرنامج</h3>
-            <p className="text-xs text-slate-500">
-              امتحان من 100 سؤال (صح/خطأ واختيار متعدد فقط — لا مقالي) لخريج درس التخصص في مؤسسة أخرى. يُنشر فقط عند اكتمال 100 سؤال معتمد،
-              والنجاح فيه يؤهل صاحبه كخريج في ذلك التخصص. الامتحان يعيش على برنامج خدمة المعادلة فقط — برامج الدراسة العادية لا يظهر عليها الامتحان أبداً.
-              مصدر «الذكاء من الإنترنت» يبحث في الويب عبر Tavily (مفتاح مجاني يُحفظ في إعدادات النظام) ويولّد أسئلة بدليل حرفي ورابط مصدر لكل سؤال.
-            </p>
+            <SectionCollapseButton collapsed={!!collapsedSections.create} onToggle={() => toggleSection('create')} />
           </div>
+          {!collapsedSections.create && (
+            <>
+              <p className="text-xs text-slate-500">
+                امتحان من 100 سؤال (صح/خطأ واختيار متعدد فقط — لا مقالي) لخريج درس التخصص في مؤسسة أخرى. يُنشر فقط عند اكتمال 100 سؤال معتمد،
+                والنجاح فيه يؤهل صاحبه كخريج في ذلك التخصص. الامتحان يعيش على برنامج خدمة المعادلة فقط — برامج الدراسة العادية لا يظهر عليها الامتحان أبداً.
+                مصدر «الذكاء من الإنترنت» يبحث في الويب عبر Tavily (مفتاح مجاني يُحفظ في إعدادات النظام) ويولّد أسئلة بدليل حرفي ورابط مصدر لكل سؤال.
+              </p>
           <div className="grid gap-3 sm:grid-cols-[1fr_1fr_120px_140px_auto]">
             <div className="space-y-1">
               <Label>برنامج المعادلة</Label>
@@ -782,6 +804,8 @@ export function AdminComprehensiveExamTab() {
               </Button>
             </div>
           </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -789,8 +813,13 @@ export function AdminComprehensiveExamTab() {
         <CardContent className="space-y-2 pt-4">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-black">الامتحانات الشاملة ({exams.length})</h4>
-            <Button variant="outline" size="sm" onClick={() => loadAll()}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => loadAll()}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
+              <SectionCollapseButton collapsed={!!collapsedSections.list} onToggle={() => toggleSection('list')} />
+            </div>
           </div>
+          {!collapsedSections.list && (
+            <>
           {exams.length === 0 && <p className="text-xs text-slate-500">لا توجد امتحانات شاملة بعد — أنشئ أول مسودة من الأعلى.</p>}
           <div className="space-y-2">
             {exams.map((exam) => (
@@ -812,6 +841,8 @@ export function AdminComprehensiveExamTab() {
               </button>
             ))}
           </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -962,6 +993,11 @@ function DetailPanel(props: any) {
   const allVisibleSelected = selectable.length > 0 && selectedVisible.length === selectable.length
   const suggestedAxes = String(props.internetAxesText || '').split('\n').map((axis) => axis.trim()).filter(Boolean)
   const chosenAxesCount = suggestedAxes.filter((axis) => props.internetSelectedTopics?.[axis]).length
+  // Sections collapse state — the questions list starts collapsed (it is the
+  // 100-row wall); everything else starts open. Collapsing only hides the
+  // body: all working state lives in the parent and is never reset.
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ questions: true })
+  const toggleSection = (key: string) => setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }))
 
   return (
     <div className="space-y-4">
@@ -969,8 +1005,13 @@ function DetailPanel(props: any) {
         <CardContent className="space-y-3 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-black">{exam.title}</h4>
-            <Badge variant={exam.status === 'READY' ? 'default' : 'secondary'}>{STATUS_LABEL[exam.status] || exam.status}</Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={exam.status === 'READY' ? 'default' : 'secondary'}>{STATUS_LABEL[exam.status] || exam.status}</Badge>
+              <SectionCollapseButton collapsed={!!collapsedSections.settings} onToggle={() => toggleSection('settings')} />
+            </div>
           </div>
+          {!collapsedSections.settings && (
+            <>
           <p className="text-xs text-slate-600">
             معتمد <b>{detail.counts.approved} / 100</b> — بانتظار المراجعة {detail.counts.pending} — مرفوض {detail.counts.rejected} — المجموع {detail.counts.approved + detail.counts.pending + detail.counts.rejected}
             {detail.counts.approved < 100 && ` — ينقص ${100 - detail.counts.approved} سؤالاً معتمداً للنشر`}
@@ -1005,6 +1046,8 @@ function DetailPanel(props: any) {
           {!canPublish && exam.status === 'DRAFT' && (
             <p className="text-[11px] text-amber-700">زر النشر يفعَّل فقط عند 100 سؤال معتمد بالضبط — النظام لا يختار أسئلة نيابة عنك.</p>
           )}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -1012,7 +1055,12 @@ function DetailPanel(props: any) {
         <>
           <Card>
             <CardContent className="space-y-3 pt-4">
-              <h4 className="text-sm font-black">إضافة سؤال يدوي (صح/خطأ أو اختيار متعدد — لا مقالي)</h4>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-black">إضافة سؤال يدوي (صح/خطأ أو اختيار متعدد — لا مقالي)</h4>
+                <SectionCollapseButton collapsed={!!collapsedSections.manual} onToggle={() => toggleSection('manual')} />
+              </div>
+              {!collapsedSections.manual && (
+                <>
               <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
                 <div className="space-y-1">
                   <Label>النوع</Label>
@@ -1050,6 +1098,8 @@ function DetailPanel(props: any) {
                 <Input value={props.manualEvidence} onChange={(e: ChangeEvent<HTMLInputElement>) => props.setManualEvidence(e.target.value)} />
               </div>
               <Button onClick={props.onAddManual} disabled={!props.manualText.trim()}><Plus className="h-4 w-4" /> إضافة السؤال (بانتظار المراجعة)</Button>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -1057,10 +1107,15 @@ function DetailPanel(props: any) {
             <CardContent className="space-y-3 pt-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="text-sm font-black">من الكتب المرفوعة — عبر بنك الأسئلة المعتمد</h4>
-                <Button variant="outline" size="sm" onClick={props.onLoadBank} disabled={props.bankLoading}>
-                  {props.bankLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} تحميل المعتمدة
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={props.onLoadBank} disabled={props.bankLoading}>
+                    {props.bankLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} تحميل المعتمدة
+                  </Button>
+                  <SectionCollapseButton collapsed={!!collapsedSections.bank} onToggle={() => toggleSection('bank')} />
+                </div>
               </div>
+              {!collapsedSections.bank && (
+                <>
               <p className="text-[11px] text-slate-500">أسئلة بنك الأسئلة المعتمدة لهذا البرنامج (المولَّدة من كتبه). الاستيراد ينسخ لقطة وتبدأ معتمدة لأنها اعتُمدت أصلاً في البنك.</p>
               {props.bankItems.length > 0 && (
                 <>
@@ -1075,12 +1130,19 @@ function DetailPanel(props: any) {
                   <Button onClick={props.onImportFromBank}>استيراد المحدد ({Object.values(props.bankSelected).filter(Boolean).length})</Button>
                 </>
               )}
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="space-y-3 pt-4">
-              <h4 className="text-sm font-black">استيراد ملف أسئلة</h4>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-black">استيراد ملف أسئلة</h4>
+                <SectionCollapseButton collapsed={!!collapsedSections.import} onToggle={() => toggleSection('import')} />
+              </div>
+              {!collapsedSections.import && (
+                <>
               <p className="text-[11px] text-slate-500">
                 Excel موثوق (قالب جاهز أدناه) — وورد/PDF/نص مسودة للمراجعة فقط، والأسطر غير المحلَّلة تُحصى ولا تُحفظ. كل سؤال مستورد يبدأ بانتظار المراجعة.
               </p>
@@ -1106,12 +1168,19 @@ function DetailPanel(props: any) {
                   {props.importPreview.errors?.length ? ` — أول خطأ: سطر ${props.importPreview.errors[0].row}: ${props.importPreview.errors[0].message}` : ''}
                 </p>
               )}
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="space-y-3 pt-4">
-              <h4 className="text-sm font-black">رفع كتاب مخصص وتوليد أسئلة منه</h4>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-black">رفع كتاب مخصص وتوليد أسئلة منه</h4>
+                <SectionCollapseButton collapsed={!!collapsedSections.customBook} onToggle={() => toggleSection('customBook')} />
+              </div>
+              {!collapsedSections.customBook && (
+                <>
               <p className="text-[11px] text-slate-500">
                 كتاب PDF أو Word (DOCX) من خارج كتب البرنامج — يُقرأ هنا فقط ولا يُسجَّل ككتاب برنامج. الذكاء يولّد أسئلة صح/خطأ واختيار متعدد من نصه، وكل سؤال يحمل
                 دليلاً حرفياً من الكتاب ويبدأ بانتظار المراجعة. الحد 10 ميغابايت و300 صفحة (أو 300 مقطعاً نصياً لملف Word — فملف Word بلا صفحات حقيقية)؛ الصفحات بلا نص مقروء (ممسوحة ضوئياً) تُبلَّغ ولا تولَّد منها أسئلة.
@@ -1141,12 +1210,19 @@ function DetailPanel(props: any) {
                   {props.customBookResult.rejectedCount ? `، ${props.customBookResult.rejectedCount} مرفوضاً بالتحقق بالدليل` : ''}
                 </p>
               )}
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="space-y-3 pt-4">
-              <h4 className="text-sm font-black">بحث الذكاء عبر الإنترنت</h4>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-black">بحث الذكاء عبر الإنترنت</h4>
+                <SectionCollapseButton collapsed={!!collapsedSections.internet} onToggle={() => toggleSection('internet')} />
+              </div>
+              {!collapsedSections.internet && (
+                <>
               <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 space-y-2">
                 <h5 className="text-sm font-bold text-indigo-900">امتحان شامل موزع على محاور التخصص</h5>
                 <p className="text-xs text-indigo-900">
@@ -1242,6 +1318,8 @@ function DetailPanel(props: any) {
                   {props.internetResult.rejectedCount ? `، ${props.internetResult.rejectedCount} مرفوضاً بالتحقق بالدليل` : ''}
                 </p>
               )}
+                </>
+              )}
             </CardContent>
           </Card>
         </>
@@ -1251,16 +1329,32 @@ function DetailPanel(props: any) {
         <CardContent className="space-y-3 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-black">أسئلة الامتحان ({detail.questions.length})</h4>
-            <Select value={statusFilter} onValueChange={setStatusFilter} disabled={props.bulkApproveBusy}>
-              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">كل الحالات</SelectItem>
-                <SelectItem value="PENDING_REVIEW">بانتظار المراجعة</SelectItem>
-                <SelectItem value="APPROVED">معتمدة</SelectItem>
-                <SelectItem value="REJECTED">مرفوضة</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-2">
+              {isDraft && selectable.length > 0 && (
+                <>
+                  <Button size="sm" disabled={props.bulkApproveBusy || selectedVisible.length === 0} onClick={props.onApproveSelected}>
+                    {props.bulkApproveBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    اعتماد المحدد ({selectedVisible.length})
+                  </Button>
+                  {props.bulkApproveBusy && props.bulkApproveProgress && (
+                    <span role="status" className="text-xs text-slate-600">جارٍ معالجة {props.bulkApproveProgress.processed} من {props.bulkApproveProgress.total} سؤالاً…</span>
+                  )}
+                </>
+              )}
+              <Select value={statusFilter} onValueChange={setStatusFilter} disabled={props.bulkApproveBusy}>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">كل الحالات</SelectItem>
+                  <SelectItem value="PENDING_REVIEW">بانتظار المراجعة</SelectItem>
+                  <SelectItem value="APPROVED">معتمدة</SelectItem>
+                  <SelectItem value="REJECTED">مرفوضة</SelectItem>
+                </SelectContent>
+              </Select>
+              <SectionCollapseButton collapsed={!!collapsedSections.questions} onToggle={() => toggleSection('questions')} />
+            </div>
           </div>
+          {!collapsedSections.questions && (
+            <>
           {isDraft && selectable.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
               <label className="flex cursor-pointer items-center gap-2 font-bold">
@@ -1277,13 +1371,6 @@ function DetailPanel(props: any) {
                 />
                 تحديد الكل ({selectable.length} بانتظار المراجعة)
               </label>
-              <Button size="sm" disabled={props.bulkApproveBusy || selectedVisible.length === 0} onClick={props.onApproveSelected}>
-                {props.bulkApproveBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                اعتماد المحدد ({selectedVisible.length})
-              </Button>
-              {props.bulkApproveBusy && props.bulkApproveProgress && (
-                <span role="status" className="text-slate-600">جارٍ معالجة {props.bulkApproveProgress.processed} من {props.bulkApproveProgress.total} سؤالاً…</span>
-              )}
             </div>
           )}
           <div className="space-y-2">
@@ -1292,6 +1379,8 @@ function DetailPanel(props: any) {
             ))}
             {filteredQuestions.length === 0 && <p className="text-xs text-slate-500">لا توجد أسئلة بهذه الحالة بعد.</p>}
           </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -1422,6 +1511,7 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
   const [candidates, setCandidates] = useState<CandidateItem[]>([])
   const [specialization, setSpecialization] = useState<{ id: string; titleAr: string; titleEn?: string | null; category?: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [candidatesCollapsed, setCandidatesCollapsed] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [fullName, setFullName] = useState('')
   const [nationalId, setNationalId] = useState('')
@@ -1727,9 +1817,13 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
             <h4 className="text-sm font-black">المرشحون والدعوات والمحاولات — {examTitle}</h4>
             <p className="mt-0.5 text-[11px] font-bold text-slate-500">التخصص: {specialization?.titleAr || '—'}</p>
           </div>
-          <Button variant="outline" size="sm" onClick={loadCandidates}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={loadCandidates}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
+            <SectionCollapseButton collapsed={candidatesCollapsed} onToggle={() => setCandidatesCollapsed((prev) => !prev)} />
+          </div>
         </div>
-
+        {!candidatesCollapsed && (
+          <>
         {examStatus === 'READY' ? (
           <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs font-black">إدخال مرشح من الإدارة</p>
@@ -1980,6 +2074,8 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
             )
           })}
         </div>
+          </>
+        )}
       </CardContent>
     </Card>
   )
