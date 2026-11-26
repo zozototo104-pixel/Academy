@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { approvePendingQuestionsInBatches } from '../../src/components/aact/AdminComprehensiveExamTab'
+import { approvePendingQuestionsInBatches, parseSavedInternetExamPlan } from '../../src/components/aact/AdminComprehensiveExamTab'
 import {
   parseComprehensiveCorrectAnswer,
   parseComprehensiveType,
@@ -170,6 +170,27 @@ describe('parseComprehensiveCorrectAnswer', () => {
 
 describe('comprehensive exam review UX', () => {
   const view = readFileSync(join(import.meta.dir, '../../src/components/aact/AdminComprehensiveExamTab.tsx'), 'utf8')
+
+  test('restores a reviewed blueprint with its selected axes, without accepting invalid local data', () => {
+    const saved = parseSavedInternetExamPlan(JSON.stringify({
+      axesText: 'الإدارة الاستراتيجية وتحليل الميزة التنافسية\nمناهج البحث التطبيقي',
+      selectedTopics: { 'الإدارة الاستراتيجية وتحليل الميزة التنافسية': true, 'مناهج البحث التطبيقي': false },
+      basis: 'MIXED', reviewed: true,
+    }))
+    expect(saved?.selectedTopics['الإدارة الاستراتيجية وتحليل الميزة التنافسية']).toBe(true)
+    expect(saved?.selectedTopics['مناهج البحث التطبيقي']).toBeUndefined()
+    expect(parseSavedInternetExamPlan('{broken')).toBeNull()
+    expect(parseSavedInternetExamPlan(JSON.stringify({ axesText: 'محور واحد', selectedTopics: {}, reviewed: true }))).toBeNull()
+    expect(parseSavedInternetExamPlan(JSON.stringify({ axesText: 'الإدارة الاستراتيجية وتحليل الميزة التنافسية', selectedTopics: { 'الإدارة الاستراتيجية وتحليل الميزة التنافسية': true }, reviewed: false }))).toBeNull()
+  })
+
+  test('offers explicit resume after a saved partial run and keeps the plan on refresh', () => {
+    expect(view).toContain('localStorage.setItem(internetExamPlanStorageKey(examId)')
+    expect(view).toContain('localStorage.getItem(internetExamPlanStorageKey(examId))')
+    expect(view).toContain('استكمال الأسئلة الناقصة')
+    expect(view).toContain('internetPlanStored')
+    expect(view).toContain('internetStopRef.current = true')
+  })
 
   test('keeps the question panel mounted during approval and edit refresh', () => {
     expect(view).toContain('const loadDetail = async (examId: string, showLoading = true)')
