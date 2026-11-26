@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { getProgramKnowledgeItems, rebuildKnowledgeForBook, rebuildProgramKnowledge, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt, KNOWLEDGE_BANK_LIMITS } from '@/lib/knowledge-bank'
-import { scheduleProgramKnowledgeV2, enqueueKnowledgeAiRepairJob, getKnowledgeAiRepairJob } from '@/lib/book-knowledge-v2-scheduler'
+import { scheduleProgramKnowledgeV2, enqueueKnowledgeAiRepairJob, getKnowledgeAiRepairJob, repairSourceWindow, aiFillReviewItemFields, isManualReviewQueueItem, runReviewFillAllStep } from '@/lib/book-knowledge-v2-scheduler'
 import { planKnowledgeItemCleanup, repairKnownOcrWords, type OcrWordRepair } from '@/lib/academic-output-quality'
 import { withTimedResponse, withTiming } from '@/lib/timing'
 
@@ -117,10 +117,7 @@ export async function GET(req: NextRequest) {
         })
         if (!rows.length) { hasMoreRows = false; break }
         cursor = rows[rows.length - 1].id
-        collected.push(...rows.filter((row) =>
-          ['REVIEW', 'DELETE_EMPTY'].includes(planKnowledgeItemCleanup(row, looksLikeBrokenAcademicOutput, looksLikeBrokenExcerpt).action) ||
-          !row.bookId || !row.chunkId || row.pageStart == null || row.pageEnd == null
-        ))
+        collected.push(...rows.filter((row) => isManualReviewQueueItem(row)))
         hasMoreRows = rows.length === 100
         if (!hasMoreRows) break
       }
@@ -326,6 +323,43 @@ export async function PATCH(req: NextRequest) {
         })
       }
 
+      if (body.action === 'ai-fill-review') {
+        // Per-item review fill ("تكليف الذكاء"): ONE AI call drafts the
+        // three review fields from the item's own chunk text. NOTHING is
+        // saved here — the client fills the admin's form and the admin
+        // presses «اعتماد التصحيح» (existing save + CAS below). The
+        // chunk text is never written; the chunk-repair path stays
+        // separate. Source and staleness checks mirror the manual save.
+        const item = await db.bookKnowledgeItem.findFirst({ where: { id, programId } })
+        if (!item) return NextResponse.json({ error: 'عنصر المعرفة غير موجود في هذا البرنامج' }, { status: 404 })
+        if (!item.bookId || !item.chunkId || item.pageStart == null || item.pageEnd == null) {
+          return NextResponse.json({ error: 'مصدر العنصر أو صفحات الكتاب مفقودة؛ يلزم استعادة المصدر قبل التكليف بالذكاء' }, { status: 422 })
+        }
+        const chunk = await db.bookChunk.findFirst({
+          where: { id: item.chunkId, programId, bookId: item.bookId },
+          select: { id: true, status: true, text: true, pageStart: true, pageEnd: true },
+        })
+        if (!chunk || chunk.status !== 'ANALYZED' || !chunk.text ||
+            item.pageStart < chunk.pageStart || item.pageEnd > chunk.pageEnd || item.pageStart > item.pageEnd) {
+          return NextResponse.json({ error: 'الكتاب أو المقطع أو نطاق الصفحات غير قابل للتحقق؛ لم يتغيّر العنصر' }, { status: 422 })
+        }
+        const expectedAt = new Date(String(body.expectedUpdatedAt || ''))
+        if (Number.isNaN(expectedAt.getTime()) || expectedAt.getTime() !== item.updatedAt.getTime()) {
+          return NextResponse.json({ error: 'العنصر تغيّر منذ فتحه؛ حدّث القائمة قبل التكليف بالذكاء' }, { status: 409 })
+        }
+        const window = repairSourceWindow(chunk.text, { title: item.title, summary: item.summary ?? '', excerpt: item.excerpt })
+        if (window.status !== 'OK') {
+          const reason = window.status === 'GARBLED' ? 'SOURCE_GARBLED' : window.status === 'UNLOCATABLE' ? 'SOURCE_UNLOCATABLE' : 'SOURCE_TOO_SHORT'
+          return NextResponse.json({ ok: false, reason })
+        }
+        const filled = await aiFillReviewItemFields({
+          item: { title: item.title, summary: item.summary ?? '', excerpt: item.excerpt },
+          chunkText: chunk.text, evidence: window.evidence,
+        })
+        if (!filled.ok) return NextResponse.json({ ok: false, reason: filled.reason })
+        return NextResponse.json({ ok: true, fields: filled.fields })
+      }
+
       if (typeof body.title !== 'string' || typeof body.summary !== 'string' || typeof body.excerpt !== 'string') {
         return NextResponse.json({ error: 'اكتب عنوان العنصر وشرحه ومقتطف المصدر كاملاً قبل الاعتماد' }, { status: 422 })
       }
@@ -402,6 +436,17 @@ export async function POST(req: NextRequest) {
       // response; closing the browser cannot interrupt the persisted job.
       const job = await enqueueKnowledgeAiRepairJob(programId)
       return NextResponse.json({ ok: true, queued: true, job }, { status: 202 })
+    }
+
+    if (action === 'ai-fill-review-all') {
+      if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
+      const program = await db.program.findUnique({ where: { id: programId }, select: { id: true } })
+      if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+      // Scoped to the manual-review queue only: fills + saves review items
+      // in place, one AI call each, within the admin's calls-per-run
+      // budget. It never enqueues the whole-bank smart-repair job.
+      const result = await runReviewFillAllStep(programId, admin)
+      return NextResponse.json(result)
     }
 
     if (action === 'sanitize' || action === 'clean') {

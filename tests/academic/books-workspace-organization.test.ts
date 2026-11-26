@@ -158,11 +158,24 @@ function apiSurface(): { count: number; digest: string } {
   // 2026-11-12: only two extra calls are intentionally added for source-grounded
   // AI correction: one paginated POST and one refresh GET. Preserve the frozen
   // digest for every original endpoint, method, payload and header.
+  // 2026-11-25: the general «تكليف الذكاء للكل» button NO LONGER posts
+  // repair-ai — the owner ordered it confined to the manual-review queue,
+  // so it posts the scoped 'ai-fill-review-all' action instead (new
+  // reviewed category below). Only the standalone tab still enqueues the
+  // whole-bank smart-repair job.
   const aiRepairCalls = calls.filter((call) =>
     call.includes("'/api/admin/knowledge-bank'") && call.includes("action: 'repair-ai'"))
-  assert.equal(aiRepairCalls.length, 1, 'expected one new source-grounded AI repair POST')
-  assert.ok(aiRepairCalls[0].includes("method: 'POST'") && aiRepairCalls[0].includes('programId: selectedProgramId') &&
-    !aiRepairCalls[0].includes('cursor'), 'AI repair must enqueue from the standalone admin tab, not run in the books workspace')
+  assert.equal(aiRepairCalls.length, 1, 'expected one source-grounded AI repair POST (standalone tab only)')
+  assert.ok(aiRepairCalls.some((call) => call.includes("method: 'POST'") && call.includes('programId: selectedProgramId') &&
+    !call.includes('cursor')), 'AI repair must enqueue from the standalone admin tab, not run in the books workspace')
+  // 2026-11-25: the review-screen bulk button posts the scoped bulk fill
+  // (ai-fill-review-all) — review-queue items only, one AI call each,
+  // saved in place where proven. It must never post repair-ai again.
+  const reviewBulkAiCalls = calls.filter((call) =>
+    call.includes("'/api/admin/knowledge-bank'") && call.includes("action: 'ai-fill-review-all'"))
+  assert.equal(reviewBulkAiCalls.length, 1, 'expected one scoped review-queue bulk-fill POST')
+  assert.ok(reviewBulkAiCalls.some((call) => call.includes("method: 'POST'") && call.includes('programId: targetProgramId') &&
+    !call.includes("action: 'repair-ai'")), 'bulk review fill must post the scoped action from the review screen, never the whole-bank job')
   const aiRefreshCalls = calls.filter((call) =>
     call.includes('/api/admin/knowledge-bank?programId=') && call.includes('encodeURIComponent(programId)') && call.includes('repairStatus=1'))
   assert.equal(aiRefreshCalls.length, 1, 'expected one read-only job-status poll for background AI repair')
@@ -174,7 +187,13 @@ function apiSurface(): { count: number; digest: string } {
     (call.includes("'/api/admin/knowledge-bank'") && call.includes("method: 'PATCH'") &&
       call.includes('expectedUpdatedAt') && !call.includes("action: 'restore-source'") &&
       !call.includes("action: 'repair-chunk'") && !call.includes("action: 'edit-chunk'")))
-  assert.equal(manualReviewCalls.length, 2, 'expected one review-queue GET and one manual-review PATCH')
+  assert.equal(manualReviewCalls.length, 3, 'expected one review-queue GET, one manual-review PATCH and one per-item AI-fill PATCH')
+  // 2026-11-25: the per-item «تكليف الذكاء» button adds one PATCH
+  // (action: 'ai-fill-review') that only fills the review form from the
+  // item's own chunk text — it saves nothing; the admin still presses
+  // «اعتماد التصحيح» to save. Same endpoint and CAS as the manual save.
+  assert.ok(manualReviewCalls.some((call) => call.includes("action: 'ai-fill-review'") && call.includes("method: 'PATCH'") &&
+    call.includes('expectedUpdatedAt')), 'per-item AI fill must PATCH the same endpoint with optimistic concurrency')
   assert.ok(manualReviewCalls.some((call) => call.includes('encodeURIComponent(cursor)')), 'review queue must page by cursor')
   assert.ok(manualReviewCalls.some((call) => call.includes('manualReviewForm.title') && call.includes('manualReviewForm.summary') && call.includes('manualReviewForm.excerpt')), 'manual save must send all three corrected fields')
   // Source recovery adds one read-only, same-book search and one explicitly
@@ -215,7 +234,10 @@ function apiSurface(): { count: number; digest: string } {
   // بالبصمة المجمدة الأصلية.
   const bookRepairCalls = calls.filter((call) =>
     call.includes('/api/admin/books/${bookId}/repair-corrupt-pages'))
-  assert.equal(bookRepairCalls.length, 4, 'expected four reviewed book repair calls')
+  assert.equal(bookRepairCalls.length, 5, 'expected five reviewed book repair calls')
+  // 2026-11-25: the complete-run mode adds one STOP POST — it re-asserts STOP
+  // after each step lands, covering the pre-existing mid-step STOP-overwrite
+  // race in the progress save. Same endpoint, same STOP action, reviewed.
   assert.ok(bookRepairCalls.some((call) => call.includes("method: 'POST'") && !call.includes('mode:') && !call.includes('action')), 'single-shot corrupt-page repair POST sends no mode or action')
   assert.ok(bookRepairCalls.some((call) => call.includes("mode: 'SCAN'") && call.includes("method: 'POST'")), 'full-book scan repair POST')
   assert.ok(bookRepairCalls.some((call) => !call.includes("method: 'POST'")), 'repair-job status is a read-only GET')
@@ -257,6 +279,7 @@ function apiSurface(): { count: number; digest: string } {
       }
       return !rejectionCalls.includes(call) && !rosterCalls.includes(call) && !bookControlCalls.includes(call) &&
         !bookRebuildCalls.includes(call) && !aiRepairCalls.includes(call) && !aiRefreshCalls.includes(call) &&
+        !reviewBulkAiCalls.includes(call) &&
         !aiSettingsCalls.includes(call) && !manualReviewCalls.includes(call) &&
         !sourceCandidateCalls.includes(call) && !sourceRestoreCalls.includes(call) &&
         !chunkRepairCalls.includes(call) && !bookRepairCalls.includes(call) &&
@@ -269,7 +292,7 @@ function apiSurface(): { count: number; digest: string } {
     })
     .sort()
   return {
-    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - aiSettingsCalls.length - manualReviewCalls.length - sourceCandidateCalls.length - sourceRestoreCalls.length - chunkRepairCalls.length - bookRepairCalls.length - extraEnrichmentCalls.length - unitRegenerationCalls.length - 1,
+    count: calls.length - bookControlCalls.length - bookRebuildCalls.length - aiRepairCalls.length - aiRefreshCalls.length - reviewBulkAiCalls.length - aiSettingsCalls.length - manualReviewCalls.length - sourceCandidateCalls.length - sourceRestoreCalls.length - chunkRepairCalls.length - bookRepairCalls.length - extraEnrichmentCalls.length - unitRegenerationCalls.length - 1,
     digest: digest(protectedCalls.join('\n')),
   }
 }
