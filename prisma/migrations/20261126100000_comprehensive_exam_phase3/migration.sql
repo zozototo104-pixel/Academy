@@ -1,7 +1,8 @@
 -- Comprehensive exam phase 3: structured specialization on the exam.
 -- Additive only: one nullable FK on ComprehensiveExam + the live-exam
--- unique index widens from (program, status) to (program, specialization,
--- status). No existing rows are touched: specializationProgramId defaults
+-- index widens from (program, status) to (program, specialization,
+-- status) without uniqueness: multiple ARCHIVED revisions must remain valid.
+-- No existing rows are touched: specializationProgramId defaults
 -- NULL (pre-phase-3 exams keep working as legacy rows). The equivalency
 -- program itself is NOT marked by a flag: it is the service Program row
 -- (category SERVICE, slug 'training-certificates-equivalency'), resolved
