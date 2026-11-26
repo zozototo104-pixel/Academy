@@ -278,6 +278,7 @@ export function AdminComprehensiveExamTab() {
             text: manualText,
             options: manualType === 'TF' ? ['صح', 'خطأ'] : manualOptions.filter((o) => o.trim() !== ''),
             correctAnswer: manualAnswer,
+            correctAnswerIndexBase: 0,
             sourceEvidence: manualEvidence || undefined,
           }),
         }),
@@ -409,6 +410,7 @@ export function AdminComprehensiveExamTab() {
             text: editText,
             options: q.type === 'TF' ? ['صح', 'خطأ'] : editOptions.filter((o) => o.trim() !== ''),
             correctAnswer: editAnswer,
+            correctAnswerIndexBase: 0,
           }),
         }),
         'تعذر حفظ التعديل',
@@ -801,8 +803,9 @@ function DetailPanel(props: any) {
             <CardContent className="space-y-3 pt-4">
               <h4 className="text-sm font-black">بحث الذكاء عبر الإنترنت</h4>
               <p className="text-[11px] text-slate-500">
-                يبحث الذكاء في الويب (Tavily) عن الموضوع، ثم يولّد أسئلة صح/خطأ واختيار متعدد من الخلاصات الراجعة فقط — كل سؤال بدليل حرفي من خلاصة
-                ورابط مصدرها، ويبدأ بانتظار المراجعة. يتطلب مفتاح Tavily مجانياً محفوظاً في إعدادات النظام (1000 بحث شهرياً، من غير بطاقة).
+                يبحث الذكاء في الويب (Tavily) عن محور علمي داخل تخصص الامتحان، ثم يولّد أسئلة كفاءة تخصصية بدليل حرفي ورابط مصدر، وكلها بانتظار المراجعة.
+                اكتب موضوعاً مثل «الإدارة الاستراتيجية وتحليل المنافسة» أو «مناهج البحث التطبيقي»؛ لا تكتب اسم الدرجة (DBA) وحده، أو شروط قبولها، فهذه ليست أسئلة تخصصية.
+                يتطلب ذلك مفتاح Tavily محفوظاً في إعدادات النظام.
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Input value={props.internetTopic} onChange={(e: ChangeEvent<HTMLInputElement>) => props.setInternetTopic(e.target.value)} placeholder="مثال: مبادئ المحاسبة المالية" className="max-w-xs" />
