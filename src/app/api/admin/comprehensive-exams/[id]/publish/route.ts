@@ -32,6 +32,38 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ ok: true, status: updated.status })
     }
 
+    if (action === 'archive') {
+      if (exam.status === 'ARCHIVED') return NextResponse.json({ ok: true, status: 'ARCHIVED' })
+      if (exam.status !== 'DRAFT' && exam.status !== 'READY') {
+        return NextResponse.json({ error: 'لا يمكن أرشفة حالة الامتحان الحالية' }, { status: 409 })
+      }
+      const result = await db.$transaction(async (tx) => {
+        const activeAttempts = await tx.comprehensiveExamAttempt.count({ where: { examId: id, status: 'STARTED' } })
+        const pendingInvitations = await tx.comprehensiveExamInvitation.count({
+          where: { status: 'PENDING', candidate: { examId: id } },
+        })
+        if (activeAttempts || pendingInvitations) return { activeAttempts, pendingInvitations, count: 0 }
+        const change = await tx.comprehensiveExam.updateMany({
+          where: { id, status: exam.status },
+          data: { status: 'ARCHIVED', publishedAt: null, publishedById: null },
+        })
+        return { activeAttempts: 0, pendingInvitations: 0, count: change.count }
+      }, { isolationLevel: 'Serializable' })
+      if (result.activeAttempts || result.pendingInvitations) {
+        return NextResponse.json({
+          error: 'لا يمكن أرشفة امتحان لديه محاولات جارية أو دعوات لم تُستخدم — أنهِها أولاً',
+          code: 'EXAM_HAS_ACTIVE_INVITATIONS_OR_ATTEMPTS',
+          activeAttempts: result.activeAttempts,
+          pendingInvitations: result.pendingInvitations,
+        }, { status: 409 })
+      }
+      if (result.count !== 1) {
+        return NextResponse.json({ error: 'تغيرت حالة الامتحان — حدّث القائمة', code: 'EXAM_STATUS_CHANGED' }, { status: 409 })
+      }
+      await audit({ id: admin.id, name: admin.name }, 'ARCHIVE_COMPREHENSIVE_EXAM', 'ComprehensiveExam', id, `أرشفة الامتحان الشامل «${exam.title}» مع الاحتفاظ بمحاولاته ونتائجه`)
+      return NextResponse.json({ ok: true, status: 'ARCHIVED' })
+    }
+
     if (action !== 'publish') return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
     if (exam.status === 'READY') return NextResponse.json({ ok: true, status: 'READY', approved: COMPREHENSIVE_EXAM_QUESTION_COUNT })
     if (exam.status !== 'DRAFT') return NextResponse.json({ error: 'لا يمكن نشر امتحان مؤرشف' }, { status: 409 })
