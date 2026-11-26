@@ -128,6 +128,7 @@ describe('admin mobile overflow guard', () => {
   test('platform screens no longer use browser-owned confirmation or prompt windows', () => {
     const files = [
       'src/components/aact/AdminView.tsx',
+      'src/components/aact/AdminComprehensiveExamTab.tsx',
       'src/components/aact/AdminLectures.tsx',
       'src/components/aact/AdminAnnouncementsTab.tsx',
       'src/components/aact/AdminStudyScheduleTab.tsx',
