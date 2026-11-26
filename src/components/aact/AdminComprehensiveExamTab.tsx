@@ -1149,7 +1149,8 @@ function DetailPanel(props: any) {
                 <h5 className="text-sm font-bold text-indigo-900">امتحان شامل موزع على محاور التخصص</h5>
                 <p className="text-xs text-indigo-900">
                   يحضّر مخططاً من 5 إلى 10 محاور من وحدات التخصص المعتمدة أو مقترحات الذكاء. راجع المحاور وعدّلها أولاً، ثم يبحث عن مصادر لكل محور
-                  ويولّد أسئلة فهم وتطبيق وتحليل بالتتابع حتى سقف 100 سؤال. أي سؤال يُحفظ بانتظار مراجعتك؛ النقص في المصادر يظهر بوضوح ولا يُملأ بأسئلة مخترعة.
+                  ويولّد أسئلة فهم وتطبيق وتحليل. كل دفعة بحد أقصى 10 أسئلة، ويواصل تلقائياً حتى سقف 100 سؤال أو نفاد الأدلة العلمية؛ ويمكن استكمال النقص لاحقاً.
+                  أي سؤال يُحفظ بانتظار مراجعتك، ولا يُملأ النقص بأسئلة مخترعة.
                 </p>
                 <Button variant="outline" disabled={!isDraft || props.internetBusy || props.internetPlanBusy || props.internetRunBusy} onClick={props.onCreateInternetPlan}>
                   {props.internetPlanBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
