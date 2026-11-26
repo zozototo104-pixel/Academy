@@ -139,6 +139,10 @@ function formReq(form: FormData, url: string) {
   return { formData: async () => form, json: async () => ({}), nextUrl: new URL(url) } as any
 }
 
+function jsonActionReq(body: AnyRecord, url = 'https://aactacademy.test/api/admin/certificates/cert-1/upload') {
+  return { headers: new Headers({ 'Content-Type': 'application/json' }), json: async () => body, nextUrl: new URL(url), url } as any
+}
+
 function ctx(certificateId = 'cert-1') {
   return { params: { certificateId } } as any
 }
