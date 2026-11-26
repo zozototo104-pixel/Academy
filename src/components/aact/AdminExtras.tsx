@@ -2462,6 +2462,18 @@ export function AdminCertificatesTab() {
     setCertUploadBusy(`cert-preview-${certificate.serial}`)
     try {
       if (file) {
+        const key = await directRegularCertFile(certificate, file)
+        if (key) {
+          const result = await api<{ previewUrl: string }>(regularCertUploadUrl(certificate), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'PREVIEW', key, size: file.size, fileName: file.name,
+              qrPosition: regularCertQrPosition(certificate), qrSize: regularCertQrSize(certificate) }),
+          })
+          const prev = certUploadPreviewUrlBySerial[certificate.serial]
+          if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+          setCertUploadPreviewUrlBySerial((old) => ({ ...old, [certificate.serial]: result.previewUrl }))
+          return
+        }
         // ملف جديد لم يُحفظ بعد: المعاينة تمر عبر POST (مثل شاشة الخريجين
         // السابقين) لأن متصفحات الهواتف ترفض عرض blob: PDF داخل الإطارات.
         const fd = new FormData()
