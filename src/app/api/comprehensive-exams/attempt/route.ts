@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'هذه الدعوة غير صالحة', code: 'INVITATION_INVALID' }, { status: 410 })
     }
     if (Date.now() > new Date(invitation.expiresAt).getTime()) {
-      await db.comprehensiveExamInvitation.update({ where: { id: invitation.id }, data: { status: 'EXPIRED' } })
+      await db.comprehensiveExamInvitation.updateMany({ where: { id: invitation.id, status: 'PENDING' }, data: { status: 'EXPIRED' } })
       return NextResponse.json({ error: 'انتهت صلاحية الدعوة — تواصل مع الإدارة لتجديدها', code: 'INVITATION_EXPIRED' }, { status: 410 })
     }
     if (exam.status !== 'READY') {
