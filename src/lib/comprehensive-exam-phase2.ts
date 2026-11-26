@@ -614,7 +614,13 @@ export async function qualifyComprehensiveExamCandidate(
   })
 
   const existingCertificate = await tx.certificate.findFirst({
-    where: { enrollmentId: enrollment.id, type: 'COMPREHENSIVE_EXAM' },
+    // Multiple specializations share the equivalency enrollment; only
+    // the SAME specialization is a duplicate certificate.
+    where: {
+      enrollmentId: enrollment.id,
+      type: 'COMPREHENSIVE_EXAM',
+      comprehensiveExam: { specializationProgramId: input.specialization.id },
+    },
   })
   if (existingCertificate) {
     throw new ComprehensiveExamPhase2Error(409, 'CERTIFICATE_ALREADY_EXISTS', 'موجود أصلاً كخريج')
