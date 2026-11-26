@@ -86,6 +86,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       where: { examId: id },
       orderBy: { createdAt: 'desc' },
       include: {
+        manualPayment: { select: { id: true, status: true, amount: true, invoiceNo: true, receiptNo: true } },
         invitations: { orderBy: { createdAt: 'desc' }, take: 1 },
         attempts: {
           orderBy: { createdAt: 'desc' },
