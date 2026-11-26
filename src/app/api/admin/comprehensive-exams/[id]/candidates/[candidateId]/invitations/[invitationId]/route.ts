@@ -114,6 +114,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const newToken = createComprehensiveExamInviteToken()
     const newExpiresAt = comprehensiveExamInviteExpiresAt()
     const next = await db.$transaction(async (tx) => {
+      const readyExam = await tx.comprehensiveExam.findFirst({ where: { id: exam.id, status: 'READY' }, select: { id: true } })
+      if (!readyExam) throw new ComprehensiveExamPhase2Error(409, 'EXAM_NOT_READY', 'أُلغي نشر الامتحان أثناء تجديد الدعوة')
       // Revalidate the original row *inside* the serializable transaction:
       // a concurrent exam start/renewal must not create another live link.
       const current = await tx.comprehensiveExamInvitation.findFirst({
