@@ -286,6 +286,20 @@ describe('POST .../questions (manual)', () => {
 })
 
 describe('POST .../publish (the 100-question gate)', () => {
+  test('100 approved questions cannot publish if an old internet question tests admissions', async () => {
+    const examId = await createExam()
+    seedApproved(examId, 100)
+    questions[0].source = 'AI_INTERNET'
+    questions[0].text = 'ما هي شروط القبول للالتحاق ببرنامج الدكتوراه في إدارة الأعمال؟'
+    const res = await publishRoute.POST(
+      req(`/api/admin/comprehensive-exams/${examId}/publish`, 'POST', { action: 'publish' }),
+      ctx(examId),
+    )
+    expect(res.status).toBe(409)
+    expect((await res.json()).code).toBe('ACADEMIC_QUESTION_OFF_TOPIC')
+    expect(exams[0].status).toBe('DRAFT')
+  })
+
   test('99 approved is refused with needed = 1', async () => {
     const examId = await createExam()
     seedApproved(examId, 99)
@@ -368,6 +382,47 @@ describe('POST .../publish (archiving)', () => {
 })
 
 describe('PATCH .../questions/[questionId] (review)', () => {
+  test('manual UI answers and approval preserve the second/fourth MCQ option', async () => {
+    const examId = await createExam()
+    const added = await questionsRoute.POST(
+      req(`/api/admin/comprehensive-exams/${examId}/questions`, 'POST', {
+        type: 'MCQ', text: 'أي الخيارات الآتية يمثل أصلاً متداولاً في القوائم المالية؟',
+        options: ['المباني', 'النقدية', 'الشهرة', 'براءات الاختراع'],
+        correctAnswer: '1', correctAnswerIndexBase: 0,
+      }), ctx(examId),
+    )
+    expect(added.status).toBe(201)
+    const { questionId } = await added.json()
+    expect(questions[0].correctAnswer).toBe('1')
+    const edited = await questionRoute.PATCH(
+      req(`/api/admin/comprehensive-exams/${examId}/questions/${questionId}`, 'PATCH', {
+        correctAnswer: '3', correctAnswerIndexBase: 0,
+      }), ctx(examId, { questionId }),
+    )
+    expect(edited.status).toBe(200)
+    expect(questions[0].correctAnswer).toBe('3')
+    const approved = await questionRoute.PATCH(
+      req(`/api/admin/comprehensive-exams/${examId}/questions/${questionId}`, 'PATCH', { status: 'APPROVED' }),
+      ctx(examId, { questionId }),
+    )
+    expect(approved.status).toBe(200)
+    expect(questions[0].correctAnswer).toBe('3')
+  })
+
+  test('cannot approve an old internet admissions question even with literal evidence', async () => {
+    const examId = await createExam()
+    seedApproved(examId, 1)
+    questions[0].source = 'AI_INTERNET'
+    questions[0].text = 'من هي الفئة المستهدفة للالتحاق ببرنامج دكتوراه إدارة الأعمال DBA؟'
+    questions[0].status = 'PENDING_REVIEW'
+    const res = await questionRoute.PATCH(
+      req(`/api/admin/comprehensive-exams/${examId}/questions/${questions[0].id}`, 'PATCH', { status: 'APPROVED' }),
+      ctx(examId, { questionId: questions[0].id }),
+    )
+    expect(res.status).toBe(422)
+    expect((await res.json()).code).toBe('ACADEMIC_QUESTION_OFF_TOPIC')
+  })
+
   test('approving re-validates and stamps the approver', async () => {
     const examId = await createExam()
     const add = await questionsRoute.POST(
@@ -435,6 +490,18 @@ describe('PATCH .../questions/[questionId] (review)', () => {
 })
 
 describe('POST .../questions/from-bank', () => {
+  test('preserves a third zero-based bank answer during transfer', async () => {
+    const examId = await createExam()
+    bankItems[0].options = JSON.stringify(['النقدية', 'المباني', 'الشهرة', 'المخزون'])
+    bankItems[0].correctAnswer = '2'
+    const res = await fromBankRoute.POST(
+      req(`/api/admin/comprehensive-exams/${examId}/questions/from-bank`, 'POST', { bankItemIds: ['bank-1'] }),
+      ctx(examId),
+    )
+    expect(res.status).toBe(200)
+    expect(questions[0].correctAnswer).toBe('2')
+  })
+
   test('imports only APPROVED MCQ/TF bank items; essay is refused, not converted', async () => {
     const examId = await createExam()
     const res = await fromBankRoute.POST(
