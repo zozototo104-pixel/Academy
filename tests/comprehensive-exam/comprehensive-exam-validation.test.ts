@@ -4,6 +4,9 @@ import {
   parseComprehensiveCorrectAnswer,
   parseComprehensiveType,
   validateComprehensiveQuestion,
+  internetAcademicTopicIssue,
+  internetQuestionAcademicIssue,
+  internetSourceAcademicIssue,
 } from '../../src/lib/comprehensive-exam'
 
 const mcq = {
@@ -12,6 +15,36 @@ const mcq = {
   options: ['النقدية', 'المباني', 'براءات الاختراع', 'الشهرة'],
   correctAnswer: '0',
 }
+
+describe('internet comprehensive exam — academic scope', () => {
+  const specialization = 'الدكتوراه المهنية في إدارة الأعمال'
+
+  test('rejects degree name and admissions topics, but accepts disciplinary topics', () => {
+    expect(internetAcademicTopicIssue('دكتوراه إدارة الأعمال DBA', specialization)).not.toBeNull()
+    expect(internetAcademicTopicIssue('شروط القبول في برنامج DBA', specialization)).not.toBeNull()
+    expect(internetAcademicTopicIssue('الإدارة الاستراتيجية وتحليل الميزة التنافسية', specialization)).toBeNull()
+    expect(internetAcademicTopicIssue('مناهج البحث العلمي التطبيقي', specialization)).toBeNull()
+  })
+
+  test('refuses degree-admissions sources even when their text is real', () => {
+    expect(internetSourceAcademicIssue(
+      'United International Business School - DBA',
+      'يُعدّ برنامج دكتوراه إدارة الأعمال برنامجًا مهنيًا موجهاً نحو خريجي الماجستير في التخصصات ذات الصلة.',
+    )).toBe('DEGREE_ADMISSIONS_SOURCE')
+    expect(internetSourceAcademicIssue(
+      'المحاسبة المالية',
+      'الأصول المتداولة تشمل النقدية والذمم المدينة والمخزون، وتخضع لتحليل السيولة وإدارة رأس المال العامل.',
+    )).toBeNull()
+  })
+
+  test('refuses degree trivia but preserves knowledge questions', () => {
+    expect(internetQuestionAcademicIssue('من هي الفئة المستهدفة للالتحاق ببرنامج دكتوراه إدارة الأعمال DBA؟')).not.toBeNull()
+    expect(internetQuestionAcademicIssue('ما هي الشروط الأساسية المذكورة للقبول في برنامج الـ DBA؟')).not.toBeNull()
+    expect(internetQuestionAcademicIssue('يركز برنامج الـ DBA بشكل أساسي على تطبيق المعرفة النظرية لتحسين ممارسات الإدارة والأعمال.')).not.toBeNull()
+    expect(internetQuestionAcademicIssue('كيف يؤثر التحليل المالي للسيولة في اتخاذ قرار تمويل رأس المال العامل؟')).toBeNull()
+    expect(internetQuestionAcademicIssue('تُصنّف الذمم المدينة ضمن الأصول المتداولة في قائمة المركز المالي.')).toBeNull()
+  })
+})
 
 describe('validateComprehensiveQuestion', () => {
   test('accepts a valid multiple-choice question', () => {
@@ -107,6 +140,22 @@ describe('parseComprehensiveType', () => {
 })
 
 describe('parseComprehensiveCorrectAnswer', () => {
+  test('zero-based UI/stored answers retain all four MCQ positions', () => {
+    const options = ['الأول', 'الثاني', 'الثالث', 'الرابع']
+    for (let i = 0; i < options.length; i++) {
+      expect(parseComprehensiveCorrectAnswer('MCQ', String(i), options, 0)).toBe(String(i))
+      const checked = validateComprehensiveQuestion({ ...mcq, correctAnswer: String(i), correctAnswerIndexBase: 0 })
+      expect(checked.ok).toBe(true)
+      if (checked.ok) expect(checked.question.correctAnswer).toBe(String(i))
+    }
+    expect(parseComprehensiveCorrectAnswer('MCQ', '4', options, 0)).toBeNull()
+  })
+
+  test('legacy one-based numeric imports still resolve to zero-based storage', () => {
+    expect(parseComprehensiveCorrectAnswer('MCQ', '1', mcq.options)).toBe('0')
+    expect(parseComprehensiveCorrectAnswer('MCQ', '4', mcq.options)).toBe('3')
+  })
+
   test('TF accepts صح/خطأ words', () => {
     expect(parseComprehensiveCorrectAnswer('TF', 'صح', ['صح', 'خطأ'])).toBe('0')
     expect(parseComprehensiveCorrectAnswer('TF', 'خطأ', ['صح', 'خطأ'])).toBe('1')
