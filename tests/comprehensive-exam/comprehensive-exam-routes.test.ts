@@ -8,6 +8,8 @@ let exams: any[] = []
 let questions: any[] = []
 let bankItems: any[] = []
 let qSeq = 0
+let startedAttempts = 0
+let pendingInvitations = 0
 
 const program = {
   id: 'program-1',
