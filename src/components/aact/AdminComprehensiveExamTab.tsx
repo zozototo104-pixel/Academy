@@ -974,6 +974,7 @@ type CandidateItem = {
   submittedBy: string
   createdAt: string
   serviceFeePaid?: boolean | null
+  manualPayment?: { id: string; status: string; amount: number; invoiceNo: string; receiptNo: string | null } | null
   inviteBlockedReason?: 'EXAM_NOT_READY' | 'PAYMENT_REQUIRED' | null
   specialization?: { id: string; titleAr: string; titleEn?: string | null; category?: string | null } | null
   invitation: CandidateInvitation | null
