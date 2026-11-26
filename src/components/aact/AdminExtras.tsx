@@ -3160,7 +3160,13 @@ export function AdminCertificatesTab() {
                       <p className="rounded-xl border border-emerald-100 bg-emerald-50 p-2 text-[11px] font-bold leading-5 text-emerald-900">
                         الشهادة الأصلية لا يُعاد رسمها. يتم فقط إضافة QR والرقم التسلسلي فوق الملف كما رفعته.
                       </p>
-                      <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => setCertUploadFileBySerial((prev) => ({ ...prev, [c.serial]: e.target.files?.[0] || null }))} />
+                      <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => {
+                        const oldUrl = certUploadPreviewUrlBySerial[c.serial]
+                        if (oldUrl?.startsWith('blob:')) URL.revokeObjectURL(oldUrl)
+                        setCertUploadPreviewUrlBySerial((prev) => ({ ...prev, [c.serial]: null }))
+                        setCertUploadDirectBySerial((prev) => ({ ...prev, [c.serial]: undefined }))
+                        setCertUploadFileBySerial((prev) => ({ ...prev, [c.serial]: e.target.files?.[0] || null }))
+                      }} />
                       {certUploadFileBySerial[c.serial] && <p className="text-[11px] text-slate-500">{certUploadFileBySerial[c.serial]?.name}</p>}
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
