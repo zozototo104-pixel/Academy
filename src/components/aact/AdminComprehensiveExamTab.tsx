@@ -1072,11 +1072,14 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
     form.append('idDocumentFile', idFile)
     setCreating(true)
     try {
-      await jsonOrThrow(
+      const data = await jsonOrThrow(
         await fetch(`/api/admin/comprehensive-exams/${examId}/candidates`, { method: 'POST', body: form }),
         'تعذر إدخال المرشح',
       )
-      toast({ title: 'أُدخل المرشح', description: 'راجعه من القائمة واعتمده قبل إصدار الدعوة' })
+      const accountMessage = data.userCreated
+        ? data.emailStatus === 'SENT' ? 'أُنشئ حساب الطالب ووصلت تعليمات الدخول بالبريد.' : 'أُنشئ الحساب، لكن البريد لم يصل؛ استخدم زر إعادة إرسال تعليمات الدخول.'
+        : 'المرشح مرتبط بحساب طالب موجود مسبقاً.'
+      toast({ title: 'أُدخل المرشح', description: `${accountMessage} راجعه واعتمده قبل توثيق الدفعة والدعوة.` })
       setFullName('')
       setNationalId('')
       setEmail('')
