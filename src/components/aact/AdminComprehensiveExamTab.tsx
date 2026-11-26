@@ -998,8 +998,24 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
   }
 
   useEffect(() => {
-    loadCandidates()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // First load via an async callback (not a sync setState in the effect).
+    // loading starts true from useState, so nothing is set here.
+    let alive = true
+    fetch(`/api/admin/comprehensive-exams/${examId}/candidates`, { cache: 'no-store' })
+      .then((r) => jsonOrThrow(r, 'تعذر تحميل المرشحين'))
+      .then((data) => {
+        if (!alive) return
+        setCandidates(data.candidates || [])
+        setLoading(false)
+      })
+      .catch((e: any) => {
+        if (!alive) return
+        setLoading(false)
+        toast({ title: 'تعذر تحميل المرشحين', description: e.message || 'حدث خطأ', variant: 'destructive' })
+      })
+    return () => {
+      alive = false
+    }
   }, [examId])
 
   const deliverySummary = (d: any) =>

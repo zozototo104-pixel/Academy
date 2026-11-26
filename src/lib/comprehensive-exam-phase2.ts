@@ -70,10 +70,10 @@ export function validateComprehensiveCandidateInput(raw: {
   }
   const email = cleanCandidateText(raw?.email, 180).toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('البريد الإلكتروني غير صالح')
-  const phoneError = validatePhone(raw?.phone)
+  const phoneError = validatePhone(String(raw?.phone ?? ''))
   if (phoneError) errors.push(phoneError)
   if (errors.length) return { ok: false, errors }
-  return { ok: true, data: { fullName, nationalId, email, phone: normalizePhone(raw?.phone) } }
+  return { ok: true, data: { fullName, nationalId, email, phone: normalizePhone(String(raw?.phone ?? '')) } }
 }
 
 // Candidate documents are identity papers: image or PDF only, magic

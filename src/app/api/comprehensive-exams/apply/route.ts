@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   try {
     const ip = clientIpFromHeaders(req.headers)
     const limit = await checkRateLimit(`comprehensive-exam-apply:${ip}`, 5, 600_000)
-    if (!limit.allowed) {
+    if (!limit.ok) {
       return NextResponse.json({ error: 'محاولات كثيرة — انتظر 10 دقائق وحاول مجدداً' }, { status: 429 })
     }
     const { fields, certificateFile, idDocumentFile } = await parseComprehensiveCandidateForm(req)

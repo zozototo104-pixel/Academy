@@ -218,8 +218,8 @@ function candidateForm(over: Record<string, string> = {}) {
   return form
 }
 
-function ctx(examId = 'exam-1', candidateId = '') {
-  return { params: Promise.resolve(candidateId ? { id: examId, candidateId } : { id: examId }) }
+function ctx(examId = 'exam-1', candidateId = ''): { params: Promise<{ id: string; candidateId: string }> } {
+  return { params: Promise.resolve({ id: examId, candidateId }) }
 }
 
 function seedApprovedCandidate(over: any = {}) {

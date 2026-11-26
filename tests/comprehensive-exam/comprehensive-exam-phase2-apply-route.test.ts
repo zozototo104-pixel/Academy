@@ -46,7 +46,8 @@ const fakeDb: any = {
 
 mock.module('@/lib/db', () => ({ db: fakeDb }))
 mock.module('@/lib/rate-limit', () => ({
-  checkRateLimit: async () => ({ allowed: rateAllowed, remaining: rateAllowed ? 4 : 0 }),
+  // Real RateLimitResult shape: { ok, remaining, resetAt, retryAfterSec } — no `allowed`.
+  checkRateLimit: async () => ({ ok: rateAllowed, remaining: rateAllowed ? 4 : 0, resetAt: Date.now() + 600_000, retryAfterSec: rateAllowed ? 0 : 600 }),
   clientIpFromHeaders: () => '1.2.3.4',
 }))
 mock.module('@/lib/storage', () => ({
@@ -74,8 +75,8 @@ function applyForm(over: Record<string, string> = {}, certBytes: Buffer = png, c
   form.append('nationalId', over.nationalId || '123456789')
   form.append('email', over.email || 'a@b.com')
   form.append('phone', over.phone || '0599123456')
-  form.append('certificateFile', new File([certBytes], certName, { type: 'image/png' }))
-  form.append('idDocumentFile', new File([png], 'id.png', { type: 'image/png' }))
+  form.append('certificateFile', new File([new Uint8Array(certBytes)], certName, { type: 'image/png' }))
+  form.append('idDocumentFile', new File([new Uint8Array(png)], 'id.png', { type: 'image/png' }))
   return form
 }
 

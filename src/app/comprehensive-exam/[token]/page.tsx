@@ -119,13 +119,15 @@ export default function ComprehensiveExamPage() {
   }, [token])
 
   // Countdown — at zero the exam submits itself with the answers given.
+  // The zero-check lives inside the timer callback (not the effect body)
+  // so no state is set synchronously from the effect.
   useEffect(() => {
     if (!exam || result) return
-    if (remaining <= 0) {
-      submit(answers)
-      return
-    }
-    const t = setTimeout(() => setRemaining((v) => v - 1), 1000)
+    if (remaining <= 0) return
+    const t = setTimeout(() => {
+      if (remaining - 1 <= 0) submit(answers)
+      else setRemaining((v) => v - 1)
+    }, 1000)
     return () => clearTimeout(t)
   }, [exam, result, remaining, answers, submit])
 
