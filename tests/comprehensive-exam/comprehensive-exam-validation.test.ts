@@ -165,3 +165,57 @@ describe('parseComprehensiveCorrectAnswer', () => {
     expect(parseComprehensiveCorrectAnswer('TF', '2', ['صح', 'خطأ'])).toBe(null)
   })
 })
+
+describe('comprehensive exam review UX', () => {
+  const view = readFileSync(join(import.meta.dir, '../../src/components/aact/AdminComprehensiveExamTab.tsx'), 'utf8')
+
+  test('keeps the question panel mounted during approval and edit refresh', () => {
+    expect(view).toContain('const loadDetail = async (examId: string, showLoading = true)')
+    expect(view).toContain('if (showLoading) setDetailLoading(true)')
+    expect(view).toContain('if (showLoading) setDetailLoading(false)')
+    expect(view).toContain('loadDetail(examId, false), loadExams()')
+    expect(view).toContain('onClick={() => loadDetail(exam.id)}')
+  })
+
+  test('select-all approves only pending questions via existing guarded PATCH', () => {
+    expect(view).toContain('تحديد الكل')
+    expect(view).toContain('اعتماد المحدد')
+    expect(view).toContain("q.status === 'PENDING_REVIEW'")
+    expect(view).toContain("body: JSON.stringify({ status: 'APPROVED' })")
+    expect(view).toContain('bulkApproveLock.current = true')
+    expect(view).toContain('bulkApproveLock.current = false')
+  })
+
+  test('batch approval preserves each success and reports failed academic validation', async () => {
+    const visited: string[] = []
+    const result = await approvePendingQuestionsInBatches(
+      [{ id: 'a', order: 1 }, { id: 'bad', order: 2 }, { id: 'a', order: 1 }, { id: 'c', order: 3 }],
+      async (id) => {
+        visited.push(id)
+        if (id === 'bad') throw new Error('السؤال خارج التخصص')
+      },
+    )
+    expect(visited.sort()).toEqual(['a', 'bad', 'c'])
+    expect(result.approvedIds).toEqual(['a', 'c'])
+    expect(result.failed).toEqual([{ id: 'bad', order: 2, reason: 'السؤال خارج التخصص' }])
+  })
+
+  test('batch approval limits concurrency to four and reports progress', async () => {
+    let concurrent = 0
+    let peak = 0
+    const progress: number[] = []
+    const result = await approvePendingQuestionsInBatches(
+      Array.from({ length: 9 }, (_, i) => ({ id: `q-${i}`, order: i + 1 })),
+      async () => {
+        concurrent++
+        peak = Math.max(peak, concurrent)
+        await new Promise((resolve) => setTimeout(resolve, 2))
+        concurrent--
+      },
+      (processed) => progress.push(processed),
+    )
+    expect(peak).toBeLessThanOrEqual(4)
+    expect(progress).toEqual([4, 8, 9])
+    expect(result.approvedIds).toHaveLength(9)
+  })
+})
