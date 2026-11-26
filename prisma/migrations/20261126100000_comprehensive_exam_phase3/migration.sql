@@ -12,7 +12,7 @@
 ALTER TABLE "ComprehensiveExam" ADD COLUMN "specializationProgramId" TEXT;
 
 DROP INDEX "ComprehensiveExam_programId_status_key";
-CREATE UNIQUE INDEX "ComprehensiveExam_programId_specializationProgramId_status_key" ON "ComprehensiveExam"("programId", "specializationProgramId", "status");
+CREATE INDEX "ComprehensiveExam_programId_specializationProgramId_status_idx" ON "ComprehensiveExam"("programId", "specializationProgramId", "status");
 
 ALTER TABLE "ComprehensiveExam" ADD CONSTRAINT "ComprehensiveExam_specializationProgramId_fkey" FOREIGN KEY ("specializationProgramId") REFERENCES "Program"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
