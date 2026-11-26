@@ -1516,6 +1516,28 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
                   </Button>
                 </div>
 
+                {paymentCandidateId === c.id && c.submittedBy === 'ADMIN' && c.status === 'APPROVED' && c.manualPayment?.status !== 'PAID' && (
+                  <div className="mt-2 space-y-2 rounded-xl border border-teal-200 bg-teal-50 p-3">
+                    <p className="text-xs font-black text-teal-900">تسجيل سداد استلمته الإدارة فعلياً — سيصدر رقم فاتورة وإيصال رسمي</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label>المبلغ المستلم بالدولار ($) *</Label>
+                        <Input type="number" min="0.01" max="999999.99" step="0.01" dir="ltr" value={paidAmount} onChange={(e: ChangeEvent<HTMLInputElement>) => setPaidAmount(e.target.value)} placeholder="مثال: 50.00" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>ملاحظة استلام إدارية *</Label>
+                        <Textarea value={paidNote} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setPaidNote(e.target.value)} rows={2} />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => recordDirectPayment(c)} disabled={busy === `payment-${c.id}` || !paidAmount || paidNote.trim().length < 6}>
+                        {busy === `payment-${c.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} تأكيد المبلغ وتسجيل الإيصال
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setPaymentCandidateId(null)}>إلغاء</Button>
+                    </div>
+                  </div>
+                )}
+
                 {showInvitations[c.id] && (
                   <div className="mt-2 space-y-1 rounded-lg border border-slate-200 p-2">
                     {(invitationsByCandidate[c.id] || []).length === 0 && <p className="text-[11px] text-slate-500">لا دعوات سابقة.</p>}
