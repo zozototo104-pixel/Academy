@@ -129,6 +129,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ ok: true, certificate: { id: result.certificate.id, serial: result.certificate.serial, qrToken: result.certificate.qrToken } })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (e?.code === 'P2034') return NextResponse.json({ error: 'تزامنت محاولة تأهيل أخرى — حدّث الشهادات والنتائج', code: 'QUALIFICATION_CONFLICT' }, { status: 409 })
     return phase2ErrorResponse(e, 'تعذر إعادة التأهيل')
   }
 }
