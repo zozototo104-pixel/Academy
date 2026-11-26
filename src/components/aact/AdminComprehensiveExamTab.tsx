@@ -1048,7 +1048,7 @@ function QuestionRow(props: any) {
           {isDraft && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {q.status !== 'APPROVED' && (
-                <Button size="sm" variant="outline" onClick={() => props.onReview(q, 'APPROVED')}><Check className="h-3.5 w-3.5" /> اعتماد</Button>
+                <Button size="sm" variant="outline" disabled={props.bulkApproveBusy} onClick={() => props.onReview(q, 'APPROVED')}><Check className="h-3.5 w-3.5" /> اعتماد</Button>
               )}
               {q.status !== 'REJECTED' && (
                 <>
