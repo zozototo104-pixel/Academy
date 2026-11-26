@@ -954,6 +954,7 @@ function DetailPanel(props: any) {
   const exam = detail.exam
   const isDraft = exam.status === 'DRAFT'
   const canPublish = detail.counts.approved === 100
+  const remainingExamSlots = Math.max(0, 100 - detail.counts.approved - detail.counts.pending)
   const selectable = (filteredQuestions as ExamQuestion[]).filter((q) => q.status === 'PENDING_REVIEW')
   const selectedVisible = selectable.filter((q) => props.selectedQuestionIds.includes(q.id))
   const allVisibleSelected = selectable.length > 0 && selectedVisible.length === selectable.length
