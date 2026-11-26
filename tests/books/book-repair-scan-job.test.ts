@@ -479,6 +479,25 @@ describe('book-wide selective repair (SCAN)', () => {
     }
   })
 
+  test('a distorted item with no source chunk goes to review and cannot stall complete repair', async () => {
+    // The scan flags the garbled item even without a chunkId; it cannot
+    // be processed by the healthy-chunk loop, so REVIEW is its only
+    // honest terminal state until the source is recovered.
+    chunks = [chunks[1]]
+    items = [{ ...items[0], id: 'orphan-item', chunkId: null }]
+    const before = JSON.stringify(items)
+    const response = await postRepair({ mode: 'SCAN' })
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.done).toBe(true)
+    expect(body.counters).toMatchObject({
+      chunksTotal: 1, chunksRemaining: 0, itemsTotal: 1,
+      itemsNeedsReview: 1, itemsRemaining: 0, itemsCorrected: 0,
+    })
+    expect(ocrCalls).toHaveLength(0)
+    expect(JSON.stringify(items)).toBe(before)
+  })
+
   test('a step that moves nothing while work remains reports noProgress', async () => {
     // Same CAS-skip setup, one press only: the step ran, made no
     // progress, and says so instead of repeating «بقي عمل» counters.
