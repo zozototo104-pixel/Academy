@@ -532,6 +532,37 @@ export async function sendComprehensiveExamInvite(input: ComprehensiveInviteSend
   return delivery
 }
 
+// Account setup for admin-entered candidates, identical to the legacy
+// graduate's one-time 7-day password setup, but with correct exam wording.
+// Passwords never leave the server. A failed email is visible and can
+// be resent by the admin without creating a second account.
+export async function sendComprehensiveCandidatePasswordSetup(req: NextRequest, userId: string) {
+  try {
+    const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true } })
+    if (!user) return 'FAILED' as const
+    const reset = createPasswordResetToken(7 * 24 * 60 * 60 * 1000)
+    await db.user.update({
+      where: { id: user.id },
+      data: { passwordResetTokenHash: reset.tokenHash, passwordResetExpiresAt: reset.expiresAt, passwordResetUsedAt: null },
+    })
+    const url = passwordResetUrl(req, reset.token)
+    return await sendEmailDetailed({
+      to: user.email,
+      identityMail: true,
+      event: 'COMPREHENSIVE_EXAM_ACCOUNT_SETUP',
+      subject: 'حسابك في منصة الأكاديمية — استكمال معادلة الشهادة',
+      html: emailTemplate(
+        'تم إنشاء حسابك لرحلة معادلة الشهادة',
+        '<p>أدخلت إدارة الأكاديمية بياناتك كمرشح لامتحان معادلة الشهادة. تم إنشاء حساب طالب باسمك، ولأمانك لم تُرسل أي كلمة مرور عبر البريد.</p><p>اضغط لاختيار كلمة المرور والدخول إلى حسابك. الرابط صالح لمدة 7 أيام ويُستخدم مرة واحدة فقط. دعوة الامتحان تُرسل لاحقاً بعد اعتماد الملف وتوثيق الدفعة.</p>',
+        { label: 'اختيار كلمة المرور', url },
+      ),
+    })
+  } catch (error) {
+    console.warn('comprehensive candidate account setup failed:', error)
+    return 'FAILED' as const
+  }
+}
+
 // ---- Qualification (only on pass, in ONE transaction) ----
 
 export type ComprehensiveQualificationResult = {
