@@ -228,7 +228,7 @@ export async function POST(req: NextRequest) {
     const submittedAt = new Date()
     const durationUsedMin = Math.max(
       0,
-      Math.min(exam.durationMin, Math.floor((submittedAt.getTime() - new Date(attempt.startedAt).getTime()) / 60000)),
+      Math.min(terms.durationMin, Math.floor((submittedAt.getTime() - new Date(attempt.startedAt).getTime()) / 60000)),
     )
     await db.$transaction(async (tx) => {
       await tx.comprehensiveExamAnswer.deleteMany({ where: { attemptId: attempt.id } })
