@@ -50,6 +50,36 @@ function parseOptions(raw: string | null): string[] {
   }
 }
 
+type BulkReviewQuestion = { id: string; order: number }
+
+// Reuse the single-question approval endpoint for every item, including all
+// academic checks and its individual audit. Never skip a failed question.
+export async function approvePendingQuestionsInBatches(
+  questions: readonly BulkReviewQuestion[],
+  approveOne: (id: string) => Promise<void>,
+  onProgress?: (processed: number, total: number) => void,
+): Promise<{ approvedIds: string[]; failed: { id: string; order: number; reason: string }[] }> {
+  const uniqueQuestions = [...new Map(questions.map((q) => [q.id, q])).values()]
+  const approvedIds: string[] = []
+  const failed: { id: string; order: number; reason: string }[] = []
+  for (let start = 0; start < uniqueQuestions.length; start += 4) {
+    const results = await Promise.all(uniqueQuestions.slice(start, start + 4).map(async (question) => {
+      try {
+        await approveOne(question.id)
+        return { question, ok: true as const }
+      } catch (error: any) {
+        return { question, ok: false as const, reason: String(error?.message || error || 'تعذر الاعتماد') }
+      }
+    }))
+    for (const result of results) {
+      if (result.ok) approvedIds.push(result.question.id)
+      else failed.push({ id: result.question.id, order: result.question.order, reason: result.reason })
+    }
+    onProgress?.(Math.min(start + 4, uniqueQuestions.length), uniqueQuestions.length)
+  }
+  return { approvedIds, failed }
+}
+
 export function AdminComprehensiveExamTab() {
   const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [exams, setExams] = useState<ExamListItem[]>([])
