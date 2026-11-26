@@ -104,13 +104,6 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     if (passedAttempt) {
       return NextResponse.json({ error: 'هذا المرشح نجح بالامتحان — أهلّه من زر التأهيل بدلاً من دعوة جديدة' }, { status: 409 })
     }
-    const liveInvitation = await db.comprehensiveExamInvitation.findFirst({
-      where: { candidateId: candidate.id, status: 'PENDING' },
-      select: { id: true },
-    })
-    if (liveInvitation) {
-      return NextResponse.json({ error: 'توجد دعوة سارية لهذا المرشح — جددها أو ألغِها أولاً', code: 'LIVE_INVITATION_EXISTS' }, { status: 409 })
-    }
     const duplicate = await checkComprehensiveCandidateDuplicate(db as any, {
       examId: exam.id,
       programId: exam.programId,
