@@ -149,7 +149,7 @@ export async function GET(req: NextRequest) {
           invitationId: invitation.id,
           candidateId: candidate.id,
           examId: exam.id,
-          questionSnapshot: JSON.stringify(snapshot),
+          questionSnapshot: JSON.stringify({ questions: snapshot, durationMin: exam.durationMin, passScore: exam.passScore }),
           status: 'STARTED',
           startedAt: new Date(),
         },
