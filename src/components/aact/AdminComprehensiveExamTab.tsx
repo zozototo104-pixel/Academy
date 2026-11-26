@@ -1370,6 +1370,13 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
                   <a className="text-teal-700 underline" href={c.idDocumentDownloadUrl} target="_blank" rel="noreferrer">الهوية: {c.idDocumentFileName || 'ملف'}</a>
                 </p>
                 {c.status === 'REJECTED' && c.rejectedReason && <p className="mt-1 text-[11px] text-red-600">سبب الرفض: {c.rejectedReason}</p>}
+                {c.submittedBy === 'ADMIN' && (
+                  <p className={`mt-1 rounded-lg p-2 text-[11px] font-bold ${c.manualPayment?.status === 'PAID' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+                    {c.manualPayment?.status === 'PAID'
+                      ? `تم السداد رسمياً: ${Number(c.manualPayment.amount).toFixed(2)}$ — فاتورة ${c.manualPayment.invoiceNo} — إيصال ${c.manualPayment.receiptNo || '—'}`
+                      : c.manualPayment ? `فاتورة ${c.manualPayment.invoiceNo} بانتظار استكمال التسوية` : 'لم يُوثق المبلغ المستلم بعد؛ سجله من زر «تم الدفع» قبل إصدار الدعوة.'}
+                  </p>
+                )}
 
                 {c.attempt && (
                   <p className="mt-1 text-[11px] font-bold text-slate-700">
