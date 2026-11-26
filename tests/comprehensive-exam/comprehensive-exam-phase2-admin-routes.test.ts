@@ -87,7 +87,7 @@ const fakeDb: any = {
       const row =
         invitations.find(
           (i) =>
-            (!where?.id || i.id === where.id) &&
+            (!where?.id || (typeof where.id === 'object' ? i.id !== where.id.not : i.id === where.id)) &&
             (!where?.candidateId || i.candidateId === where.candidateId) &&
             (!where?.status || i.status === where.status),
         ) || null
