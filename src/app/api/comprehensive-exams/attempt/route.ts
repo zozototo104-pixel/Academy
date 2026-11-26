@@ -248,16 +248,6 @@ export async function POST(req: NextRequest) {
           points: a.points,
         })),
       })
-      await tx.comprehensiveExamAttempt.update({
-        where: { id: attempt.id },
-        data: {
-          status: 'GRADED',
-          submittedAt,
-          durationUsedMin,
-          score: graded.score,
-          passed: graded.passed,
-        },
-      })
     })
 
     let qualified = false
