@@ -195,7 +195,7 @@ export function AdminComprehensiveExamTab() {
   }, [detail, statusFilter])
 
   const refreshDetailAndList = async (examId: string) => {
-    await Promise.all([loadDetail(examId), loadExams()])
+    await Promise.all([loadDetail(examId, false), loadExams()])
   }
 
   const createExam = async () => {
