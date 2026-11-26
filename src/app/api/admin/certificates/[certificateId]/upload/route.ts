@@ -119,19 +119,59 @@ export async function POST(req: NextRequest, context: RouteContext) {
     const cert = await loadRegularCertificate(certificateId)
     if (!cert) return NextResponse.json({ error: 'الشهادة غير موجودة' }, { status: 404 })
 
-    const form = await req.formData()
-    const file = form.get('file')
-    const preview = isPreview(req.nextUrl.searchParams.get('preview')) || isPreview(form.get('preview'))
-    const qrSize = normalizeQrSize(form.get('qrSize') || cert.qrSize || 'M')
-    const stampLayout = normalizeStampLayout(form.get('stampLayout') || form.get('qrPosition') || cert.qrPosition || 'BOTTOM_LEFT', qrSize)
+    const json = req.headers?.get?.('content-type')?.includes('application/json') || false
+    const body: any = json ? await req.json().catch(() => ({})) : null
+    if (json && body?.action === 'PRESIGN') {
+      const size = Number(body.size)
+      const mimeType = String(body.mimeType || '') as LegacyCertificateMime
+      if (!Number.isInteger(size) || size <= 0 || size > LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES) {
+        return NextResponse.json({ error: 'حجم الملف غير صالح أو يتجاوز 10MB' }, { status: 413 })
+      }
+      const key = newRegularCertificateUploadKey(cert.id, mimeType)
+      const uploadUrl = key && createRegularCertificateUploadUrl(key, cert.id)
+      if (!key || !uploadUrl) return NextResponse.json({ error: 'الرفع المباشر غير متاح أو صيغة الملف غير مدعومة' }, { status: 422 })
+      return NextResponse.json({ uploadUrl, key, maxBytes: LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES })
+    }
+    if (json && body?.action !== 'SAVE' && body?.action !== 'PREVIEW') {
+      return NextResponse.json({ error: 'عملية رفع غير معروفة' }, { status: 400 })
+    }
+    const form = json ? null : await req.formData()
+    const file = form?.get('file')
+    const preview = body?.action === 'PREVIEW' || isPreview(req.nextUrl.searchParams.get('preview')) || isPreview(form?.get('preview'))
+    const qrSize = normalizeQrSize((json ? body?.qrSize : form?.get('qrSize')) || cert.qrSize || 'M')
+    const stampLayout = normalizeStampLayout((json ? body?.stampLayout || body?.qrPosition : form?.get('stampLayout') || form?.get('qrPosition')) || cert.qrPosition || 'BOTTOM_LEFT', qrSize)
     const serializedStampLayout = serializeStampLayout(stampLayout)
 
     let originalBuffer: Buffer | null = null
     let originalFileName = cert.uploadedFileName || stampedFileName(cert.serial)
     let originalMime = sniffLegacyCertificateMime(Buffer.alloc(0))
     let hasNewFile = false
+    let directKey: string | null = null
 
-    if (file instanceof File) {
+    if (json && body?.key) {
+      if (!isRegularCertificateUploadKey(body.key, cert.id)) return NextResponse.json({ error: 'مفتاح الملف لا يتبع هذه الشهادة' }, { status: 400 })
+      const expectedSize = Number(body.size)
+      if (!Number.isInteger(expectedSize) || expectedSize < 1 || expectedSize > LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES) {
+        return NextResponse.json({ error: 'حجم الملف غير صالح' }, { status: 400 })
+      }
+      let buffer: Buffer | null
+      try {
+        buffer = await readRegularCertificateDirectUpload(body.key, cert.id)
+      } catch (error: any) {
+        if (error?.message === 'STORAGE_FILE_TOO_LARGE') return NextResponse.json({ error: 'الملف المخزّن يتجاوز 10MB' }, { status: 413 })
+        throw error
+      }
+      if (!buffer) return NextResponse.json({ error: 'الملف لم يصل للتخزين' }, { status: 404 })
+      if (buffer.byteLength !== expectedSize) return NextResponse.json({ error: 'حجم الملف لا يطابق طلب الرفع' }, { status: 400 })
+      originalBuffer = buffer
+      originalMime = sniffLegacyCertificateMime(buffer)
+      const ext = body.key.split('.').pop()
+      const expectedMime = ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : 'image/jpeg'
+      if (!originalMime || originalMime !== expectedMime) return NextResponse.json({ error: 'نوع الملف لا يطابق محتواه' }, { status: 400 })
+      originalFileName = String(body.fileName || originalFileName).replace(/[\\/\u0000-\u001f\u007f]/g, '-').slice(0, 200)
+      hasNewFile = true
+      directKey = body.key
+    } else if (file instanceof File) {
       if (file.size <= 0) return NextResponse.json({ error: 'الملف فارغ' }, { status: 400 })
       if (file.size > LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES) return NextResponse.json({ error: 'حجم الملف يتجاوز 10MB' }, { status: 413 })
       originalBuffer = Buffer.from(await file.arrayBuffer())
