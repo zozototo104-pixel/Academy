@@ -14,6 +14,7 @@ let tavilyKey: string | null = 'tvly-test-key'
 let searchResult: any = null
 let searchError: Error | null = null
 let searchCalls: any[] = []
+let advancedSingleDomain = false
 let generateResult: any = null
 let generateError: any = null
 let generateInput: any = null
@@ -35,7 +36,7 @@ const fakeDb: any = {
   },
   program: {
     findUnique: async ({ where }: any) => {
-      if (where?.id === 'specialization-1') return { id: 'specialization-1', titleAr: 'الدكتوراه المهنية في إدارة الأعمال' }
+      if (where?.id === 'specialization-1') return { id: 'specialization-1', titleAr: 'الدكتوراه المهنية في إدارة الأعمال', category: 'DOCTORATE', units: [] }
       return where?.id === 'program-1' ? { id: 'program-1', titleAr: 'الشهادات التدريبية ومعادلة الخبرات' } : null
     },
   },
@@ -43,6 +44,12 @@ const fakeDb: any = {
     findUnique: async ({ where }: any) => exams.find((x) => x.id === where?.id) || null,
   },
   comprehensiveExamQuestion: {
+    count: async ({ where }: any) => questions.filter((q) =>
+      (!where?.examId || q.examId === where.examId) &&
+      (!where?.source || q.source === where.source) &&
+      (!where?.sourceBookId || q.sourceBookId === where.sourceBookId) &&
+      (!where?.status?.in || where.status.in.includes(q.status)),
+    ).length,
     findMany: async ({ where }: any = {}) =>
       questions.filter((q) => !where?.examId || q.examId === where.examId).sort((a, b) => a.order - b.order),
     findFirst: async ({ where, orderBy }: any = {}) => {
@@ -67,11 +74,41 @@ mock.module('@/lib/tavily-search', () => ({
   searchTavily: async (input: any) => {
     searchCalls.push(input)
     if (searchError) throw searchError
+    if (input.searchDepth === 'advanced' && !advancedSingleDomain) {
+      const searchNumber = searchCalls.length
+      return { results: Array.from({ length: 3 }, (_, i) => ({
+        title: `مصدر علمي ${searchNumber}-${i}`,
+        url: `https://research${searchNumber}${i}.org/article/${searchNumber}-${i}`,
+        content: 'دراسة أكاديمية تناقش منهجية تحليل الحالة المهنية ونتائج مقارنة البدائل في المؤسسات وقياس أثر القرارات المستندة إلى البيانات.',
+      })), creditsUsed: 2 }
+    }
     return searchResult
   },
 }))
 mock.module('@/lib/comprehensive-exam-internet', () => ({
   INTERNET_MAX_SEARCH_RESULTS: 10,
+  buildSpecialtyInternetQuery: (topic: string, specialty: string) => `${topic} ${specialty}`,
+  buildSpecialtyResearchQueries: (topic: string, specialty: string) => [
+    `${topic} ${specialty} theories`, `${topic} ${specialty} research`, `${topic} ${specialty} cases`,
+  ],
+  suggestComprehensiveInternetPlan: async () => ({
+    axes: [{ topic: 'الإدارة الاستراتيجية وتحليل البيئة التنافسية', origin: 'AI_SUGGESTION' },
+      { topic: 'القيادة التحويلية والتغيير التنظيمي', origin: 'AI_SUGGESTION' }],
+    basis: 'AI_SUGGESTION',
+  }),
+  diverseInternetEvidence: (groups: any[][]) => {
+    const results: any[] = []
+    const seen = new Set<string>()
+    const domains = new Map<string, number>()
+    for (const group of groups) for (const item of group) {
+      const domain = new URL(item.url).hostname
+      if (seen.has(item.url) || (domains.get(domain) || 0) >= 2) continue
+      seen.add(item.url)
+      domains.set(domain, (domains.get(domain) || 0) + 1)
+      results.push(item)
+    }
+    return { results: results.slice(0, 12), distinctDomains: domains.size }
+  },
   clampInternetQuestionCount: (v: unknown) => {
     const n = Number(v)
     if (!Number.isFinite(n)) return 5
@@ -100,7 +137,7 @@ function jsonReq(examId: string, body: any) {
 }
 
 function seedExam(status = 'DRAFT', id = 'exam-1', specializationProgramId?: string) {
-  const exam = { id, programId: 'program-1', specializationProgramId, title: 'امتحان شامل تجريبي', status, passScore: 60, durationMin: 120 }
+  const exam = { id, programId: 'program-1', specializationProgramId, title: 'امتحان شامل تجريبي', level: 'DOCTORATE', status, passScore: 60, durationMin: 120 }
   exams.push(exam)
   return exam.id
 }
@@ -155,6 +192,7 @@ beforeEach(() => {
   searchResult = defaultSearch()
   searchError = null
   searchCalls = []
+  advancedSingleDomain = false
   generateResult = defaultGeneration()
   generateError = null
   generateInput = null
@@ -162,6 +200,16 @@ beforeEach(() => {
 })
 
 describe('POST from-internet — happy path', () => {
+  test('prepares an editable, unapproved specialty axis plan before searching', async () => {
+    const examId = seedExam('DRAFT', 'exam-plan', 'specialization-1')
+    const res = await route.POST(jsonReq(examId, { action: 'PLAN' }), ctx(examId))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.axes).toHaveLength(2)
+    expect(body.needsReview).toBe(true)
+    expect(searchCalls).toHaveLength(0)
+    expect(questions).toHaveLength(0)
+  })
   test('uses the actual specialization and refuses a broad degree-only query', async () => {
     const examId = seedExam('DRAFT', 'exam-specialty', 'specialization-1')
     const broad = await route.POST(jsonReq(examId, { topic: 'دكتوراه إدارة الأعمال DBA', count: 2 }), ctx(examId))
@@ -197,6 +245,46 @@ describe('POST from-internet — happy path', () => {
     expect(questions[1].sourceUrl).toBe('https://example.com/liabilities')
     expect(questions[0].order).toBe(1)
     expect(questions[1].order).toBe(2)
+  })
+
+  test('comprehensive mode searches with the specialty and does not refill an existing axis', async () => {
+    const examId = seedExam('DRAFT', 'exam-specialty', 'specialization-1')
+    const body = { mode: 'COMPREHENSIVE', topic: 'التحليل المالي واتخاذ القرارات الاستثمارية', count: 10, axisTarget: 2 }
+    const first = await route.POST(jsonReq(examId, body), ctx(examId))
+    expect(first.status).toBe(200)
+    expect(generateInput.comprehensive).toBe(true)
+    expect(generateInput.programLevel).toBe('DOCTORATE')
+    expect(searchCalls[0].query).toContain('إدارة الأعمال')
+    const firstBody = await first.json()
+    expect(firstBody.axisRemaining).toBe(0)
+    expect(firstBody.search.creditsUsed).toBe(6)
+    expect(firstBody.search.researchDirections).toBe(3)
+    expect(firstBody.search.distinctDomains).toBeGreaterThanOrEqual(3)
+    const second = await route.POST(jsonReq(examId, body), ctx(examId))
+    expect((await second.json()).skipped).toBe(true)
+    expect(searchCalls).toHaveLength(3)
+    expect(searchCalls.every((call) => call.searchDepth === 'advanced' && call.chunksPerSource === 3)).toBe(true)
+    expect(questions).toHaveLength(2)
+  })
+
+  test('refuses to generate a specialty-wide exam from one repeated website', async () => {
+    const examId = seedExam('DRAFT', 'exam-shallow', 'specialization-1')
+    advancedSingleDomain = true
+    const res = await route.POST(jsonReq(examId, { mode: 'COMPREHENSIVE', topic: 'التحليل المالي واتخاذ القرارات الاستثمارية', axisTarget: 10, count: 10 }), ctx(examId))
+    expect(res.status).toBe(422)
+    expect((await res.json()).code).toBe('INADEQUATE_SOURCE_DIVERSITY')
+    expect(questions).toHaveLength(0)
+    expect(generateInput).toBeNull()
+  })
+
+  test('comprehensive mode respects the remaining 100 eligible-question slots', async () => {
+    const examId = seedExam('DRAFT', 'exam-cap', 'specialization-1')
+    questions = Array.from({ length: 99 }, (_, i) => ({ id: `old-${i}`, examId, order: i + 1, source: 'MANUAL', status: 'APPROVED' }))
+    const res = await route.POST(jsonReq(examId, { mode: 'COMPREHENSIVE', topic: 'التحليل المالي واتخاذ القرارات الاستثمارية', axisTarget: 10, count: 10 }), ctx(examId))
+    expect(res.status).toBe(200)
+    expect(generateInput.count).toBe(1)
+    expect((await res.json()).imported).toBe(1)
+    expect(questions).toHaveLength(100)
   })
 })
 
