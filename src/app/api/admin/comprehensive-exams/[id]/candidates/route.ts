@@ -205,23 +205,41 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const certificate = await storeComprehensiveCandidateFile(certificateFile, 'الشهادة الخارجية')
     const idDocument = await storeComprehensiveCandidateFile(idDocumentFile, 'الهوية')
-    const candidate = await db.comprehensiveExamCandidate.create({
-      data: {
+    // Repeat the duplicate/published checks inside a serializable
+    // transaction. Two admins submitting at once cannot both pass the
+    // earlier pre-upload check and create duplicate candidate records.
+    const candidate = await db.$transaction(async (tx) => {
+      const ready = await tx.comprehensiveExam.findFirst({
+        where: { id: exam.id, status: 'READY' }, select: { id: true },
+      })
+      if (!ready) throw new ComprehensiveExamPhase2Error(409, 'EXAM_NOT_READY', 'أُلغي نشر الامتحان أثناء إدخال المرشح')
+      const concurrentDuplicate = await checkComprehensiveCandidateDuplicate(tx, {
         examId: exam.id,
-        userId: existingUser.id,
-        fullName: checked.data.fullName,
+        programId: exam.programId,
+        specializationProgramId: exam.specializationProgramId,
         nationalId: checked.data.nationalId,
         email: checked.data.email,
-        phone: checked.data.phone,
-        externalCertificateFileKey: certificate.storageKey,
-        externalCertificateFileName: certificate.fileName,
-        idDocumentFileKey: idDocument.storageKey,
-        idDocumentFileName: idDocument.fileName,
-        status: 'PENDING_REVIEW',
-        submittedBy: 'ADMIN',
-        createdById: admin.id,
-      },
-    })
+      })
+      const conflict = checkComprehensiveDuplicateError(concurrentDuplicate)
+      if (conflict) throw conflict
+      return tx.comprehensiveExamCandidate.create({
+        data: {
+          examId: exam.id,
+          userId: existingUser.id,
+          fullName: checked.data.fullName,
+          nationalId: checked.data.nationalId,
+          email: checked.data.email,
+          phone: checked.data.phone,
+          externalCertificateFileKey: certificate.storageKey,
+          externalCertificateFileName: certificate.fileName,
+          idDocumentFileKey: idDocument.storageKey,
+          idDocumentFileName: idDocument.fileName,
+          status: 'PENDING_REVIEW',
+          submittedBy: 'ADMIN',
+          createdById: admin.id,
+        },
+      })
+    }, { isolationLevel: 'Serializable' })
     await audit(
       { id: admin.id, name: admin.name },
       'CREATE_COMPREHENSIVE_EXAM_CANDIDATE',
