@@ -76,6 +76,9 @@ mock.module('@/lib/settings', () => ({
   nextInvoiceNo: async () => 'AACT-INV-2026-9999',
 }))
 mock.module('@/lib/mailer', () => ({
+  // The comprehensive-exam helper is imported transitively by admission routes.
+  emailTemplate: () => '',
+  sendEmailDetailed: async () => 'SENT',
   emailAdmissionDecision: async () => { decisionEmails++ },
   emailAdmissionDocumentsRequested: async () => {},
   emailCertificateIssued: async () => {},
