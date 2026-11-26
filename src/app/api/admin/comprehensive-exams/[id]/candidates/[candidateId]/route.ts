@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { audit } from '@/lib/notify'
+import { audit, notify } from '@/lib/notify'
+import { emailPaymentReceipt } from '@/lib/mailer'
+import { nextInvoiceNo } from '@/lib/settings'
+import { markInvoicePaid } from '@/lib/settle-payment'
 import {
   ComprehensiveExamPhase2Error,
   qualifyComprehensiveExamCandidate,
