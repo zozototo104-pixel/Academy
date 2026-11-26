@@ -59,6 +59,12 @@ const fakeDb: any = {
       Object.assign(row, data, { updatedAt: new Date() })
       return row
     },
+    updateMany: async ({ where, data }: any) => {
+      const row = invitations.find((i) => i.id === where?.id && (!where.status || i.status === where.status))
+      if (!row) return { count: 0 }
+      Object.assign(row, data, { updatedAt: new Date() })
+      return { count: 1 }
+    },
   },
   comprehensiveExamAttempt: {
     findUnique: async ({ where }: any) => attempts.find((a) => a.invitationId === where?.invitationId) || null,
