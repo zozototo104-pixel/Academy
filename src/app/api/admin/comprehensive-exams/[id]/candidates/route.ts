@@ -1,4 +1,6 @@
+import { randomBytes } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
+import { hashPassword } from '@/lib/password'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
