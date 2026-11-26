@@ -344,6 +344,32 @@ describe('qualification transaction', () => {
     expect(certificates[0].comprehensiveExamId).toBe('exam-1')
     expect(auditRows[0].action).toBe('QUALIFY_COMPREHENSIVE_EXAM')
   })
+  test('a graduate can earn a second specialization without duplicating the same-specialty certificate', async () => {
+    reset()
+    users.push({ id: 'user-9', email: 'a@b.com', name: 'أحمد محمد', role: 'STUDENT', status: 'ACTIVE', country: null, phone: null })
+    const base = {
+      candidate: { id: 'cand-1', userId: 'user-9', fullName: 'أحمد محمد', nationalId: '111', email: 'a@b.com', phone: null },
+      program: { id: 'prog-1', titleAr: 'برنامج المعادلة', titleEn: null },
+      admin: { id: null, name: null },
+    }
+    await lib.qualifyComprehensiveExamCandidate(fakeDb, {
+      ...base, exam: { id: 'exam-1', programId: 'prog-1' },
+      specialization: { id: 'spec-1', titleAr: 'تخصص أول', titleEn: null },
+      attempt: { id: 'att-1', score: 80 },
+    })
+    // In production the relation resolves through ComprehensiveExam.
+    certificates[0].specializationProgramId = 'spec-1'
+    certificates[0].examProgramId = 'prog-1'
+    const second = await lib.qualifyComprehensiveExamCandidate(fakeDb, {
+      ...base, exam: { id: 'exam-2', programId: 'prog-1' },
+      specialization: { id: 'spec-2', titleAr: 'تخصص ثان', titleEn: null },
+      attempt: { id: 'att-2', score: 90 },
+    })
+    expect(second.certificate.serial).not.toBe(certificates[0].serial)
+    expect(enrollments).toHaveLength(1)
+    expect(certificates).toHaveLength(2)
+    expect(certificates[1].program).toBe('تخصص ثان')
+  })
   test('resolves the linked user by id first, even when the email differs', async () => {
     reset()
     users.push({ id: 'user-9', email: 'old@b.com', name: 'أحمد محمد', role: 'STUDENT', status: 'ACTIVE', country: null, phone: null })
