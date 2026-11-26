@@ -1058,7 +1058,7 @@ function QuestionRow(props: any) {
                     className="w-48"
                     onChange={(e: ChangeEvent<HTMLInputElement>) => props.setRejectReason(e.target.value)}
                   />
-                  <Button size="sm" variant="outline" onClick={() => props.onReview(q, 'REJECTED')}><X className="h-3.5 w-3.5" /> رفض</Button>
+                  <Button size="sm" variant="outline" disabled={props.bulkApproveBusy} onClick={() => props.onReview(q, 'REJECTED')}><X className="h-3.5 w-3.5" /> رفض</Button>
                 </>
               )}
               <Button size="sm" variant="outline" onClick={() => props.onStartEdit(q)}>تعديل</Button>
