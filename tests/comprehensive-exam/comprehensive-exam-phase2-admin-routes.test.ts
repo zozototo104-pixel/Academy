@@ -265,6 +265,8 @@ const invitationRoute = await import('../../src/app/api/admin/comprehensive-exam
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d])
 
 function reset() {
+  // Password setup must build a real absolute URL; CI intentionally has no public origin.
+  process.env.NEXT_PUBLIC_APP_URL = 'https://academy.example.test'
   exams = [{ id: 'exam-1', programId: 'prog-1', specializationProgramId: 'spec-1', title: 'الامتحان الشامل — إدارة الأعمال', status: 'READY', durationMin: 120, passScore: 60 }]
   candidates = []
   invitations = []
