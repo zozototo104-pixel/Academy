@@ -1498,7 +1498,9 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
                   )}
                   {c.inviteBlockedReason && (
                     <p className="mt-1 w-full text-[11px] font-bold text-amber-700">
-                      {c.inviteBlockedReason === 'PAYMENT_REQUIRED' ? 'رسوم الخدمة لم تُسدد بعد — لا يُرسَل الرابط قبل السداد' : 'الامتحان غير منشور بعد — جهّزه وانشره أولاً'}
+                      {c.inviteBlockedReason === 'PAYMENT_REQUIRED'
+                        ? c.submittedBy === 'ADMIN' ? 'وثّق المبلغ المستلم أولاً من زر «تم الدفع» حتى يصدر إيصال رسمي' : 'رسوم الخدمة لم تُسدد بعد — لا يُرسَل الرابط قبل السداد'
+                        : 'الامتحان غير منشور بعد — جهّزه وانشره أولاً'}
                     </p>
                   )}
                   {inv && inv.status === 'PENDING' && (
