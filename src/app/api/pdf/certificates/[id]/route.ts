@@ -37,14 +37,16 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 
     if (!certificate) return NextResponse.json({ error: 'الشهادة غير موجودة' }, { status: 404 })
 
-    const publicByQrToken = id === certificate.qrToken
-    const canView =
-      publicByQrToken ||
-      user?.role === 'ADMIN' ||
-      certificate.userId === user?.id ||
-      certificate.admission?.userId === user?.id ||
-      certificate.admission?.email === user?.email ||
-      certificate.agent?.userId === user?.id
+    const publicByQrToken = Boolean(certificate.qrToken) && id === certificate.qrToken
+    // Do not compare missing owner fields with an anonymous visitor's
+    // missing id/email: undefined === undefined would expose private PDFs.
+    const canView = publicByQrToken || (!!user && (
+      user.role === 'ADMIN' ||
+      certificate.userId === user.id ||
+      certificate.admission?.userId === user.id ||
+      (Boolean(user.email) && certificate.admission?.email === user.email) ||
+      certificate.agent?.userId === user.id
+    ))
 
     if (!canView) return NextResponse.json({ error: 'صلاحيات غير كافية لعرض الشهادة' }, { status: 403 })
 
