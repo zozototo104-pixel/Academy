@@ -76,6 +76,12 @@ const fakeDb: any = {
       Object.assign(e, data, { updatedAt: new Date() })
       return e
     },
+    updateMany: async ({ where, data }: any) => {
+      const e = exams.find((x) => x.id === where?.id && (!where?.status || x.status === where.status))
+      if (!e) return { count: 0 }
+      Object.assign(e, data, { updatedAt: new Date() })
+      return { count: 1 }
+    },
   },
   comprehensiveExamQuestion: {
     groupBy: async ({ where }: any = {}) => {
