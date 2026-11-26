@@ -9,9 +9,11 @@
 // Closed questions ONLY (MCQ | TF). There is no essay type anywhere
 // in this module.
 import { createHash } from 'crypto'
-import { prepareStageRun } from './ai-stage-runner'
+import { prepareStageRun, runStageAttempt, type StageUsage } from './ai-stage-runner'
+import { geminiCompleteJson } from './gemini'
+import type { TextAiPreferredModel, TextAiProvider, TextAiRouterPolicy } from './text-ai'
 import { verifyQuestionsWithCrossProvider, type VerifiableQuestion } from './question-verifier'
-import { internetQuestionAcademicIssue, internetSourceAcademicIssue } from './comprehensive-exam'
+import { internetAcademicTopicIssue, internetQuestionAcademicIssue, internetSourceAcademicIssue } from './comprehensive-exam'
 import { selectExamSourceChunks, type ExamSourceChunk } from './exam-source-chunks'
 import { MAX_QUESTIONS_PER_SOURCE_CHUNK, throwComprehensiveExamInsufficientSource } from './comprehensive-exam-evidence'
 import {
@@ -30,6 +32,104 @@ export const INTERNET_MAX_SEARCH_RESULTS = 10
 // A snippet shorter than this cannot yield a 40+ character verbatim
 // evidence span with room to spare — it is skipped, never padded.
 export const INTERNET_MIN_SNIPPET_CHARS = 60
+
+export type InternetExamAxis = { topic: string; origin: 'CURRICULUM' | 'AI_SUGGESTION' }
+const GENERIC_AXIS = /^(?:مقدمة|مدخل|تمهيد|خاتمة|مراجعة|اختبار|تقييم|(?:الوحدة|المحاضرة|الفصل|الباب|الموضوع)(?:\s+[\p{L}\p{N}]+)?)$/u
+
+export function normalizeSpecialtyAxes(candidates: readonly unknown[], specialtyTitle: string, origin: InternetExamAxis['origin'], limit = 10): InternetExamAxis[] {
+  const axes: InternetExamAxis[] = []
+  const seen = new Set<string>()
+  for (const candidate of candidates) {
+    const topic = String(typeof candidate === 'string' ? candidate : (candidate as any)?.topic || '')
+      .replace(/^[\s\d.\-)]+/u, '').replace(/^(?:الوحدة|الفصل|المحاضرة)\s+[^\s:：–-]+\s*[:：–-]\s*/u, '')
+      .replace(/\s+/gu, ' ').trim().slice(0, 160)
+    const key = topic.normalize('NFKC').toLowerCase().replace(/[\u064b-\u065f]/gu, '')
+    if (topic.length < 10 || GENERIC_AXIS.test(topic) || seen.has(key) || internetAcademicTopicIssue(topic, specialtyTitle)) continue
+    seen.add(key)
+    axes.push({ topic, origin })
+    if (axes.length === limit) break
+  }
+  return axes
+}
+
+export function curriculumCoverageAxes(titles: readonly string[], specialtyTitle: string): InternetExamAxis[] {
+  const all = normalizeSpecialtyAxes(titles, specialtyTitle, 'CURRICULUM', titles.length)
+  if (all.length <= 10) return all
+  return Array.from({ length: 10 }, (_, index) => all[Math.round((index * (all.length - 1)) / 9)])
+}
+
+export function parseSuggestedSpecialtyAxes(raw: string, specialtyTitle: string): InternetExamAxis[] {
+  const cleaned = String(raw || '').trim().replace(/^```(?:json)?\s*/iu, '').replace(/```\s*$/u, '').trim()
+  try {
+    const parsed = JSON.parse(cleaned)
+    return normalizeSpecialtyAxes(Array.isArray(parsed) ? parsed : parsed?.axes || [], specialtyTitle, 'AI_SUGGESTION')
+  } catch { return [] }
+}
+
+export function buildSpecialtyInternetQuery(topic: string, specialtyTitle: string): string {
+  const discipline = String(specialtyTitle || '').replace(/\b(?:DBA|MBA|PhD)\b/giu, '')
+    .replace(/(?:الدكتوراه|دكتوراه|الماجستير|ماجستير|الدبلوم|دبلوم|المهنية|المهني|الاحترافية|الاحترافي|بكالوريوس|درجة|برنامج|تخصص)/gu, '')
+    .replace(/\s+/gu, ' ').trim()
+  if (discipline.length < 5 || topic.includes(discipline)) return topic
+  return `${topic} ${discipline}`.slice(0, 240)
+}
+
+export function buildSpecialtyResearchQueries(topic: string, specialtyTitle: string): string[] {
+  const base = buildSpecialtyInternetQuery(topic, specialtyTitle)
+  return [
+    `${base} نظريات نماذج مفاهيم علمية`,
+    `${base} دراسات علمية أبحاث محكمة منهجيات نتائج peer reviewed research`,
+    `${base} دراسات حالة تطبيقات مهنية تحليل قرارات case study`,
+  ]
+}
+
+export async function suggestComprehensiveInternetPlan(input: { specialtyTitle: string; category: string; approvedUnitTitles: string[] }): Promise<{
+  axes: InternetExamAxis[]; basis: 'CURRICULUM' | 'MIXED' | 'AI_SUGGESTION'; warning?: string
+}> {
+  const curriculumAxes = curriculumCoverageAxes(input.approvedUnitTitles, input.specialtyTitle)
+  let raw: string
+  try {
+    const genPlan = await prepareStageRun('GENERATION')
+    const usage: StageUsage = { fallbackUsed: false }
+    raw = await runStageAttempt(genPlan, usage, async (routing) => {
+      const models = routing?.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model })) || []
+      const text = await geminiCompleteJson({
+        system: 'أنت لجنة تصميم اختبارات كفاءة أكاديمية. اقترح محاور تخصصية فقط في JSON دون أي نص إضافي. هذه مقترحات للمراجعة وليست منهجاً معتمداً.',
+        history: [{ role: 'user', text: `التخصص: «${input.specialtyTitle}». المستوى: «${input.category}».
+اقترح من 8 إلى 10 محاور علمية مختلفة وعميقة تغطي الكفاءات الأساسية لهذا التخصص، من النظريات والمناهج والبحث إلى التحليل التطبيقي واتخاذ القرار وحل المشكلات المهنية. صياغة كل محور دقيقة ومحددة، 10 إلى 120 حرفاً.
+لا تذكر شروط قبول، درجات علمية، جامعات، رسوم، أو وصف برامج. لا تذكر محاور خارجة عن التخصص. لا تكرر محاور متداخلة. محاور الوحدات المعتمدة المتاحة إن وجدت (للاسترشاد فقط): ${JSON.stringify(curriculumAxes.map((axis) => axis.topic))}.
+أجب JSON فقط: {"axes":[{"topic":"محور تخصصي محدد"}]}.` }],
+        purpose: 'GENERATION', taskLevel: 'ACADEMIC_DRAFT', temperature: 0.15, maxOutputTokens: 1800,
+        deadlineMs: Date.now() + 100_000,
+        ...(routing ? {
+          preferredModels: models, restrictToModels: models,
+          preferredProviders: [...new Set([...routing.preferredProviders, ...routing.preferredModels.map((m) => m.provider)])] as TextAiProvider[],
+          ...(routing.policy ? { routerPolicy: routing.policy as TextAiRouterPolicy } : {}),
+        } : {}),
+      })
+      if (parseSuggestedSpecialtyAxes(text, input.specialtyTitle).length < 5) throw new Error('INSUFFICIENT_ACADEMIC_AXES')
+      return text
+    })
+  } catch (error) {
+    if (curriculumAxes.length >= 5) return {
+      axes: curriculumAxes, basis: 'CURRICULUM', warning: 'تعذّر اقتراح محاور إضافية بالذكاء؛ هذه محاور المنهج المعتمد فقط.',
+    }
+    throw error
+  }
+  const proposed = parseSuggestedSpecialtyAxes(raw, input.specialtyTitle)
+  const anchors = curriculumAxes.length > 5
+    ? Array.from({ length: 5 }, (_, index) => curriculumAxes[Math.round((index * (curriculumAxes.length - 1)) / 4)])
+    : curriculumAxes
+  const occupied = new Set(anchors.map((axis) => axis.topic.normalize('NFKC').toLowerCase()))
+  const axes = [...anchors]
+  for (const axis of proposed) {
+    const key = axis.topic.normalize('NFKC').toLowerCase()
+    if (!occupied.has(key) && axes.length < 10) axes.push(axis)
+    occupied.add(key)
+  }
+  if (axes.length < 5) throw new Error('INSUFFICIENT_DISTINCT_ACADEMIC_AXES')
+  return { axes, basis: curriculumAxes.length ? 'MIXED' : 'AI_SUGGESTION' }
+}
 
 export type InternetExamQuestion = ComprehensiveQuestionInput & { sourceUrl: string }
 
@@ -90,6 +190,41 @@ export function tavilyResultsToExamChunks(
   return chunks
 }
 
+// Round-robin across distinct research angles, never allowing one website
+// to dominate the specialty-wide evidence. Tavily's advanced excerpts are
+// bounded per URL so selection cannot silently discard oversized chunks.
+export function diverseInternetEvidence(
+  groups: readonly (readonly TavilySearchResult[])[],
+  maxResults = INTERNET_MAX_PROMPT_CHUNKS,
+): { results: TavilySearchResult[]; distinctDomains: number } {
+  const results: TavilySearchResult[] = []
+  const seenUrls = new Set<string>()
+  const domains = new Map<string, number>()
+  const limit = Math.min(INTERNET_MAX_PROMPT_CHUNKS, Math.max(1, maxResults))
+  const longest = Math.max(0, ...groups.map((group) => group.length))
+  for (let offset = 0; offset < longest && results.length < limit; offset++) {
+    for (const group of groups) {
+      const item = group[offset]
+      if (!item) continue
+      const url = String(item.url || '').trim()
+      const content = String(item.content || '').trim()
+      if (!url || content.length < INTERNET_MIN_SNIPPET_CHARS || internetSourceAcademicIssue(item.title, content)) continue
+      let domain: string
+      try {
+        const parsed = new URL(url)
+        if (!['http:', 'https:'].includes(parsed.protocol)) continue
+        domain = parsed.hostname.replace(/^www\./u, '').toLowerCase()
+      } catch { continue }
+      if (!domain || seenUrls.has(url) || (domains.get(domain) || 0) >= 2) continue
+      seenUrls.add(url)
+      domains.set(domain, (domains.get(domain) || 0) + 1)
+      results.push({ ...item, content: content.slice(0, 2400) })
+      if (results.length === limit) break
+    }
+  }
+  return { results, distinctDomains: domains.size }
+}
+
 export function formatInternetChunksForPrompt(chunks: readonly InternetExamChunk[]): string {
   return chunks
     .map((c) => `[${c.sourceIndex}] «${c.bookTitle}» — ${c.url}:\n${c.text}`)
@@ -105,7 +240,9 @@ export function formatInternetChunksForPrompt(chunks: readonly InternetExamChunk
 export function buildInternetQuestionPrompt(input: {
   topic: string
   programTitleAr: string
+  programLevel?: string
   count: number
+  comprehensive?: boolean
   chunksSection: string
   previousTexts: string[]
 }): string {
@@ -117,6 +254,7 @@ export function buildInternetQuestionPrompt(input: {
 موضوع البحث: «${input.topic}»
 التخصص العلمي الذي سيمتحَن فيه الخريج: ${input.programTitleAr}
 عدد الأسئلة المطلوبة الآن: ${input.count}
+${input.comprehensive ? `هذه دفعة ضمن امتحان شامل موزع على محاور علمية متعددة. مستوى الامتحان: ${input.programLevel || 'حسب التخصص'}. في هذا المحور قدّم أسئلة بمستويات معرفية متوازنة ${input.programLevel === 'DOCTORATE' ? 'تقريباً 10% فهم أساسي، 30% تطبيق، و60% تحليل حالات متقدمة وتقويم القرارات ومناهج البحث' : input.programLevel === 'DIPLOMA' ? 'تقريباً 35% فهم أساسي، 45% تطبيق، و20% تحليل حالات عملية' : 'تقريباً 20% فهم أساسي، 35% تطبيق، و45% تحليل حالات مهنية مع تفسير القرار'}. لا تكتفِ بتعريفات أو أسئلة مباشرة. صِغ الحالات بحيث يمكن استنتاج الإجابة الصحيحة من الدليل المرفق حصراً؛ إذا لم يسمح النص بحالة تحليلية فلا تختلق واحدة.` : ''}
 
 تنبيه أساسي: هذا امتحان كفاءة علمية ومهنية في التخصص، وليس اختبار معلومات عن برنامج الدراسة نفسه.
 ممنوع تماماً توليد أسئلة عن الفئة المستهدفة، شروط القبول أو الالتحاق، المؤهلات المطلوبة، تكاليف الدراسة، الجامعات، أو تعريف درجة DBA/MBA/الدكتوراه.
@@ -158,7 +296,9 @@ export async function generateInternetQuestions(
   input: {
     topic: string
     programTitleAr: string
+    programLevel?: string
     count: number
+    comprehensive?: boolean
     previousQuestionTexts?: string[]
     deadlineMs?: number
   },
@@ -170,7 +310,7 @@ export async function generateInternetQuestions(
   const allChunks = tavilyResultsToExamChunks(results, sourceId)
   const selected = selectExamSourceChunks(allChunks, {
     maxChunks: INTERNET_MAX_PROMPT_CHUNKS,
-    maxTotalChars: 18000,
+    maxTotalChars: input.comprehensive ? 30000 : 18000,
   }) as InternetExamChunk[]
   if (!selected.length) {
     throwComprehensiveExamInsufficientSource({
@@ -186,7 +326,9 @@ export async function generateInternetQuestions(
   const prompt = buildInternetQuestionPrompt({
     topic: input.topic,
     programTitleAr: input.programTitleAr,
+    programLevel: input.programLevel,
     count,
+    comprehensive: input.comprehensive,
     chunksSection: formatInternetChunksForPrompt(selected),
     previousTexts,
   })
