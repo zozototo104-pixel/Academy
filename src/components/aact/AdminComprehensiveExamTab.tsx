@@ -189,8 +189,9 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
-  const publishExam = async (action: 'publish' | 'unpublish') => {
+  const publishExam = async (action: 'publish' | 'unpublish' | 'archive') => {
     if (!detail) return
+    if (action === 'archive' && !window.confirm('أرشفة الامتحان نهائياً؟ تبقى نتائجه وسجلاته، ويمكن بعدها إنشاء نسخة جديدة للتخصص.')) return
     try {
       const data = await jsonOrThrow(
         await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/publish`, {
