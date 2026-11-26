@@ -114,16 +114,29 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const newToken = createComprehensiveExamInviteToken()
     const newExpiresAt = comprehensiveExamInviteExpiresAt()
     const next = await db.$transaction(async (tx) => {
+      // Revalidate the original row *inside* the serializable transaction:
+      // a concurrent exam start/renewal must not create another live link.
+      const current = await tx.comprehensiveExamInvitation.findFirst({
+        where: { id: invitation.id, candidateId: invitation.candidateId, status: invitation.status },
+        select: { id: true },
+      })
+      if (!current) throw new ComprehensiveExamPhase2Error(409, 'INVITATION_CHANGED', 'تغيرت حالة الدعوة — حدّث القائمة')
+      const otherLive = await tx.comprehensiveExamInvitation.findFirst({
+        where: { candidateId: invitation.candidateId, status: 'PENDING', id: { not: invitation.id } },
+        select: { id: true },
+      })
+      if (otherLive) throw new ComprehensiveExamPhase2Error(409, 'LIVE_INVITATION_EXISTS', 'توجد دعوة سارية أخرى — حدّث القائمة')
       if (invitation.status === 'PENDING') {
-        await tx.comprehensiveExamInvitation.update({
-          where: { id: invitation.id },
+        const claim = await tx.comprehensiveExamInvitation.updateMany({
+          where: { id: invitation.id, status: 'PENDING' },
           data: { status: 'REVOKED' },
         })
+        if (claim.count !== 1) throw new ComprehensiveExamPhase2Error(409, 'INVITATION_CHANGED', 'تغيرت حالة الدعوة — حدّث القائمة')
       }
       return tx.comprehensiveExamInvitation.create({
         data: { candidateId: invitation.candidateId, token: newToken, expiresAt: newExpiresAt, status: 'PENDING', createdById: admin.id },
       })
-    })
+    }, { isolationLevel: 'Serializable' })
     const inviteUrl = buildComprehensiveExamInviteUrl(newToken)
     const delivery = await sendComprehensiveExamInvite({
       fullName: invitation.candidate.fullName,
