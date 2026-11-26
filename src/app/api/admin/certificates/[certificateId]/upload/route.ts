@@ -102,13 +102,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       },
     })
 
-    return new NextResponse(stampedBuffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${stampedFileName(cert.serial)}"`,
-        'Cache-Control': 'no-store',
-      },
-    })
+    return previewResponse(stampedBuffer, cert.id, admin.id, stampedFileName(cert.serial), req)
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
