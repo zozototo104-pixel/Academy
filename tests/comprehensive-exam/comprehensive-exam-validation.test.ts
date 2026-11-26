@@ -188,6 +188,7 @@ describe('comprehensive exam review UX', () => {
     expect(view).toContain('localStorage.setItem(internetExamPlanStorageKey(examId)')
     expect(view).toContain('localStorage.getItem(internetExamPlanStorageKey(examId))')
     expect(view).toContain('استكمال الأسئلة الناقصة')
+    expect(view).toContain('كل دفعة بحد أقصى 10 أسئلة')
     expect(view).toContain('internetPlanStored')
     expect(view).toContain('internetStopRef.current = true')
   })
