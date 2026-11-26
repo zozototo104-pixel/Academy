@@ -330,7 +330,12 @@ describe('knowledge cleanup: full correction, no partial writes, delete only emp
   test('rules-only cleanup NEVER automatically starts AI repair', () => {
     const books = readFileSync(new URL('../../src/components/aact/AdminBooks.tsx', import.meta.url), 'utf8')
     const route = readFileSync(new URL('../../src/app/api/admin/knowledge-bank/route.ts', import.meta.url), 'utf8')
-    const rulesHandler = books.split('const sanitizeKnowledge = async () => {')[1]?.split('const refreshCurriculumUnits')[0] || ''
+    const rulesHandler = books.split('const sanitizeKnowledge = async () => {')[1]?.split('const saveManualReview')[0] || ''
+    // The slice covers ONLY the rules-only cleanup handler: the next handler
+    // after it (saveManualReview) starts a different block. Later handlers in
+    // the same file — including the explicit per-item and bulk AI buttons
+    // (ordered 2026-11-25, separate admin actions) — must not be swept into
+    // this premise; they are pinned by their own tests.
     const aiPanel = books.split('export function AdminKnowledgeAiRepairTab()')[1] || ''
     const rulesRoute = route.split("if (action === 'sanitize' || action === 'clean')")[1]?.split("if (action === 'rebuild-book'")[0] || ''
     expect(rulesHandler).toContain("action: 'sanitize'")
