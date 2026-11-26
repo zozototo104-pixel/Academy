@@ -231,6 +231,13 @@ export async function POST(req: NextRequest) {
       Math.min(terms.durationMin, Math.floor((submittedAt.getTime() - new Date(attempt.startedAt).getTime()) / 60000)),
     )
     await db.$transaction(async (tx) => {
+      const claim = await tx.comprehensiveExamAttempt.updateMany({
+        where: { id: attempt.id, status: 'STARTED' },
+        data: { status: 'GRADED', submittedAt, durationUsedMin, score: graded.score, passed: graded.passed },
+      })
+      if (claim.count !== 1) {
+        throw new ComprehensiveExamPhase2Error(409, 'ALREADY_SUBMITTED', 'أُرسل هذا الامتحان سابقاً — لا يمكن إرساله مرة ثانية')
+      }
       await tx.comprehensiveExamAnswer.deleteMany({ where: { attemptId: attempt.id } })
       await tx.comprehensiveExamAnswer.createMany({
         data: graded.perQuestion.map((a) => ({
