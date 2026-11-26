@@ -674,6 +674,11 @@ export function AdminComprehensiveExamTab() {
           setEditAnswer={setEditAnswer}
           rejectReason={rejectReason}
           setRejectReason={setRejectReason}
+          selectedQuestionIds={selectedQuestionIds}
+          setSelectedQuestionIds={setSelectedQuestionIds}
+          bulkApproveBusy={bulkApproveBusy}
+          bulkApproveProgress={bulkApproveProgress}
+          onApproveSelected={approveSelectedQuestions}
           onReview={reviewQuestion}
           onSaveEdit={saveEdit}
           onDelete={deleteQuestion}
