@@ -981,6 +981,19 @@ function QuestionRow(props: any) {
   return (
     <div className="rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2 text-xs">
+        {isDraft && q.status === 'PENDING_REVIEW' && (
+          <label className="flex cursor-pointer items-center gap-1 font-bold">
+            <input
+              type="checkbox"
+              aria-label={`تحديد السؤال ${q.order} للاعتماد`}
+              checked={props.selectedQuestionIds.includes(q.id)}
+              disabled={props.bulkApproveBusy}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => props.setSelectedQuestionIds((ids: string[]) =>
+                e.target.checked ? [...new Set([...ids, q.id])] : ids.filter((id) => id !== q.id))}
+            />
+            تحديد
+          </label>
+        )}
         <span className="font-black">#{q.order}</span>
         <Badge variant="secondary">{q.type === 'TF' ? 'صح/خطأ' : 'اختيار متعدد'}</Badge>
         <Badge variant={q.status === 'APPROVED' ? 'default' : q.status === 'REJECTED' ? 'destructive' : 'secondary'}>
