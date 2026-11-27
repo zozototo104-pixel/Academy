@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { CheckCircle2, Hourglass, RotateCcw, Send, X } from 'lucide-react'
 
@@ -68,14 +69,17 @@ export function SemesterDecisionDialog({
   // نظيفة: الاختيار الافتراضي «استكمال» وبلا موافقة صفر مسبقة.
   const [choice, setChoice] = useState<'EARLY_FINISH' | 'CONTINUE'>('CONTINUE')
   const [consent, setConsent] = useState(false)
-
   const unsubmittedUnits = Math.max(0, brief.units.total - brief.units.graded)
   const unsubmittedAssignments = Math.max(0, brief.assignments.total - brief.assignments.submitted)
   const canConfirm = choice === 'CONTINUE' || consent
 
-  return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" dir="rtl" role="dialog" aria-modal="true" aria-label="قرار إنهاء الفصل">
-      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl">
+  // Rendered only after a student clicks: avoid SSR document access without
+  // an extra mounting effect that would add an ESLint warning.
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
+    <div className="fixed inset-0 z-[210] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} dir="rtl" role="dialog" aria-modal="true" aria-label="قرار إنهاء الفصل">
+      <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl">
         <div className="mb-3 flex items-start justify-between gap-3">
           <h3 className="text-base font-black text-[#0f2b46]">
             {mode === 'ready' ? 'كيف تريد متابعة الفصل الدراسي؟' : 'رفع نتيجة الفصل للإدارة'}
@@ -136,7 +140,8 @@ export function SemesterDecisionDialog({
         </div>
         {!canConfirm ? <p className="mt-2 text-center text-[11px] font-bold text-amber-700">لإنهاء الفصل مبكرًا فعّل موافقة احتساب الأعمال غير المقدَّمة صفرًا أولًا.</p> : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
