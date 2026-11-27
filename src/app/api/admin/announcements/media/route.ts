@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { validateAnnouncementMediaSignature } from '@/lib/file-signature'
 import { audit } from '@/lib/notify'
 import { canManageSiteAnnouncements } from '@/lib/site-announcements'
-import { deleteStoredFile, getPublicStorageUrlForKey, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
+import { createAnnouncementMediaStorageKey, createSignedStorageUrlForKey, deleteStoredFile, getStorageDownloadPathForKey, inspectUploadedAnnouncementMedia, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 
 // رفع وسائط الإعلانات (فيديو واحد أو صور) إلى التخزين الخارجي نفسه.
 // الحدود صريحة وموثقة: فيديو حتى 500MB (الفيديو التعليمي ~5MB)، صورة حتى 10MB.
