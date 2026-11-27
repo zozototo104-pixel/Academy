@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
 const SIGNED_URL_TTL_SECONDS = 5 * 60
+const ANNOUNCEMENT_MEDIA_TTL_SECONDS = 60 * 60
 
 type RouteContext = { params: { key?: string[] } | Promise<{ key?: string[] }> }
 type FileRouteUser = Awaited<ReturnType<typeof requireUser>>
@@ -49,9 +50,20 @@ async function handleFileGet(req: NextRequest, context: RouteContext, deps: File
       headers: {
         'Content-Type': stored.mimeType || 'application/octet-stream',
         'Cache-Control': 'private, max-age=0, no-store',
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(key.split('/').pop() || 'file')}"`,
+        'Content-Disposition': key.startsWith('announcements/media/') ? 'inline' : `attachment; filename="${encodeURIComponent(key.split('/').pop() || 'file')}"`,
       },
     })
+  }
+
+  // Public announcement media is deliberately isolated by key prefix. The R2
+  // bucket itself stays PRIVATE; each visitor receives a one-hour S3 GET
+  // redirect. Never allow this bypass for student, certificate or agent files.
+  if (/^announcements\/media\/\d{4}-\d{2}-\d{2}\/[0-9a-f-]{36}-.+\.(?:mp4|mov|webm|jpe?g|png|webp)$/i.test(key) && !isPrivateStorageKey(key)) {
+    const url = deps.createSignedStorageUrlForKey(key, ANNOUNCEMENT_MEDIA_TTL_SECONDS)
+    if (!url) return NextResponse.json({ error: 'ملف الإعلان غير متاح' }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+    const redirect = NextResponse.redirect(new URL(url, req.url), 302)
+    redirect.headers.set('Cache-Control', 'no-store')
+    return redirect
   }
 
   let user: FileRouteUser

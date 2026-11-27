@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { AnnouncementCardModal } from '@/components/aact/AnnouncementCardModal'
 import { getActiveSiteAnnouncementsCached } from '@/lib/site-announcements'
 
 function shortTitle(title: string) {
@@ -11,6 +12,7 @@ export async function SiteAnnouncements() {
 
   const ticker = announcements.filter((item) => item.display === 'TICKER')
   const pulse = announcements.filter((item) => item.display === 'PULSE')
+  const cards = announcements.filter((item) => item.display === 'CARD')
 
   return (
     <div className="site-announcements-shell" dir="rtl">
@@ -115,6 +117,7 @@ export async function SiteAnnouncements() {
           }
         }
       `}</style>
+      {cards.length > 0 && <AnnouncementCardModal cards={cards} />}
       {ticker.length > 0 && (
         <div className="site-announcements-ticker" aria-label="إعلانات الأكاديمية">
           <div className="site-announcements-ticker-track">

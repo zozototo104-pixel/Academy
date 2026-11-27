@@ -222,7 +222,7 @@ function getS3Config() {
 }
 
 function signS3Request(args: {
-  method: 'GET' | 'PUT' | 'DELETE'
+  method: 'GET' | 'PUT' | 'DELETE' | 'HEAD'
   key: string
   payloadHash: string
   extraHeaders?: Record<string, string>
@@ -313,10 +313,15 @@ export function verifyLocalStorageDownloadSignature(key: string, expires: string
   return createHash('sha256').update(signature).digest('hex') === createHash('sha256').update(expected).digest('hex')
 }
 
-export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300): string | null {
+export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300, method: 'GET' | 'PUT' = 'GET'): string | null {
   const cleanKey = cleanStorageKey(key)
+  if (method === 'PUT' && !cleanKey.startsWith('announcements/media/')) throw new Error('STORAGE_UPLOAD_KEY_FORBIDDEN')
+  // Public announcement videos can outlast a five-minute media URL. Keep the
+  // existing five-minute limit for private files and upload URLs unchanged.
+  const maxTtlSeconds = method === 'GET' && cleanKey.startsWith('announcements/media/') ? 3600 : 300
+  const ttlSeconds = Math.max(1, Math.min(maxTtlSeconds, Math.floor(expiresSeconds)))
   const cfg = getS3Config()
-  if (!cfg) return signLocalStorageDownloadPath(cleanKey, Date.now() + Math.max(1, Math.min(300, expiresSeconds)) * 1000)
+  if (!cfg) return method === 'PUT' ? null : signLocalStorageDownloadPath(cleanKey, Date.now() + ttlSeconds * 1000)
 
   const endpoint = new URL(cfg.endpoint)
   const privateRepresentative = cleanKey.startsWith('representatives-private/')
@@ -333,11 +338,11 @@ export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300):
     ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
     ['X-Amz-Credential', `${cfg.accessKeyId}/${scope}`],
     ['X-Amz-Date', amzDate],
-    ['X-Amz-Expires', String(Math.max(1, Math.min(300, Math.floor(expiresSeconds))))],
+    ['X-Amz-Expires', String(ttlSeconds)],
     ['X-Amz-SignedHeaders', signedHeaders],
   ]
   const canonicalQuery = query.map(([k, v]) => `${encodeS3PathPart(k)}=${encodeS3PathPart(v)}`).sort().join('&')
-  const canonicalRequest = ['GET', canonicalUri, canonicalQuery, `host:${endpoint.host}\n`, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n')
+  const canonicalRequest = [method, canonicalUri, canonicalQuery, `host:${endpoint.host}\n`, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n')
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join('\n')
   const kDate = hmac(`AWS4${cfg.secretAccessKey}`, dateStamp)
   const kRegion = hmac(kDate, cfg.region)
@@ -345,6 +350,39 @@ export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300):
   const kSigning = hmac(kService, 'aws4_request')
   const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex')
   return `${endpoint.origin}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`
+}
+
+// Public announcements use short-lived signed redirects, not a public bucket.
+export function createAnnouncementMediaStorageKey(fileName: string): string {
+  const safeName = cleanFileName(fileName).slice(-100)
+  if (!/\.(mp4|mov|webm|jpg|jpeg|png|webp)$/i.test(safeName)) throw new Error('INVALID_ANNOUNCEMENT_MEDIA_NAME')
+  return `announcements/media/${isoDateFolder()}/${randomUUID()}-${safeName}`
+}
+
+export async function inspectUploadedAnnouncementMedia(keyInput: string): Promise<{ size: number; mimeType: string; signatureBytes: Buffer } | null> {
+  const key = cleanStorageKey(keyInput)
+  if (!key.startsWith('announcements/media/')) throw new Error('INVALID_ANNOUNCEMENT_MEDIA_KEY')
+  const signedHead = signS3Request({ method: 'HEAD', key, payloadHash: 'UNSIGNED-PAYLOAD' })
+  const signedGet = signS3Request({ method: 'GET', key, payloadHash: 'UNSIGNED-PAYLOAD' })
+  if (!signedHead || !signedGet) throw new Error('FILE_STORAGE_NOT_CONFIGURED')
+  const head = await fetch(signedHead.url, { method: 'HEAD', headers: signedHead.headers, cache: 'no-store' })
+  if (head.status === 404) return null
+  if (!head.ok) throw new Error(`S3_MEDIA_HEAD_FAILED:${head.status}`)
+  const size = Number(head.headers.get('content-length'))
+  if (!Number.isSafeInteger(size) || size <= 0) throw new Error('INVALID_ANNOUNCEMENT_MEDIA_SIZE')
+  const mimeType = String(head.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
+  const range = await fetch(signedGet.url, {
+    method: 'GET',
+    headers: { ...signedGet.headers, range: 'bytes=0-63' },
+    cache: 'no-store',
+  })
+  // A storage backend ignoring Range must not cause us to read a 500 MB object into memory.
+  if (range.status !== 206 && !(range.status === 200 && size <= 64)) {
+    await range.body?.cancel().catch(() => {})
+    throw new Error('S3_MEDIA_RANGE_NOT_SUPPORTED')
+  }
+  const signatureBytes = Buffer.from(await range.arrayBuffer())
+  return { size, mimeType, signatureBytes }
 }
 
 async function putToS3CompatibleStorage(input: { buffer: Buffer }, key: string, mimeType: string): Promise<StoredFileResult | null> {

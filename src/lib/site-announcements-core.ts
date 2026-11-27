@@ -1,4 +1,9 @@
-export type SiteAnnouncementDisplay = 'TICKER' | 'PULSE'
+import { parseVideoUrl } from './lectures/video-embed'
+
+export type SiteAnnouncementDisplay = 'TICKER' | 'PULSE' | 'CARD'
+
+// الحد الأقصى لعدد صور الإعلان الواحد (فيديو واحد فقط لكل إعلان).
+export const MAX_ANNOUNCEMENT_IMAGE_URLS = 5
 
 export type SiteAnnouncement = {
   id: string
@@ -9,6 +14,8 @@ export type SiteAnnouncement = {
   active: boolean
   startsAt?: string | null
   endsAt?: string | null
+  videoUrl?: string | null
+  imageUrls?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -21,9 +28,11 @@ export type SiteAnnouncementInput = {
   active?: unknown
   startsAt?: unknown
   endsAt?: unknown
+  videoUrl?: unknown
+  imageUrls?: unknown
 }
 
-const DISPLAY_VALUES = new Set<SiteAnnouncementDisplay>(['TICKER', 'PULSE'])
+const DISPLAY_VALUES = new Set<SiteAnnouncementDisplay>(['TICKER', 'PULSE', 'CARD'])
 
 export function canManageSiteAnnouncements(user: { role?: string | null } | null | undefined): boolean {
   return user?.role === 'ADMIN'
@@ -55,6 +64,65 @@ function normalizeDisplay(value: unknown): SiteAnnouncementDisplay {
   return display as SiteAnnouncementDisplay
 }
 
+// رابط فيديو صالح = https يفهمه محلل الفيديو (ملف مباشر mp4/webm/mov/m3u8
+// أو منصة معروفة مثل يوتيوب)، أما الروابط الخارجية غير المعروفة فمرفوضة
+// لأن المشغّل لا يستطيع عرضها داخل المنصة.
+function normalizeVideoUrl(value: unknown): string | null {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+  const parsed = parseVideoUrl(raw)
+  if (!parsed || parsed.source === 'EXTERNAL') throw new Error('رابط الفيديو غير صالح')
+  return parsed.originalUrl
+}
+
+function normalizeImageUrls(value: unknown): string[] {
+  if (value == null) return []
+  if (!Array.isArray(value)) throw new Error('صور الإعلان يجب أن تكون قائمة روابط')
+  const urls = value.map((item) => String(item ?? '').trim()).filter(Boolean)
+  if (urls.length > MAX_ANNOUNCEMENT_IMAGE_URLS) throw new Error(`عدد صور الإعلان يجب ألا يتجاوز ${MAX_ANNOUNCEMENT_IMAGE_URLS}`)
+  for (const url of urls) {
+    let parsed: URL
+    try {
+      parsed = new URL(url)
+    } catch {
+      throw new Error('رابط صورة غير صالح')
+    }
+    if (parsed.protocol !== 'https:') throw new Error('روابط صور الإعلان يجب أن تكون https')
+    if (!/\.(jpg|jpeg|png|webp)$/i.test(parsed.pathname)) throw new Error('صيغة صورة الإعلان غير مدعومة')
+  }
+  return urls
+}
+
+export type AnnouncementVideoDescriptor = {
+  kind: 'file' | 'embed' | 'external'
+  url?: string | null
+  source?: string
+  embedId?: string | null
+  embedUrl?: string | null
+}
+
+// واصف تشغيل لمشغّل المحاضرات (LecturePlayer) من رابط فيديو الإعلان.
+// ملف مباشر → kind:file، منصة معروفة → kind:embed، غير ذلك → external.
+export function announcementVideoDescriptor(videoUrl?: string | null): AnnouncementVideoDescriptor | null {
+  if (!videoUrl) return null
+  const parsed = parseVideoUrl(videoUrl)
+  if (!parsed) return null
+  if (parsed.source === 'MP4' || parsed.source === 'WEBM' || parsed.source === 'HLS') return { kind: 'file', url: parsed.originalUrl }
+  if (parsed.source === 'EXTERNAL') return { kind: 'external', url: parsed.originalUrl }
+  return { kind: 'embed', url: parsed.originalUrl, source: parsed.source, embedId: parsed.embedId, embedUrl: parsed.embedUrl }
+}
+
+// أول بطاقة بارزة لم يرها المستخدم بعد. القائمة مرتبة من الأحدث للأقدم
+// (الحفظ يضع الجديد أولاً)، فتُعرض بطاقة واحدة فقط في كل دخول — الأحدث
+// غير المقروءة — بدل تكديس النوافذ فوق بعضها.
+export function firstUnseenAnnouncementCard(items: SiteAnnouncement[], seenIds: Iterable<string>): SiteAnnouncement | null {
+  const seen = new Set(seenIds)
+  for (const item of items) {
+    if (item.display === 'CARD' && item.active && !seen.has(item.id)) return item
+  }
+  return null
+}
+
 export function parseSiteAnnouncementsValue(value: unknown): SiteAnnouncement[] {
   try {
     const parsed = typeof value === 'string' ? JSON.parse(value || '[]') : value
@@ -76,6 +144,20 @@ function normalizeStoredAnnouncement(item: unknown): SiteAnnouncement | null {
   const body = longText(source.body)
   const displayRaw = String(source.display || 'TICKER').trim().toUpperCase()
   if (!id || !title || !summary || !DISPLAY_VALUES.has(displayRaw as SiteAnnouncementDisplay)) return null
+  // إعلانات قديمة بلا حقول وسائط تبقى صالحة: رابط تالف يُسقط بهدوء بدل
+  // أن يكسر قراءة كل الإعلانات.
+  let videoUrl: string | null = null
+  let imageUrls: string[] = []
+  try {
+    videoUrl = normalizeVideoUrl(source.videoUrl)
+  } catch {
+    videoUrl = null
+  }
+  try {
+    imageUrls = normalizeImageUrls(source.imageUrls)
+  } catch {
+    imageUrls = []
+  }
   return {
     id,
     title: title.slice(0, 120),
@@ -85,6 +167,8 @@ function normalizeStoredAnnouncement(item: unknown): SiteAnnouncement | null {
     active: source.active === true,
     startsAt: typeof source.startsAt === 'string' && source.startsAt.trim() ? new Date(source.startsAt).toISOString() : null,
     endsAt: typeof source.endsAt === 'string' && source.endsAt.trim() ? new Date(source.endsAt).toISOString() : null,
+    videoUrl,
+    imageUrls,
     createdAt: typeof source.createdAt === 'string' && source.createdAt.trim() ? new Date(source.createdAt).toISOString() : new Date().toISOString(),
     updatedAt: typeof source.updatedAt === 'string' && source.updatedAt.trim() ? new Date(source.updatedAt).toISOString() : new Date().toISOString(),
   }
@@ -99,6 +183,8 @@ export function validateAnnouncementInput(input: SiteAnnouncementInput, existing
   const active = 'active' in input ? input.active === true || String(input.active).toLowerCase() === 'true' : existing?.active ?? true
   const startsAt = 'startsAt' in input ? normalizeDate(input.startsAt, 'تاريخ البداية') : existing?.startsAt ?? null
   const endsAt = 'endsAt' in input ? normalizeDate(input.endsAt, 'تاريخ النهاية') : existing?.endsAt ?? null
+  const videoUrl = 'videoUrl' in input ? normalizeVideoUrl(input.videoUrl) : existing?.videoUrl ?? null
+  const imageUrls = 'imageUrls' in input ? normalizeImageUrls(input.imageUrls) : existing?.imageUrls ?? []
 
   if (!title) throw new Error('عنوان الإعلان مطلوب')
   if (!summary) throw new Error('نص الشريط مطلوب')
@@ -119,6 +205,8 @@ export function validateAnnouncementInput(input: SiteAnnouncementInput, existing
     active,
     startsAt,
     endsAt,
+    videoUrl,
+    imageUrls,
     createdAt: existing?.createdAt || now,
     updatedAt: now,
   }

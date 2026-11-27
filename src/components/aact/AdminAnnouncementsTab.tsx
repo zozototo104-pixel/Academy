@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
+import { LecturePlayer } from '@/components/aact/LecturePlayer'
 import type { SiteAnnouncement, SiteAnnouncementDisplay } from '@/lib/site-announcements'
+import { MAX_ANNOUNCEMENT_IMAGE_URLS, announcementVideoDescriptor } from '@/lib/site-announcements-core'
 import { api } from '@/lib/store'
 import { toast } from '@/hooks/use-toast'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { CheckCircle2, Globe2, Loader2, XCircle } from 'lucide-react'
+import { CheckCircle2, Globe2, Loader2, Upload, X, XCircle } from 'lucide-react'
 
 type AnnouncementForm = {
   id?: string
@@ -23,10 +25,12 @@ type AnnouncementForm = {
   active: boolean
   startsAt: string
   endsAt: string
+  videoUrl: string
+  imageUrls: string[]
 }
 
 function emptyForm(): AnnouncementForm {
-  return { title: '', summary: '', body: '', display: 'TICKER', active: true, startsAt: '', endsAt: '' }
+  return { title: '', summary: '', body: '', display: 'TICKER', active: true, startsAt: '', endsAt: '', videoUrl: '', imageUrls: [] }
 }
 
 function toDateTimeLocal(value?: string | null) {
@@ -47,6 +51,8 @@ function formFromAnnouncement(item: SiteAnnouncement): AnnouncementForm {
     active: item.active,
     startsAt: toDateTimeLocal(item.startsAt),
     endsAt: toDateTimeLocal(item.endsAt),
+    videoUrl: item.videoUrl || '',
+    imageUrls: item.imageUrls || [],
   }
 }
 
@@ -60,10 +66,120 @@ function dateLabel(value?: string | null) {
 export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { announcements: SiteAnnouncement[]; loading: boolean; onRefresh: () => Promise<void> }) {
   const [form, setForm] = useState<AnnouncementForm | null>(null)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [uploadStage, setUploadStage] = useState<'preparing' | 'uploading' | 'verifying'>('preparing')
+  const uploadXhr = useRef<XMLHttpRequest | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  // Only new, unsaved uploads belong to this editor; never delete media
+  // already referenced by an existing announcement.
+  const pendingMedia = useRef(new Map<string, string>())
   const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
+  const previewVideo = form?.videoUrl ? announcementVideoDescriptor(form.videoUrl) : null
+
+  const cleanupMedia = async (url: string) => {
+    const key = pendingMedia.current.get(url)
+    if (!key) return
+    pendingMedia.current.delete(url)
+    await api(`/api/admin/announcements/media?key=${encodeURIComponent(key)}`, { method: 'DELETE' }).catch((error) => {
+      console.warn('Announcement temporary media cleanup failed:', error)
+    })
+  }
+
+  const cancelForm = async () => {
+    const urls = [...pendingMedia.current.keys()]
+    setForm(null)
+    await Promise.allSettled(urls.map((url) => cleanupMedia(url)))
+  }
 
   const updateForm = (patch: Partial<AnnouncementForm>) => setForm((current) => ({ ...(current || emptyForm()), ...patch }))
+
+  // رفع فيديو أو صورة واحدة لكل ضغطة. فيديو واحد فقط لكل إعلان (الاستبدال
+  // يلغي القديم)، وصور حتى حد النواة. الملف القديم المستبدَل يبقى في
+  // التخزين كملف يتيم ولا يُحذف تلقائيًا.
+  const uploadMedia = async (file: File) => {
+    if (!form) return
+    const mimeType = String(file.type || '').split(';')[0].trim().toLowerCase()
+    const isVideo = mimeType.startsWith('video/')
+    const maxBytes = isVideo ? 500 * 1024 * 1024 : 10 * 1024 * 1024
+    if (!isVideo && form.imageUrls.length >= MAX_ANNOUNCEMENT_IMAGE_URLS) {
+      toast({ title: `عدد الصور يجب ألا يتجاوز ${MAX_ANNOUNCEMENT_IMAGE_URLS}`, variant: 'destructive' })
+      return
+    }
+    if (!file.size || file.size > maxBytes) {
+      toast({ title: isVideo ? 'الفيديو يجب ألا يتجاوز 500MB' : 'الصورة يجب ألا تتجاوز 10MB', variant: 'destructive' })
+      return
+    }
+
+    try {
+      setUploading(true)
+      setUploadProgress(null)
+      setUploadStage('preparing')
+      let data: { url: string; key: string; mimeType: string }
+      if (file.size <= 4 * 1024 * 1024) {
+        // Small files can use the existing server path below Vercel's limit.
+        const body = new FormData()
+        body.append('file', file)
+        setUploadStage('uploading')
+        data = await api('/api/admin/announcements/media', { method: 'POST', body })
+      } else {
+        // 5MB+ files must bypass the Vercel Function request-body limit.
+        const init = await api<{ uploadUrl: string; key: string }>('/api/admin/announcements/media', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'INIT', fileName: file.name, mimeType, size: file.size }),
+        })
+        setUploadProgress(0)
+        setUploadStage('uploading')
+        try {
+          // Same direct upload mechanism as lecture videos, with real byte progress.
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest()
+            uploadXhr.current = xhr
+            xhr.open('PUT', init.uploadUrl)
+            xhr.setRequestHeader('Content-Type', mimeType)
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) setUploadProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)))
+            }
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) resolve()
+              else reject(new Error(`فشل التخزين المباشر (HTTP ${xhr.status})`))
+            }
+            xhr.onerror = () => reject(new Error('تعذر الاتصال بالتخزين المباشر. تحقق من الشبكة وإعدادات التخزين.'))
+            xhr.onabort = () => reject(new Error('تم إلغاء رفع الملف'))
+            xhr.onloadend = () => { if (uploadXhr.current === xhr) uploadXhr.current = null }
+            xhr.send(file)
+          })
+          setUploadProgress(100)
+          setUploadStage('verifying')
+          data = await api('/api/admin/announcements/media', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'COMPLETE', key: init.key }),
+          })
+        } catch (error) {
+          await api(`/api/admin/announcements/media?key=${encodeURIComponent(init.key)}`, { method: 'DELETE' }).catch(() => {})
+          if (error instanceof TypeError) throw new Error('تعذر الاتصال بالتخزين المباشر. تحقق من الشبكة، وإن استمرت المشكلة افحص إعدادات التخزين.')
+          throw error
+        }
+      }
+      pendingMedia.current.set(data.url, data.key)
+      if (isVideo) {
+        if (form.videoUrl && form.videoUrl !== data.url) void cleanupMedia(form.videoUrl)
+        setForm((current) => current ? { ...current, videoUrl: data.url } : current)
+        toast({ title: 'تم رفع الفيديو' })
+      } else {
+        setForm((current) => current ? { ...current, imageUrls: [...current.imageUrls, data.url] } : current)
+        toast({ title: 'تم رفع الصورة' })
+      }
+    } catch (e: any) {
+      if (e?.message === 'تم إلغاء رفع الملف') toast({ title: 'تم إلغاء رفع الملف' })
+      else toast({ title: 'تعذر رفع الملف', description: e?.message || 'حدث خطأ غير متوقع', variant: 'destructive' })
+    } finally {
+      uploadXhr.current = null
+      setUploadProgress(null)
+      setUploadStage('preparing')
+      setUploading(false)
+    }
+  }
 
   const save = async () => {
     if (!form) return
@@ -78,9 +194,12 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
         active: form.active,
         startsAt: form.startsAt || null,
         endsAt: form.endsAt || null,
+        videoUrl: form.videoUrl || null,
+        imageUrls: form.imageUrls || [],
       }
       await api('/api/admin/announcements', { method: form.id ? 'PATCH' : 'POST', body: JSON.stringify(payload) })
       toast({ title: form.id ? 'تم تعديل الإعلان' : 'تم إنشاء الإعلان', description: 'سيظهر الإعلان للزوار إذا كان فعالاً وضمن التواريخ المحددة.' })
+      pendingMedia.current.clear() // Saved media must never be cleaned as abandoned.
       setForm(null)
       await onRefresh()
     } catch (e: any) {
@@ -121,9 +240,9 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
         <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-black text-[#0f2b46]"><Globe2 className="h-5 w-5 text-[#c9a227]" /> الإعلانات</h2>
-            <p className="mt-1 text-xs font-bold text-slate-500">إعلانات نصية خفيفة تظهر للزوار كشريط متحرك أو شارة نبضية، بدون HTML.</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">إعلانات تظهر للزوار كشريط متحرك أو شارة نبضية أو بطاقة بارزة، مع فيديو أو صور، وبدون HTML.</p>
           </div>
-          <Button onClick={() => setForm(emptyForm())} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#183c5f]">إعلان جديد</Button>
+          <Button onClick={() => setForm(emptyForm())} disabled={!!form || uploading} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#183c5f]">إعلان جديد</Button>
         </CardContent>
       </Card>
 
@@ -142,8 +261,12 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
                   <SelectContent>
                     <SelectItem value="TICKER">شريط متحرك</SelectItem>
                     <SelectItem value="PULSE">نبضي</SelectItem>
+                    <SelectItem value="CARD">بطاقة بارزة</SelectItem>
                   </SelectContent>
                 </Select>
+                {form.display === 'CARD' && (
+                  <p className="text-[11px] font-bold text-slate-500">تظهر كنافذة بارزة عند أول دخول للمستخدم للمنصة، مرة واحدة فقط لكل إعلان.</p>
+                )}
               </div>
             </div>
             <div className="space-y-1.5">
@@ -153,6 +276,87 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
             <div className="space-y-1.5">
               <Label className="text-xs font-black text-[#0f2b46]">التفاصيل ({form.body.length}/5000)</Label>
               <Textarea value={form.body} maxLength={5000} onChange={(e) => updateForm({ body: e.currentTarget.value })} className="min-h-[150px] bg-white font-bold" />
+            </div>
+            <div className="space-y-3 rounded-xl border border-[#0f2b46]/10 bg-white p-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-black text-[#0f2b46]">فيديو الإعلان</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#0f2b46] px-3 py-2 text-xs font-black text-[#f5f0e1] hover:bg-[#183c5f]">
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    ارفع فيديو أو صور
+                    <input
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime,image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const file = e.currentTarget.files?.[0]
+                        e.currentTarget.value = ''
+                        if (file) void uploadMedia(file)
+                      }}
+                    />
+                  </label>
+                  <span className="text-[11px] font-bold text-slate-500">فيديو حتى 500MB، صورة حتى 10MB — فيديو واحد و{MAX_ANNOUNCEMENT_IMAGE_URLS} صور كحد أقصى.</span>
+                </div>
+                {uploading && (
+                  <div role="status" aria-live="polite" className="space-y-2 rounded-lg border border-[#0f2b46]/15 bg-slate-50 p-3">
+                    <div className="flex items-center justify-between gap-3 text-xs font-bold text-[#0f2b46]">
+                      <span>{uploadStage === 'preparing' ? 'جاري تجهيز الرفع...' : uploadStage === 'verifying' ? 'اكتمل نقل الملف، جاري التحقق منه...' : 'جاري رفع الملف...'}</span>
+                      <span dir="ltr" className="shrink-0 tabular-nums">{uploadProgress === null ? <Loader2 className="h-4 w-4 animate-spin" /> : `${uploadProgress}%`}</span>
+                    </div>
+                    {uploadProgress === null ? (
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-200" aria-label="جاري رفع ملف الإعلان">
+                        <div className="h-full w-1/3 animate-pulse rounded-full bg-[#c9a227]" />
+                      </div>
+                    ) : (
+                      <div role="progressbar" aria-label="تقدم رفع ملف الإعلان" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress} className="h-2 overflow-hidden rounded-full bg-slate-200">
+                        <div className="h-full rounded-full bg-[#c9a227] transition-[width] duration-150" style={{ width: `${uploadProgress}%` }} />
+                      </div>
+                    )}
+                    {uploadStage === 'uploading' && uploadProgress !== null && (
+                      <Button type="button" size="sm" variant="outline" onClick={() => uploadXhr.current?.abort()} className="h-7 text-xs font-bold text-red-700">
+                        إلغاء رفع الملف
+                      </Button>
+                    )}
+                  </div>
+                )}
+                <Input
+                  value={form.videoUrl}
+                  onChange={(e) => { if (form.videoUrl !== e.currentTarget.value) void cleanupMedia(form.videoUrl); updateForm({ videoUrl: e.currentTarget.value }) }}
+                  placeholder="أو الصق رابط فيديو (يوتيوب أو ملف mp4 مباشر)"
+                  className="bg-white font-bold"
+                  dir="ltr"
+                />
+                {form.videoUrl && (
+                  <div className="relative overflow-hidden rounded-lg border border-[#0f2b46]/10">
+                    {previewVideo ? (
+                      <LecturePlayer descriptor={previewVideo} title={form.title || 'معاينة فيديو الإعلان'} />
+                    ) : (
+                      <p className="p-4 text-xs font-bold text-red-700">رابط الفيديو غير مدعوم للمعاينة.</p>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => { void cleanupMedia(form.videoUrl); updateForm({ videoUrl: '' }) }} className="absolute left-2 top-2 h-7 w-7 p-0 text-xs font-bold">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {form.imageUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {form.imageUrls.map((url) => (
+                    <div key={url} className="relative h-20 w-20 overflow-hidden rounded-lg border border-[#0f2b46]/10">
+                      <img src={url} alt="صورة الإعلان" className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        aria-label="إزالة الصورة"
+                        onClick={() => { updateForm({ imageUrls: form.imageUrls.filter((item) => item !== url) }); void cleanupMedia(url) }}
+                        className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
               <label className="flex items-center gap-2 rounded-xl border border-[#0f2b46]/10 bg-white px-3 py-2 text-xs font-black text-[#0f2b46]">
@@ -168,8 +372,8 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
               </div>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
-              <Button variant="ghost" onClick={() => setForm(null)} className="font-bold text-slate-500">إلغاء</Button>
-              <Button onClick={save} disabled={saving} className="bg-[#b22234] font-black text-white hover:bg-[#921b2a]">
+              <Button variant="ghost" onClick={() => void cancelForm()} disabled={uploading || saving} className="font-bold text-slate-500">إلغاء</Button>
+              <Button onClick={save} disabled={saving || uploading} className="bg-[#b22234] font-black text-white hover:bg-[#921b2a]">
                 {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />}
                 حفظ الإعلان
               </Button>
@@ -192,14 +396,16 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-sm font-black text-[#0f2b46]">{item.title}</h3>
                       <Badge className={item.active ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-100'}>{item.active ? 'فعال' : 'موقوف'}</Badge>
-                      <Badge variant="outline" className="border-[#c9a227]/50 text-[#a8841a]">{item.display === 'TICKER' ? 'شريط متحرك' : 'نبضي'}</Badge>
+                      <Badge variant="outline" className="border-[#c9a227]/50 text-[#a8841a]">{item.display === 'TICKER' ? 'شريط متحرك' : item.display === 'CARD' ? 'بطاقة بارزة' : 'نبضي'}</Badge>
+                      {item.videoUrl && <Badge variant="outline" className="border-[#0f2b46]/30 text-[#0f2b46]">فيديو</Badge>}
+                      {(item.imageUrls?.length || 0) > 0 && <Badge variant="outline" className="border-[#0f2b46]/30 text-[#0f2b46]">{item.imageUrls?.length} صور</Badge>}
                     </div>
                     <p className="mt-2 text-xs font-bold leading-6 text-slate-600">{item.summary}</p>
                     {item.body && <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-5 text-slate-500">{item.body}</p>}
                     <p className="mt-2 text-[10px] font-bold text-slate-400">من {dateLabel(item.startsAt)} — إلى {dateLabel(item.endsAt)} · آخر تعديل {dateLabel(item.updatedAt)}</p>
                   </div>
                   <div className="flex flex-wrap gap-2 sm:justify-end">
-                    <Button size="sm" variant="outline" onClick={() => setForm(formFromAnnouncement(item))} className="text-xs font-bold">تعديل</Button>
+                    <Button size="sm" variant="outline" onClick={() => setForm(formFromAnnouncement(item))} disabled={!!form || uploading} className="text-xs font-bold">تعديل</Button>
                     <Button size="sm" variant="outline" onClick={() => toggleActive(item)} className="text-xs font-bold">
                       {item.active ? <XCircle className="ml-1 h-3.5 w-3.5" /> : <CheckCircle2 className="ml-1 h-3.5 w-3.5" />}
                       {item.active ? 'إيقاف' : 'تفعيل'}
