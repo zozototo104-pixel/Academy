@@ -276,7 +276,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
                 {form.videoUrl && (
                   <div className="relative overflow-hidden rounded-lg border border-[#0f2b46]/10">
                     <video src={form.videoUrl} controls className="aspect-video w-full bg-black" />
-                    <Button size="sm" variant="outline" onClick={() => updateForm({ videoUrl: '' })} className="absolute left-2 top-2 h-7 w-7 p-0 text-xs font-bold">
+                    <Button size="sm" variant="outline" onClick={() => { void cleanupMedia(form.videoUrl); updateForm({ videoUrl: '' }) }} className="absolute left-2 top-2 h-7 w-7 p-0 text-xs font-bold">
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
