@@ -192,6 +192,18 @@ describe('comprehensive exam review UX', () => {
     expect(view).toContain("action: 'BACKGROUND_STATUS'")
     expect(view).toContain('window.setInterval(() => { void poll() }, 10_000)')
     expect(view).toContain('onStopInternetPlan={pauseComprehensiveInternetPlan}')
+    expect(view).toContain('onResumeInternetPlan={resumeComprehensiveInternetPlan}')
+    expect(view).toContain('استكمال المحاور الناقصة من المهمة المحفوظة')
+    expect(view).toContain('تغطية كل محور من الأسئلة المحفوظة فعلياً')
+  })
+
+  test('offers an optional quick draft and axis plan, and finds an existing specialty draft', () => {
+    expect(view).toContain('إنشاء مسودة وتحضير محاور التخصص')
+    expect(view).toContain('if (prepareAxes) await createInternetPlan(data.examId)')
+    expect(view).toContain('فتح المسودة واستكمالها')
+    expect(view).toContain('ابحث باسم الامتحان أو التخصص أو الحالة')
+    expect(view).toContain('visibleExams.map((exam)')
+    expect(view).toContain('أنت تختارها وتوافق عليها قبل البحث')
   })
 
   test('keeps the question panel mounted during approval and edit refresh', () => {
