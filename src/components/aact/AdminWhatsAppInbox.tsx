@@ -66,7 +66,7 @@ export function AdminWhatsAppInboxTab() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('HUMAN_REQUESTED')
+  const [status, setStatus] = useState('ALL')
   const [reply, setReply] = useState('')
   const [legacyPhone, setLegacyPhone] = useState('')
   const [recoveringPhone, setRecoveringPhone] = useState(false)
