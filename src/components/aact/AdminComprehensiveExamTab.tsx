@@ -271,6 +271,57 @@ export function AdminComprehensiveExamTab() {
     await Promise.all([loadDetail(examId, false), loadExams()])
   }
 
+  // Progress is authoritative on the server. Closing this tab stops only
+  // polling; Vercel's scheduled worker continues the reviewed blueprint.
+  useEffect(() => {
+    if (!selectedId) return
+    const examId = selectedId
+    let cancelled = false
+    let previousImported: number | null = null
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/admin/comprehensive-exams/${examId}/questions/from-internet`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'BACKGROUND_STATUS' }), cache: 'no-store',
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+        const job = data?.job
+        setInternetRunBusy(Boolean(job && ['QUEUED', 'RUNNING'].includes(job.status)))
+        setInternetRunProgress(job ? { axis: job.axis, total: job.total, imported: job.imported, errors: job.errors || [], status: job.status, retryAt: job.retryAt } : null)
+        if (job && restoredInternetJobRef.current !== examId && Array.isArray(job.axes)) {
+          restoredInternetJobRef.current = examId
+          const topics = job.axes.map((axis: { topic: string }) => axis.topic)
+          setInternetAxesText((prev) => prev.trim() ? prev : topics.join('\n'))
+          setInternetSelectedTopics((prev) => Object.keys(prev).length ? prev : Object.fromEntries(topics.map((topic: string) => [topic, true])))
+          setInternetPlanBasis((prev) => prev || 'SERVER')
+          setInternetPlanReviewed(true)
+          setInternetPlanStored(true)
+        }
+        if (job && previousImported !== null && job.imported !== previousImported) {
+          const [detailRes, examsRes] = await Promise.all([
+            fetch(`/api/admin/comprehensive-exams/${examId}`, { cache: 'no-store' }),
+            fetch('/api/admin/comprehensive-exams', { cache: 'no-store' }),
+          ])
+          if (cancelled) return
+          if (detailRes.ok) {
+            const fresh = await detailRes.json()
+            if (!cancelled) setDetail({ exam: fresh.exam, counts: fresh.counts, questions: fresh.questions })
+          }
+          if (examsRes.ok) {
+            const fresh = await examsRes.json()
+            if (!cancelled) setExams(fresh.exams || [])
+          }
+        }
+        previousImported = job ? Number(job.imported || 0) : null
+      } catch { /* a temporary network outage must not stop the server job */ }
+    }
+    void poll()
+    const timer = window.setInterval(() => { void poll() }, 10_000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [selectedId])
+
   const discardSavedInternetPlan = (examId: string) => {
     try { localStorage.removeItem(internetExamPlanStorageKey(examId)) } catch { /* no browser storage */ }
     setInternetPlanStored(false)
