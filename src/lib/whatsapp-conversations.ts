@@ -110,12 +110,16 @@ export async function recordWhatsAppInboundMessage(message: WhatsAppInboundMessa
 export async function recordWhatsAppOutboundMessage(args: {
   waId: string
   phoneNumberId?: string | null
+  displayName?: string | null
   text: string
   sender: OutboundSender
   whatsappMessageId?: string | null
   sentById?: string | null
   sentByName?: string | null
   status?: string | null
+  rawType?: string | null
+  meta?: Record<string, string | null>
+  requireSavedMessage?: boolean
 }) {
   const safe = safeConversationSenderFields(args.waId)
   const now = new Date()
@@ -123,6 +127,7 @@ export async function recordWhatsAppOutboundMessage(args: {
     where: { waIdHash: safe.waIdHash },
     create: {
       ...safe,
+      displayName: args.displayName?.trim() || null,
       phoneNumberId: args.phoneNumberId || null,
       status: 'BOT_ACTIVE',
       lastOutboundAt: now,
@@ -139,19 +144,24 @@ export async function recordWhatsAppOutboundMessage(args: {
       lastMessageText: args.text.slice(0, 1000),
     },
   })
-  await db.whatsAppConversationMessage.create({
+  const savedMessage = db.whatsAppConversationMessage.create({
     data: {
       conversationId: conversation.id,
       whatsappMessageId: args.whatsappMessageId || null,
       direction: 'OUTBOUND',
       sender: args.sender,
       text: args.text.slice(0, 4096),
+      rawType: args.rawType || null,
       status: args.status || 'SENT',
       sentById: args.sentById || null,
       sentByName: args.sentByName || null,
-      meta: { phoneNumberId: args.phoneNumberId || null },
+      meta: { ...args.meta, phoneNumberId: args.phoneNumberId || null },
     },
-  }).catch(() => {})
+  })
+  // Existing notification callers retain best-effort logging. Invitations
+  // opt into a hard persistence check so their UI can warn on archive failure.
+  if (args.requireSavedMessage) await savedMessage
+  else await savedMessage.catch(() => {})
   return conversation
 }
 

@@ -14,6 +14,7 @@ import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { emailTemplate, sendEmailDetailed } from '@/lib/mailer'
 import { createCertificateQrToken, nextCertificateSerial } from '@/lib/certificate-identity'
 import { sendOfficialWhatsAppTemplate } from '@/lib/whatsapp-cloud'
+import { recordWhatsAppOutboundMessage } from '@/lib/whatsapp-conversations'
 import { storeFileBuffer } from '@/lib/storage'
 import { createPasswordResetToken, passwordResetUrl } from '@/lib/password-reset'
 
@@ -478,6 +479,89 @@ export type ComprehensiveInviteSendInput = {
   durationMin: number
   inviteUrl: string
   expiresAt: Date
+  // Country as registered on the candidate's application (Arabic name,
+  // e.g. 'فلسطين' / 'السعودية'). Used ONLY to normalise the archived
+  // WhatsApp conversation id; the send itself is untouched.
+  country?: string | null
+}
+
+// Dial codes for the countries the platform registers (SUPPORTED_COUNTRIES
+// in admission-validation.ts, stored as Arabic names). A local number such
+// as 0599... is shared by more than one country (Palestine AND Saudi
+// Arabia), so the prefix must come from the country on the application —
+// never guessed from the number alone. Palestine is 972 here because that
+// is how the platform's Palestinian numbers are stored and sent.
+const COMPREHENSIVE_INVITE_COUNTRY_DIAL_CODES: Record<string, string> = {
+  'فلسطين': '972',
+  'الأردن': '962',
+  'السعودية': '966',
+  'الإمارات': '971',
+  'قطر': '974',
+  'الكويت': '965',
+  'البحرين': '973',
+  'عُمان': '968',
+  'مصر': '20',
+  'العراق': '964',
+  'سوريا': '963',
+  'لبنان': '961',
+  'اليمن': '967',
+  'ليبيا': '218',
+  'تونس': '216',
+  'الجزائر': '213',
+  'المغرب': '212',
+  'السودان': '249',
+  'تركيا': '90',
+  'ألمانيا': '49',
+  'السويد': '46',
+  'الولايات المتحدة': '1',
+  'كندا': '1',
+  'المملكة المتحدة': '44',
+}
+
+// Normalise a phone to the international digits WhatsApp uses as the
+// conversation identity (Meta's wa_id). Already-international numbers are
+// returned untouched; a local number gets its country's dial code (leading
+// 0 dropped); an unknown or missing country leaves the number as-is —
+// never guessed, so the archive never lands on the wrong country's thread.
+export function normalizePhoneToInternationalWaId(phone: string, country?: string | null): string {
+  const normalized = normalizePhone(String(phone || ''))
+  const digits = normalized.replace(/\D/g, '')
+  if (!digits) return digits
+  if (normalized.startsWith('+')) return digits
+  const dialCode = COMPREHENSIVE_INVITE_COUNTRY_DIAL_CODES[String(country || '').trim()]
+  if (!dialCode) return digits
+  if (digits.startsWith(dialCode)) return digits
+  return `${dialCode}${digits.startsWith('0') ? digits.slice(1) : digits}`
+}
+
+// Country for the invite archive: the application first (its country field
+// is required), then the linked student account. Any lookup failure yields
+// null — the archive then keeps the number as stored instead of guessing.
+export async function resolveComprehensiveInviteCountry(candidate: {
+  admissionApplicationId?: string | null
+  userId?: string | null
+}): Promise<string | null> {
+  try {
+    if (candidate.admissionApplicationId) {
+      const application = await db.admissionApplication?.findUnique?.({
+        where: { id: candidate.admissionApplicationId },
+        select: { country: true },
+      })
+      const country = String((application as any)?.country || '').trim()
+      if (country) return country
+    }
+    if (candidate.userId) {
+      const user = await db.user?.findUnique?.({
+        where: { id: candidate.userId },
+        select: { country: true },
+      })
+      const country = String((user as any)?.country || '').trim()
+      if (country) return country
+    }
+  } catch {
+    return null
+  }
+  return null
 }
 
 // Sends on BOTH channels. A failure on one channel never blocks the
@@ -534,13 +618,34 @@ export async function sendComprehensiveExamInvite(input: ComprehensiveInviteSend
         // the public logo; the sender only attaches it when Meta requires IMAGE.
         const headerImageUrl = templateName === 'comprehensive_exam_invite_ar' || wabaId
           ? 'https://www.aactacademy.com/logo.png' : undefined
-        await sendOfficialWhatsAppTemplate(phone, templateName, [
-          input.fullName,
-          input.examTitle,
-          formatInviteExpiryDate(input.expiresAt),
-          input.inviteUrl,
-        ], { languageCode, wabaId, headerImageUrl })
-        delivery.whatsapp = { status: 'SENT' }
+        const expiryText = formatInviteExpiryDate(input.expiresAt)
+        const parameters = [input.fullName, input.examTitle, expiryText, input.inviteUrl]
+        const result = await sendOfficialWhatsAppTemplate(phone, templateName, parameters, { languageCode, wabaId, headerImageUrl })
+        const whatsappMessageId = String(result?.messages?.[0]?.id || '').trim()
+        delivery.whatsapp = {
+          status: 'SENT',
+          ...(whatsappMessageId ? {} : { error: 'قبلت Meta طلب الإرسال، لكن لم تُرجع معرّف الرسالة لتتبّع التسليم' }),
+        }
+        try {
+          // This is a summary of the approved template's variables, not a
+          // reconstruction of Meta's template wording.
+          await recordWhatsAppOutboundMessage({
+            waId: normalizePhoneToInternationalWaId(phone, input.country),
+            displayName: input.fullName,
+            text: `قالب دعوة الامتحان الشامل «${templateName}»\nالمرشح: ${input.fullName}\nالامتحان: ${input.examTitle}\nصالح حتى: ${expiryText}\nرابط الامتحان: ${input.inviteUrl}`,
+            sender: 'SYSTEM',
+            sentByName: 'خدمة الامتحان الشامل',
+            whatsappMessageId: whatsappMessageId || null,
+            rawType: 'template',
+            meta: { templateName, languageCode, headerImageUrl: headerImageUrl || null },
+            requireSavedMessage: true,
+          })
+        } catch (archiveError) {
+          // Meta has already accepted the message. Never misreport a
+          // conversation-archive failure as a failed WhatsApp send.
+          console.error('comprehensive exam WhatsApp conversation archive failed:', archiveError)
+          delivery.whatsapp.error = 'قبلت Meta طلب الإرسال، لكن تعذّر حفظ الرسالة في محادثات المنصة'
+        }
       }
     }
   } catch (e: any) {

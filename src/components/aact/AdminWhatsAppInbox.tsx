@@ -66,7 +66,7 @@ export function AdminWhatsAppInboxTab() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('HUMAN_REQUESTED')
+  const [status, setStatus] = useState('ALL')
   const [reply, setReply] = useState('')
   const [legacyPhone, setLegacyPhone] = useState('')
   const [recoveringPhone, setRecoveringPhone] = useState(false)
@@ -328,6 +328,9 @@ export function AdminWhatsAppInboxTab() {
                             <p className="mb-2 text-xs font-bold text-amber-700">المرفق غير متاح: لم يُحفظ معرّف الملف في الرسالة القديمة.</p>
                           )}
                           {m.meta?.mediaCaption && <p className="whitespace-pre-wrap text-sm font-bold leading-6 text-[#102a43]">{m.meta.mediaCaption}</p>}
+                          {m.rawType === 'template' && (
+                            <span className="mb-1 inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-800">قالب واتساب — ملخص المتغيرات المرسلة</span>
+                          )}
                           <p className="whitespace-pre-wrap text-sm font-bold leading-7 text-[#102a43]">{m.text}</p>
                           <p className="mt-1 text-left text-[10px] font-bold text-slate-400">{m.sender === 'HUMAN' && m.sentByName ? `${m.sentByName} · ` : ''}{formatTime(m.createdAt)}</p>
                           {outbound && deliveryLabel && (

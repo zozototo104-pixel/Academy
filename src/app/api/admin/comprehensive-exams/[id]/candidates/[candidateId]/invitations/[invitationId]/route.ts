@@ -9,6 +9,7 @@ import {
   comprehensiveExamInviteExpiresAt,
   createComprehensiveExamInviteToken,
   ComprehensiveExamPhase2Error,
+  resolveComprehensiveInviteCountry,
   sendComprehensiveExamInvite,
 } from '@/lib/comprehensive-exam-phase2'
 
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       where: { id: invitationId, candidateId },
       include: {
         candidate: {
-          select: { id: true, fullName: true, email: true, phone: true, examId: true, submittedBy: true, admissionApplicationId: true },
+          select: { id: true, fullName: true, email: true, phone: true, examId: true, submittedBy: true, admissionApplicationId: true, userId: true },
         },
       },
     })
@@ -140,6 +141,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       })
     }, { isolationLevel: 'Serializable' })
     const inviteUrl = buildComprehensiveExamInviteUrl(newToken)
+    const country = await resolveComprehensiveInviteCountry(invitation.candidate)
     const delivery = await sendComprehensiveExamInvite({
       fullName: invitation.candidate.fullName,
       email: invitation.candidate.email,
@@ -149,6 +151,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       durationMin: exam.durationMin,
       inviteUrl,
       expiresAt: newExpiresAt,
+      country,
     })
     const updated = await db.comprehensiveExamInvitation.update({
       where: { id: next.id },
