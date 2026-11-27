@@ -453,6 +453,34 @@ async function pauseInternetBackgroundJob(examId: string) {
   return NextResponse.json({ error: 'تغيّرت المهمة أثناء الإيقاف؛ أعد المحاولة' }, { status: 409 })
 }
 
+// Resume the SAME reviewed distribution rather than recomputing the targets
+// from whatever axes happen to be selected in a browser. Completed axes are
+// skipped by the existing idempotent saver at no search/model cost.
+async function resumeInternetBackgroundJob(examId: string, admin: { id: string; name?: string | null }) {
+  const current = await readInternetBackgroundJob(examId)
+  if (!current?.job) return NextResponse.json({ error: 'لا توجد مهمة محفوظة لاستكمالها' }, { status: 404 })
+  if (!['PAUSED', 'COMPLETED_WITH_GAPS'].includes(current.job.status)) {
+    return NextResponse.json({ error: 'يمكن الاستكمال فقط بعد الإيقاف أو عند وجود محاور ناقصة' }, { status: 409 })
+  }
+  if (current.job.leaseId && current.job.lockedUntil && new Date(current.job.lockedUntil).getTime() > Date.now()) {
+    return NextResponse.json({ error: 'الدفعة السابقة ما زالت قيد الإنهاء؛ انتظر قليلاً ثم استكمل' }, { status: 409 })
+  }
+  const progress = await readInternetAxisProgress(current.job)
+  const firstMissingAxis = progress.findIndex((axis) => axis.remaining > 0)
+  if (firstMissingAxis < 0) return NextResponse.json({ error: 'اكتملت حصص جميع المحاور بالفعل؛ راجع الأسئلة واعتمدها' }, { status: 409 })
+  if (!await readTavilyApiKey()) return NextResponse.json({ error: 'مفتاح Tavily غير محفوظ', code: 'TAVILY_KEY_MISSING' }, { status: 422 })
+  const next: InternetBackgroundJob = {
+    ...current.job, adminId: admin.id, adminName: admin.name || 'Admin', status: 'QUEUED', axisIndex: firstMissingAxis,
+    axes: current.job.axes.map((axis) => ({ ...axis, attempts: 0, stalled: 0 })),
+    errors: [], leaseId: null, lockedUntil: null, retryAt: null, updatedAt: new Date().toISOString(),
+  }
+  if (!await replaceInternetJob(examId, current.raw, next)) {
+    return NextResponse.json({ error: 'تغيّرت حالة التوليد أثناء الاستكمال؛ حدّث الصفحة وحاول مجدداً' }, { status: 409 })
+  }
+  console.info('[comprehensive-internet-job] resumed', { examId, axes: next.axes.length })
+  return NextResponse.json({ ok: true, job: publicInternetJob(next) })
+}
+
 // Invoked only by the CRON_SECRET-protected scheduled route. One tick does
 // one batch; a lease recovers after function termination and the saved
 // per-axis question counts make retries idempotent. No browser is required.
