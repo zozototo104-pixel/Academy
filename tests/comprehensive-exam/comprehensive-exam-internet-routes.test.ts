@@ -35,8 +35,26 @@ const fakeDb: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(fakeDb),
   $queryRaw: async (_query: TemplateStringsArray, examId: string) => exams.filter((exam) => exam.id === examId),
   setting: {
-    findUnique: async ({ where }: any) =>
-      where?.key === 'TAVILY_API_KEY' && tavilyKey ? { key: 'TAVILY_API_KEY', value: tavilyKey } : null,
+    findUnique: async ({ where }: any) => where?.key === 'TAVILY_API_KEY'
+      ? (tavilyKey ? { key: 'TAVILY_API_KEY', value: tavilyKey } : null)
+      : settings.find((row) => row.key === where?.key) || null,
+    findMany: async ({ where, take }: any) => settings.filter((row) =>
+      row.key.startsWith(where?.key?.startsWith || '') &&
+      (!where?.OR || where.OR.some((condition: any) => row.value.includes(condition.value.contains))),
+    ).sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime()).slice(0, take),
+    create: async ({ data }: any) => {
+      if (settings.some((row) => row.key === data.key)) throw Object.assign(new Error('duplicate'), { code: 'P2002' })
+      const row = { ...data, updatedAt: new Date() }
+      settings.push(row)
+      return row
+    },
+    updateMany: async ({ where, data }: any) => {
+      const row = settings.find((item) => item.key === where.key && item.value === where.value)
+      if (!row) return { count: 0 }
+      row.value = data.value
+      row.updatedAt = new Date()
+      return { count: 1 }
+    },
   },
   program: {
     findUnique: async ({ where }: any) => {
