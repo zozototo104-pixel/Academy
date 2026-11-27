@@ -20,6 +20,7 @@ let generateResult: any = null
 let generateError: any = null
 let generateInput: any = null
 let duringGeneration: (() => void) | undefined
+let adminActive = true
 
 class TestTavilySearchError extends Error {
   kind: string
