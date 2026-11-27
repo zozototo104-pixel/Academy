@@ -67,6 +67,14 @@ const fakeDb: any = {
     findUnique: async ({ where }: any) => exams.find((x) => x.id === where?.id) || null,
   },
   comprehensiveExamQuestion: {
+    groupBy: async ({ where }: any) => {
+      const counts = new Map<string, number>()
+      for (const question of questions) {
+        if (question.examId !== where.examId || question.source !== where.source || !where.sourceBookId.in.includes(question.sourceBookId) || !where.status.in.includes(question.status)) continue
+        counts.set(question.sourceBookId, (counts.get(question.sourceBookId) || 0) + 1)
+      }
+      return [...counts.entries()].map(([sourceBookId, count]) => ({ sourceBookId, _count: { _all: count } }))
+    },
     count: async ({ where }: any) => questions.filter((q) =>
       (!where?.examId || q.examId === where.examId) &&
       (!where?.source || q.source === where.source) &&
