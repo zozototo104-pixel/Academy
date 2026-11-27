@@ -2,8 +2,9 @@
 
 import { useRef, useState } from 'react'
 import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
+import { LecturePlayer } from '@/components/aact/LecturePlayer'
 import type { SiteAnnouncement, SiteAnnouncementDisplay } from '@/lib/site-announcements'
-import { MAX_ANNOUNCEMENT_IMAGE_URLS } from '@/lib/site-announcements-core'
+import { MAX_ANNOUNCEMENT_IMAGE_URLS, announcementVideoDescriptor } from '@/lib/site-announcements-core'
 import { api } from '@/lib/store'
 import { toast } from '@/hooks/use-toast'
 import { Badge } from '@/components/ui/badge'
