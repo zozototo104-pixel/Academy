@@ -147,6 +147,7 @@ describe('sendComprehensiveExamInvite', () => {
     expect(d.whatsapp.status).toBe('NOT_CONFIGURED')
     expect(d.whatsapp.error).toContain('قالب واتساب')
     expect(sentWhatsApps.length).toBe(0)
+    expect(archivedWhatsApps).toHaveLength(0)
   })
   test('WhatsApp provider failure: FAILED with the provider message, email still sent', async () => {
     reset()
@@ -156,6 +157,7 @@ describe('sendComprehensiveExamInvite', () => {
     expect(d.email.status).toBe('SENT')
     expect(d.whatsapp.status).toBe('FAILED')
     expect(d.whatsapp.error).toContain('insufficient balance')
+    expect(archivedWhatsApps).toHaveLength(0)
   })
   test('email skipped (mailer unconfigured): SKIPPED, WhatsApp still sent', async () => {
     reset()
