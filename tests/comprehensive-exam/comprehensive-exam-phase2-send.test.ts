@@ -10,11 +10,19 @@ let sentWhatsApps: any[] = []
 let archivedWhatsApps: any[] = []
 let archiveBehavior: 'OK' | 'THROW' = 'OK'
 let returnedMessageId: string | null = 'wamid.exam-invite-1'
+let applications: Record<string, { country: string | null }> = {}
+let usersById: Record<string, { country: string | null }> = {}
 
 mock.module('@/lib/db', () => ({
   db: {
     setting: {
       findUnique: async ({ where }: any) => (settings[where?.key] ? { key: where.key, value: settings[where.key] } : null),
+    },
+    admissionApplication: {
+      findUnique: async ({ where }: any) => applications[where?.id] || null,
+    },
+    user: {
+      findUnique: async ({ where }: any) => usersById[where?.id] || null,
     },
   },
 }))
@@ -53,6 +61,8 @@ function reset() {
   sentEmails = []
   sentWhatsApps = []
   archivedWhatsApps = []
+  applications = {}
+  usersById = {}
   archiveBehavior = 'OK'
   returnedMessageId = 'wamid.exam-invite-1'
   delete process.env.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE
@@ -204,5 +214,59 @@ describe('sendComprehensiveExamInvite', () => {
     expect(d.whatsapp.error).toContain('معرّف الرسالة')
     expect(archivedWhatsApps).toHaveLength(1)
     expect(archivedWhatsApps[0].whatsappMessageId).toBeNull()
+  })
+})
+
+describe('archive waId normalisation (country-aware)', () => {
+  test('Palestine local number archives under 972', async () => {
+    reset()
+    settings.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE = 'comprehensive_exam_invite_ar'
+    settings.COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE = 'ar_EG'
+    const d = await lib.sendComprehensiveExamInvite({ ...inviteInput(), country: 'فلسطين' })
+    expect(d.whatsapp.status).toBe('SENT')
+    expect(sentWhatsApps[0].to).toBe('0599123456')
+    expect(archivedWhatsApps).toHaveLength(1)
+    expect(archivedWhatsApps[0].waId).toBe('972599123456')
+  })
+  test('Saudi local number with the same 059 prefix archives under 966, not 972', async () => {
+    reset()
+    settings.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE = 'comprehensive_exam_invite_ar'
+    const d = await lib.sendComprehensiveExamInvite({ ...inviteInput(), country: 'السعودية' })
+    expect(d.whatsapp.status).toBe('SENT')
+    expect(sentWhatsApps[0].to).toBe('0599123456')
+    expect(archivedWhatsApps).toHaveLength(1)
+    expect(archivedWhatsApps[0].waId).toBe('966599123456')
+  })
+  test('already-international number is archived untouched', async () => {
+    reset()
+    settings.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE = 'comprehensive_exam_invite_ar'
+    const d = await lib.sendComprehensiveExamInvite({ ...inviteInput(), phone: '+972599123456', country: 'فلسطين' })
+    expect(d.whatsapp.status).toBe('SENT')
+    expect(archivedWhatsApps[0].waId).toBe('972599123456')
+  })
+  test('unknown country keeps the number as stored — never guessed', async () => {
+    reset()
+    settings.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE = 'comprehensive_exam_invite_ar'
+    const d = await lib.sendComprehensiveExamInvite({ ...inviteInput(), country: 'أخرى' })
+    expect(d.whatsapp.status).toBe('SENT')
+    expect(archivedWhatsApps[0].waId).toBe('0599123456')
+  })
+})
+
+describe('resolveComprehensiveInviteCountry', () => {
+  test('application country wins over the user country', async () => {
+    reset()
+    applications['adm-1'] = { country: 'السعودية' }
+    usersById['user-1'] = { country: 'فلسطين' }
+    expect(await lib.resolveComprehensiveInviteCountry({ admissionApplicationId: 'adm-1', userId: 'user-1' })).toBe('السعودية')
+  })
+  test('falls back to the user country when there is no application', async () => {
+    reset()
+    usersById['user-1'] = { country: 'فلسطين' }
+    expect(await lib.resolveComprehensiveInviteCountry({ admissionApplicationId: null, userId: 'user-1' })).toBe('فلسطين')
+  })
+  test('null when neither has a country', async () => {
+    reset()
+    expect(await lib.resolveComprehensiveInviteCountry({ admissionApplicationId: null, userId: null })).toBeNull()
   })
 })

@@ -479,6 +479,89 @@ export type ComprehensiveInviteSendInput = {
   durationMin: number
   inviteUrl: string
   expiresAt: Date
+  // Country as registered on the candidate's application (Arabic name,
+  // e.g. 'فلسطين' / 'السعودية'). Used ONLY to normalise the archived
+  // WhatsApp conversation id; the send itself is untouched.
+  country?: string | null
+}
+
+// Dial codes for the countries the platform registers (SUPPORTED_COUNTRIES
+// in admission-validation.ts, stored as Arabic names). A local number such
+// as 0599... is shared by more than one country (Palestine AND Saudi
+// Arabia), so the prefix must come from the country on the application —
+// never guessed from the number alone. Palestine is 972 here because that
+// is how the platform's Palestinian numbers are stored and sent.
+const COMPREHENSIVE_INVITE_COUNTRY_DIAL_CODES: Record<string, string> = {
+  'فلسطين': '972',
+  'الأردن': '962',
+  'السعودية': '966',
+  'الإمارات': '971',
+  'قطر': '974',
+  'الكويت': '965',
+  'البحرين': '973',
+  'عُمان': '968',
+  'مصر': '20',
+  'العراق': '964',
+  'سوريا': '963',
+  'لبنان': '961',
+  'اليمن': '967',
+  'ليبيا': '218',
+  'تونس': '216',
+  'الجزائر': '213',
+  'المغرب': '212',
+  'السودان': '249',
+  'تركيا': '90',
+  'ألمانيا': '49',
+  'السويد': '46',
+  'الولايات المتحدة': '1',
+  'كندا': '1',
+  'المملكة المتحدة': '44',
+}
+
+// Normalise a phone to the international digits WhatsApp uses as the
+// conversation identity (Meta's wa_id). Already-international numbers are
+// returned untouched; a local number gets its country's dial code (leading
+// 0 dropped); an unknown or missing country leaves the number as-is —
+// never guessed, so the archive never lands on the wrong country's thread.
+export function normalizePhoneToInternationalWaId(phone: string, country?: string | null): string {
+  const normalized = normalizePhone(String(phone || ''))
+  const digits = normalized.replace(/\D/g, '')
+  if (!digits) return digits
+  if (normalized.startsWith('+')) return digits
+  const dialCode = COMPREHENSIVE_INVITE_COUNTRY_DIAL_CODES[String(country || '').trim()]
+  if (!dialCode) return digits
+  if (digits.startsWith(dialCode)) return digits
+  return `${dialCode}${digits.startsWith('0') ? digits.slice(1) : digits}`
+}
+
+// Country for the invite archive: the application first (its country field
+// is required), then the linked student account. Any lookup failure yields
+// null — the archive then keeps the number as stored instead of guessing.
+export async function resolveComprehensiveInviteCountry(candidate: {
+  admissionApplicationId?: string | null
+  userId?: string | null
+}): Promise<string | null> {
+  try {
+    if (candidate.admissionApplicationId) {
+      const application = await db.admissionApplication?.findUnique?.({
+        where: { id: candidate.admissionApplicationId },
+        select: { country: true },
+      })
+      const country = String((application as any)?.country || '').trim()
+      if (country) return country
+    }
+    if (candidate.userId) {
+      const user = await db.user?.findUnique?.({
+        where: { id: candidate.userId },
+        select: { country: true },
+      })
+      const country = String((user as any)?.country || '').trim()
+      if (country) return country
+    }
+  } catch {
+    return null
+  }
+  return null
 }
 
 // Sends on BOTH channels. A failure on one channel never blocks the
@@ -547,7 +630,7 @@ export async function sendComprehensiveExamInvite(input: ComprehensiveInviteSend
           // This is a summary of the approved template's variables, not a
           // reconstruction of Meta's template wording.
           await recordWhatsAppOutboundMessage({
-            waId: digits,
+            waId: normalizePhoneToInternationalWaId(phone, input.country),
             displayName: input.fullName,
             text: `قالب دعوة الامتحان الشامل «${templateName}»\nالمرشح: ${input.fullName}\nالامتحان: ${input.examTitle}\nصالح حتى: ${expiryText}\nرابط الامتحان: ${input.inviteUrl}`,
             sender: 'SYSTEM',

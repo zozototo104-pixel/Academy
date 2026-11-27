@@ -12,6 +12,7 @@ let users: any[] = []
 let enrollments: any[] = []
 let payments: any[] = []
 let auditRows: any[] = []
+let archivedWhatsApps: any[] = []
 let settings: Record<string, string> = {}
 let serialSeq = 41
 let seq = 0
@@ -95,7 +96,7 @@ const fakeDb: any = {
       if (!row) return null
       if (include?.candidate) {
         const cand = candidates.find((c) => c.id === row.candidateId)
-        return { ...row, candidate: cand ? { id: cand.id, fullName: cand.fullName, email: cand.email, phone: cand.phone, examId: cand.examId, admissionApplicationId: cand.admissionApplicationId ?? null } : null }
+        return { ...row, candidate: cand ? { id: cand.id, fullName: cand.fullName, email: cand.email, phone: cand.phone, examId: cand.examId, admissionApplicationId: cand.admissionApplicationId ?? null, userId: cand.userId ?? null } : null }
       }
       return row
     },
@@ -253,7 +254,10 @@ mock.module('@/lib/whatsapp-cloud', () => ({
   sendOfficialWhatsAppTemplate: async () => ({ ok: true }),
 }))
 mock.module('@/lib/whatsapp-conversations', () => ({
-  recordWhatsAppOutboundMessage: async () => ({ id: 'conversation-for-exam-invite' }),
+  recordWhatsAppOutboundMessage: async (args: any) => {
+    archivedWhatsApps.push(args)
+    return { id: 'conversation-for-exam-invite' }
+  },
 }))
 mock.module('@/lib/storage', () => ({
   storeFileBuffer: async (input: any) => ({ key: `comprehensive-exam-candidates/test-${input.fileName}`, mimeType: input.mimeType, size: input.buffer.length }),
@@ -283,6 +287,7 @@ function reset() {
   enrollments = []
   payments = []
   auditRows = []
+  archivedWhatsApps = []
   settings = { COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE: 'comprehensive_exam_invite_ar' }
   serialSeq = 41
   seq = 0
@@ -578,6 +583,18 @@ describe('admin invitations — issue', () => {
     expect(data.invitation.inviteUrl).toContain('/comprehensive-exam/')
     expect(invitations[0].emailStatus).toBe('SENT')
     expect(invitations[0].whatsappStatus).toBe('SENT')
+  })
+  test('archives the invite under the international waId for the country on file', async () => {
+    users[0].country = 'فلسطين'
+    const c = seedApprovedCandidate({ submittedBy: 'ADMIN', userId: 'user-1' })
+    const payload = { action: 'record_paid', amount: '88.50', note: 'استلمت الإدارة المبلغ نقداً' }
+    const first = await candidateRoute.POST(new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify(payload) }), ctx('exam-1', c.id))
+    expect(first.status).toBe(200)
+    const req = new NextRequest('http://localhost/x', { method: 'POST' })
+    const res = await invitationsRoute.POST(req, ctx('exam-1', c.id))
+    expect(res.status).toBe(201)
+    expect(archivedWhatsApps).toHaveLength(1)
+    expect(archivedWhatsApps[0].waId).toBe('972599123456')
   })
   test('a second live invitation is 409', async () => {
     const c = seedApprovedCandidate()
