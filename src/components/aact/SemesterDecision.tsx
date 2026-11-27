@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { CheckCircle2, Hourglass, RotateCcw, Send, X } from 'lucide-react'
@@ -69,17 +69,13 @@ export function SemesterDecisionDialog({
   // نظيفة: الاختيار الافتراضي «استكمال» وبلا موافقة صفر مسبقة.
   const [choice, setChoice] = useState<'EARLY_FINISH' | 'CONTINUE'>('CONTINUE')
   const [consent, setConsent] = useState(false)
-  const [mounted, setMounted] = useState(false)
-
-  // The animated dashboard keeps a transform after entry; portaling the
-  // dialog to document.body keeps its fixed position inside the viewport.
-  useEffect(() => { setMounted(true) }, [])
-
   const unsubmittedUnits = Math.max(0, brief.units.total - brief.units.graded)
   const unsubmittedAssignments = Math.max(0, brief.assignments.total - brief.assignments.submitted)
   const canConfirm = choice === 'CONTINUE' || consent
 
-  if (!mounted) return null
+  // Rendered only after a student clicks: avoid SSR document access without
+  // an extra mounting effect that would add an ESLint warning.
+  if (typeof document === 'undefined') return null
 
   return createPortal(
     <div className="fixed inset-0 z-[210] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} dir="rtl" role="dialog" aria-modal="true" aria-label="قرار إنهاء الفصل">
