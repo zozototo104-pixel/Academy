@@ -263,6 +263,11 @@ export function AdminComprehensiveExamTab() {
   }, [])
 
   const selectedProgram = useMemo(() => programs.find((p) => p.id === programId), [programs, programId])
+  const selectedSpecialtyDraft = useMemo(() => exams.find((exam) => exam.status === 'DRAFT' && exam.specializationProgramId === specializationProgramId), [exams, specializationProgramId])
+  const visibleExams = useMemo(() => {
+    const query = examSearch.trim().toLocaleLowerCase('ar')
+    return query ? exams.filter((exam) => `${exam.title} ${exam.specialtyLabel} ${STATUS_LABEL[exam.status] || exam.status}`.toLocaleLowerCase('ar').includes(query)) : exams
+  }, [exams, examSearch])
   const filteredQuestions = useMemo(() => {
     if (!detail) return []
     return statusFilter === 'ALL' ? detail.questions : detail.questions.filter((q) => q.status === statusFilter)
