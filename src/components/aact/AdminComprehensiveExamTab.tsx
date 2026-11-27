@@ -162,7 +162,7 @@ export function AdminComprehensiveExamTab() {
   const [internetPlanReviewed, setInternetPlanReviewed] = useState(false)
   const [internetPlanStored, setInternetPlanStored] = useState(false)
   const [internetRunBusy, setInternetRunBusy] = useState(false)
-  const [internetRunProgress, setInternetRunProgress] = useState<{axis: number; total: number; imported: number; errors: string[]; status: string; retryAt?: string | null} | null>(null)
+  const [internetRunProgress, setInternetRunProgress] = useState<{axis: number; total: number; imported: number; errors: string[]; status: string; retryAt?: string | null; axisProgress?: { topic: string; target: number; saved: number; remaining: number }[]} | null>(null)
   const internetRunLock = useRef(false)
   const activeExamIdRef = useRef<string | null>(null)
   const restoredInternetJobRef = useRef<string | null>(null)
