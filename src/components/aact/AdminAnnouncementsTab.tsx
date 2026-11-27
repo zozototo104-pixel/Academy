@@ -296,6 +296,28 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
                   </label>
                   <span className="text-[11px] font-bold text-slate-500">فيديو حتى 500MB، صورة حتى 10MB — فيديو واحد و{MAX_ANNOUNCEMENT_IMAGE_URLS} صور كحد أقصى.</span>
                 </div>
+                {uploading && (
+                  <div role="status" aria-live="polite" className="space-y-2 rounded-lg border border-[#0f2b46]/15 bg-slate-50 p-3">
+                    <div className="flex items-center justify-between gap-3 text-xs font-bold text-[#0f2b46]">
+                      <span>{uploadStage === 'preparing' ? 'جاري تجهيز الرفع...' : uploadStage === 'verifying' ? 'اكتمل نقل الملف، جاري التحقق منه...' : 'جاري رفع الملف...'}</span>
+                      <span dir="ltr" className="shrink-0 tabular-nums">{uploadProgress === null ? <Loader2 className="h-4 w-4 animate-spin" /> : `${uploadProgress}%`}</span>
+                    </div>
+                    {uploadProgress === null ? (
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-200" aria-label="جاري رفع ملف الإعلان">
+                        <div className="h-full w-1/3 animate-pulse rounded-full bg-[#c9a227]" />
+                      </div>
+                    ) : (
+                      <div role="progressbar" aria-label="تقدم رفع ملف الإعلان" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress} className="h-2 overflow-hidden rounded-full bg-slate-200">
+                        <div className="h-full rounded-full bg-[#c9a227] transition-[width] duration-150" style={{ width: `${uploadProgress}%` }} />
+                      </div>
+                    )}
+                    {uploadStage === 'uploading' && uploadProgress !== null && (
+                      <Button type="button" size="sm" variant="outline" onClick={() => uploadXhr.current?.abort()} className="h-7 text-xs font-bold text-red-700">
+                        إلغاء رفع الملف
+                      </Button>
+                    )}
+                  </div>
+                )}
                 <Input
                   value={form.videoUrl}
                   onChange={(e) => { if (form.videoUrl !== e.currentTarget.value) void cleanupMedia(form.videoUrl); updateForm({ videoUrl: e.currentTarget.value }) }}
