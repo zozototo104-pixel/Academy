@@ -316,8 +316,12 @@ export function verifyLocalStorageDownloadSignature(key: string, expires: string
 export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300, method: 'GET' | 'PUT' = 'GET'): string | null {
   const cleanKey = cleanStorageKey(key)
   if (method === 'PUT' && !cleanKey.startsWith('announcements/media/')) throw new Error('STORAGE_UPLOAD_KEY_FORBIDDEN')
+  // Public announcement videos can outlast a five-minute media URL. Keep the
+  // existing five-minute limit for private files and upload URLs unchanged.
+  const maxTtlSeconds = method === 'GET' && cleanKey.startsWith('announcements/media/') ? 3600 : 300
+  const ttlSeconds = Math.max(1, Math.min(maxTtlSeconds, Math.floor(expiresSeconds)))
   const cfg = getS3Config()
-  if (!cfg) return method === 'PUT' ? null : signLocalStorageDownloadPath(cleanKey, Date.now() + Math.max(1, Math.min(300, expiresSeconds)) * 1000)
+  if (!cfg) return method === 'PUT' ? null : signLocalStorageDownloadPath(cleanKey, Date.now() + ttlSeconds * 1000)
 
   const endpoint = new URL(cfg.endpoint)
   const privateRepresentative = cleanKey.startsWith('representatives-private/')
@@ -334,7 +338,7 @@ export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300, 
     ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
     ['X-Amz-Credential', `${cfg.accessKeyId}/${scope}`],
     ['X-Amz-Date', amzDate],
-    ['X-Amz-Expires', String(Math.max(1, Math.min(300, Math.floor(expiresSeconds))))],
+    ['X-Amz-Expires', String(ttlSeconds)],
     ['X-Amz-SignedHeaders', signedHeaders],
   ]
   const canonicalQuery = query.map(([k, v]) => `${encodeS3PathPart(k)}=${encodeS3PathPart(v)}`).sort().join('&')
