@@ -135,3 +135,25 @@ export async function POST(req: NextRequest) {
     return jsonError(error, 500)
   }
 }
+
+// Remove only uploads abandoned by the editor. Published announcements are
+// protected even when an administrator accidentally requests their media key.
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await requireAnnouncementAdmin()
+    if (auth.error || !auth.user) return auth.error || NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+    const key = String(req.nextUrl.searchParams.get('key') || '')
+    if (!/^announcements\/media\/\d{4}-\d{2}-\d{2}\/[0-9a-f-]{36}-.+\.(?:mp4|mov|webm|jpe?g|png|webp)$/i.test(key)) {
+      return NextResponse.json({ error: 'مفتاح الملف غير صالح' }, { status: 400 })
+    }
+    const mediaPath = getStorageDownloadPathForKey(key)
+    const saved = await readSiteAnnouncements()
+    if (saved.some((item) => item.videoUrl?.includes(mediaPath) || item.imageUrls?.some((url) => url.includes(mediaPath)))) {
+      return NextResponse.json({ error: 'ملف مستخدم في إعلان محفوظ ولا يمكن حذفه' }, { status: 409 })
+    }
+    await deleteStoredFile(key)
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    return jsonError(error, 500)
+  }
+}
