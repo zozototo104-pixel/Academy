@@ -167,6 +167,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
       }
       await api('/api/admin/announcements', { method: form.id ? 'PATCH' : 'POST', body: JSON.stringify(payload) })
       toast({ title: form.id ? 'تم تعديل الإعلان' : 'تم إنشاء الإعلان', description: 'سيظهر الإعلان للزوار إذا كان فعالاً وضمن التواريخ المحددة.' })
+      pendingMedia.current.clear() // Saved media must never be cleaned as abandoned.
       setForm(null)
       await onRefresh()
     } catch (e: any) {
