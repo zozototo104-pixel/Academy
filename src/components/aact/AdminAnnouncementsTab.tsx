@@ -94,20 +94,52 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
   // التخزين كملف يتيم ولا يُحذف تلقائيًا.
   const uploadMedia = async (file: File) => {
     if (!form) return
+    const mimeType = String(file.type || '').split(';')[0].trim().toLowerCase()
+    const isVideo = mimeType.startsWith('video/')
+    const maxBytes = isVideo ? 500 * 1024 * 1024 : 10 * 1024 * 1024
+    if (!isVideo && form.imageUrls.length >= MAX_ANNOUNCEMENT_IMAGE_URLS) {
+      toast({ title: `عدد الصور يجب ألا يتجاوز ${MAX_ANNOUNCEMENT_IMAGE_URLS}`, variant: 'destructive' })
+      return
+    }
+    if (!file.size || file.size > maxBytes) {
+      toast({ title: isVideo ? 'الفيديو يجب ألا يتجاوز 500MB' : 'الصورة يجب ألا تتجاوز 10MB', variant: 'destructive' })
+      return
+    }
+
     try {
       setUploading(true)
-      const body = new FormData()
-      body.append('file', file)
-      const data = await api<{ url: string; mimeType: string }>('/api/admin/announcements/media', { method: 'POST', body })
-      if (String(data.mimeType || '').startsWith('video/')) {
-        updateForm({ videoUrl: data.url })
+      let data: { url: string; key: string; mimeType: string }
+      if (file.size <= 4 * 1024 * 1024) {
+        // Small files can use the existing server path below Vercel's limit.
+        const body = new FormData()
+        body.append('file', file)
+        data = await api('/api/admin/announcements/media', { method: 'POST', body })
+      } else {
+        // 5MB+ files must bypass the Vercel Function request-body limit.
+        const init = await api<{ uploadUrl: string; key: string }>('/api/admin/announcements/media', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'INIT', fileName: file.name, mimeType, size: file.size }),
+        })
+        try {
+          const uploaded = await fetch(init.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': mimeType } })
+          if (!uploaded.ok) throw new Error(`فشل التخزين المباشر (HTTP ${uploaded.status})`)
+          data = await api('/api/admin/announcements/media', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'COMPLETE', key: init.key }),
+          })
+        } catch (error) {
+          await api(`/api/admin/announcements/media?key=${encodeURIComponent(init.key)}`, { method: 'DELETE' }).catch(() => {})
+          if (error instanceof TypeError) throw new Error('تعذر الاتصال بالتخزين المباشر — يلزم ضبط CORS لحاوية R2 مع نطاق الأكاديمية.')
+          throw error
+        }
+      }
+      pendingMedia.current.set(data.url, data.key)
+      if (isVideo) {
+        if (form.videoUrl && form.videoUrl !== data.url) void cleanupMedia(form.videoUrl)
+        setForm((current) => current ? { ...current, videoUrl: data.url } : current)
         toast({ title: 'تم رفع الفيديو' })
       } else {
-        if ((form.imageUrls?.length || 0) >= MAX_ANNOUNCEMENT_IMAGE_URLS) {
-          toast({ title: `عدد الصور يجب ألا يتجاوز ${MAX_ANNOUNCEMENT_IMAGE_URLS}`, variant: 'destructive' })
-          return
-        }
-        updateForm({ imageUrls: [...(form.imageUrls || []), data.url] })
+        setForm((current) => current ? { ...current, imageUrls: [...current.imageUrls, data.url] } : current)
         toast({ title: 'تم رفع الصورة' })
       }
     } catch (e: any) {
