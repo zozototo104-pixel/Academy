@@ -807,6 +807,30 @@ export function AdminSystemTab() {
     }
   }
 
+  const checkWhatsAppTemplate = async () => {
+    setTesting(true)
+    try {
+      const d = await api<{ checked: boolean; ok: boolean; message: string }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'check-comprehensive-whatsapp-template',
+          templateName: form.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE,
+          languageCode: form.COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE || 'ar',
+          wabaId: form.COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID,
+        }),
+      })
+      toast({
+        title: d.checked ? (d.ok ? 'القالب معتمد ومتطابق' : 'القالب غير متطابق') : 'تعذّر التحقق من Meta',
+        description: d.message,
+        variant: d.ok ? 'default' : 'destructive',
+      } as any)
+    } catch (e: any) {
+      toast({ title: 'تعذّر فحص قالب واتساب', description: e.message, variant: 'destructive' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
   const testEmail = async () => {
     setTesting(true)
     try {
