@@ -557,9 +557,9 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
-  const createInternetPlan = async () => {
-    if (!detail) return
-    const examId = detail.exam.id
+  const createInternetPlan = async (examIdOverride?: string) => {
+    const examId = examIdOverride || detail?.exam.id
+    if (!examId) return
     setInternetPlanBusy(true)
     setInternetPlanReviewed(false)
     setInternetAxesText('')
