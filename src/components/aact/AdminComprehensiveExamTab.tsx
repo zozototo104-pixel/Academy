@@ -956,10 +956,11 @@ export function AdminComprehensiveExamTab() {
           internetPlanStored={internetPlanStored}
           internetRunBusy={internetRunBusy}
           internetRunProgress={internetRunProgress}
-          onCreateInternetPlan={createInternetPlan}
+          onCreateInternetPlan={() => createInternetPlan()}
           onOpenManualInternetPlan={openManualInternetPlan}
           onRunComprehensiveInternetPlan={runComprehensiveInternetPlan}
           onStopInternetPlan={pauseComprehensiveInternetPlan}
+          onResumeInternetPlan={resumeComprehensiveInternetPlan}
           examId={detail.exam.id}
           manualType={manualType}
           setManualType={setManualType}
