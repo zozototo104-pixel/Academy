@@ -295,7 +295,7 @@ export function AdminComprehensiveExamTab() {
         if (cancelled) return
         const job = data?.job
         setInternetRunBusy(Boolean(job && ['QUEUED', 'RUNNING'].includes(job.status)))
-        setInternetRunProgress(job ? { axis: job.axis, total: job.total, imported: job.imported, errors: job.errors || [], status: job.status, retryAt: job.retryAt } : null)
+        setInternetRunProgress(job ? { axis: job.axis, total: job.total, imported: job.imported, errors: job.errors || [], status: job.status, retryAt: job.retryAt, axisProgress: job.axisProgress || [] } : null)
         if (job && restoredInternetJobRef.current !== examId && Array.isArray(job.axes)) {
           restoredInternetJobRef.current = examId
           const topics = job.axes.map((axis: { topic: string }) => axis.topic)
