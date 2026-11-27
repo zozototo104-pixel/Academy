@@ -535,13 +535,34 @@ export async function sendComprehensiveExamInvite(input: ComprehensiveInviteSend
         // the public logo; the sender only attaches it when Meta requires IMAGE.
         const headerImageUrl = templateName === 'comprehensive_exam_invite_ar' || wabaId
           ? 'https://www.aactacademy.com/logo.png' : undefined
-        await sendOfficialWhatsAppTemplate(phone, templateName, [
-          input.fullName,
-          input.examTitle,
-          formatInviteExpiryDate(input.expiresAt),
-          input.inviteUrl,
-        ], { languageCode, wabaId, headerImageUrl })
-        delivery.whatsapp = { status: 'SENT' }
+        const expiryText = formatInviteExpiryDate(input.expiresAt)
+        const parameters = [input.fullName, input.examTitle, expiryText, input.inviteUrl]
+        const result = await sendOfficialWhatsAppTemplate(phone, templateName, parameters, { languageCode, wabaId, headerImageUrl })
+        const whatsappMessageId = String(result?.messages?.[0]?.id || '').trim()
+        delivery.whatsapp = {
+          status: 'SENT',
+          ...(whatsappMessageId ? {} : { error: 'قبلت Meta طلب الإرسال، لكن لم تُرجع معرّف الرسالة لتتبّع التسليم' }),
+        }
+        try {
+          // This is a summary of the approved template's variables, not a
+          // reconstruction of Meta's template wording.
+          await recordWhatsAppOutboundMessage({
+            waId: digits,
+            displayName: input.fullName,
+            text: `قالب دعوة الامتحان الشامل «${templateName}»\nالمرشح: ${input.fullName}\nالامتحان: ${input.examTitle}\nصالح حتى: ${expiryText}\nرابط الامتحان: ${input.inviteUrl}`,
+            sender: 'SYSTEM',
+            sentByName: 'خدمة الامتحان الشامل',
+            whatsappMessageId: whatsappMessageId || null,
+            rawType: 'template',
+            meta: { templateName, languageCode, headerImageUrl: headerImageUrl || null },
+            requireSavedMessage: true,
+          })
+        } catch (archiveError) {
+          // Meta has already accepted the message. Never misreport a
+          // conversation-archive failure as a failed WhatsApp send.
+          console.error('comprehensive exam WhatsApp conversation archive failed:', archiveError)
+          delivery.whatsapp.error = 'قبلت Meta طلب الإرسال، لكن تعذّر حفظ الرسالة في محادثات المنصة'
+        }
       }
     }
   } catch (e: any) {
