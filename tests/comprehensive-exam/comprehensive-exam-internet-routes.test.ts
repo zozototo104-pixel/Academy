@@ -211,6 +211,7 @@ function defaultGeneration() {
 beforeEach(() => {
   exams = []
   questions = []
+  settings = []
   qSeq = 0
   tavilyKey = 'tvly-test-key'
   searchResult = defaultSearch()
