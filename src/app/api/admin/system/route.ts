@@ -422,6 +422,15 @@ export async function POST(req: NextRequest) {
     const admin = await requireAdmin()
     const body = await req.json()
     const { action, model: selectedLiveModel, purpose: livePurpose, provider: modelProvider, allowlistItem } = body || {}
+    if (action === 'check-comprehensive-whatsapp-template') {
+      const { checkOfficialWhatsAppTemplate } = await import('@/lib/whatsapp-cloud')
+      const result = await checkOfficialWhatsAppTemplate(
+        String(body?.templateName || ''),
+        String(body?.languageCode || 'ar'),
+        String(body?.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || ''),
+      )
+      return NextResponse.json(result)
+    }
     if (action === 'save-custom-ai-provider') {
       const incomingId = String(body?.id || '').trim()
       const name = String(body?.name || '').trim()
