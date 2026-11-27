@@ -360,6 +360,23 @@ function publicInternetJob(job: InternetBackgroundJob) {
   }
 }
 
+// Show saved, academically eligible questions per axis. This is derived from
+// the authoritative question rows, so it also reflects edits and approvals
+// made outside the background worker and survives tab/device changes.
+async function readInternetAxisProgress(job: InternetBackgroundJob) {
+  const sourceIds = job.axes.map((axis) => internetSourceId(axis.topic))
+  const groups = await db.comprehensiveExamQuestion.groupBy({
+    by: ['sourceBookId'],
+    where: { examId: job.examId, source: 'AI_INTERNET', sourceBookId: { in: sourceIds }, status: { in: ['APPROVED', 'PENDING_REVIEW'] } },
+    _count: { _all: true },
+  })
+  const savedBySource = new Map(groups.map((group) => [group.sourceBookId, group._count._all]))
+  return job.axes.map((axis, index) => {
+    const saved = Math.min(axis.target, savedBySource.get(sourceIds[index]) || 0)
+    return { topic: axis.topic, target: axis.target, saved, remaining: Math.max(0, axis.target - saved) }
+  })
+}
+
 async function readInternetBackgroundJob(examId: string) {
   const row = await db.setting.findUnique({ where: { key: internetJobKey(examId) } })
   return row ? { raw: row.value, job: parseInternetJob(row.value) } : null
