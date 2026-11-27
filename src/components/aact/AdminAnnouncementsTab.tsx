@@ -210,7 +210,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
             <h2 className="flex items-center gap-2 text-lg font-black text-[#0f2b46]"><Globe2 className="h-5 w-5 text-[#c9a227]" /> الإعلانات</h2>
             <p className="mt-1 text-xs font-bold text-slate-500">إعلانات تظهر للزوار كشريط متحرك أو شارة نبضية أو بطاقة بارزة، مع فيديو أو صور، وبدون HTML.</p>
           </div>
-          <Button onClick={() => setForm(emptyForm())} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#183c5f]">إعلان جديد</Button>
+          <Button onClick={() => setForm(emptyForm())} disabled={!!form || uploading} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#183c5f]">إعلان جديد</Button>
         </CardContent>
       </Card>
 
