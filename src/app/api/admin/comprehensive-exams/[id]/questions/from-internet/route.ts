@@ -47,24 +47,32 @@ export async function readTavilyApiKey(): Promise<string | null> {
 // مفتاح → 422 صريح، بلا نتائج → 422 صريح، فشل البحث → 502 صريح،
 // دفعة فارغة كلياً → فشل صريح. الدفعات الجزئية تحفظ الناجي وتبلّغ
 // عن النقص.
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function handleInternetPost(req: NextRequest, ctx: { params: Promise<{ id: string }> }, adminOverride?: { id: string; name?: string | null }) {
   try {
-    const admin = await requireAdmin()
+    // The cron worker calls this module-private handler only after claiming
+    // a durable admin-approved job. The public POST still requires a session.
+    const admin = adminOverride || await requireAdmin()
     const { id } = await ctx.params
     const exam = await db.comprehensiveExam.findUnique({
       where: { id },
       select: { id: true, status: true, title: true, level: true, programId: true, specializationProgramId: true },
     })
     if (!exam) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
-    if (exam.status !== 'DRAFT') {
-      return NextResponse.json({ error: 'لا يمكن إضافة أسئلة لامتحان منشور — ألغِ نشره أولاً' }, { status: 409 })
-    }
     let body: any = {}
     try {
       body = await req.json()
     } catch {
       body = {}
     }
+    if (body?.action === 'BACKGROUND_STATUS') {
+      const saved = await readInternetBackgroundJob(id)
+      return NextResponse.json({ ok: true, job: saved?.job ? publicInternetJob(saved.job) : null }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+    if (body?.action === 'BACKGROUND_PAUSE') return pauseInternetBackgroundJob(id)
+    if (exam.status !== 'DRAFT') {
+      return NextResponse.json({ error: 'لا يمكن إضافة أسئلة لامتحان منشور — ألغِ نشره أولاً' }, { status: 409 })
+    }
+    if (body?.action === 'BACKGROUND_START') return startInternetBackgroundJob(exam, admin, body)
     if (body?.action === 'PLAN') {
       if (!exam.specializationProgramId) return NextResponse.json({ error: 'الامتحان غير مربوط بتخصص علمي محدد' }, { status: 422 })
       const specialty = await db.program.findUnique({
