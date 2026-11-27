@@ -62,6 +62,7 @@ const fakeDb: any = {
       return where?.id === 'program-1' ? { id: 'program-1', titleAr: 'الشهادات التدريبية ومعادلة الخبرات' } : null
     },
   },
+  user: { findUnique: async () => adminActive ? { role: 'ADMIN', status: 'ACTIVE' } : { role: 'STUDENT', status: 'ACTIVE' } },
   comprehensiveExam: {
     findUnique: async ({ where }: any) => exams.find((x) => x.id === where?.id) || null,
   },
