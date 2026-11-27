@@ -222,7 +222,109 @@ beforeEach(() => {
   generateError = null
   generateInput = null
   duringGeneration = undefined
+  adminActive = true
   delete process.env.TAVILY_API_KEY
+})
+
+describe('durable background comprehensive-internet jobs', () => {
+  const axis = 'الإدارة الاستراتيجية وتحليل البيئة التنافسية'
+
+  test('requires an administrator-reviewed valid blueprint before queueing', async () => {
+    const examId = seedExam('DRAFT', 'exam-background-approval', 'specialization-1')
+    const unreviewed = await route.POST(jsonReq(examId, { action: 'BACKGROUND_START', axes: [axis] }), ctx(examId))
+    expect(unreviewed.status).toBe(422)
+    const invalid = await route.POST(jsonReq(examId, { action: 'BACKGROUND_START', reviewed: true, axes: [axis, axis] }), ctx(examId))
+    expect(invalid.status).toBe(422)
+    expect(settings).toHaveLength(0)
+    expect(searchCalls).toHaveLength(0)
+  })
+
+  test('continues a queued job without any browser request and checkpoints progress', async () => {
+    const examId = seedExam('DRAFT', 'exam-background-progress', 'specialization-1')
+    const started = await route.POST(jsonReq(examId, { action: 'BACKGROUND_START', reviewed: true, axes: [axis] }), ctx(examId))
+    expect(started.status).toBe(200)
+    expect((await started.json()).job.status).toBe('QUEUED')
+    expect(questions).toHaveLength(0)
+    expect(searchCalls).toHaveLength(0)
+
+    // The worker is invoked independently of the browser, as cron would be.
+    const step = await route.runNextComprehensiveInternetBackgroundStep()
+    expect(step?.status).toBe('QUEUED')
+    expect(step?.imported).toBe(2)
+    expect(questions).toHaveLength(2)
+    expect(questions.every((q) => q.status === 'PENDING_REVIEW')).toBe(true)
+    expect(searchCalls).toHaveLength(3)
+
+    const status = await route.POST(jsonReq(examId, { action: 'BACKGROUND_STATUS' }), ctx(examId))
+    expect(status.status).toBe(200)
+    const saved = (await status.json()).job
+    expect(saved.imported).toBe(2)
+    expect(saved.axes).toEqual([{ topic: axis, target: 100 }])
+    expect(settings).toHaveLength(1)
+    expect(JSON.parse(settings[0].value).leaseId).toBeNull()
+  })
+
+  test('pauses durable work and requeues a new reviewed run without double-saving questions', async () => {
+    const examId = seedExam('DRAFT', 'exam-background-pause', 'specialization-1')
+    const startBody = { action: 'BACKGROUND_START', reviewed: true, axes: [axis] }
+    expect((await route.POST(jsonReq(examId, startBody), ctx(examId))).status).toBe(200)
+    const duplicate = await route.POST(jsonReq(examId, startBody), ctx(examId))
+    expect(duplicate.status).toBe(409)
+    expect((await duplicate.json()).code).toBe('INTERNET_JOB_ACTIVE')
+    const paused = await route.POST(jsonReq(examId, { action: 'BACKGROUND_PAUSE' }), ctx(examId))
+    expect((await paused.json()).job.status).toBe('PAUSED')
+    expect(await route.runNextComprehensiveInternetBackgroundStep()).toBeNull()
+    expect(searchCalls).toHaveLength(0)
+    expect((await route.POST(jsonReq(examId, startBody), ctx(examId))).status).toBe(200)
+    expect((await route.runNextComprehensiveInternetBackgroundStep())?.imported).toBe(2)
+    expect(questions).toHaveLength(2)
+  })
+
+  test('status and pause still work when an exam is no longer in draft', async () => {
+    const examId = seedExam('DRAFT', 'exam-background-ready', 'specialization-1')
+    expect((await route.POST(jsonReq(examId, { action: 'BACKGROUND_START', reviewed: true, axes: [axis] }), ctx(examId))).status).toBe(200)
+    exams[0].status = 'READY'
+    const status = await route.POST(jsonReq(examId, { action: 'BACKGROUND_STATUS' }), ctx(examId))
+    expect(status.status).toBe(200)
+    expect((await status.json()).job.status).toBe('QUEUED')
+    expect((await route.POST(jsonReq(examId, { action: 'BACKGROUND_PAUSE' }), ctx(examId))).status).toBe(200)
+    expect(await route.runNextComprehensiveInternetBackgroundStep()).toBeNull()
+    expect(questions).toHaveLength(0)
+  })
+
+  test('revoking the originating administrator blocks the worker before model calls', async () => {
+    const examId = seedExam('DRAFT', 'exam-background-revoked', 'specialization-1')
+    expect((await route.POST(jsonReq(examId, { action: 'BACKGROUND_START', reviewed: true, axes: [axis] }), ctx(examId))).status).toBe(200)
+    adminActive = false
+    const result = await route.runNextComprehensiveInternetBackgroundStep()
+    expect(result?.status).toBe('PAUSED')
+    expect(searchCalls).toHaveLength(0)
+    expect(questions).toHaveLength(0)
+  })
+
+  test('reports incomplete axes without inventing questions when web sources lack diversity', async () => {
+    const examId = seedExam('DRAFT', 'exam-background-evidence', 'specialization-1')
+    advancedSingleDomain = true
+    expect((await route.POST(jsonReq(examId, { action: 'BACKGROUND_START', reviewed: true, axes: [axis] }), ctx(examId))).status).toBe(200)
+    const result = await route.runNextComprehensiveInternetBackgroundStep()
+    expect(result?.status).toBe('COMPLETED_WITH_GAPS')
+    expect(result?.errors.some((error: string) => error.includes('المراجع العلمية'))).toBe(true)
+    expect(generateInput).toBeNull()
+    expect(questions).toHaveLength(0)
+  })
+
+  test('finishing the exact hundredth verified question is a successful completion', async () => {
+    const examId = seedExam('DRAFT', 'exam-background-final-slot', 'specialization-1')
+    questions = Array.from({ length: 99 }, (_, i) => ({
+      examId, order: i + 1, text: `سؤال موثق سابق ${i}`, source: 'AI_INTERNET',
+      sourceBookId: `tavily:${axis.slice(0, 8)}`, status: 'APPROVED',
+    }))
+    expect((await route.POST(jsonReq(examId, { action: 'BACKGROUND_START', reviewed: true, axes: [axis] }), ctx(examId))).status).toBe(200)
+    const result = await route.runNextComprehensiveInternetBackgroundStep()
+    expect(result?.status).toBe('COMPLETED')
+    expect(result?.imported).toBe(1)
+    expect(questions).toHaveLength(100)
+  })
 })
 
 describe('POST from-internet — happy path', () => {
