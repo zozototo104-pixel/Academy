@@ -66,6 +66,9 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
   const [form, setForm] = useState<AnnouncementForm | null>(null)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [uploadStage, setUploadStage] = useState<'preparing' | 'uploading' | 'verifying'>('preparing')
+  const uploadXhr = useRef<XMLHttpRequest | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   // Only new, unsaved uploads belong to this editor; never delete media
   // already referenced by an existing announcement.
