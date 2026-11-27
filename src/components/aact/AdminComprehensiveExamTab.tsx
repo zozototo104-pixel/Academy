@@ -1566,7 +1566,7 @@ type CandidateItem = {
   attempt: CandidateAttempt | null
 }
 
-const CHANNEL_LABEL: Record<string, string> = { SENT: 'وصل', SKIPPED: 'تخطّى', FAILED: 'فشل', NOT_CONFIGURED: 'غير مهيأ' }
+const CHANNEL_LABEL: Record<string, string> = { SENT: 'قبلته جهة الإرسال', SKIPPED: 'تخطّى', FAILED: 'فشل', NOT_CONFIGURED: 'غير مهيأ' }
 
 function DeliveryLine({ label, status, error }: { label: string; status: string | null; error: string | null }) {
   const shown = status || '—'
