@@ -923,7 +923,7 @@ export function AdminComprehensiveExamTab() {
           onCreateInternetPlan={createInternetPlan}
           onOpenManualInternetPlan={openManualInternetPlan}
           onRunComprehensiveInternetPlan={runComprehensiveInternetPlan}
-          onStopInternetPlan={() => { internetStopRef.current = true }}
+          onStopInternetPlan={pauseComprehensiveInternetPlan}
           examId={detail.exam.id}
           manualType={manualType}
           setManualType={setManualType}
