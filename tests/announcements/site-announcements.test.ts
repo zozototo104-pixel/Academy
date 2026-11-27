@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { validateAnnouncementMediaSignature } from '../../src/lib/file-signature'
 import {
   announcementVideoDescriptor,
   canManageSiteAnnouncements,
