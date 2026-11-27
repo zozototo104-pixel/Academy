@@ -380,16 +380,22 @@ export async function sendOfficialWhatsAppHumanFollowup(
   return data
 }
 
-// Read-only Meta preflight. Template listing requires the optional WABA ID and
-// whatsapp_business_management permission. A failed lookup is UNVERIFIED,
-// never treated as proof that an approved template is missing.
-// Note: this checks name, language and status only — it cannot verify the
-// template's header format (e.g. whether it needs an IMAGE header).
+type WhatsAppTemplateCheck = {
+  checked: boolean
+  ok: boolean
+  message: string
+  headerFormat?: string
+  bodyParameterCount?: number
+}
+
+// Read-only Meta preflight. A missing WABA ID/management permission is
+// UNVERIFIED, not evidence that an approved template is missing.
 export async function checkOfficialWhatsAppTemplate(
   templateName: string,
   languageCode: string,
   wabaId: string,
-): Promise<{ checked: boolean; ok: boolean; message: string }> {
+  expectation?: { bodyParameterCount?: number; verifyHeaderImageUrl?: string },
+): Promise<WhatsAppTemplateCheck> {
   const name = trim(templateName)
   const language = trim(languageCode)
   const accountId = trim(wabaId)
@@ -404,7 +410,7 @@ export async function checkOfficialWhatsAppTemplate(
   const config = getWhatsAppCloudConfig()
   if (!config) return { checked: false, ok: false, message: 'اتصال واتساب غير مهيأ في السيرفر' }
   try {
-    const query = new URLSearchParams({ name, fields: 'name,language,status', limit: '100' })
+    const query = new URLSearchParams({ name, fields: 'name,language,status,components', limit: '100' })
     const response = await fetch(`https://graph.facebook.com/${config.graphVersion}/${accountId}/message_templates?${query}`, {
       headers: { Authorization: `Bearer ${config.accessToken}` },
       signal: AbortSignal.timeout(8000),
@@ -430,7 +436,38 @@ export async function checkOfficialWhatsAppTemplate(
     if (matched.status !== 'APPROVED') {
       return { checked: true, ok: false, message: `القالب "${name}" باللغة "${language}" حالته ${matched.status || 'غير معروفة'} وليست APPROVED` }
     }
-    return { checked: true, ok: true, message: `القالب "${name}" معتمد باللغة "${language}" في حساب Meta المحدد` }
+    if (!Array.isArray(matched.components)) {
+      return { checked: false, ok: false, message: 'القالب معتمد لكن Meta لم تُرجع المكوّنات — لا يمكن التحقق من الهيدر والجسم' }
+    }
+    const headers = matched.components.filter((item: any) => trim(item?.type).toUpperCase() === 'HEADER')
+    const body = matched.components.find((item: any) => trim(item?.type).toUpperCase() === 'BODY')
+    if (headers.length > 1 || typeof body?.text !== 'string') {
+      return { checked: false, ok: false, message: 'مكوّنات القالب غير مكتملة أو غير متوقعة — لا يمكن تأكيد توافق الإرسال' }
+    }
+    const headerFormat = headers.length ? trim(headers[0]?.format).toUpperCase() : 'NONE'
+    if (!['NONE', 'IMAGE', 'TEXT'].includes(headerFormat) ||
+        (headerFormat === 'TEXT' && /\{\{\s*\d+\s*\}\}/.test(trim(headers[0]?.text)))) {
+      return { checked: true, ok: false, headerFormat, message: `هيدر القالب ${headerFormat || 'غير معروف'} ولا يدعم مرسل دعوة الامتحان هذه الصيغة` }
+    }
+    const indexes = Array.from(new Set(Array.from(body.text.matchAll(/\{\{\s*(\d+)\s*\}\}/g), (match: RegExpMatchArray) => Number(match[1])))).sort((a, b) => a - b)
+    const bodyParameterCount = indexes.length
+    const expected = expectation?.bodyParameterCount
+    if (expected !== undefined && (indexes.length !== expected || indexes.some((value, index) => value !== index + 1))) {
+      return { checked: true, ok: false, headerFormat, bodyParameterCount, message: `متغيرات BODY في Meta هي ${indexes.join(', ') || 'بلا متغيرات'}، بينما الإرسال يتطلب {{1}} إلى {{${expected}}}` }
+    }
+    if (headerFormat === 'IMAGE' && expectation?.verifyHeaderImageUrl) {
+      try {
+        const url = new URL(expectation.verifyHeaderImageUrl)
+        if (url.protocol !== 'https:' || url.username || url.password) throw new Error('INVALID_IMAGE_URL')
+        const image = await fetch(url.toString(), { method: 'HEAD', signal: AbortSignal.timeout(8000) })
+        if (!image.ok || !/^image\/(?:png|jpeg)(?:;|$)/i.test(image.headers.get('content-type') || '')) {
+          return { checked: true, ok: false, headerFormat, bodyParameterCount, message: 'رابط هيدر الصورة لا يرجع صورة PNG/JPEG متاحة مباشرة عبر HTTPS' }
+        }
+      } catch {
+        return { checked: true, ok: false, headerFormat, bodyParameterCount, message: 'تعذر الوصول إلى رابط هيدر الصورة والتحقق منه — تأكد من الرابط العام قبل الإرسال' }
+      }
+    }
+    return { checked: true, ok: true, headerFormat, bodyParameterCount, message: `القالب "${name}" معتمد باللغة "${language}" — الهيدر ${headerFormat}، ومتغيرات BODY: ${bodyParameterCount}${headerFormat === 'IMAGE' && expectation?.verifyHeaderImageUrl ? '، ورابط الصورة صالح' : ''}` }
   } catch {
     return { checked: false, ok: false, message: 'تعذر الوصول إلى Meta لفحص القالب — تحقق من الاتصال ثم حاول مجددًا' }
   }
@@ -458,19 +495,26 @@ export async function sendOfficialWhatsAppTemplate(
   if (!/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(language)) {
     throw new Error('رمز لغة قالب واتساب غير صالح — مثال: ar_EG')
   }
-  if (trim(options?.wabaId)) {
-    const check = await checkOfficialWhatsAppTemplate(name, language, trim(options?.wabaId))
-    if (check.checked && !check.ok) throw new Error(check.message)
-  }
-  // The invite template carries an IMAGE header: Meta rejects the send with
-  // #132012 when no header component is sent. Only callers that pass a
-  // header image get one; everyone else keeps the body-only payload.
+  // If Meta confirms the schema, its HEADER format is authoritative. Without
+  // preflight, only the known IMAGE invite template gets a fallback image;
+  // an unknown/legacy template remains body-only instead of guessing.
   const headerImageUrl = trim(options?.headerImageUrl)
+  let includeImageHeader = Boolean(headerImageUrl && name === 'comprehensive_exam_invite_ar')
+  if (trim(options?.wabaId)) {
+    const check = await checkOfficialWhatsAppTemplate(name, language, trim(options?.wabaId), { bodyParameterCount: bodyParameters.length })
+    if (check.checked && !check.ok) throw new Error(check.message)
+    if (check.checked && check.ok) {
+      includeImageHeader = check.headerFormat === 'IMAGE'
+      if (includeImageHeader && !headerImageUrl) throw new Error(`قالب "${name}" يحتاج هيدر IMAGE ولم يُمرر رابط الصورة`)
+    }
+  }
   const components: any[] = []
-  if (headerImageUrl) {
+  if (includeImageHeader) {
+    const url = new URL(headerImageUrl)
+    if (url.protocol !== 'https:' || url.username || url.password) throw new Error('رابط هيدر الصورة يجب أن يكون HTTPS عامًا')
     components.push({
       type: 'header',
-      parameters: [{ type: 'image', image: { link: headerImageUrl } }],
+      parameters: [{ type: 'image', image: { link: url.toString() } }],
     })
   }
   components.push({
