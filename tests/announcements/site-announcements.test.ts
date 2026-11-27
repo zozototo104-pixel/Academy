@@ -83,6 +83,8 @@ describe('site announcements', () => {
 
   test('video descriptor maps direct files, providers, and nothing', () => {
     expect(announcementVideoDescriptor('https://example.com/video.mp4')).toEqual({ kind: 'file', url: 'https://example.com/video.mp4' })
+    const uploadedVideoUrl = 'https://academy.example/api/files/announcements/media/2026-11-27/11111111-1111-4111-8111-111111111111-lecture.mp4'
+    expect(announcementVideoDescriptor(uploadedVideoUrl)).toEqual({ kind: 'file', url: uploadedVideoUrl })
     const yt = announcementVideoDescriptor('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
     expect(yt?.kind).toBe('embed')
     expect(yt?.source).toBe('YOUTUBE')
