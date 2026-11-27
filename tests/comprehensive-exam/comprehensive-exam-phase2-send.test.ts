@@ -182,5 +182,27 @@ describe('sendComprehensiveExamInvite', () => {
     const d = await lib.sendComprehensiveExamInvite({ ...inviteInput(), phone: 'abc' })
     expect(d.email.status).toBe('SENT')
     expect(d.whatsapp.status).toBe('FAILED')
+    expect(archivedWhatsApps).toHaveLength(0)
+  })
+  test('Meta accepts the invite but archive fails: do not misreport a failed send', async () => {
+    reset()
+    settings.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE = 'comprehensive_exam_invite_ar'
+    archiveBehavior = 'THROW'
+    const d = await lib.sendComprehensiveExamInvite(inviteInput())
+    expect(d.email.status).toBe('SENT')
+    expect(d.whatsapp.status).toBe('SENT')
+    expect(d.whatsapp.error).toContain('تعذّر حفظ الرسالة')
+    expect(sentWhatsApps).toHaveLength(1)
+    expect(archivedWhatsApps).toHaveLength(0)
+  })
+  test('Meta accepts without a message id: archive the template but warn about delivery tracking', async () => {
+    reset()
+    settings.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE = 'comprehensive_exam_invite_ar'
+    returnedMessageId = null
+    const d = await lib.sendComprehensiveExamInvite(inviteInput())
+    expect(d.whatsapp.status).toBe('SENT')
+    expect(d.whatsapp.error).toContain('معرّف الرسالة')
+    expect(archivedWhatsApps).toHaveLength(1)
+    expect(archivedWhatsApps[0].whatsappMessageId).toBeNull()
   })
 })
