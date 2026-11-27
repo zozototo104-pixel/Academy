@@ -1100,7 +1100,7 @@ export function AdminSystemTab() {
         value={form[k] ?? ''}
         onChange={(e) => set(k, e.target.value)}
         placeholder={placeholder}
-        dir={type === 'password' || k.includes('KEY') || k.includes('SECRET') || k.includes('PASS') || k === 'AI_PROVIDER_TIERS' || k === 'AI_FAMILY_QUALITY_ORDER' || k === 'AI_FAMILY_COST_ORDER' ? 'ltr' : undefined}
+        dir={type === 'password' || k.includes('KEY') || k.includes('SECRET') || k.includes('PASS') || k === 'AI_PROVIDER_TIERS' || k === 'AI_FAMILY_QUALITY_ORDER' || k === 'AI_FAMILY_COST_ORDER' || k === 'COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE' || k === 'COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID' ? 'ltr' : undefined}
         className="h-9 min-w-0 w-full max-w-full bg-white text-sm"
       />
       {hint && <p className="text-[10px] leading-relaxed text-slate-400">{hint}</p>}
