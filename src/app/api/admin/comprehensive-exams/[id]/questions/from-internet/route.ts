@@ -277,7 +277,7 @@ async function handleInternetPost(req: NextRequest, ctx: { params: Promise<{ id:
     }
     const truncated = generated.questions.length - saved.imported
     await audit(
-      { id: admin.id, name: admin.name },
+      { id: admin.id, name: admin.name || 'Admin' },
       'GENERATE_COMPREHENSIVE_EXAM_QUESTIONS_FROM_INTERNET',
       'ComprehensiveExam',
       id,
