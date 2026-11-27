@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import type { SiteAnnouncement, SiteAnnouncementDisplay } from '@/lib/site-announcements'
 import { MAX_ANNOUNCEMENT_IMAGE_URLS } from '@/lib/site-announcements-core'
