@@ -347,7 +347,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
                     <p className="mt-2 text-[10px] font-bold text-slate-400">من {dateLabel(item.startsAt)} — إلى {dateLabel(item.endsAt)} · آخر تعديل {dateLabel(item.updatedAt)}</p>
                   </div>
                   <div className="flex flex-wrap gap-2 sm:justify-end">
-                    <Button size="sm" variant="outline" onClick={() => setForm(formFromAnnouncement(item))} className="text-xs font-bold">تعديل</Button>
+                    <Button size="sm" variant="outline" onClick={() => setForm(formFromAnnouncement(item))} disabled={!!form || uploading} className="text-xs font-bold">تعديل</Button>
                     <Button size="sm" variant="outline" onClick={() => toggleActive(item)} className="text-xs font-bold">
                       {item.active ? <XCircle className="ml-1 h-3.5 w-3.5" /> : <CheckCircle2 className="ml-1 h-3.5 w-3.5" />}
                       {item.active ? 'إيقاف' : 'تفعيل'}
