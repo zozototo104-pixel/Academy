@@ -111,11 +111,14 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
 
     try {
       setUploading(true)
+      setUploadProgress(null)
+      setUploadStage('preparing')
       let data: { url: string; key: string; mimeType: string }
       if (file.size <= 4 * 1024 * 1024) {
         // Small files can use the existing server path below Vercel's limit.
         const body = new FormData()
         body.append('file', file)
+        setUploadStage('uploading')
         data = await api('/api/admin/announcements/media', { method: 'POST', body })
       } else {
         // 5MB+ files must bypass the Vercel Function request-body limit.
@@ -123,16 +126,36 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
           method: 'POST',
           body: JSON.stringify({ action: 'INIT', fileName: file.name, mimeType, size: file.size }),
         })
+        setUploadProgress(0)
+        setUploadStage('uploading')
         try {
-          const uploaded = await fetch(init.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': mimeType } })
-          if (!uploaded.ok) throw new Error(`فشل التخزين المباشر (HTTP ${uploaded.status})`)
+          // Same direct upload mechanism as lecture videos, with real byte progress.
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest()
+            uploadXhr.current = xhr
+            xhr.open('PUT', init.uploadUrl)
+            xhr.setRequestHeader('Content-Type', mimeType)
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) setUploadProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)))
+            }
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) resolve()
+              else reject(new Error(`فشل التخزين المباشر (HTTP ${xhr.status})`))
+            }
+            xhr.onerror = () => reject(new Error('تعذر الاتصال بالتخزين المباشر. تحقق من الشبكة وإعدادات التخزين.'))
+            xhr.onabort = () => reject(new Error('تم إلغاء رفع الملف'))
+            xhr.onloadend = () => { if (uploadXhr.current === xhr) uploadXhr.current = null }
+            xhr.send(file)
+          })
+          setUploadProgress(100)
+          setUploadStage('verifying')
           data = await api('/api/admin/announcements/media', {
             method: 'POST',
             body: JSON.stringify({ action: 'COMPLETE', key: init.key }),
           })
         } catch (error) {
           await api(`/api/admin/announcements/media?key=${encodeURIComponent(init.key)}`, { method: 'DELETE' }).catch(() => {})
-          if (error instanceof TypeError) throw new Error('تعذر الاتصال بالتخزين المباشر — يلزم ضبط CORS لحاوية R2 مع نطاق الأكاديمية.')
+          if (error instanceof TypeError) throw new Error('تعذر الاتصال بالتخزين المباشر. تحقق من الشبكة، وإن استمرت المشكلة افحص إعدادات التخزين.')
           throw error
         }
       }
@@ -146,8 +169,12 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
         toast({ title: 'تم رفع الصورة' })
       }
     } catch (e: any) {
-      toast({ title: 'تعذر رفع الملف', description: e.message, variant: 'destructive' })
+      if (e?.message === 'تم إلغاء رفع الملف') toast({ title: 'تم إلغاء رفع الملف' })
+      else toast({ title: 'تعذر رفع الملف', description: e?.message || 'حدث خطأ غير متوقع', variant: 'destructive' })
     } finally {
+      uploadXhr.current = null
+      setUploadProgress(null)
+      setUploadStage('preparing')
       setUploading(false)
     }
   }
