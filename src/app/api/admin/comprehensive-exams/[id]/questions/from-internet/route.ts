@@ -66,13 +66,16 @@ async function handleInternetPost(req: NextRequest, ctx: { params: Promise<{ id:
     }
     if (body?.action === 'BACKGROUND_STATUS') {
       const saved = await readInternetBackgroundJob(id)
-      return NextResponse.json({ ok: true, job: saved?.job ? publicInternetJob(saved.job) : null }, { headers: { 'Cache-Control': 'no-store' } })
+      return NextResponse.json({ ok: true, job: saved?.job ? {
+        ...publicInternetJob(saved.job), axisProgress: await readInternetAxisProgress(saved.job),
+      } : null }, { headers: { 'Cache-Control': 'no-store' } })
     }
     if (body?.action === 'BACKGROUND_PAUSE') return pauseInternetBackgroundJob(id)
     if (exam.status !== 'DRAFT') {
       return NextResponse.json({ error: 'لا يمكن إضافة أسئلة لامتحان منشور — ألغِ نشره أولاً' }, { status: 409 })
     }
     if (body?.action === 'BACKGROUND_START') return startInternetBackgroundJob(exam, admin, body)
+    if (body?.action === 'BACKGROUND_RESUME') return resumeInternetBackgroundJob(id, admin)
     if (body?.action === 'PLAN') {
       if (!exam.specializationProgramId) return NextResponse.json({ error: 'الامتحان غير مربوط بتخصص علمي محدد' }, { status: 422 })
       const specialty = await db.program.findUnique({
