@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  announcementVideoDescriptor,
   canManageSiteAnnouncements,
   filterActiveSiteAnnouncements,
+  parseSiteAnnouncementsValue,
   validateAnnouncementInput,
   type SiteAnnouncement,
 } from '../../src/lib/site-announcements-core'
@@ -30,9 +32,46 @@ describe('site announcements', () => {
     expect(() => validateAnnouncementInput({ title: '<b>عنوان</b>', summary: 'ملخص', body: '', display: 'TICKER' })).toThrow()
   })
 
-  test('validation accepts the two supported display types', () => {
+  test('validation accepts the three supported display types', () => {
     expect(validateAnnouncementInput({ title: 'عنوان', summary: 'ملخص', body: '', display: 'TICKER' }).display).toBe('TICKER')
     expect(validateAnnouncementInput({ title: 'عنوان', summary: 'ملخص', body: '', display: 'PULSE' }).display).toBe('PULSE')
+    expect(validateAnnouncementInput({ title: 'عنوان', summary: 'ملخص', body: '', display: 'CARD' }).display).toBe('CARD')
+  })
+
+  test('media validation accepts direct files and known providers, rejects bad URLs', () => {
+    const base = { title: 'عنوان', summary: 'ملخص', body: '' }
+    expect(validateAnnouncementInput({ ...base, videoUrl: 'https://example.com/video.mp4' }).videoUrl).toBe('https://example.com/video.mp4')
+    expect(validateAnnouncementInput({ ...base, videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }).videoUrl).toContain('youtube.com')
+    expect(validateAnnouncementInput({ ...base, imageUrls: ['https://example.com/a.jpg', 'https://example.com/b.webp'] }).imageUrls).toEqual([
+      'https://example.com/a.jpg',
+      'https://example.com/b.webp',
+    ])
+    expect(() => validateAnnouncementInput({ ...base, videoUrl: 'http://example.com/video.mp4' })).toThrow()
+    expect(() => validateAnnouncementInput({ ...base, videoUrl: 'https://example.com/page' })).toThrow()
+    expect(() => validateAnnouncementInput({ ...base, videoUrl: 'https://example.com/video.avi' })).toThrow()
+    expect(() => validateAnnouncementInput({ ...base, imageUrls: ['http://example.com/a.jpg'] })).toThrow()
+    expect(() => validateAnnouncementInput({ ...base, imageUrls: ['https://example.com/a.gif'] })).toThrow()
+    expect(() => validateAnnouncementInput({ ...base, imageUrls: ['https://example.com/1.jpg', 'https://example.com/2.jpg', 'https://example.com/3.jpg', 'https://example.com/4.jpg', 'https://example.com/5.jpg', 'https://example.com/6.jpg'] })).toThrow()
+    expect(() => validateAnnouncementInput({ ...base, imageUrls: 'https://example.com/a.jpg' })).toThrow()
+  })
+
+  test('stored rows without media fields still normalise (back-compat)', () => {
+    const items = parseSiteAnnouncementsValue(
+      JSON.stringify([{ id: 'old-1', title: 'عنوان قديم', summary: 'ملخص', body: '', display: 'TICKER', active: true }]),
+    )
+    expect(items).toHaveLength(1)
+    expect(items[0].videoUrl).toBeNull()
+    expect(items[0].imageUrls).toEqual([])
+  })
+
+  test('video descriptor maps direct files, providers, and nothing', () => {
+    expect(announcementVideoDescriptor('https://example.com/video.mp4')).toEqual({ kind: 'file', url: 'https://example.com/video.mp4' })
+    const yt = announcementVideoDescriptor('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+    expect(yt?.kind).toBe('embed')
+    expect(yt?.source).toBe('YOUTUBE')
+    expect(yt?.embedId).toBe('dQw4w9WgXcQ')
+    expect(announcementVideoDescriptor(null)).toBeNull()
+    expect(announcementVideoDescriptor('')).toBeNull()
   })
 
   test('active filtering honors active flag and date window', () => {
@@ -43,9 +82,11 @@ describe('site announcements', () => {
       announcement({ id: 'future', active: true, startsAt: '2026-10-21T13:00:01.000Z' }),
       announcement({ id: 'expired', active: true, endsAt: '2026-10-21T11:59:59.000Z' }),
       announcement({ id: 'no-window', active: true }),
+      announcement({ id: 'card-now', display: 'CARD', active: true, startsAt: '2026-10-21T11:00:00.000Z', endsAt: '2026-10-21T13:00:00.000Z' }),
+      announcement({ id: 'card-future', display: 'CARD', active: true, startsAt: '2026-10-21T13:00:01.000Z' }),
     ]
 
-    expect(filterActiveSiteAnnouncements(items, now).map((item) => item.id)).toEqual(['active-now', 'no-window'])
+    expect(filterActiveSiteAnnouncements(items, now).map((item) => item.id)).toEqual(['active-now', 'no-window', 'card-now'])
   })
 
   test('only admins can manage announcements', () => {

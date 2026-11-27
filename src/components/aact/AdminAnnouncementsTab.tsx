@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import type { SiteAnnouncement, SiteAnnouncementDisplay } from '@/lib/site-announcements'
+import { MAX_ANNOUNCEMENT_IMAGE_URLS } from '@/lib/site-announcements-core'
 import { api } from '@/lib/store'
 import { toast } from '@/hooks/use-toast'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { CheckCircle2, Globe2, Loader2, XCircle } from 'lucide-react'
+import { CheckCircle2, Globe2, Loader2, Upload, X, XCircle } from 'lucide-react'
 
 type AnnouncementForm = {
   id?: string
@@ -23,10 +24,12 @@ type AnnouncementForm = {
   active: boolean
   startsAt: string
   endsAt: string
+  videoUrl: string
+  imageUrls: string[]
 }
 
 function emptyForm(): AnnouncementForm {
-  return { title: '', summary: '', body: '', display: 'TICKER', active: true, startsAt: '', endsAt: '' }
+  return { title: '', summary: '', body: '', display: 'TICKER', active: true, startsAt: '', endsAt: '', videoUrl: '', imageUrls: [] }
 }
 
 function toDateTimeLocal(value?: string | null) {
@@ -47,6 +50,8 @@ function formFromAnnouncement(item: SiteAnnouncement): AnnouncementForm {
     active: item.active,
     startsAt: toDateTimeLocal(item.startsAt),
     endsAt: toDateTimeLocal(item.endsAt),
+    videoUrl: item.videoUrl || '',
+    imageUrls: item.imageUrls || [],
   }
 }
 
@@ -60,10 +65,39 @@ function dateLabel(value?: string | null) {
 export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { announcements: SiteAnnouncement[]; loading: boolean; onRefresh: () => Promise<void> }) {
   const [form, setForm] = useState<AnnouncementForm | null>(null)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
 
   const updateForm = (patch: Partial<AnnouncementForm>) => setForm((current) => ({ ...(current || emptyForm()), ...patch }))
+
+  // رفع فيديو أو صورة واحدة لكل ضغطة. فيديو واحد فقط لكل إعلان (الاستبدال
+  // يلغي القديم)، وصور حتى حد النواة. الملف القديم المستبدَل يبقى في
+  // التخزين كملف يتيم ولا يُحذف تلقائيًا.
+  const uploadMedia = async (file: File) => {
+    if (!form) return
+    try {
+      setUploading(true)
+      const body = new FormData()
+      body.append('file', file)
+      const data = await api<{ url: string; mimeType: string }>('/api/admin/announcements/media', { method: 'POST', body })
+      if (String(data.mimeType || '').startsWith('video/')) {
+        updateForm({ videoUrl: data.url })
+        toast({ title: 'تم رفع الفيديو' })
+      } else {
+        if ((form.imageUrls?.length || 0) >= MAX_ANNOUNCEMENT_IMAGE_URLS) {
+          toast({ title: `عدد الصور يجب ألا يتجاوز ${MAX_ANNOUNCEMENT_IMAGE_URLS}`, variant: 'destructive' })
+          return
+        }
+        updateForm({ imageUrls: [...(form.imageUrls || []), data.url] })
+        toast({ title: 'تم رفع الصورة' })
+      }
+    } catch (e: any) {
+      toast({ title: 'تعذر رفع الملف', description: e.message, variant: 'destructive' })
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const save = async () => {
     if (!form) return
@@ -78,6 +112,8 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
         active: form.active,
         startsAt: form.startsAt || null,
         endsAt: form.endsAt || null,
+        videoUrl: form.videoUrl || null,
+        imageUrls: form.imageUrls || [],
       }
       await api('/api/admin/announcements', { method: form.id ? 'PATCH' : 'POST', body: JSON.stringify(payload) })
       toast({ title: form.id ? 'تم تعديل الإعلان' : 'تم إنشاء الإعلان', description: 'سيظهر الإعلان للزوار إذا كان فعالاً وضمن التواريخ المحددة.' })
@@ -121,7 +157,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
         <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-black text-[#0f2b46]"><Globe2 className="h-5 w-5 text-[#c9a227]" /> الإعلانات</h2>
-            <p className="mt-1 text-xs font-bold text-slate-500">إعلانات نصية خفيفة تظهر للزوار كشريط متحرك أو شارة نبضية، بدون HTML.</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">إعلانات تظهر للزوار كشريط متحرك أو شارة نبضية أو بطاقة بارزة، مع فيديو أو صور، وبدون HTML.</p>
           </div>
           <Button onClick={() => setForm(emptyForm())} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#183c5f]">إعلان جديد</Button>
         </CardContent>
@@ -142,6 +178,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
                   <SelectContent>
                     <SelectItem value="TICKER">شريط متحرك</SelectItem>
                     <SelectItem value="PULSE">نبضي</SelectItem>
+                    <SelectItem value="CARD">بطاقة بارزة</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -153,6 +190,61 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
             <div className="space-y-1.5">
               <Label className="text-xs font-black text-[#0f2b46]">التفاصيل ({form.body.length}/5000)</Label>
               <Textarea value={form.body} maxLength={5000} onChange={(e) => updateForm({ body: e.currentTarget.value })} className="min-h-[150px] bg-white font-bold" />
+            </div>
+            <div className="space-y-3 rounded-xl border border-[#0f2b46]/10 bg-white p-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-black text-[#0f2b46]">فيديو الإعلان</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#0f2b46] px-3 py-2 text-xs font-black text-[#f5f0e1] hover:bg-[#183c5f]">
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    ارفع فيديو أو صور
+                    <input
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime,image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const file = e.currentTarget.files?.[0]
+                        e.currentTarget.value = ''
+                        if (file) void uploadMedia(file)
+                      }}
+                    />
+                  </label>
+                  <span className="text-[11px] font-bold text-slate-500">فيديو حتى 500MB، صورة حتى 10MB — فيديو واحد و{MAX_ANNOUNCEMENT_IMAGE_URLS} صور كحد أقصى.</span>
+                </div>
+                <Input
+                  value={form.videoUrl}
+                  onChange={(e) => updateForm({ videoUrl: e.currentTarget.value })}
+                  placeholder="أو الصق رابط فيديو (يوتيوب أو ملف mp4 مباشر)"
+                  className="bg-white font-bold"
+                  dir="ltr"
+                />
+                {form.videoUrl && (
+                  <div className="relative overflow-hidden rounded-lg border border-[#0f2b46]/10">
+                    <video src={form.videoUrl} controls className="aspect-video w-full bg-black" />
+                    <Button size="sm" variant="outline" onClick={() => updateForm({ videoUrl: '' })} className="absolute left-2 top-2 h-7 w-7 p-0 text-xs font-bold">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {form.imageUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {form.imageUrls.map((url) => (
+                    <div key={url} className="relative h-20 w-20 overflow-hidden rounded-lg border border-[#0f2b46]/10">
+                      <img src={url} alt="صورة الإعلان" className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        aria-label="إزالة الصورة"
+                        onClick={() => updateForm({ imageUrls: form.imageUrls.filter((item) => item !== url) })}
+                        className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
               <label className="flex items-center gap-2 rounded-xl border border-[#0f2b46]/10 bg-white px-3 py-2 text-xs font-black text-[#0f2b46]">
@@ -192,7 +284,9 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-sm font-black text-[#0f2b46]">{item.title}</h3>
                       <Badge className={item.active ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-100'}>{item.active ? 'فعال' : 'موقوف'}</Badge>
-                      <Badge variant="outline" className="border-[#c9a227]/50 text-[#a8841a]">{item.display === 'TICKER' ? 'شريط متحرك' : 'نبضي'}</Badge>
+                      <Badge variant="outline" className="border-[#c9a227]/50 text-[#a8841a]">{item.display === 'TICKER' ? 'شريط متحرك' : item.display === 'CARD' ? 'بطاقة بارزة' : 'نبضي'}</Badge>
+                      {item.videoUrl && <Badge variant="outline" className="border-[#0f2b46]/30 text-[#0f2b46]">فيديو</Badge>}
+                      {(item.imageUrls?.length || 0) > 0 && <Badge variant="outline" className="border-[#0f2b46]/30 text-[#0f2b46]">{item.imageUrls?.length} صور</Badge>}
                     </div>
                     <p className="mt-2 text-xs font-bold leading-6 text-slate-600">{item.summary}</p>
                     {item.body && <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-5 text-slate-500">{item.body}</p>}

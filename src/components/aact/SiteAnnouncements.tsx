@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { LecturePlayer } from '@/components/aact/LecturePlayer'
+import { announcementVideoDescriptor } from '@/lib/site-announcements-core'
 import { getActiveSiteAnnouncementsCached } from '@/lib/site-announcements'
 
 function shortTitle(title: string) {
@@ -11,6 +13,7 @@ export async function SiteAnnouncements() {
 
   const ticker = announcements.filter((item) => item.display === 'TICKER')
   const pulse = announcements.filter((item) => item.display === 'PULSE')
+  const cards = announcements.filter((item) => item.display === 'CARD')
 
   return (
     <div className="site-announcements-shell" dir="rtl">
@@ -115,6 +118,39 @@ export async function SiteAnnouncements() {
           }
         }
       `}</style>
+      {cards.length > 0 && (
+        <div className="site-announcements-cards" aria-label="إعلانات بارزة">
+          {cards.slice(0, 3).map((item) => {
+            const descriptor = announcementVideoDescriptor(item.videoUrl)
+            const images = item.imageUrls || []
+            return (
+              <article key={item.id} className="mx-auto mb-4 w-full max-w-3xl rounded-3xl border border-[#c9a227]/40 bg-white p-4 shadow-xl sm:p-6">
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
+                  <span className="rounded-full bg-[#fffaf0] px-3 py-1 text-[#a8841a]">إعلان</span>
+                  <span>{shortTitle(item.title)}</span>
+                </div>
+                <h2 className="mt-3 text-lg font-black leading-relaxed text-[#0f2b46] sm:text-2xl">{item.title}</h2>
+                <p className="mt-2 text-sm font-bold leading-8 text-slate-600">{item.summary}</p>
+                {descriptor && (
+                  <div className="mt-4">
+                    <LecturePlayer descriptor={descriptor} title={item.title} />
+                  </div>
+                )}
+                {images.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {images.map((url) => (
+                      <img key={url} src={url} alt={item.title} className="aspect-video w-full rounded-xl border border-[#0f2b46]/10 object-cover" loading="lazy" />
+                    ))}
+                  </div>
+                )}
+                <div className="mt-4">
+                  <Link href={`/announcements/${encodeURIComponent(item.id)}`} className="text-xs font-black text-[#b22234] hover:underline">اقرأ التفاصيل</Link>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      )}
       {ticker.length > 0 && (
         <div className="site-announcements-ticker" aria-label="إعلانات الأكاديمية">
           <div className="site-announcements-ticker-track">

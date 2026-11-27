@@ -162,3 +162,68 @@ export function validateAdmissionFileSignature(input: {
 
   return { ok: true, kind, mimeType: CANONICAL_MIME_BY_KIND[kind] }
 }
+
+export type AnnouncementMediaKind = 'image' | 'video'
+
+export type AnnouncementMediaSignatureResult =
+  | { ok: true; kind: AnnouncementMediaKind; mimeType: string }
+  | { ok: false; error: string }
+
+const ANNOUNCEMENT_MEDIA_MIMES: Record<AnnouncementMediaKind, string[]> = {
+  image: ['image/jpeg', 'image/png', 'image/webp'],
+  video: ['video/mp4', 'video/webm', 'video/quicktime'],
+}
+
+const ANNOUNCEMENT_MEDIA_EXTENSIONS: Record<AnnouncementMediaKind, string[]> = {
+  image: ['jpg', 'jpeg', 'png', 'webp'],
+  video: ['mp4', 'mov', 'webm'],
+}
+
+function isWebm(buffer: Buffer) {
+  return startsWithBytes(buffer, [0x1a, 0x45, 0xdf, 0xa3])
+}
+
+// توقيع وسائط الإعلانات فقط (صور + فيديو). يتحقق من البايتات السحرية
+// لا من الـ MIME المعلن وحده، ولا يمسّ validateAdmissionFileSignature.
+export function validateAnnouncementMediaSignature(input: {
+  buffer: Buffer
+  fileName: string
+  mimeType?: string | null
+}): AnnouncementMediaSignatureResult {
+  const { buffer, fileName } = input
+  if (!Buffer.isBuffer(buffer) || buffer.byteLength === 0) {
+    return { ok: false, error: 'الملف فارغ أو غير صالح.' }
+  }
+
+  const ext = extensionOf(fileName)
+  const mime = normalizedMime(input.mimeType)
+  let kind: AnnouncementMediaKind | null = null
+  let canonicalMime = ''
+
+  const detected = detectImageOrPdfOrOffice(buffer, ext)
+  if (detected === 'jpeg' || detected === 'png' || detected === 'webp') {
+    kind = 'image'
+    canonicalMime = CANONICAL_MIME_BY_KIND[detected]
+  } else if (isIsoBaseMedia(buffer)) {
+    // mp4 / mov: صندوق ftyp في البايتات 4-8.
+    kind = 'video'
+    canonicalMime = 'video/mp4'
+  } else if (isWebm(buffer)) {
+    kind = 'video'
+    canonicalMime = 'video/webm'
+  }
+
+  if (!kind) {
+    return { ok: false, error: 'محتوى الملف لا يطابق صيغ الصور (jpg/png/webp) أو الفيديو (mp4/webm/mov) المسموحة.' }
+  }
+
+  if (ext && !ANNOUNCEMENT_MEDIA_EXTENSIONS[kind].includes(ext)) {
+    return { ok: false, error: 'امتداد الملف لا يطابق محتواه الحقيقي.' }
+  }
+
+  if (mime && mime !== 'application/octet-stream' && !ANNOUNCEMENT_MEDIA_MIMES[kind].includes(mime)) {
+    return { ok: false, error: 'نوع الملف المعلن لا يطابق محتواه الحقيقي.' }
+  }
+
+  return { ok: true, kind, mimeType: canonicalMime }
+}
