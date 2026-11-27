@@ -268,7 +268,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
                 </div>
                 <Input
                   value={form.videoUrl}
-                  onChange={(e) => updateForm({ videoUrl: e.currentTarget.value })}
+                  onChange={(e) => { if (form.videoUrl !== e.currentTarget.value) void cleanupMedia(form.videoUrl); updateForm({ videoUrl: e.currentTarget.value }) }}
                   placeholder="أو الصق رابط فيديو (يوتيوب أو ملف mp4 مباشر)"
                   className="bg-white font-bold"
                   dir="ltr"
