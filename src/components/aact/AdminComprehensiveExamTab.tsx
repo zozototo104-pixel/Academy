@@ -1327,9 +1327,14 @@ function DetailPanel(props: any) {
                       راجعت المحاور المختارة وتأكدت أنها تمثل كفاءات التخصص العلمية ولا تتناول شروط القبول أو وصف الدرجة، وأوافق على استهلاك رصيد Tavily للبحث المتقدم (نحو 6 نقاط لكل دفعة من ثلاثة أبحاث).
                     </label>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button disabled={!isDraft || props.internetBusy || !chosenAxesCount || !props.internetPlanReviewed || props.internetRunBusy || props.internetPlanBusy || !remainingExamSlots} onClick={props.onRunComprehensiveInternetPlan}>
+                      {['PAUSED', 'COMPLETED_WITH_GAPS'].includes(props.internetRunProgress?.status) && (
+                        <Button disabled={!isDraft || props.internetBusy || props.internetRunBusy || !remainingExamSlots} onClick={props.onResumeInternetPlan}>
+                          <RefreshCw className="h-4 w-4" /> استكمال المحاور الناقصة من المهمة المحفوظة
+                        </Button>
+                      )}
+                      <Button variant={['PAUSED', 'COMPLETED_WITH_GAPS'].includes(props.internetRunProgress?.status) ? 'outline' : 'default'} disabled={!isDraft || props.internetBusy || !chosenAxesCount || !props.internetPlanReviewed || props.internetRunBusy || props.internetPlanBusy || !remainingExamSlots} onClick={props.onRunComprehensiveInternetPlan}>
                         {props.internetRunBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : props.internetPlanStored ? <RefreshCw className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                        {props.internetPlanStored ? 'استكمال الأسئلة الناقصة' : 'توليد الأسئلة حسب المخطط'}
+                        {['PAUSED', 'COMPLETED_WITH_GAPS'].includes(props.internetRunProgress?.status) ? 'بدء خطة جديدة بالمحاور المحددة' : props.internetPlanStored ? 'استكمال الأسئلة الناقصة' : 'توليد الأسئلة حسب المخطط'}
                       </Button>
                       {props.internetRunBusy && <Button variant="outline" onClick={props.onStopInternetPlan}>إيقاف بعد الدفعة الحالية</Button>}
                     </div>
@@ -1338,6 +1343,19 @@ function DetailPanel(props: any) {
                         <p className="font-semibold">{props.internetRunProgress.status === 'QUEUED' ? 'في قائمة الانتظار — سيواصل الخادم التوليد ولو غادرت الصفحة' : props.internetRunProgress.status === 'RUNNING' ? 'جارٍ إنشاء الأسئلة في الخلفية — يمكن مغادرة الصفحة' : props.internetRunProgress.status === 'PAUSED' ? 'متوقف مؤقتاً — راجع التنبيهات ثم استكمل' : props.internetRunProgress.status === 'COMPLETED_WITH_GAPS' ? 'اكتمل العمل مع نقص في بعض المحاور — راجع التفاصيل' : 'اكتمل توليد المحاور'}</p>
                         <p>المحور {props.internetRunProgress.axis} من {props.internetRunProgress.total} — أُضيف {props.internetRunProgress.imported} سؤالاً بانتظار المراجعة</p>
                         {props.internetRunProgress.retryAt && <p className="text-amber-800">سيحاول الخادم مجدداً تلقائياً بعد تعافٍ مؤقت من الخطأ.</p>}
+                        {props.internetRunProgress.axisProgress?.length > 0 && (
+                          <div className="space-y-1 rounded-lg border border-indigo-200 bg-white p-2" aria-label="تقدم المحاور العلمية">
+                            <p className="font-bold">تغطية كل محور من الأسئلة المحفوظة فعلياً</p>
+                            {props.internetRunProgress.axisProgress.map((axis: { topic: string; target: number; saved: number; remaining: number }) => (
+                              <div key={axis.topic} className="flex flex-wrap items-center justify-between gap-1 border-b border-slate-100 py-1 last:border-0">
+                                <span className="max-w-full text-slate-800">{axis.topic}</span>
+                                <span className={axis.remaining ? 'font-bold text-amber-800' : 'font-bold text-emerald-700'}>
+                                  {axis.saved} / {axis.target} {axis.remaining ? `— ينقص ${axis.remaining}` : '— مكتمل'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {props.internetRunProgress.errors.map((error: string, index: number) => <p key={`${index}-${error}`} className="text-amber-800">{error}</p>)}
                       </div>
                     )}
