@@ -289,6 +289,51 @@ describe('durable background comprehensive-internet jobs', () => {
     expect(questions).toHaveLength(2)
   })
 
+  test('resumes the original axis allocations without a new blueprint or reapproval', async () => {
+    const examId = seedExam('DRAFT', 'exam-background-resume', 'specialization-1')
+    const axes = [axis, 'القيادة التحويلية وإدارة التغيير التنظيمي']
+    const start = await route.POST(jsonReq(examId, { action: 'BACKGROUND_START', reviewed: true, axes }), ctx(examId))
+    expect(start.status).toBe(200)
+    expect((await start.json()).job.axes.map((a: any) => a.target)).toEqual([50, 50])
+    await route.runNextComprehensiveInternetBackgroundStep()
+    expect(questions).toHaveLength(2)
+    const paused = await route.POST(jsonReq(examId, { action: 'BACKGROUND_PAUSE' }), ctx(examId))
+    expect((await paused.json()).job.status).toBe('PAUSED')
+
+    generateResult = { ...defaultGeneration(), questions: defaultGeneration().questions.map((q: any, i: number) => ({ ...q, text: `سؤال تخصصي جديد رقم ${i} عن التحليل المالي والتنافسي` })) }
+    const resume = await route.POST(jsonReq(examId, { action: 'BACKGROUND_RESUME' }), ctx(examId))
+    expect(resume.status).toBe(200)
+    const resumed = (await resume.json()).job
+    expect(resumed.axes.map((a: any) => a.target)).toEqual([50, 50])
+    expect(resumed.status).toBe('QUEUED')
+    expect((await route.runNextComprehensiveInternetBackgroundStep())?.imported).toBe(4)
+    expect(questions).toHaveLength(4)
+    const status = await route.POST(jsonReq(examId, { action: 'BACKGROUND_STATUS' }), ctx(examId))
+    expect((await status.json()).job.axisProgress[0].saved).toBe(4)
+    expect(searchCalls).toHaveLength(6)
+  })
+
+  test('prevents resuming a job that is already active or finished without gaps', async () => {
+    const examId = seedExam('DRAFT', 'exam-background-resume-guard', 'specialization-1')
+    await route.POST(jsonReq(examId, { action: 'BACKGROUND_START', reviewed: true, axes: [axis] }), ctx(examId))
+    const res = await route.POST(jsonReq(examId, { action: 'BACKGROUND_RESUME' }), ctx(examId))
+    expect(res.status).toBe(409)
+    expect(searchCalls).toHaveLength(0)
+  })
+
+  test('retries a previously incomplete axis after sources become diverse', async () => {
+    const examId = seedExam('DRAFT', 'exam-background-retry-gaps', 'specialization-1')
+    advancedSingleDomain = true
+    await route.POST(jsonReq(examId, { action: 'BACKGROUND_START', reviewed: true, axes: [axis] }), ctx(examId))
+    expect((await route.runNextComprehensiveInternetBackgroundStep())?.status).toBe('COMPLETED_WITH_GAPS')
+    advancedSingleDomain = false
+    const resumed = await route.POST(jsonReq(examId, { action: 'BACKGROUND_RESUME' }), ctx(examId))
+    expect(resumed.status).toBe(200)
+    expect((await resumed.json()).job.status).toBe('QUEUED')
+    expect((await route.runNextComprehensiveInternetBackgroundStep())?.imported).toBe(2)
+    expect(questions).toHaveLength(2)
+  })
+
   test('status and pause still work when an exam is no longer in draft', async () => {
     const examId = seedExam('DRAFT', 'exam-background-ready', 'specialization-1')
     expect((await route.POST(jsonReq(examId, { action: 'BACKGROUND_START', reviewed: true, axes: [axis] }), ctx(examId))).status).toBe(200)
