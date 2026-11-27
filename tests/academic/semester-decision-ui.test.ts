@@ -24,6 +24,15 @@ describe('نافذة الخيارين ولوحة الحالة', () => {
     expect(dashboard).toContain("setDecisionDialog({ semester, mode: 'ready' })")
     expect(dashboard).toContain('doMarkReadyForSemesterExam')
   })
+  test('نافذة جاهزية الامتحان تُعرض خارج حركة لوحة الطالب وتظل قابلة للوصول على الهاتف', () => {
+    expect(dashboard).toContain('aact-fade-in')
+    expect(decisionUi).toContain("import { createPortal } from 'react-dom'")
+    expect(decisionUi).toContain('if (!mounted) return null')
+    expect(decisionUi).toContain('return createPortal(')
+    expect(decisionUi).toContain('document.body,')
+    expect(decisionUi).toContain('max-h-[92dvh]')
+    expect(decisionUi).toContain("paddingBottom: 'env(safe-area-inset-bottom)'")
+  })
   test('الخياران بالنص المتفق عليه وموافقة الصفر صريحة ومستقلة', () => {
     expect(decisionUi).toContain('أريد إنهاء الفصل مبكرًا')
     expect(decisionUi).toContain('أريد استكمال أعمال الفصل')
