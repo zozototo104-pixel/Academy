@@ -7,7 +7,7 @@ import { createAnnouncementMediaStorageKey, createSignedStorageUrlForKey, delete
 
 // وسائط الإعلانات في حاوية R2 الخاصة نفسها: لا نجعل الحاوية عامة.
 // أقل من 4 MiB يمر عبر الخادم؛ الأكبر يرفع مباشرة برابط PUT مؤقت
-// (يحتاج CORS على R2). العرض العام يتم بتوجيه GET موقّع لخمس دقائق.
+// (بنفس إعداد CORS الخاص بالمحاضرات). العرض العام عبر GET موقّع لساعة.
 // الحدود: فيديو 500MB، صورة 10MB، والتحقق الفعلي بعد الرفع.
 
 const ANNOUNCEMENT_VIDEO_MAX_BYTES = 500 * 1024 * 1024
