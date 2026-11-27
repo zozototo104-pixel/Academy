@@ -24,7 +24,7 @@ mock.module('@/lib/mailer', () => ({
   },
 }))
 mock.module('@/lib/whatsapp-cloud', () => ({
-  sendOfficialWhatsAppTemplate: async (to: string, template: string, params: string[], options?: { languageCode?: string; wabaId?: string }) => {
+  sendOfficialWhatsAppTemplate: async (to: string, template: string, params: string[], options?: { languageCode?: string; wabaId?: string; headerImageUrl?: string }) => {
     if (whatsappBehavior === 'THROW') throw new Error('Meta: insufficient balance (402)')
     sentWhatsApps.push({ to, template, params, options })
     return { ok: true }
@@ -100,14 +100,21 @@ describe('sendComprehensiveExamInvite', () => {
     expect(sentWhatsApps[0].params[1]).toBe('الامتحان الشامل — إدارة الأعمال')
     expect(sentWhatsApps[0].params[3]).toBe('https://aactacademy.com/comprehensive-exam/abc123')
     expect(sentWhatsApps[0].params.length).toBe(4)
-    expect(sentWhatsApps[0].options).toEqual({ languageCode: 'ar_EG', wabaId: '123456789000' })
+    expect(sentWhatsApps[0].options).toEqual({ languageCode: 'ar_EG', wabaId: '123456789000', headerImageUrl: 'https://www.aactacademy.com/logo.png' })
+  })
+  test('invite passes the platform logo as the header image (template IMAGE header, Meta #132012)', async () => {
+    reset()
+    settings['COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE'] = 'comprehensive_exam_invite_ar'
+    const d = await lib.sendComprehensiveExamInvite(inviteInput())
+    expect(d.whatsapp.status).toBe('SENT')
+    expect(sentWhatsApps[0].options.headerImageUrl).toBe('https://www.aactacademy.com/logo.png')
   })
   test('legacy configuration still sends Arabic ar without requiring WABA ID', async () => {
     reset()
     settings.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE = 'legacy_invite'
     const d = await lib.sendComprehensiveExamInvite(inviteInput())
     expect(d.whatsapp.status).toBe('SENT')
-    expect(sentWhatsApps[0].options).toEqual({ languageCode: 'ar', wabaId: '' })
+    expect(sentWhatsApps[0].options).toEqual({ languageCode: 'ar', wabaId: '', headerImageUrl: undefined })
   })
   test('missing template name: WhatsApp NOT_CONFIGURED with a clear reason, email still sent', async () => {
     reset()
