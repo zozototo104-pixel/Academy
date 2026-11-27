@@ -428,6 +428,7 @@ export async function POST(req: NextRequest) {
         String(body?.templateName || ''),
         String(body?.languageCode || 'ar'),
         String(body?.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || ''),
+        { bodyParameterCount: 4, verifyHeaderImageUrl: 'https://www.aactacademy.com/logo.png' },
       )
       return NextResponse.json(result)
     }
