@@ -604,66 +604,40 @@ export function AdminComprehensiveExamTab() {
         basis: internetPlanBasis, reviewed: true,
       }))
       setInternetPlanStored(true)
-    } catch {
-      toast({ title: 'التوليد سيستمر، لكن هذا المتصفح لا يسمح بحفظ خطة الاستكمال بعد تحديث الصفحة', variant: 'destructive' })
-    }
-    internetStopRef.current = false
+    } catch { /* server persistence does not depend on browser storage */ }
     internetRunLock.current = true
-    setInternetRunBusy(true)
-    setInternetKeyMissing(false)
-    let imported = 0
-    let completedAxes = 0
-    let fatal = false
-    const errors: string[] = []
     try {
-      for (const [index, axis] of allocations.entries()) {
-        if (internetStopRef.current || fatal) break
-        let remaining = axis.target
-        // One request produces at most ten questions. Permit enough
-        // batches for the chosen axis share, plus two partial retries;
-        // never loop indefinitely when real evidence is exhausted.
-        const maxAttempts = Math.ceil(axis.target / 10) + 2
-        for (let attempt = 0; attempt < maxAttempts && remaining > 0 && !internetStopRef.current; attempt++) {
-          setInternetRunProgress({ axis: index + 1, total: allocations.length, imported, errors: [...errors] })
-          try {
-            const res = await fetch(`/api/admin/comprehensive-exams/${examId}/questions/from-internet`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ mode: 'COMPREHENSIVE', topic: axis.topic, count: Math.min(10, remaining), axisTarget: axis.target }),
-            })
-            const data = await res.json().catch(() => ({}))
-            if (!res.ok) {
-              if (data?.code === 'TAVILY_KEY_MISSING') {
-                setInternetKeyMissing(true)
-                fatal = true
-              }
-              if (res.status === 401 || res.status === 409) fatal = true
-              throw new Error(apiErrorMessage(data, 'تعذر توليد أسئلة المحور'))
-            }
-            imported += Number(data.imported || 0)
-            remaining = Number(data.axisRemaining ?? 0)
-            if (data.examFull) fatal = true
-            if (data.skipped || !data.imported) break
-          } catch (e: any) {
-            errors.push(`«${axis.topic}»: ${String(e?.message || 'تعذر التوليد')}`)
-            break
-          }
-        }
-        if (remaining > 0 && !internetStopRef.current && !fatal && !errors.some((entry) => entry.startsWith(`«${axis.topic}»`))) {
-          errors.push(`«${axis.topic}»: نقص ${remaining} سؤالاً لعدم كفاية الأسئلة الموثقة`)
-        }
-        completedAxes = index + 1
-      }
-      setInternetRunProgress({ axis: completedAxes, total: allocations.length, imported, errors })
-      toast({
-        title: `انتهى توليد ${imported} سؤالاً جديداً — جميعها بانتظار مراجعتك`,
-        description: internetStopRef.current ? 'تم الإيقاف بعد حفظ الدفعات السابقة' : errors.length ? `${errors.length} محاور فيها نقص أو تعذّر` : 'راجع المحتوى ووزن المحاور قبل الاعتماد',
+      setInternetKeyMissing(false)
+      const res = await fetch(`/api/admin/comprehensive-exams/${examId}/questions/from-internet`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'BACKGROUND_START', axes: chosenAxes, reviewed: true }),
       })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (data?.code === 'TAVILY_KEY_MISSING') setInternetKeyMissing(true)
+        throw new Error(apiErrorMessage(data, 'تعذر بدء التوليد بالخلفية'))
+      }
+      setInternetRunBusy(true)
+      setInternetRunProgress({ axis: data.job.axis, total: data.job.total, imported: 0, errors: [], status: 'QUEUED' })
+      toast({ title: 'بدأ توليد الامتحان في الخلفية', description: 'تستطيع الخروج من الصفحة؛ الخادم سيواصل العمل ويحفظ كل دفعة موثقة.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر بدء توليد الامتحان', description: e.message || 'حدث خطأ', variant: 'destructive' })
     } finally {
-      setInternetRunBusy(false)
       internetRunLock.current = false
-      if (activeExamIdRef.current === examId) await refreshDetailAndList(examId).catch(() => null)
-      else await loadExams().catch(() => null)
+    }
+  }
+
+  const pauseComprehensiveInternetPlan = async () => {
+    if (!detail) return
+    try {
+      const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/from-internet`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'BACKGROUND_PAUSE' }),
+      }), 'تعذر إيقاف التوليد')
+      setInternetRunBusy(false)
+      if (data.job) setInternetRunProgress({ axis: data.job.axis, total: data.job.total, imported: data.job.imported, errors: data.job.errors, status: data.job.status })
+      toast({ title: 'تم طلب إيقاف التوليد', description: 'الدفعة الجارية تُحفظ أولاً؛ يمكنك الاستكمال لاحقاً.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إيقاف التوليد', description: e.message || 'حدث خطأ', variant: 'destructive' })
     }
   }
 
