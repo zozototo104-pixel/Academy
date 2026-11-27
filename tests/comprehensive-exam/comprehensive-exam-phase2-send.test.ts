@@ -30,7 +30,14 @@ mock.module('@/lib/whatsapp-cloud', () => ({
   sendOfficialWhatsAppTemplate: async (to: string, template: string, params: string[], options?: { languageCode?: string; wabaId?: string; headerImageUrl?: string }) => {
     if (whatsappBehavior === 'THROW') throw new Error('Meta: insufficient balance (402)')
     sentWhatsApps.push({ to, template, params, options })
-    return { ok: true }
+    return { messages: returnedMessageId ? [{ id: returnedMessageId }] : [] }
+  },
+}))
+mock.module('@/lib/whatsapp-conversations', () => ({
+  recordWhatsAppOutboundMessage: async (args: any) => {
+    if (archiveBehavior === 'THROW') throw new Error('Database temporarily unavailable')
+    archivedWhatsApps.push(args)
+    return { id: 'conversation-new-recipient' }
   },
 }))
 mock.module('@/lib/storage', () => ({
