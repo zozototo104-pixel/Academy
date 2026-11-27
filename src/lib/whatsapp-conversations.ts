@@ -110,12 +110,16 @@ export async function recordWhatsAppInboundMessage(message: WhatsAppInboundMessa
 export async function recordWhatsAppOutboundMessage(args: {
   waId: string
   phoneNumberId?: string | null
+  displayName?: string | null
   text: string
   sender: OutboundSender
   whatsappMessageId?: string | null
   sentById?: string | null
   sentByName?: string | null
   status?: string | null
+  rawType?: string | null
+  meta?: Record<string, string | null>
+  requireSavedMessage?: boolean
 }) {
   const safe = safeConversationSenderFields(args.waId)
   const now = new Date()
@@ -123,6 +127,7 @@ export async function recordWhatsAppOutboundMessage(args: {
     where: { waIdHash: safe.waIdHash },
     create: {
       ...safe,
+      displayName: args.displayName?.trim() || null,
       phoneNumberId: args.phoneNumberId || null,
       status: 'BOT_ACTIVE',
       lastOutboundAt: now,
