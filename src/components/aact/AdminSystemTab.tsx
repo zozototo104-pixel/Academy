@@ -2023,7 +2023,12 @@ export function AdminSystemTab() {
               <p className="mt-1 text-[10px] font-bold leading-relaxed text-slate-600">اسم قالب واتساب المعتمد في Meta الذي تُرسَل به دعوة الامتحان الشامل. القالب نفسه يُنشأ ويُعتمَد في حساب Meta (WhatsApp Manager ← Message Templates) ويجب أن يحمل 4 خانات نصية بالترتيب: 1) اسم المرشح 2) عنوان الامتحان 3) تاريخ انتهاء الدعوة 4) رابط الامتحان. بلا اسم محفوظ هنا تُرسَل الدعوة بالبريد فقط وتظهر واتساب «غير مهيأ» — لا إرسال صامت أبداً.</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {F('COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE', 'اسم قالب دعوة الامتحان الشامل', 'مثال: comprehensive_exam_invite_ar', 'text', 'اسم القالب كما هو في Meta بالضبط — ليس سراً ولا مفتاحاً')}
+                {F('COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE', 'لغة القالب المعتمدة في Meta', 'ar_EG', 'text', 'مثل ar_EG للعربية (مصر)، أو ar للعربية العامة. فارغة = ar للحفاظ على القوالب القديمة.')}
+                {F('COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID', 'معرّف حساب واتساب التجاري WABA ID (اختياري)', '123456789012345', 'text', 'يُستخدم للتحقق من حالة القالب ولغته قبل الإرسال. ليس رقم الهاتف ولا Phone Number ID، وفحص Meta يحتاج صلاحية whatsapp_business_management.')}
               </div>
+              <Button type="button" onClick={checkWhatsAppTemplate} disabled={testing || !form.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE?.trim()} variant="outline" className="mt-3 border-teal-300 font-extrabold text-teal-800">
+                {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="ml-2 h-4 w-4" />} فحص القالب عند Meta (بدون إرسال)
+              </Button>
             </div>
           </div>
           </div>
