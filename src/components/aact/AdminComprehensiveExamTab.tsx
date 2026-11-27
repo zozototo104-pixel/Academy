@@ -648,6 +648,21 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
+  const resumeComprehensiveInternetPlan = async () => {
+    if (!detail || internetRunLock.current) return
+    internetRunLock.current = true
+    try {
+      const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/from-internet`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'BACKGROUND_RESUME' }),
+      }), 'تعذر استكمال مهمة التوليد المحفوظة')
+      setInternetRunBusy(true)
+      setInternetRunProgress({ axis: data.job.axis, total: data.job.total, imported: data.job.imported, errors: [], status: data.job.status })
+      toast({ title: 'استُكمل التوليد من المحاور المحفوظة', description: 'سيستكمل الخادم الأسئلة الناقصة دون تغيير حصص المحاور أو إعادة الأسئلة الموجودة.' })
+    } catch (error: any) {
+      toast({ title: 'تعذر الاستكمال', description: error.message || 'حدث خطأ', variant: 'destructive' })
+    } finally { internetRunLock.current = false }
+  }
+
   const reviewQuestion = async (q: ExamQuestion, status: 'APPROVED' | 'REJECTED') => {
     if (!detail) return
     if (status === 'REJECTED' && !rejectReason.trim()) {
