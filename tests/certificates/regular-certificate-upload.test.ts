@@ -530,3 +530,30 @@ describe('regular certificate drag-editor stamp layout', () => {
     expect(adminUI).not.toContain('TOP_RIGHT')
   })
 })
+
+describe('shared certificate editor client-safe layout', () => {
+  test('browser UI does not import the server-side stamping module at runtime', () => {
+    const editor = readFileSync('src/components/aact/CertificateStampEditor.tsx', 'utf8')
+    const regular = readFileSync('src/components/aact/AdminExtras.tsx', 'utf8')
+    const exam = readFileSync('src/components/aact/AdminComprehensiveExamTab.tsx', 'utf8')
+    expect(editor).toContain("import type { LegacyStampLayout, StampTextField } from '@/lib/legacy-certificate-files'")
+    expect(regular).not.toContain("from '@/lib/legacy-certificate-files'")
+    expect(exam).not.toContain("from '@/lib/legacy-certificate-files'")
+  })
+
+  test('old corner values and saved custom positions match server normalization', async () => {
+    const { parseCertificateStampLayout, serializeCertificateStampLayout } = await import('../../src/components/aact/CertificateStampEditor')
+    const { normalizeStampLayout, serializeStampLayout } = await import('../../src/lib/legacy-certificate-files')
+    const inputs: Array<[string | null, string | null]> = [
+      [null, null], ['BOTTOM_LEFT', 'S'], ['TOP_RIGHT', 'L'], ['TOP_LEFT', 'M'], ['BOTTOM_RIGHT', 'M'],
+      [JSON.stringify({ qr: { x: 72, y: 30, size: 22 }, serial: { x: 72, y: 44, width: 34, fontSize: 1.6 } }), 'CUSTOM'],
+      [JSON.stringify({ qr: { x: 400, y: -9, size: 100 }, serial: { width: -3, fontSize: 99, lang: 'ar' } }), 'CUSTOM'],
+      ['{invalid-json', 'M'],
+    ]
+    for (const [position, size] of inputs) {
+      const client = parseCertificateStampLayout(position, size)
+      expect(client).toEqual(normalizeStampLayout(position ?? 'BOTTOM_LEFT', size ?? 'M'))
+      expect(serializeCertificateStampLayout(client)).toBe(serializeStampLayout(client))
+    }
+  })
+})
