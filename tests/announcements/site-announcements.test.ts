@@ -3,6 +3,7 @@ import {
   announcementVideoDescriptor,
   canManageSiteAnnouncements,
   filterActiveSiteAnnouncements,
+  firstUnseenAnnouncementCard,
   parseSiteAnnouncementsValue,
   validateAnnouncementInput,
   type SiteAnnouncement,
@@ -72,6 +73,19 @@ describe('site announcements', () => {
     expect(yt?.embedId).toBe('dQw4w9WgXcQ')
     expect(announcementVideoDescriptor(null)).toBeNull()
     expect(announcementVideoDescriptor('')).toBeNull()
+  })
+
+  test('first unseen card picks the newest unread card, one at a time', () => {
+    const items = [
+      announcement({ id: 'new-card', display: 'CARD', active: true }),
+      announcement({ id: 'old-card', display: 'CARD', active: true }),
+      announcement({ id: 'ticker', display: 'TICKER', active: true }),
+      announcement({ id: 'inactive-card', display: 'CARD', active: false }),
+    ]
+    expect(firstUnseenAnnouncementCard(items, [])?.id).toBe('new-card')
+    expect(firstUnseenAnnouncementCard(items, ['new-card'])?.id).toBe('old-card')
+    expect(firstUnseenAnnouncementCard(items, ['new-card', 'old-card'])).toBeNull()
+    expect(firstUnseenAnnouncementCard([], [])).toBeNull()
   })
 
   test('active filtering honors active flag and date window', () => {

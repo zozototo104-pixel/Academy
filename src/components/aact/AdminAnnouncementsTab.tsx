@@ -181,6 +181,9 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
                     <SelectItem value="CARD">بطاقة بارزة</SelectItem>
                   </SelectContent>
                 </Select>
+                {form.display === 'CARD' && (
+                  <p className="text-[11px] font-bold text-slate-500">تظهر كنافذة بارزة عند أول دخول للمستخدم للمنصة، مرة واحدة فقط لكل إعلان.</p>
+                )}
               </div>
             </div>
             <div className="space-y-1.5">

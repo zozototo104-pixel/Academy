@@ -112,6 +112,17 @@ export function announcementVideoDescriptor(videoUrl?: string | null): Announcem
   return { kind: 'embed', url: parsed.originalUrl, source: parsed.source, embedId: parsed.embedId, embedUrl: parsed.embedUrl }
 }
 
+// أول بطاقة بارزة لم يرها المستخدم بعد. القائمة مرتبة من الأحدث للأقدم
+// (الحفظ يضع الجديد أولاً)، فتُعرض بطاقة واحدة فقط في كل دخول — الأحدث
+// غير المقروءة — بدل تكديس النوافذ فوق بعضها.
+export function firstUnseenAnnouncementCard(items: SiteAnnouncement[], seenIds: Iterable<string>): SiteAnnouncement | null {
+  const seen = new Set(seenIds)
+  for (const item of items) {
+    if (item.display === 'CARD' && item.active && !seen.has(item.id)) return item
+  }
+  return null
+}
+
 export function parseSiteAnnouncementsValue(value: unknown): SiteAnnouncement[] {
   try {
     const parsed = typeof value === 'string' ? JSON.parse(value || '[]') : value
