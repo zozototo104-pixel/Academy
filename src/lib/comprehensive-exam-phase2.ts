@@ -22,6 +22,8 @@ export const COMPREHENSIVE_EXAM_INVITE_TOKEN_BYTES = 32
 export const COMPREHENSIVE_EXAM_CANDIDATE_FILE_MAX_BYTES = 10 * 1024 * 1024 // 10MB per file
 export const COMPREHENSIVE_EXAM_CANDIDATE_FILE_NAMESPACE = 'comprehensive-exam-candidates'
 export const COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE_KEY = 'COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE'
+export const COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE_KEY = 'COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE'
+export const COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID_KEY = 'COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID'
 export const COMPREHENSIVE_EXAM_CANDIDATE_STATUSES = ['PENDING_REVIEW', 'APPROVED', 'REJECTED'] as const
 export const COMPREHENSIVE_EXAM_INVITATION_STATUSES = ['PENDING', 'USED', 'EXPIRED', 'REVOKED'] as const
 
@@ -451,6 +453,16 @@ export async function readComprehensiveExamWhatsAppTemplate(): Promise<string | 
   return process.env.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE?.trim() || null
 }
 
+export async function readComprehensiveExamWhatsAppLanguage(): Promise<string> {
+  const row = await (db as any).setting?.findUnique?.({ where: { key: COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE_KEY } })
+  return String(row?.value || process.env.COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE || '').trim() || 'ar'
+}
+
+export async function readComprehensiveExamWhatsAppWabaId(): Promise<string> {
+  const row = await (db as any).setting?.findUnique?.({ where: { key: COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID_KEY } })
+  return String(row?.value || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '').trim()
+}
+
 export type ComprehensiveInviteChannelStatus = 'SENT' | 'SKIPPED' | 'FAILED' | 'NOT_CONFIGURED'
 
 export type ComprehensiveInviteDelivery = {
@@ -509,6 +521,8 @@ export async function sendComprehensiveExamInvite(input: ComprehensiveInviteSend
         error: 'لم يُحفظ اسم قالب واتساب بعد — احفظه في لوحة الإدارة ← النظام ← قالب واتساب لدعوة الامتحان الشامل',
       }
     } else {
+      const languageCode = await readComprehensiveExamWhatsAppLanguage()
+      const wabaId = await readComprehensiveExamWhatsAppWabaId()
       const phone = normalizePhone(input.phone)
       const digits = phone.replace(/\D/g, '')
       if (digits.length < 8 || digits.length > 15) {
@@ -521,7 +535,7 @@ export async function sendComprehensiveExamInvite(input: ComprehensiveInviteSend
           input.examTitle,
           formatInviteExpiryDate(input.expiresAt),
           input.inviteUrl,
-        ])
+        ], { languageCode, wabaId })
         delivery.whatsapp = { status: 'SENT' }
       }
     }
