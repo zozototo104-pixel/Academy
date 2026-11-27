@@ -211,7 +211,7 @@ describe('comprehensive exam review UX', () => {
     expect(view).toContain('bulkApproveLock.current = false')
   })
 
-  test('specialty-wide internet generation requires a reviewed blueprint and supports stop/progress', () => {
+  test('specialty-wide internet generation queues a reviewed blueprint for server-side work', () => {
     expect(view).toContain('تحضير محاور التخصص')
     expect(view).toContain('كتابة المحاور يدوياً')
     expect(view).toContain('تحديد جميع المحاور')
