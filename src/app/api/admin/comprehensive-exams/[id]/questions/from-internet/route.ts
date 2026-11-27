@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
@@ -46,24 +47,35 @@ export async function readTavilyApiKey(): Promise<string | null> {
 // مفتاح → 422 صريح، بلا نتائج → 422 صريح، فشل البحث → 502 صريح،
 // دفعة فارغة كلياً → فشل صريح. الدفعات الجزئية تحفظ الناجي وتبلّغ
 // عن النقص.
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function handleInternetPost(req: NextRequest, ctx: { params: Promise<{ id: string }> }, adminOverride?: { id: string; name?: string | null }) {
   try {
-    const admin = await requireAdmin()
+    // The cron worker calls this module-private handler only after claiming
+    // a durable admin-approved job. The public POST still requires a session.
+    const admin = adminOverride || await requireAdmin()
     const { id } = await ctx.params
     const exam = await db.comprehensiveExam.findUnique({
       where: { id },
       select: { id: true, status: true, title: true, level: true, programId: true, specializationProgramId: true },
     })
     if (!exam) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
-    if (exam.status !== 'DRAFT') {
-      return NextResponse.json({ error: 'لا يمكن إضافة أسئلة لامتحان منشور — ألغِ نشره أولاً' }, { status: 409 })
-    }
     let body: any = {}
     try {
       body = await req.json()
     } catch {
       body = {}
     }
+    if (body?.action === 'BACKGROUND_STATUS') {
+      const saved = await readInternetBackgroundJob(id)
+      return NextResponse.json({ ok: true, job: saved?.job ? {
+        ...publicInternetJob(saved.job), axisProgress: await readInternetAxisProgress(saved.job),
+      } : null }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+    if (body?.action === 'BACKGROUND_PAUSE') return pauseInternetBackgroundJob(id)
+    if (exam.status !== 'DRAFT') {
+      return NextResponse.json({ error: 'لا يمكن إضافة أسئلة لامتحان منشور — ألغِ نشره أولاً' }, { status: 409 })
+    }
+    if (body?.action === 'BACKGROUND_START') return startInternetBackgroundJob(exam, admin, body)
+    if (body?.action === 'BACKGROUND_RESUME') return resumeInternetBackgroundJob(id, admin)
     if (body?.action === 'PLAN') {
       if (!exam.specializationProgramId) return NextResponse.json({ error: 'الامتحان غير مربوط بتخصص علمي محدد' }, { status: 422 })
       const specialty = await db.program.findUnique({
@@ -268,7 +280,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     const truncated = generated.questions.length - saved.imported
     await audit(
-      { id: admin.id, name: admin.name },
+      { id: admin.id, name: admin.name || 'Admin' },
       'GENERATE_COMPREHENSIVE_EXAM_QUESTIONS_FROM_INTERNET',
       'ComprehensiveExam',
       id,
@@ -298,4 +310,275 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     console.error('comprehensive exam internet error:', e)
     return NextResponse.json({ error: 'تعذر توليد الأسئلة من البحث عبر الإنترنت' }, { status: 500 })
   }
+}
+
+// Public requests always authenticate through requireAdmin. Only the cron
+// worker below may reuse the same guarded generation/save path with the
+// administrator identity persisted when the reviewed blueprint was queued.
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  return handleInternetPost(req, ctx)
+}
+
+const INTERNET_JOB_PREFIX = 'COMPREHENSIVE_INTERNET_JOB_V1:'
+const INTERNET_JOB_LEASE_MS = 330_000 // longer than the function's 300s limit
+type InternetJobStatus = 'QUEUED' | 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'COMPLETED_WITH_GAPS'
+type InternetJobAxis = { topic: string; target: number; attempts: number; stalled: number }
+type InternetBackgroundJob = {
+  version: 1
+  examId: string
+  adminId: string
+  adminName: string
+  status: InternetJobStatus
+  axes: InternetJobAxis[]
+  axisIndex: number
+  imported: number
+  errors: string[]
+  leaseId: string | null
+  lockedUntil: string | null
+  retryAt: string | null
+  updatedAt: string
+}
+
+function internetJobKey(examId: string) { return `${INTERNET_JOB_PREFIX}${examId}` }
+
+function parseInternetJob(raw: string): InternetBackgroundJob | null {
+  try {
+    const job = JSON.parse(raw) as InternetBackgroundJob
+    if (job?.version !== 1 || !job.examId || !Array.isArray(job.axes) || job.axes.length < 1 || job.axes.length > 10) return null
+    if (!['QUEUED', 'RUNNING', 'PAUSED', 'COMPLETED', 'COMPLETED_WITH_GAPS'].includes(job.status)) return null
+    if (job.axes.some((a) => typeof a.topic !== 'string' || a.topic.length < 10 || a.topic.length > 160 || !Number.isInteger(a.target) || a.target < 1)) return null
+    if (!Number.isInteger(job.axisIndex) || job.axisIndex < 0 || job.axisIndex > job.axes.length) return null
+    return job
+  } catch { return null }
+}
+
+function publicInternetJob(job: InternetBackgroundJob) {
+  return {
+    status: job.status, axes: job.axes.map(({ topic, target }) => ({ topic, target })),
+    axis: Math.min(job.axisIndex + 1, job.axes.length), total: job.axes.length,
+    imported: job.imported, errors: job.errors, retryAt: job.retryAt, updatedAt: job.updatedAt,
+  }
+}
+
+// Show saved, academically eligible questions per axis. This is derived from
+// the authoritative question rows, so it also reflects edits and approvals
+// made outside the background worker and survives tab/device changes.
+async function readInternetAxisProgress(job: InternetBackgroundJob) {
+  const sourceIds = job.axes.map((axis) => internetSourceId(axis.topic))
+  const groups = await db.comprehensiveExamQuestion.groupBy({
+    by: ['sourceBookId'],
+    where: { examId: job.examId, source: 'AI_INTERNET', sourceBookId: { in: sourceIds }, status: { in: ['APPROVED', 'PENDING_REVIEW'] } },
+    _count: { _all: true },
+  })
+  const savedBySource = new Map(groups.map((group) => [group.sourceBookId, group._count._all]))
+  return job.axes.map((axis, index) => {
+    const saved = Math.min(axis.target, savedBySource.get(sourceIds[index]) || 0)
+    return { topic: axis.topic, target: axis.target, saved, remaining: Math.max(0, axis.target - saved) }
+  })
+}
+
+async function readInternetBackgroundJob(examId: string) {
+  const row = await db.setting.findUnique({ where: { key: internetJobKey(examId) } })
+  return row ? { raw: row.value, job: parseInternetJob(row.value) } : null
+}
+
+// Compare-and-swap prevents two administrators or overlapping cron ticks from
+// overwriting each other's job state. Questions themselves are saved by the
+// existing transaction in handleInternetPost, which rechecks 100/axis caps.
+async function replaceInternetJob(examId: string, previousRaw: string, next: InternetBackgroundJob) {
+  const result = await db.setting.updateMany({
+    where: { key: internetJobKey(examId), value: previousRaw },
+    data: { value: JSON.stringify(next) },
+  })
+  return result.count === 1
+}
+
+async function startInternetBackgroundJob(
+  exam: { id: string; status: string; specializationProgramId: string | null },
+  admin: { id: string; name?: string | null },
+  body: any,
+) {
+  if (exam.status !== 'DRAFT' || !exam.specializationProgramId) {
+    return NextResponse.json({ error: 'يجب أن يكون الامتحان مسودة مرتبطة بتخصص علمي' }, { status: 409 })
+  }
+  if (body?.reviewed !== true || !Array.isArray(body.axes) || body.axes.length < 1 || body.axes.length > 10) {
+    return NextResponse.json({ error: 'راجع محاور التخصص وحدد من 1 إلى 10 محاور قبل التشغيل' }, { status: 422 })
+  }
+  const axes = body.axes.map((axis: unknown) => String(axis || '').trim()) as string[]
+  if (axes.some((axis) => axis.length < 10 || axis.length > 160) || new Set(axes.map((axis) => axis.normalize('NFKC').toLowerCase())).size !== axes.length) {
+    return NextResponse.json({ error: 'المحاور غير صالحة أو مكررة' }, { status: 422 })
+  }
+  const specialty = await db.program.findUnique({ where: { id: exam.specializationProgramId }, select: { titleAr: true } })
+  if (!specialty) return NextResponse.json({ error: 'تخصص الامتحان غير موجود' }, { status: 422 })
+  for (const axis of axes) {
+    const issue = internetAcademicTopicIssue(axis, specialty.titleAr)
+    if (issue) return NextResponse.json({ error: issue, code: 'ACADEMIC_TOPIC_REQUIRED' }, { status: 422 })
+  }
+  if (!await readTavilyApiKey()) return NextResponse.json({ error: 'مفتاح Tavily غير محفوظ', code: 'TAVILY_KEY_MISSING' }, { status: 422 })
+  const existing = await readInternetBackgroundJob(exam.id)
+  const liveLease = !!existing?.job?.lockedUntil && new Date(existing.job.lockedUntil).getTime() > Date.now()
+  if (existing?.job && (existing.job.status === 'QUEUED' ||
+    (['RUNNING', 'PAUSED'].includes(existing.job.status) && liveLease))) {
+    return NextResponse.json({
+      error: existing.job.status === 'PAUSED' ? 'الدفعة السابقة ما زالت قيد الإنهاء؛ انتظر قليلاً قبل بدء خطة جديدة' : 'توليد الامتحان يعمل بالفعل في الخلفية',
+      code: 'INTERNET_JOB_ACTIVE', job: publicInternetJob(existing.job),
+    }, { status: 409 })
+  }
+  const perAxis = Math.floor(COMPREHENSIVE_EXAM_QUESTION_COUNT / axes.length)
+  const job: InternetBackgroundJob = {
+    version: 1, examId: exam.id, adminId: admin.id, adminName: admin.name || 'Admin',
+    status: 'QUEUED', axes: axes.map((topic, index) => ({ topic, target: perAxis + (index < COMPREHENSIVE_EXAM_QUESTION_COUNT % axes.length ? 1 : 0), attempts: 0, stalled: 0 })),
+    axisIndex: 0, imported: 0, errors: [], leaseId: null, lockedUntil: null, retryAt: null,
+    updatedAt: new Date().toISOString(),
+  }
+  if (existing) {
+    if (!await replaceInternetJob(exam.id, existing.raw, job)) {
+      return NextResponse.json({ error: 'تغيّرت حالة وظيفة التوليد؛ حدّث الصفحة وحاول مجدداً' }, { status: 409 })
+    }
+  } else {
+    try { await db.setting.create({ data: { key: internetJobKey(exam.id), value: JSON.stringify(job) } }) }
+    catch (error: any) {
+      if (error?.code === 'P2002') return NextResponse.json({ error: 'بدأ توليد آخر لهذا الامتحان بالفعل' }, { status: 409 })
+      throw error
+    }
+  }
+  console.info('[comprehensive-internet-job] queued', { examId: exam.id, axes: axes.length })
+  return NextResponse.json({ ok: true, job: publicInternetJob(job) })
+}
+
+async function pauseInternetBackgroundJob(examId: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const current = await readInternetBackgroundJob(examId)
+    if (!current?.job) return NextResponse.json({ error: 'لا توجد مهمة توليد لهذا الامتحان' }, { status: 404 })
+    if (!['QUEUED', 'RUNNING'].includes(current.job.status)) return NextResponse.json({ ok: true, job: publicInternetJob(current.job) })
+    const next: InternetBackgroundJob = { ...current.job, status: 'PAUSED', retryAt: null, updatedAt: new Date().toISOString() }
+    if (await replaceInternetJob(examId, current.raw, next)) return NextResponse.json({ ok: true, job: publicInternetJob(next) })
+  }
+  return NextResponse.json({ error: 'تغيّرت المهمة أثناء الإيقاف؛ أعد المحاولة' }, { status: 409 })
+}
+
+// Resume the SAME reviewed distribution rather than recomputing the targets
+// from whatever axes happen to be selected in a browser. Completed axes are
+// skipped by the existing idempotent saver at no search/model cost.
+async function resumeInternetBackgroundJob(examId: string, admin: { id: string; name?: string | null }) {
+  const current = await readInternetBackgroundJob(examId)
+  if (!current?.job) return NextResponse.json({ error: 'لا توجد مهمة محفوظة لاستكمالها' }, { status: 404 })
+  if (!['PAUSED', 'COMPLETED_WITH_GAPS'].includes(current.job.status)) {
+    return NextResponse.json({ error: 'يمكن الاستكمال فقط بعد الإيقاف أو عند وجود محاور ناقصة' }, { status: 409 })
+  }
+  if (current.job.leaseId && current.job.lockedUntil && new Date(current.job.lockedUntil).getTime() > Date.now()) {
+    return NextResponse.json({ error: 'الدفعة السابقة ما زالت قيد الإنهاء؛ انتظر قليلاً ثم استكمل' }, { status: 409 })
+  }
+  const progress = await readInternetAxisProgress(current.job)
+  const firstMissingAxis = progress.findIndex((axis) => axis.remaining > 0)
+  if (firstMissingAxis < 0) return NextResponse.json({ error: 'اكتملت حصص جميع المحاور بالفعل؛ راجع الأسئلة واعتمدها' }, { status: 409 })
+  if (!await readTavilyApiKey()) return NextResponse.json({ error: 'مفتاح Tavily غير محفوظ', code: 'TAVILY_KEY_MISSING' }, { status: 422 })
+  const next: InternetBackgroundJob = {
+    ...current.job, adminId: admin.id, adminName: admin.name || 'Admin', status: 'QUEUED', axisIndex: firstMissingAxis,
+    axes: current.job.axes.map((axis) => ({ ...axis, attempts: 0, stalled: 0 })),
+    errors: [], leaseId: null, lockedUntil: null, retryAt: null, updatedAt: new Date().toISOString(),
+  }
+  if (!await replaceInternetJob(examId, current.raw, next)) {
+    return NextResponse.json({ error: 'تغيّرت حالة التوليد أثناء الاستكمال؛ حدّث الصفحة وحاول مجدداً' }, { status: 409 })
+  }
+  console.info('[comprehensive-internet-job] resumed', { examId, axes: next.axes.length })
+  return NextResponse.json({ ok: true, job: publicInternetJob(next) })
+}
+
+// Invoked only by the CRON_SECRET-protected scheduled route. One tick does
+// one batch; a lease recovers after function termination and the saved
+// per-axis question counts make retries idempotent. No browser is required.
+export async function runNextComprehensiveInternetBackgroundStep() {
+  const rows = await db.setting.findMany({
+    where: {
+      key: { startsWith: INTERNET_JOB_PREFIX },
+      OR: [{ value: { contains: '"status":"QUEUED"' } }, { value: { contains: '"status":"RUNNING"' } }],
+    },
+    orderBy: { updatedAt: 'asc' }, take: 100,
+  })
+  const now = Date.now()
+  for (const row of rows) {
+    const job = parseInternetJob(row.value)
+    if (!job || internetJobKey(job.examId) !== row.key || !['QUEUED', 'RUNNING'].includes(job.status)) continue
+    if (job.status === 'RUNNING' && job.lockedUntil && new Date(job.lockedUntil).getTime() > now) continue
+    if (job.retryAt && new Date(job.retryAt).getTime() > now) continue
+    const leaseId = randomUUID()
+    const claimed: InternetBackgroundJob = { ...job, status: 'RUNNING', leaseId, lockedUntil: new Date(now + INTERNET_JOB_LEASE_MS).toISOString(), updatedAt: new Date().toISOString() }
+    if (!await replaceInternetJob(job.examId, row.value, claimed)) continue
+    const owner = await db.user.findUnique({ where: { id: job.adminId }, select: { role: true, status: true } })
+    if (!owner || owner.role !== 'ADMIN' || owner.status !== 'ACTIVE') {
+      const blocked: InternetBackgroundJob = {
+        ...claimed, status: 'PAUSED', leaseId: null, lockedUntil: null,
+        errors: [...claimed.errors, 'توقّف التوليد لأن صلاحية المدير الذي بدأ المهمة لم تعد فعالة'],
+        updatedAt: new Date().toISOString(),
+      }
+      if (await replaceInternetJob(job.examId, JSON.stringify(claimed), blocked)) return publicInternetJob(blocked)
+      return null
+    }
+    const axis = claimed.axes[claimed.axisIndex]
+    let responseStatus = 500
+    let response: any = {}
+    if (axis) {
+      try {
+        const res = await handleInternetPost(new NextRequest(`http://localhost/api/admin/comprehensive-exams/${job.examId}/questions/from-internet`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'COMPREHENSIVE', topic: axis.topic, count: Math.min(10, axis.target), axisTarget: axis.target }),
+        }), { params: Promise.resolve({ id: job.examId }) }, { id: job.adminId, name: job.adminName })
+        responseStatus = res.status
+        response = await res.json().catch(() => ({}))
+      } catch (error: any) {
+        response = { error: String(error?.message || 'خطأ أثناء تشغيل العامل').slice(0, 180), code: 'WORKER_ERROR' }
+      }
+    }
+    // A pause may have been requested while the current batch was running.
+    // Preserve that command and the resulting saved questions together.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const latest = await readInternetBackgroundJob(job.examId)
+      if (!latest?.job || latest.job.leaseId !== leaseId) break
+      const next: InternetBackgroundJob = { ...latest.job, axes: latest.job.axes.map((a) => ({ ...a })), updatedAt: new Date().toISOString(), lockedUntil: null, leaseId: null, retryAt: null }
+      if (!axis) {
+        next.status = next.errors.length ? 'COMPLETED_WITH_GAPS' : 'COMPLETED'
+      } else {
+        const currentAxis = next.axes[next.axisIndex]
+        const imported = Number(response?.imported || 0)
+        next.imported += Math.max(0, imported)
+        currentAxis.attempts++
+        currentAxis.stalled = imported > 0 ? 0 : currentAxis.stalled + 1
+        const remaining = Number(response?.axisRemaining ?? currentAxis.target)
+        const hardFailure = responseStatus === 401 || responseStatus === 409 ||
+          response?.code === 'TAVILY_KEY_MISSING' || (response?.code === 'TAVILY_SEARCH_FAILED' && ['AUTH', 'PLAN_LIMIT'].includes(response?.tavilyErrorKind))
+        const sourceFailure = responseStatus === 422 && ['INADEQUATE_SOURCE_DIVERSITY', 'INSUFFICIENT_SOURCE', 'ACADEMIC_TOPIC_REQUIRED', 'DUPLICATE_OF_EXISTING_QUESTION'].includes(response?.code)
+        const message = String(response?.error || 'الأسئلة الموثقة غير كافية في هذا المحور').slice(0, 180)
+        if (hardFailure) {
+          next.errors.push(`«${axis.topic}»: ${message}`)
+          next.status = 'PAUSED'
+        } else if (response?.examFull) {
+          next.axisIndex = next.axes.length
+          if (remaining <= 0 && claimed.axisIndex === next.axes.length - 1 && !next.errors.length) {
+            next.status = 'COMPLETED'
+          } else {
+            next.status = 'COMPLETED_WITH_GAPS'
+            next.errors.push('وصل الامتحان إلى سقف 100 سؤال قبل إكمال حصص بعض المحاور')
+          }
+        } else if (responseStatus === 200 && remaining <= 0) {
+          next.axisIndex++
+        } else if (sourceFailure || currentAxis.attempts >= axis.target + 6 || currentAxis.stalled >= 5) {
+          next.errors.push(`«${axis.topic}»: ${responseStatus === 200 ? `ينقص ${Math.max(0, remaining)} سؤالاً موثقاً` : message}`)
+          next.axisIndex++
+        } else if (responseStatus !== 200) {
+          next.retryAt = new Date(Date.now() + Math.min(600_000, 60_000 * 2 ** Math.min(currentAxis.stalled, 3))).toISOString()
+        }
+        if (next.axisIndex >= next.axes.length && next.status !== 'PAUSED') next.status = next.errors.length ? 'COMPLETED_WITH_GAPS' : 'COMPLETED'
+        else if (next.status !== 'PAUSED') next.status = 'QUEUED'
+      }
+      if (latest.job.status === 'PAUSED') next.status = 'PAUSED'
+      if (await replaceInternetJob(job.examId, latest.raw, next)) {
+        console.info('[comprehensive-internet-job] step', { examId: job.examId, axis: claimed.axisIndex + 1, imported: response?.imported || 0, responseStatus, code: response?.code || null, status: next.status })
+        return publicInternetJob(next)
+      }
+    }
+    console.error('[comprehensive-internet-job] could not checkpoint', { examId: job.examId, leaseId })
+    return null // the lease expires; the next tick recounts saved questions
+  }
+  return null
 }

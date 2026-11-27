@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Award, Download, Eye, FileArchive, FileSpreadsheet, Loader2, Mail, PenLine, Plus, RefreshCw, Search, ShieldOff, Trash2, Upload } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
+import CertificateStampEditor, { CERTIFICATE_STAMP_FIELDS, DEFAULT_CERTIFICATE_STAMP_LAYOUT, parseCertificateStampLayout, type CertificateStampField, type CertificateStampLayout } from '@/components/aact/CertificateStampEditor'
 
 type LegacyGraduateCertificate = {
   id: string
@@ -106,99 +107,6 @@ async function jsonOrThrow(res: Response, fallback: string) {
   return data
 }
 
-type StampField = 'holderName' | 'program' | 'grade' | 'issuedAt' | 'serial' | 'legacySerial' | 'qr'
-type StampTextField = { x: number; y: number; width: number; fontSize: number; color?: string; align?: 'left' | 'center' | 'right'; fontFamily?: string; lang?: 'en' | 'ar'; visible?: boolean }
-type StampLayout = {
-  holderName: StampTextField
-  program: StampTextField
-  grade: StampTextField
-  issuedAt: StampTextField
-  qr: { x: number; y: number; size: number; visible?: boolean }
-  serial: StampTextField
-  legacySerial: StampTextField
-}
-
-const LEGACY_STAMP_LABELS: Record<StampField, string> = { holderName: 'اسم الطالب', program: 'البرنامج', grade: 'التقدير', issuedAt: 'تاريخ الإصدار', serial: 'الرقم التسلسلي', legacySerial: 'الرقم القديم', qr: 'رمز QR' }
-const LEGACY_TEXT_FIELDS: StampField[] = ['holderName', 'program', 'grade', 'issuedAt', 'serial', 'legacySerial']
-const DEFAULT_TEXT_STAMP: Omit<StampTextField, 'x' | 'y'> = { width: 70, fontSize: 2.2, color: '#0f2b46', align: 'center', fontFamily: 'Arial', lang: 'en', visible: true }
-const DEFAULT_STAMP_LAYOUT: StampLayout = {
-  holderName: { ...DEFAULT_TEXT_STAMP, x: 50, y: 36, width: 72, fontSize: 4.2, visible: false },
-  program: { ...DEFAULT_TEXT_STAMP, x: 50, y: 51, width: 76, fontSize: 2.5, color: '#a8841a', visible: false },
-  grade: { ...DEFAULT_TEXT_STAMP, x: 50, y: 62, width: 44, fontSize: 1.7, visible: false },
-  issuedAt: { ...DEFAULT_TEXT_STAMP, x: 18, y: 90, width: 26, fontSize: 1.15, align: 'left', visible: false },
-  qr: { x: 15, y: 80, size: 16, visible: true },
-  serial: { ...DEFAULT_TEXT_STAMP, x: 15, y: 95, width: 30, fontSize: 1.25, visible: true },
-  legacySerial: { ...DEFAULT_TEXT_STAMP, x: 15, y: 92, width: 30, fontSize: 1.25, visible: true },
-}
-
-function clampNumber(value: unknown, min: number, max: number, fallback: number) {
-  const n = Number(value)
-  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback
-}
-
-function legacyStampLayout(positionValue?: string | null, sizeValue?: string | null): StampLayout {
-  const position = String(positionValue || 'BOTTOM_LEFT').toUpperCase()
-  const size = String(sizeValue || 'M').toUpperCase()
-  const qrSize = size === 'L' ? 20 : size === 'S' ? 12 : 16
-  const isRight = position.endsWith('RIGHT')
-  const isTop = position.startsWith('TOP')
-  const x = isRight ? 100 - (7 + qrSize / 2) : 7 + qrSize / 2
-  const qrY = isTop ? 7 + qrSize / 2 : 100 - (10 + qrSize / 2)
-  const serialY = isTop ? Math.min(96, qrY + qrSize / 2 + 4) : 95
-  const legacySerialY = isTop ? Math.min(96, serialY + 4) : serialY - 3
-  return {
-    ...DEFAULT_STAMP_LAYOUT,
-    qr: { x, y: qrY, size: qrSize, visible: true },
-    serial: { ...DEFAULT_TEXT_STAMP, x, y: serialY, width: Math.max(20, qrSize * 1.8), fontSize: size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25, visible: true },
-    legacySerial: { ...DEFAULT_TEXT_STAMP, x, y: legacySerialY, width: Math.max(20, qrSize * 1.8), fontSize: size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25, visible: true },
-  }
-}
-
-function normalizeTextStamp(raw: any, fallback: StampTextField): StampTextField {
-  if (!raw || typeof raw !== 'object') return { ...fallback }
-  return {
-    x: clampNumber(raw.x, 1, 99, fallback.x),
-    y: clampNumber(raw.y, 1, 99, fallback.y),
-    width: clampNumber(raw.width, 6, 95, fallback.width),
-    fontSize: clampNumber(raw.fontSize, 0.5, 8, fallback.fontSize),
-    color: String(raw.color || fallback.color || '#0f2b46'),
-    align: raw.align === 'left' || raw.align === 'right' || raw.align === 'center' ? raw.align : fallback.align || 'center',
-    fontFamily: String(raw.fontFamily || fallback.fontFamily || 'Arial'),
-    lang: raw.lang === 'ar' ? 'ar' : fallback.lang || 'en',
-    visible: typeof raw.visible === 'boolean' ? raw.visible : fallback.visible,
-  }
-}
-
-function normalizeQrStamp(raw: any, fallback: StampLayout['qr']): StampLayout['qr'] {
-  if (!raw || typeof raw !== 'object') return { ...fallback }
-  return {
-    x: clampNumber(raw.x, 1, 99, fallback.x),
-    y: clampNumber(raw.y, 1, 99, fallback.y),
-    size: clampNumber(raw.size, 4, 45, fallback.size),
-    visible: typeof raw.visible === 'boolean' ? raw.visible : fallback.visible,
-  }
-}
-
-function parseStampLayout(positionValue?: string | null, sizeValue?: string | null): StampLayout {
-  const fallback = legacyStampLayout(positionValue, sizeValue)
-  const rawText = String(positionValue || '').trim()
-  if (!rawText.startsWith('{')) return fallback
-  try {
-    const raw = JSON.parse(rawText)
-    return {
-      holderName: normalizeTextStamp(raw?.holderName, fallback.holderName),
-      program: normalizeTextStamp(raw?.program, fallback.program),
-      grade: normalizeTextStamp(raw?.grade, fallback.grade),
-      issuedAt: normalizeTextStamp(raw?.issuedAt, fallback.issuedAt),
-      qr: normalizeQrStamp(raw?.qr, fallback.qr),
-      serial: normalizeTextStamp(raw?.serial, fallback.serial),
-      legacySerial: normalizeTextStamp(raw?.legacySerial, fallback.legacySerial),
-    }
-  } catch {
-    return fallback
-  }
-}
-
 export default function AdminLegacyGraduatesTab() {
   const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const openStudentPreview = useAppStore((s) => s.openStudentPreview)
@@ -214,12 +122,9 @@ export default function AdminLegacyGraduatesTab() {
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null)
   const [stampPreviewUrl, setStampPreviewUrl] = useState<string | null>(null)
   const [storedBackdropUrl, setStoredBackdropUrl] = useState<string | null>(null)
-  const [stampLayout, setStampLayout] = useState<StampLayout>(DEFAULT_STAMP_LAYOUT)
-  const [selectedStampField, setSelectedStampField] = useState<StampField>('qr')
-  const stampCanvasRef = useRef<HTMLDivElement | null>(null)
+  const [stampLayout, setStampLayout] = useState<CertificateStampLayout>(DEFAULT_CERTIFICATE_STAMP_LAYOUT)
+  const [selectedStampField, setSelectedStampField] = useState<CertificateStampField>('qr')
   const stampViewerRef = useRef<HTMLDivElement | null>(null)
-  const stampDragRef = useRef<StampField | null>(null)
-  const stampResizeRef = useRef<{ field: StampField; startX: number; startY: number; startSize: number; startWidth: number; startFontSize: number } | null>(null)
   const [excelFile, setExcelFile] = useState<File | null>(null)
   const [importRows, setImportRows] = useState<ImportPreviewRow[]>([])
   const [programOverrides, setProgramOverrides] = useState<Record<string, string>>({})
@@ -551,7 +456,7 @@ export default function AdminLegacyGraduatesTab() {
       ? `/api/admin/legacy-graduates/${cert.id}/original`
       : null)
     setSelectedStampField('qr')
-    setStampLayout(parseStampLayout(cert.qrPosition, cert.qrSize))
+    setStampLayout(parseCertificateStampLayout(cert.qrPosition, cert.qrSize))
   }
 
   async function stampUpload(preview: boolean) {
@@ -592,58 +497,6 @@ export default function AdminLegacyGraduatesTab() {
       toast({ title: preview ? 'فشل إنشاء المعاينة' : 'فشل حفظ الملف المختوم', description: String(error?.message || error), variant: 'destructive' })
     } finally {
       setBusy(null)
-    }
-  }
-
-  function moveStampField(field: StampField, clientX: number, clientY: number) {
-    const rect = stampCanvasRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const x = Math.max(1, Math.min(99, ((clientX - rect.left) / rect.width) * 100))
-    const y = Math.max(1, Math.min(99, ((clientY - rect.top) / rect.height) * 100))
-    setStampLayout((prev) => ({ ...prev, [field]: { ...prev[field], x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) } }))
-  }
-
-  function resizeStampField(clientX: number, clientY: number) {
-    const active = stampResizeRef.current
-    const rect = stampCanvasRef.current?.getBoundingClientRect()
-    if (!active || !rect) return
-    const delta = (((clientX - active.startX) / rect.width) + ((clientY - active.startY) / rect.height)) * 50
-    if (active.field === 'qr') {
-      const size = Math.max(4, Math.min(45, active.startSize + delta))
-      setStampLayout((prev) => ({ ...prev, qr: { ...prev.qr, size: Number(size.toFixed(1)) } }))
-      return
-    }
-    const width = Math.max(6, Math.min(95, active.startWidth + delta))
-    const fontSize = Math.max(0.5, Math.min(8, active.startFontSize + delta * 0.08))
-    setStampLayout((prev) => ({ ...prev, [active.field]: { ...(prev[active.field] as StampTextField), width: Number(width.toFixed(1)), fontSize: Number(fontSize.toFixed(1)) } }))
-  }
-
-  function stampFieldStyle(field: StampField) {
-    const cfg = stampLayout[field]
-    const isQr = field === 'qr'
-    const textCfg = isQr ? null : cfg as StampTextField
-    return {
-      position: 'absolute' as const,
-      left: `${cfg.x}%`,
-      top: `${cfg.y}%`,
-      width: isQr ? `${stampLayout.qr.size}%` : `${textCfg?.width ?? 30}%`,
-      aspectRatio: isQr ? '1 / 1' : undefined,
-      minHeight: isQr ? undefined : '22px',
-      transform: 'translate(-50%, -50%)',
-      textAlign: (textCfg?.align || 'center') as any,
-      direction: isQr ? undefined : (textCfg?.lang === 'ar' ? 'rtl' as const : 'ltr' as const),
-      fontFamily: isQr ? undefined : (textCfg?.fontFamily || 'Arial'),
-      fontSize: isQr ? undefined : `clamp(10px, ${textCfg?.fontSize ?? 1.2}vw, 42px)`,
-      fontWeight: 900,
-      lineHeight: 1.2,
-      cursor: 'move',
-      touchAction: 'none' as const,
-      overflow: 'visible' as const,
-      border: selectedStampField === field ? '2px solid #c9a227' : '1px dashed rgba(15,43,70,.35)',
-      background: isQr ? 'white' : 'rgba(255,255,255,.78)',
-      borderRadius: '10px',
-      padding: isQr ? '4px' : '4px 8px',
-      color: textCfg?.color || '#0f2b46',
     }
   }
 
@@ -964,8 +817,6 @@ export default function AdminLegacyGraduatesTab() {
           setUploadFile(null)
           clearStampPreview()
           setStoredBackdropUrl(null)
-          stampDragRef.current = null
-          stampResizeRef.current = null
         }
       }}>
         <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto" dir="rtl">
@@ -975,94 +826,27 @@ export default function AdminLegacyGraduatesTab() {
           </DialogHeader>
           <div className="space-y-4">
             <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-            <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-              <div className="space-y-3">
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] font-bold leading-5 text-emerald-900">
-                  الشهادة الأصلية لا يُعاد رسمها. يتم فقط إضافة QR والرقم التسلسلي فوق الملف كما رفعته.
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] font-black text-slate-600">العنصر المحدد</Label>
-                  <Select value={selectedStampField} onValueChange={(v) => setSelectedStampField(v as StampField)}>
-                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {(Object.keys(LEGACY_STAMP_LABELS) as StampField[]).map((field) => <SelectItem key={field} value={field}>{LEGACY_STAMP_LABELS[field]}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button type="button" variant="outline" className="w-full bg-white text-xs font-black" onClick={() => setStampLayout((prev) => ({ ...prev, [selectedStampField]: { ...prev[selectedStampField], visible: prev[selectedStampField]?.visible === false } }))}>
-                  {stampLayout[selectedStampField]?.visible === false ? 'إظهار العنصر' : 'إخفاء العنصر'}
-                </Button>
-                {LEGACY_TEXT_FIELDS.includes(selectedStampField) && (
-                  <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-3">
-                    <div className="space-y-1"><Label className="text-[10px] font-bold">حجم الخط</Label><Input type="number" step="0.1" min="0.5" max="8" value={(stampLayout[selectedStampField] as StampTextField).fontSize ?? 1.2} onChange={(e) => setStampLayout((prev) => ({ ...prev, [selectedStampField]: { ...(prev[selectedStampField] as StampTextField), fontSize: Number(e.target.value || 1.2) } }))} /></div>
-                    <div className="space-y-1"><Label className="text-[10px] font-bold">العرض %</Label><Input type="number" min="6" max="95" value={(stampLayout[selectedStampField] as StampTextField).width ?? 30} onChange={(e) => setStampLayout((prev) => ({ ...prev, [selectedStampField]: { ...(prev[selectedStampField] as StampTextField), width: Number(e.target.value || 30) } }))} /></div>
-                  </div>
-                )}
-                <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">
-                  اسحب أي عنصر لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره. الافتراضي يخفي الاسم والبرنامج والتقدير والتاريخ للشهادات الجاهزة.
-                </div>
-              </div>
-              <div
-                ref={stampCanvasRef}
-                className={`relative overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner ${uploadPreviewUrl || storedBackdropUrl ? '' : 'aspect-[1.414/1]'}`}
-                onPointerMove={(e) => {
-                  if (stampResizeRef.current) {
-                    resizeStampField(e.clientX, e.clientY)
-                    return
-                  }
-                  if (e.buttons !== 1) return
-                  moveStampField(stampDragRef.current || selectedStampField, e.clientX, e.clientY)
-                }}
-                onPointerDown={(e) => {
-                  stampDragRef.current = selectedStampField
-                  moveStampField(selectedStampField, e.clientX, e.clientY)
-                }}
-                onPointerUp={() => { stampDragRef.current = null; stampResizeRef.current = null }}
-                onPointerLeave={() => { stampDragRef.current = null; stampResizeRef.current = null }}
-              >
-                {uploadPreviewUrl || storedBackdropUrl ? (
-                  <img src={uploadPreviewUrl || storedBackdropUrl || ''} alt="معاينة الشهادة المرفوعة" className="block h-auto w-full select-none" draggable={false} />
-                ) : (
-                  <div className="flex h-full min-h-[260px] items-center justify-center bg-slate-50 p-6 text-center text-xs font-bold leading-6 text-slate-500">
-                    {uploadFor?.uploadedFileKey
-                      ? 'الملف الأصلي PDF — اضبط المواضع هنا ثم اضغط معاينة لرؤية النتيجة تحت المحرر مباشرة.'
-                      : 'ارفع صورة للشهادة لعرضها هنا مباشرة، أو استخدم هذه المساحة لضبط الموضع ثم اضغط معاينة عند رفع PDF.'}
-                  </div>
-                )}
-                {(Object.keys(LEGACY_STAMP_LABELS) as StampField[]).filter((field) => stampLayout[field]?.visible !== false).map((field) => (
-                  <button
-                    key={field}
-                    type="button"
-                    onPointerDown={(e) => {
-                      e.stopPropagation()
-                      stampDragRef.current = field
-                      setSelectedStampField(field)
-                      moveStampField(field, e.clientX, e.clientY)
-                    }}
-                    style={stampFieldStyle(field)}
-                    className="select-none touch-none"
-                  >
-                    {field === 'qr' ? 'QR' : field === 'holderName' ? (uploadFor?.holderNameEn || uploadFor?.holderName || 'John Smith') : field === 'program' ? (uploadFor?.programEn || uploadFor?.program || 'Professional Master in Business Administration') : field === 'grade' ? (uploadFor?.gradeEn || uploadFor?.grade || 'Excellent') : field === 'issuedAt' ? 'June 30, 2024' : field === 'legacySerial' ? (uploadFor?.legacySerial || 'الرقم القديم') : uploadFor?.serial || 'AACT-C-2026-00001'}
-                    <span
-                      aria-hidden="true"
-                      className="absolute -bottom-2 -left-2 h-5 w-5 cursor-nwse-resize rounded-full border-2 border-white bg-[#c9a227] shadow"
-                      onPointerDown={(e) => {
-                        e.stopPropagation()
-                        setSelectedStampField(field)
-                        stampResizeRef.current = {
-                          field,
-                          startX: e.clientX,
-                          startY: e.clientY,
-                          startSize: stampLayout.qr.size,
-                          startWidth: field === 'qr' ? stampLayout.serial.width : (stampLayout[field] as StampTextField).width,
-                          startFontSize: field === 'qr' ? stampLayout.serial.fontSize : (stampLayout[field] as StampTextField).fontSize,
-                        }
-                      }}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
+            <CertificateStampEditor
+              layout={stampLayout}
+              onLayoutChange={setStampLayout}
+              fields={CERTIFICATE_STAMP_FIELDS}
+              fieldTexts={{
+                holderName: uploadFor?.holderNameEn || uploadFor?.holderName || 'John Smith',
+                program: uploadFor?.programEn || uploadFor?.program || 'Professional Master in Business Administration',
+                grade: uploadFor?.gradeEn || uploadFor?.grade || 'Excellent',
+                issuedAt: 'June 30, 2024',
+                serial: uploadFor?.serial || 'AACT-C-2026-00001',
+                legacySerial: uploadFor?.legacySerial || 'الرقم القديم',
+                qr: 'QR',
+              }}
+              backdropUrl={uploadPreviewUrl || storedBackdropUrl}
+              backdropEmptyText={uploadFor?.uploadedFileKey
+                ? 'الملف الأصلي PDF — اضبط المواضع هنا ثم اضغط معاينة لرؤية النتيجة تحت المحرر مباشرة.'
+                : 'ارفع صورة للشهادة لعرضها هنا مباشرة، أو استخدم هذه المساحة لضبط الموضع ثم اضغط معاينة عند رفع PDF.'}
+              selectedField={selectedStampField}
+              onSelectedFieldChange={setSelectedStampField}
+              info={<div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] font-bold leading-5 text-emerald-900">الشهادة الأصلية لا يُعاد رسمها. يتم فقط إضافة QR والرقم التسلسلي فوق الملف كما رفعته.</div>}
+            />
             {uploadFor?.stampedFileKey || stampPreviewUrl ? (
               <div ref={stampViewerRef} className="space-y-2">
                 <Label className="text-[11px] font-black text-slate-600">{stampPreviewUrl ? 'معاينة بالمواضع الحالية — لم تُحفظ بعد' : 'الملف المختوم الحالي'}</Label>

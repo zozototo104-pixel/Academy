@@ -184,13 +184,26 @@ describe('comprehensive exam review UX', () => {
     expect(parseSavedInternetExamPlan(JSON.stringify({ axesText: 'الإدارة الاستراتيجية وتحليل الميزة التنافسية', selectedTopics: { 'الإدارة الاستراتيجية وتحليل الميزة التنافسية': true }, reviewed: false }))).toBeNull()
   })
 
-  test('offers explicit resume after a saved partial run and keeps the plan on refresh', () => {
+  test('persists the reviewed blueprint and monitors background progress after refresh', () => {
     expect(view).toContain('localStorage.setItem(internetExamPlanStorageKey(examId)')
     expect(view).toContain('localStorage.getItem(internetExamPlanStorageKey(examId))')
     expect(view).toContain('استكمال الأسئلة الناقصة')
-    expect(view).toContain('كل دفعة بحد أقصى 10 أسئلة')
     expect(view).toContain('internetPlanStored')
-    expect(view).toContain('internetStopRef.current = true')
+    expect(view).toContain("action: 'BACKGROUND_STATUS'")
+    expect(view).toContain('window.setInterval(() => { void poll() }, 10_000)')
+    expect(view).toContain('onStopInternetPlan={pauseComprehensiveInternetPlan}')
+    expect(view).toContain('onResumeInternetPlan={resumeComprehensiveInternetPlan}')
+    expect(view).toContain('استكمال المحاور الناقصة من المهمة المحفوظة')
+    expect(view).toContain('تغطية كل محور من الأسئلة المحفوظة فعلياً')
+  })
+
+  test('offers an optional quick draft and axis plan, and finds an existing specialty draft', () => {
+    expect(view).toContain('إنشاء مسودة وتحضير محاور التخصص')
+    expect(view).toContain('if (prepareAxes) await createInternetPlan(data.examId)')
+    expect(view).toContain('فتح المسودة واستكمالها')
+    expect(view).toContain('ابحث باسم الامتحان أو التخصص أو الحالة')
+    expect(view).toContain('visibleExams.map((exam)')
+    expect(view).toContain('أنت تختارها وتوافق عليها قبل البحث')
   })
 
   test('keeps the question panel mounted during approval and edit refresh', () => {
@@ -210,7 +223,7 @@ describe('comprehensive exam review UX', () => {
     expect(view).toContain('bulkApproveLock.current = false')
   })
 
-  test('specialty-wide internet generation requires a reviewed blueprint and supports stop/progress', () => {
+  test('specialty-wide internet generation queues a reviewed blueprint for server-side work', () => {
     expect(view).toContain('تحضير محاور التخصص')
     expect(view).toContain('كتابة المحاور يدوياً')
     expect(view).toContain('تحديد جميع المحاور')
@@ -218,11 +231,10 @@ describe('comprehensive exam review UX', () => {
     expect(view).toContain('const chosenAxes = writtenAxes.filter')
     expect(view).toContain('توليد الأسئلة حسب المخطط')
     expect(view).toContain('!internetPlanReviewed')
-    expect(view).toContain("mode: 'COMPREHENSIVE'")
-    expect(view).toContain('internetStopRef.current = true')
-    expect(view).toContain('axisTarget: axis.target')
-    expect(view).toContain('await refreshDetailAndList(examId)')
-    expect(view).toContain('جميعها بانتظار مراجعتك')
+    expect(view).toContain("action: 'BACKGROUND_START', axes: chosenAxes, reviewed: true")
+    expect(view).toContain("action: 'BACKGROUND_PAUSE'")
+    expect(view).toContain('تستطيع الخروج من الصفحة')
+    expect(view).not.toContain('internetStopRef')
   })
 
   test('batch approval preserves each success and reports failed academic validation', async () => {

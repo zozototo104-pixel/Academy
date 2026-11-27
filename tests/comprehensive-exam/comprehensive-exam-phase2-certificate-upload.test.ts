@@ -2,6 +2,7 @@
 // Real route code + real stamping; only the DB/auth/storage are faked
 // (same pattern as the legacy-graduates upload tests).
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 
 type AnyRecord = Record<string, any>
 
@@ -255,5 +256,56 @@ describe('comprehensive-exam certificate stamp preview GET', () => {
   test('GET without a stored original is 404', async () => {
     seedExamCert()
     expect((await uploadRoute.GET(jsonReq('https://aactacademy.test/api/admin/comprehensive-exams/exam-1/certificates/cert-1/upload'), ctx())).status).toBe(404)
+  })
+})
+
+describe('comprehensive-exam certificate drag-editor stamp layout', () => {
+  // The coordinates the admin drags to in the shared stamp editor.
+  const draggedLayout = {
+    qr: { x: 72, y: 30, size: 22, visible: true },
+    serial: { x: 72, y: 44, width: 34, fontSize: 1.6, visible: true },
+  }
+
+  test('FormData save with a dragged stampLayout stores the dragged coordinates', async () => {
+    seedExamCert()
+    const fd = new FormData()
+    fd.append('file', new File([await minimalPdf()], 'grad.pdf', { type: 'application/pdf' }))
+    fd.append('stampLayout', JSON.stringify(draggedLayout))
+    const res = await uploadRoute.POST(formReq(fd, 'https://aactacademy.test/api/admin/comprehensive-exams/exam-1/certificates/cert-1/upload'), ctx())
+    expect(res.status).toBe(200)
+    const cert = certificates.get('cert-1')!
+    expect(cert.qrSize).toBe('CUSTOM')
+    const saved = JSON.parse(String(cert.qrPosition))
+    expect(saved.qr.x).toBe(72)
+    expect(saved.qr.y).toBe(30)
+    expect(saved.qr.size).toBe(22)
+    expect(saved.serial.x).toBe(72)
+    expect(saved.serial.y).toBe(44)
+    expect(audits[0].action).toBe('UPLOAD_COMPREHENSIVE_EXAM_CERTIFICATE_FILE')
+  })
+
+  test('GET preview without a layout param uses the saved dragged layout', async () => {
+    seedExamCert({ uploadedFileKey: 'certificates/legacy-originals/prev.pdf', uploadedMime: 'application/pdf', qrPosition: JSON.stringify(draggedLayout), qrSize: 'CUSTOM' })
+    storedFiles.set('certificates/legacy-originals/prev.pdf', { buffer: await minimalPdf(), mimeType: 'application/pdf' })
+    const savedDefault = await uploadRoute.GET(jsonReq('https://aactacademy.test/api/admin/comprehensive-exams/exam-1/certificates/cert-1/upload'), ctx())
+    expect(savedDefault.status).toBe(200)
+    const bufDefault = Buffer.from(await savedDefault.arrayBuffer())
+    expect(bufDefault.subarray(0, 5).toString()).toBe('%PDF-')
+    const moved = await uploadRoute.GET(jsonReq(`https://aactacademy.test/api/admin/comprehensive-exams/exam-1/certificates/cert-1/upload?layout=${encodeURIComponent(JSON.stringify({ qr: { x: 10, y: 90, size: 12, visible: true } }))}`), ctx())
+    expect(moved.status).toBe(200)
+    const bufMoved = Buffer.from(await moved.arrayBuffer())
+    expect(bufMoved.equals(bufDefault)).toBe(false)
+    expect(audits.length).toBe(0)
+  })
+
+  test('the upload UI is the shared drag editor (QR + serial only), not the 4-corner dropdown', () => {
+    const adminUI = readFileSync('src/components/aact/AdminComprehensiveExamTab.tsx', 'utf8')
+    expect(adminUI).toContain('CertificateStampEditor')
+    expect(adminUI).toContain("fields={['qr', 'serial']}")
+    expect(adminUI).toContain("fd.append('stampLayout'")
+    expect(adminUI).not.toContain('BOTTOM_LEFT')
+    expect(adminUI).not.toContain('BOTTOM_RIGHT')
+    expect(adminUI).not.toContain('TOP_LEFT')
+    expect(adminUI).not.toContain('TOP_RIGHT')
   })
 })

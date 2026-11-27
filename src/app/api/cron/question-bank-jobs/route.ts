@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runNextQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
 import { runNextKnowledgeAiRepairStep } from '@/lib/book-knowledge-v2-scheduler'
+import { runNextComprehensiveInternetBackgroundStep } from '@/app/api/admin/comprehensive-exams/[id]/questions/from-internet/route'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,6 +11,13 @@ export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
   if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+  }
+
+  // Independent scheduler tick for reviewed comprehensive-exam blueprints.
+  // Do not consume the existing question-bank/knowledge-repair time budget.
+  if (request.nextUrl.searchParams.get('kind') === 'comprehensive-internet') {
+    const job = await runNextComprehensiveInternetBackgroundStep()
+    return NextResponse.json({ ok: true, job }, { headers: { 'Cache-Control': 'no-store' } })
   }
 
   const endAt = Date.now() + 50_000

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { toast } from '@/hooks/use-toast'
+import CertificateStampEditor, { parseCertificateStampLayout, serializeCertificateStampLayout as serializeStampLayout, type CertificateStampField, type CertificateStampLayout } from '@/components/aact/CertificateStampEditor'
 import { useAdminActionDialog } from './AdminActionDialog'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Check, Download, FileSpreadsheet, Loader2, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Download, FileSpreadsheet, Loader2, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react'
 
 type ProgramOption = { id: string; titleAr: string; titleEn?: string | null; slug?: string | null; active?: boolean | null; category?: string | null; serviceKind?: string | null }
 type InternetExamAxis = { topic: string; origin: 'CURRICULUM' | 'AI_SUGGESTION' }
@@ -36,6 +37,23 @@ const SOURCE_LABEL: Record<string, string> = { BANK: 'بنك الأسئلة', MA
 
 function apiErrorMessage(data: any, fallback: string) {
   return String(data?.error || data?.message || fallback)
+}
+
+// One-tap collapse for the exam-prep sections, following the AdminExtras
+// pattern (a header button with aria-expanded; collapsing only hides the
+// body — the section's state lives outside it and is never reset).
+function SectionCollapseButton({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-expanded={!collapsed}
+      aria-label={collapsed ? 'فتح القسم' : 'طي القسم'}
+      onClick={onToggle}
+      className="shrink-0 rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600"
+    >
+      {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+    </button>
+  )
 }
 
 async function jsonOrThrow(res: Response, fallback: string) {
@@ -109,8 +127,11 @@ export function AdminComprehensiveExamTab() {
   const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [exams, setExams] = useState<ExamListItem[]>([])
+  const [examSearch, setExamSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+  const toggleSection = (key: string) => setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }))
   const [detail, setDetail] = useState<{ exam: ExamListItem; counts: ExamCounts; questions: ExamQuestion[] } | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [programId, setProgramId] = useState('')
@@ -141,10 +162,10 @@ export function AdminComprehensiveExamTab() {
   const [internetPlanReviewed, setInternetPlanReviewed] = useState(false)
   const [internetPlanStored, setInternetPlanStored] = useState(false)
   const [internetRunBusy, setInternetRunBusy] = useState(false)
-  const [internetRunProgress, setInternetRunProgress] = useState<{axis: number; total: number; imported: number; errors: string[]} | null>(null)
-  const internetStopRef = useRef(false)
+  const [internetRunProgress, setInternetRunProgress] = useState<{axis: number; total: number; imported: number; errors: string[]; status: string; retryAt?: string | null; axisProgress?: { topic: string; target: number; saved: number; remaining: number }[]} | null>(null)
   const internetRunLock = useRef(false)
   const activeExamIdRef = useRef<string | null>(null)
+  const restoredInternetJobRef = useRef<string | null>(null)
   const [manualType, setManualType] = useState('MCQ')
   const [manualText, setManualText] = useState('')
   const [manualOptions, setManualOptions] = useState(['', '', '', ''])
@@ -192,7 +213,7 @@ export function AdminComprehensiveExamTab() {
     if (selectedId !== examId) {
       // Switching exams restores this exam's last reviewed blueprint. A
       // refresh must not discard the ability to resume a partial run.
-      internetStopRef.current = true
+      restoredInternetJobRef.current = null
       activeExamIdRef.current = examId
       let saved: SavedInternetExamPlan | null = null
       try { saved = parseSavedInternetExamPlan(localStorage.getItem(internetExamPlanStorageKey(examId))) } catch { /* private browsing may deny storage */ }
@@ -242,6 +263,11 @@ export function AdminComprehensiveExamTab() {
   }, [])
 
   const selectedProgram = useMemo(() => programs.find((p) => p.id === programId), [programs, programId])
+  const selectedSpecialtyDraft = useMemo(() => exams.find((exam) => exam.status === 'DRAFT' && exam.specializationProgramId === specializationProgramId), [exams, specializationProgramId])
+  const visibleExams = useMemo(() => {
+    const query = examSearch.trim().toLocaleLowerCase('ar')
+    return query ? exams.filter((exam) => `${exam.title} ${exam.specialtyLabel} ${STATUS_LABEL[exam.status] || exam.status}`.toLocaleLowerCase('ar').includes(query)) : exams
+  }, [exams, examSearch])
   const filteredQuestions = useMemo(() => {
     if (!detail) return []
     return statusFilter === 'ALL' ? detail.questions : detail.questions.filter((q) => q.status === statusFilter)
@@ -251,12 +277,63 @@ export function AdminComprehensiveExamTab() {
     await Promise.all([loadDetail(examId, false), loadExams()])
   }
 
+  // Progress is authoritative on the server. Closing this tab stops only
+  // polling; Vercel's scheduled worker continues the reviewed blueprint.
+  useEffect(() => {
+    if (!selectedId) return
+    const examId = selectedId
+    let cancelled = false
+    let previousImported: number | null = null
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/admin/comprehensive-exams/${examId}/questions/from-internet`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'BACKGROUND_STATUS' }), cache: 'no-store',
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+        const job = data?.job
+        setInternetRunBusy(Boolean(job && ['QUEUED', 'RUNNING'].includes(job.status)))
+        setInternetRunProgress(job ? { axis: job.axis, total: job.total, imported: job.imported, errors: job.errors || [], status: job.status, retryAt: job.retryAt, axisProgress: job.axisProgress || [] } : null)
+        if (job && restoredInternetJobRef.current !== examId && Array.isArray(job.axes)) {
+          restoredInternetJobRef.current = examId
+          const topics = job.axes.map((axis: { topic: string }) => axis.topic)
+          setInternetAxesText((prev) => prev.trim() ? prev : topics.join('\n'))
+          setInternetSelectedTopics((prev) => Object.keys(prev).length ? prev : Object.fromEntries(topics.map((topic: string) => [topic, true])))
+          setInternetPlanBasis((prev) => prev || 'SERVER')
+          setInternetPlanReviewed(true)
+          setInternetPlanStored(true)
+        }
+        if (job && previousImported !== null && job.imported !== previousImported) {
+          const [detailRes, examsRes] = await Promise.all([
+            fetch(`/api/admin/comprehensive-exams/${examId}`, { cache: 'no-store' }),
+            fetch('/api/admin/comprehensive-exams', { cache: 'no-store' }),
+          ])
+          if (cancelled) return
+          if (detailRes.ok) {
+            const fresh = await detailRes.json()
+            if (!cancelled) setDetail({ exam: fresh.exam, counts: fresh.counts, questions: fresh.questions })
+          }
+          if (examsRes.ok) {
+            const fresh = await examsRes.json()
+            if (!cancelled) setExams(fresh.exams || [])
+          }
+        }
+        previousImported = job ? Number(job.imported || 0) : null
+      } catch { /* a temporary network outage must not stop the server job */ }
+    }
+    void poll()
+    const timer = window.setInterval(() => { void poll() }, 10_000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [selectedId])
+
   const discardSavedInternetPlan = (examId: string) => {
     try { localStorage.removeItem(internetExamPlanStorageKey(examId)) } catch { /* no browser storage */ }
     setInternetPlanStored(false)
   }
 
-  const createExam = async () => {
+  const createExam = async (prepareAxes = false) => {
     if (!programId) {
       toast({ title: 'برنامج المعادلة غير موجود — أنشئ برنامج خدمة المعادلة أولاً', variant: 'destructive' })
       return
@@ -278,6 +355,7 @@ export function AdminComprehensiveExamTab() {
       toast({ title: 'تم إنشاء مسودة الامتحان الشامل', description: 'أضف الأسئلة من المصادر أدناه ثم راجعها قبل النشر' })
       await loadExams()
       await loadDetail(data.examId)
+      if (prepareAxes) await createInternetPlan(data.examId)
     } catch (e: any) {
       toast({ title: 'تعذر إنشاء الامتحان', description: e.message || 'حدث خطأ', variant: 'destructive' })
     } finally {
@@ -479,9 +557,9 @@ export function AdminComprehensiveExamTab() {
     }
   }
 
-  const createInternetPlan = async () => {
-    if (!detail) return
-    const examId = detail.exam.id
+  const createInternetPlan = async (examIdOverride?: string) => {
+    const examId = examIdOverride || detail?.exam.id
+    if (!examId) return
     setInternetPlanBusy(true)
     setInternetPlanReviewed(false)
     setInternetAxesText('')
@@ -524,13 +602,8 @@ export function AdminComprehensiveExamTab() {
       toast({ title: 'حدد المحاور التي تريد الامتحان فيها، وتأكّد أنها علمية وصالحة وغير مكررة', variant: 'destructive' })
       return
     }
-    // Academic-scope validation is also enforced by each guarded API
-    // request. The UI only distributes the administrator's chosen axes.
-    const perAxis = Math.floor(100 / chosenAxes.length)
-    const allocations = chosenAxes.map((topic, index) => ({ topic, target: perAxis + (index < 100 % chosenAxes.length ? 1 : 0) }))
-    // Store the reviewed selection BEFORE the first request. Every batch is
-    // committed by the API, so another click after stopping/reloading may
-    // resume against the server's saved per-axis counts without duplicates.
+    // The browser persists a copy for editing. The authoritative reviewed
+    // plan and its execution lease are stored server-side before any AI call.
     try {
       localStorage.setItem(internetExamPlanStorageKey(examId), JSON.stringify({
         axesText: writtenAxes.join('\n'),
@@ -538,67 +611,56 @@ export function AdminComprehensiveExamTab() {
         basis: internetPlanBasis, reviewed: true,
       }))
       setInternetPlanStored(true)
-    } catch {
-      toast({ title: 'التوليد سيستمر، لكن هذا المتصفح لا يسمح بحفظ خطة الاستكمال بعد تحديث الصفحة', variant: 'destructive' })
-    }
-    internetStopRef.current = false
+    } catch { /* server persistence does not depend on browser storage */ }
     internetRunLock.current = true
-    setInternetRunBusy(true)
-    setInternetKeyMissing(false)
-    let imported = 0
-    let completedAxes = 0
-    let fatal = false
-    const errors: string[] = []
     try {
-      for (const [index, axis] of allocations.entries()) {
-        if (internetStopRef.current || fatal) break
-        let remaining = axis.target
-        // One request produces at most ten questions. Permit enough
-        // batches for the chosen axis share, plus two partial retries;
-        // never loop indefinitely when real evidence is exhausted.
-        const maxAttempts = Math.ceil(axis.target / 10) + 2
-        for (let attempt = 0; attempt < maxAttempts && remaining > 0 && !internetStopRef.current; attempt++) {
-          setInternetRunProgress({ axis: index + 1, total: allocations.length, imported, errors: [...errors] })
-          try {
-            const res = await fetch(`/api/admin/comprehensive-exams/${examId}/questions/from-internet`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ mode: 'COMPREHENSIVE', topic: axis.topic, count: Math.min(10, remaining), axisTarget: axis.target }),
-            })
-            const data = await res.json().catch(() => ({}))
-            if (!res.ok) {
-              if (data?.code === 'TAVILY_KEY_MISSING') {
-                setInternetKeyMissing(true)
-                fatal = true
-              }
-              if (res.status === 401 || res.status === 409) fatal = true
-              throw new Error(apiErrorMessage(data, 'تعذر توليد أسئلة المحور'))
-            }
-            imported += Number(data.imported || 0)
-            remaining = Number(data.axisRemaining ?? 0)
-            if (data.examFull) fatal = true
-            if (data.skipped || !data.imported) break
-          } catch (e: any) {
-            errors.push(`«${axis.topic}»: ${String(e?.message || 'تعذر التوليد')}`)
-            break
-          }
-        }
-        if (remaining > 0 && !internetStopRef.current && !fatal && !errors.some((entry) => entry.startsWith(`«${axis.topic}»`))) {
-          errors.push(`«${axis.topic}»: نقص ${remaining} سؤالاً لعدم كفاية الأسئلة الموثقة`)
-        }
-        completedAxes = index + 1
-      }
-      setInternetRunProgress({ axis: completedAxes, total: allocations.length, imported, errors })
-      toast({
-        title: `انتهى توليد ${imported} سؤالاً جديداً — جميعها بانتظار مراجعتك`,
-        description: internetStopRef.current ? 'تم الإيقاف بعد حفظ الدفعات السابقة' : errors.length ? `${errors.length} محاور فيها نقص أو تعذّر` : 'راجع المحتوى ووزن المحاور قبل الاعتماد',
+      setInternetKeyMissing(false)
+      const res = await fetch(`/api/admin/comprehensive-exams/${examId}/questions/from-internet`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'BACKGROUND_START', axes: chosenAxes, reviewed: true }),
       })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (data?.code === 'TAVILY_KEY_MISSING') setInternetKeyMissing(true)
+        throw new Error(apiErrorMessage(data, 'تعذر بدء التوليد بالخلفية'))
+      }
+      setInternetRunBusy(true)
+      setInternetRunProgress({ axis: data.job.axis, total: data.job.total, imported: 0, errors: [], status: 'QUEUED' })
+      toast({ title: 'بدأ توليد الامتحان في الخلفية', description: 'تستطيع الخروج من الصفحة؛ الخادم سيواصل العمل ويحفظ كل دفعة موثقة.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر بدء توليد الامتحان', description: e.message || 'حدث خطأ', variant: 'destructive' })
     } finally {
-      setInternetRunBusy(false)
       internetRunLock.current = false
-      if (activeExamIdRef.current === examId) await refreshDetailAndList(examId).catch(() => null)
-      else await loadExams().catch(() => null)
     }
+  }
+
+  const pauseComprehensiveInternetPlan = async () => {
+    if (!detail) return
+    try {
+      const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/from-internet`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'BACKGROUND_PAUSE' }),
+      }), 'تعذر إيقاف التوليد')
+      setInternetRunBusy(false)
+      if (data.job) setInternetRunProgress({ axis: data.job.axis, total: data.job.total, imported: data.job.imported, errors: data.job.errors, status: data.job.status })
+      toast({ title: 'تم طلب إيقاف التوليد', description: 'الدفعة الجارية تُحفظ أولاً؛ يمكنك الاستكمال لاحقاً.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إيقاف التوليد', description: e.message || 'حدث خطأ', variant: 'destructive' })
+    }
+  }
+
+  const resumeComprehensiveInternetPlan = async () => {
+    if (!detail || internetRunLock.current) return
+    internetRunLock.current = true
+    try {
+      const data = await jsonOrThrow(await fetch(`/api/admin/comprehensive-exams/${detail.exam.id}/questions/from-internet`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'BACKGROUND_RESUME' }),
+      }), 'تعذر استكمال مهمة التوليد المحفوظة')
+      setInternetRunBusy(true)
+      setInternetRunProgress({ axis: data.job.axis, total: data.job.total, imported: data.job.imported, errors: [], status: data.job.status })
+      toast({ title: 'استُكمل التوليد من المحاور المحفوظة', description: 'سيستكمل الخادم الأسئلة الناقصة دون تغيير حصص المحاور أو إعادة الأسئلة الموجودة.' })
+    } catch (error: any) {
+      toast({ title: 'تعذر الاستكمال', description: error.message || 'حدث خطأ', variant: 'destructive' })
+    } finally { internetRunLock.current = false }
   }
 
   const reviewQuestion = async (q: ExamQuestion, status: 'APPROVED' | 'REJECTED') => {
@@ -736,14 +798,17 @@ export function AdminComprehensiveExamTab() {
     <div className="space-y-4">
       <Card>
         <CardContent className="space-y-3 pt-4">
-          <div>
+          <div className="flex items-center justify-between gap-2">
             <h3 className="text-base font-black">تجهيز امتحان شامل لاجتياز البرنامج</h3>
-            <p className="text-xs text-slate-500">
-              امتحان من 100 سؤال (صح/خطأ واختيار متعدد فقط — لا مقالي) لخريج درس التخصص في مؤسسة أخرى. يُنشر فقط عند اكتمال 100 سؤال معتمد،
-              والنجاح فيه يؤهل صاحبه كخريج في ذلك التخصص. الامتحان يعيش على برنامج خدمة المعادلة فقط — برامج الدراسة العادية لا يظهر عليها الامتحان أبداً.
-              مصدر «الذكاء من الإنترنت» يبحث في الويب عبر Tavily (مفتاح مجاني يُحفظ في إعدادات النظام) ويولّد أسئلة بدليل حرفي ورابط مصدر لكل سؤال.
-            </p>
+            <SectionCollapseButton collapsed={!!collapsedSections.create} onToggle={() => toggleSection('create')} />
           </div>
+          {!collapsedSections.create && (
+            <>
+              <p className="text-xs text-slate-500">
+                امتحان من 100 سؤال (صح/خطأ واختيار متعدد فقط — لا مقالي) لخريج درس التخصص في مؤسسة أخرى. يُنشر فقط عند اكتمال 100 سؤال معتمد،
+                والنجاح فيه يؤهل صاحبه كخريج في ذلك التخصص. الامتحان يعيش على برنامج خدمة المعادلة فقط — برامج الدراسة العادية لا يظهر عليها الامتحان أبداً.
+                مصدر «الذكاء من الإنترنت» يبحث في الويب عبر Tavily (مفتاح مجاني يُحفظ في إعدادات النظام) ويولّد أسئلة بدليل حرفي ورابط مصدر لكل سؤال.
+              </p>
           <div className="grid gap-3 sm:grid-cols-[1fr_1fr_120px_140px_auto]">
             <div className="space-y-1">
               <Label>برنامج المعادلة</Label>
@@ -775,11 +840,25 @@ export function AdminComprehensiveExamTab() {
               <Input type="number" min={10} max={480} value={durationMin} onChange={(e: ChangeEvent<HTMLInputElement>) => setDurationMin(e.target.value)} />
             </div>
             <div className="flex items-end">
-              <Button onClick={createExam} disabled={creating || !programId || !specializationProgramId}>
+              <Button onClick={() => createExam(false)} disabled={creating || !programId || !specializationProgramId}>
                 {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} إنشاء المسودة
               </Button>
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => createExam(true)} disabled={creating || !programId || !specializationProgramId}>
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} إنشاء مسودة وتحضير محاور التخصص
+            </Button>
+            <span className="text-xs text-slate-600">مسار أسرع: ينشئ المسودة ثم يقترح المحاور؛ أنت تختارها وتوافق عليها قبل البحث وتوليد الأسئلة.</span>
+          </div>
+          {selectedSpecialtyDraft && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900">
+              <span>لديك مسودة سابقة لهذا التخصص ({selectedSpecialtyDraft.counts.approved} معتمد، {selectedSpecialtyDraft.counts.pending} بانتظار المراجعة).</span>
+              <Button variant="outline" size="sm" onClick={() => loadDetail(selectedSpecialtyDraft.id)}>فتح المسودة واستكمالها</Button>
+            </div>
+          )}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -787,11 +866,18 @@ export function AdminComprehensiveExamTab() {
         <CardContent className="space-y-2 pt-4">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-black">الامتحانات الشاملة ({exams.length})</h4>
-            <Button variant="outline" size="sm" onClick={() => loadAll()}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => loadAll()}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
+              <SectionCollapseButton collapsed={!!collapsedSections.list} onToggle={() => toggleSection('list')} />
+            </div>
           </div>
+          {!collapsedSections.list && (
+            <>
           {exams.length === 0 && <p className="text-xs text-slate-500">لا توجد امتحانات شاملة بعد — أنشئ أول مسودة من الأعلى.</p>}
+          {exams.length > 0 && <Input dir="rtl" value={examSearch} onChange={(e: ChangeEvent<HTMLInputElement>) => setExamSearch(e.target.value)} placeholder="ابحث باسم الامتحان أو التخصص أو الحالة…" aria-label="البحث في الامتحانات الشاملة" />}
+          {exams.length > 0 && visibleExams.length === 0 && <p className="text-xs text-slate-500">لا توجد امتحانات مطابقة للبحث.</p>}
           <div className="space-y-2">
-            {exams.map((exam) => (
+            {visibleExams.map((exam) => (
               <button
                 key={exam.id}
                 type="button"
@@ -810,6 +896,8 @@ export function AdminComprehensiveExamTab() {
               </button>
             ))}
           </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -868,10 +956,11 @@ export function AdminComprehensiveExamTab() {
           internetPlanStored={internetPlanStored}
           internetRunBusy={internetRunBusy}
           internetRunProgress={internetRunProgress}
-          onCreateInternetPlan={createInternetPlan}
+          onCreateInternetPlan={() => createInternetPlan()}
           onOpenManualInternetPlan={openManualInternetPlan}
           onRunComprehensiveInternetPlan={runComprehensiveInternetPlan}
-          onStopInternetPlan={() => { internetStopRef.current = true }}
+          onStopInternetPlan={pauseComprehensiveInternetPlan}
+          onResumeInternetPlan={resumeComprehensiveInternetPlan}
           examId={detail.exam.id}
           manualType={manualType}
           setManualType={setManualType}
@@ -960,6 +1049,11 @@ function DetailPanel(props: any) {
   const allVisibleSelected = selectable.length > 0 && selectedVisible.length === selectable.length
   const suggestedAxes = String(props.internetAxesText || '').split('\n').map((axis) => axis.trim()).filter(Boolean)
   const chosenAxesCount = suggestedAxes.filter((axis) => props.internetSelectedTopics?.[axis]).length
+  // Sections collapse state — the questions list starts collapsed (it is the
+  // 100-row wall); everything else starts open. Collapsing only hides the
+  // body: all working state lives in the parent and is never reset.
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ questions: true })
+  const toggleSection = (key: string) => setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }))
 
   return (
     <div className="space-y-4">
@@ -967,8 +1061,13 @@ function DetailPanel(props: any) {
         <CardContent className="space-y-3 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-black">{exam.title}</h4>
-            <Badge variant={exam.status === 'READY' ? 'default' : 'secondary'}>{STATUS_LABEL[exam.status] || exam.status}</Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={exam.status === 'READY' ? 'default' : 'secondary'}>{STATUS_LABEL[exam.status] || exam.status}</Badge>
+              <SectionCollapseButton collapsed={!!collapsedSections.settings} onToggle={() => toggleSection('settings')} />
+            </div>
           </div>
+          {!collapsedSections.settings && (
+            <>
           <p className="text-xs text-slate-600">
             معتمد <b>{detail.counts.approved} / 100</b> — بانتظار المراجعة {detail.counts.pending} — مرفوض {detail.counts.rejected} — المجموع {detail.counts.approved + detail.counts.pending + detail.counts.rejected}
             {detail.counts.approved < 100 && ` — ينقص ${100 - detail.counts.approved} سؤالاً معتمداً للنشر`}
@@ -1003,6 +1102,8 @@ function DetailPanel(props: any) {
           {!canPublish && exam.status === 'DRAFT' && (
             <p className="text-[11px] text-amber-700">زر النشر يفعَّل فقط عند 100 سؤال معتمد بالضبط — النظام لا يختار أسئلة نيابة عنك.</p>
           )}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -1010,7 +1111,12 @@ function DetailPanel(props: any) {
         <>
           <Card>
             <CardContent className="space-y-3 pt-4">
-              <h4 className="text-sm font-black">إضافة سؤال يدوي (صح/خطأ أو اختيار متعدد — لا مقالي)</h4>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-black">إضافة سؤال يدوي (صح/خطأ أو اختيار متعدد — لا مقالي)</h4>
+                <SectionCollapseButton collapsed={!!collapsedSections.manual} onToggle={() => toggleSection('manual')} />
+              </div>
+              {!collapsedSections.manual && (
+                <>
               <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
                 <div className="space-y-1">
                   <Label>النوع</Label>
@@ -1048,6 +1154,8 @@ function DetailPanel(props: any) {
                 <Input value={props.manualEvidence} onChange={(e: ChangeEvent<HTMLInputElement>) => props.setManualEvidence(e.target.value)} />
               </div>
               <Button onClick={props.onAddManual} disabled={!props.manualText.trim()}><Plus className="h-4 w-4" /> إضافة السؤال (بانتظار المراجعة)</Button>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -1055,10 +1163,15 @@ function DetailPanel(props: any) {
             <CardContent className="space-y-3 pt-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="text-sm font-black">من الكتب المرفوعة — عبر بنك الأسئلة المعتمد</h4>
-                <Button variant="outline" size="sm" onClick={props.onLoadBank} disabled={props.bankLoading}>
-                  {props.bankLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} تحميل المعتمدة
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={props.onLoadBank} disabled={props.bankLoading}>
+                    {props.bankLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} تحميل المعتمدة
+                  </Button>
+                  <SectionCollapseButton collapsed={!!collapsedSections.bank} onToggle={() => toggleSection('bank')} />
+                </div>
               </div>
+              {!collapsedSections.bank && (
+                <>
               <p className="text-[11px] text-slate-500">أسئلة بنك الأسئلة المعتمدة لهذا البرنامج (المولَّدة من كتبه). الاستيراد ينسخ لقطة وتبدأ معتمدة لأنها اعتُمدت أصلاً في البنك.</p>
               {props.bankItems.length > 0 && (
                 <>
@@ -1073,12 +1186,19 @@ function DetailPanel(props: any) {
                   <Button onClick={props.onImportFromBank}>استيراد المحدد ({Object.values(props.bankSelected).filter(Boolean).length})</Button>
                 </>
               )}
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="space-y-3 pt-4">
-              <h4 className="text-sm font-black">استيراد ملف أسئلة</h4>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-black">استيراد ملف أسئلة</h4>
+                <SectionCollapseButton collapsed={!!collapsedSections.import} onToggle={() => toggleSection('import')} />
+              </div>
+              {!collapsedSections.import && (
+                <>
               <p className="text-[11px] text-slate-500">
                 Excel موثوق (قالب جاهز أدناه) — وورد/PDF/نص مسودة للمراجعة فقط، والأسطر غير المحلَّلة تُحصى ولا تُحفظ. كل سؤال مستورد يبدأ بانتظار المراجعة.
               </p>
@@ -1104,12 +1224,19 @@ function DetailPanel(props: any) {
                   {props.importPreview.errors?.length ? ` — أول خطأ: سطر ${props.importPreview.errors[0].row}: ${props.importPreview.errors[0].message}` : ''}
                 </p>
               )}
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="space-y-3 pt-4">
-              <h4 className="text-sm font-black">رفع كتاب مخصص وتوليد أسئلة منه</h4>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-black">رفع كتاب مخصص وتوليد أسئلة منه</h4>
+                <SectionCollapseButton collapsed={!!collapsedSections.customBook} onToggle={() => toggleSection('customBook')} />
+              </div>
+              {!collapsedSections.customBook && (
+                <>
               <p className="text-[11px] text-slate-500">
                 كتاب PDF أو Word (DOCX) من خارج كتب البرنامج — يُقرأ هنا فقط ولا يُسجَّل ككتاب برنامج. الذكاء يولّد أسئلة صح/خطأ واختيار متعدد من نصه، وكل سؤال يحمل
                 دليلاً حرفياً من الكتاب ويبدأ بانتظار المراجعة. الحد 10 ميغابايت و300 صفحة (أو 300 مقطعاً نصياً لملف Word — فملف Word بلا صفحات حقيقية)؛ الصفحات بلا نص مقروء (ممسوحة ضوئياً) تُبلَّغ ولا تولَّد منها أسئلة.
@@ -1139,12 +1266,19 @@ function DetailPanel(props: any) {
                   {props.customBookResult.rejectedCount ? `، ${props.customBookResult.rejectedCount} مرفوضاً بالتحقق بالدليل` : ''}
                 </p>
               )}
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="space-y-3 pt-4">
-              <h4 className="text-sm font-black">بحث الذكاء عبر الإنترنت</h4>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-black">بحث الذكاء عبر الإنترنت</h4>
+                <SectionCollapseButton collapsed={!!collapsedSections.internet} onToggle={() => toggleSection('internet')} />
+              </div>
+              {!collapsedSections.internet && (
+                <>
               <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 space-y-2">
                 <h5 className="text-sm font-bold text-indigo-900">امتحان شامل موزع على محاور التخصص</h5>
                 <p className="text-xs text-indigo-900">
@@ -1184,7 +1318,7 @@ function DetailPanel(props: any) {
                     <p className="text-[11px] text-indigo-800">لكل محور مختار: ثلاثة أبحاث ويب متقدمة (نظريات، دراسات علمية، وحالات تطبيقية) من مواقع مستقلة. يوزّع النظام العدد المستهدف بالتساوي، ويبلغك بالنقص بدل اختراع الأسئلة. البحث المتقدم يستهلك نقاط Tavily أكثر من البحث العادي.</p>
                     {props.internetPlanStored && (
                       <p className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900" role="status">
-                        خطة المحاور محفوظة على هذا المتصفح. يمكنك الاستكمال بعد الإيقاف أو تحديث الصفحة؛ الخادم يحسب الأسئلة المحفوظة لكل محور فلا يعيد إضافتها.
+                        مخطط المحاور محفوظ. عند بدء التوليد يحتفظ الخادم بالمهمة ويواصل إنشاء الأسئلة حتى لو أغلقت الصفحة أو خرجت منها. بعد العودة يظهر التقدم ويمكن استكمال النقص.
                         المتبقي من سعة الامتحان ككل: {remainingExamSlots} من 100 سؤال.
                       </p>
                     )}
@@ -1193,15 +1327,35 @@ function DetailPanel(props: any) {
                       راجعت المحاور المختارة وتأكدت أنها تمثل كفاءات التخصص العلمية ولا تتناول شروط القبول أو وصف الدرجة، وأوافق على استهلاك رصيد Tavily للبحث المتقدم (نحو 6 نقاط لكل دفعة من ثلاثة أبحاث).
                     </label>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button disabled={!isDraft || props.internetBusy || !chosenAxesCount || !props.internetPlanReviewed || props.internetRunBusy || props.internetPlanBusy || !remainingExamSlots} onClick={props.onRunComprehensiveInternetPlan}>
+                      {['PAUSED', 'COMPLETED_WITH_GAPS'].includes(props.internetRunProgress?.status) && (
+                        <Button disabled={!isDraft || props.internetBusy || props.internetRunBusy || !remainingExamSlots} onClick={props.onResumeInternetPlan}>
+                          <RefreshCw className="h-4 w-4" /> استكمال المحاور الناقصة من المهمة المحفوظة
+                        </Button>
+                      )}
+                      <Button variant={['PAUSED', 'COMPLETED_WITH_GAPS'].includes(props.internetRunProgress?.status) ? 'outline' : 'default'} disabled={!isDraft || props.internetBusy || !chosenAxesCount || !props.internetPlanReviewed || props.internetRunBusy || props.internetPlanBusy || !remainingExamSlots} onClick={props.onRunComprehensiveInternetPlan}>
                         {props.internetRunBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : props.internetPlanStored ? <RefreshCw className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                        {props.internetPlanStored ? 'استكمال الأسئلة الناقصة' : 'توليد الأسئلة حسب المخطط'}
+                        {['PAUSED', 'COMPLETED_WITH_GAPS'].includes(props.internetRunProgress?.status) ? 'بدء خطة جديدة بالمحاور المحددة' : props.internetPlanStored ? 'استكمال الأسئلة الناقصة' : 'توليد الأسئلة حسب المخطط'}
                       </Button>
                       {props.internetRunBusy && <Button variant="outline" onClick={props.onStopInternetPlan}>إيقاف بعد الدفعة الحالية</Button>}
                     </div>
                     {props.internetRunProgress && (
                       <div className="text-xs text-indigo-900 space-y-1" role="status" aria-live="polite">
+                        <p className="font-semibold">{props.internetRunProgress.status === 'QUEUED' ? 'في قائمة الانتظار — سيواصل الخادم التوليد ولو غادرت الصفحة' : props.internetRunProgress.status === 'RUNNING' ? 'جارٍ إنشاء الأسئلة في الخلفية — يمكن مغادرة الصفحة' : props.internetRunProgress.status === 'PAUSED' ? 'متوقف مؤقتاً — راجع التنبيهات ثم استكمل' : props.internetRunProgress.status === 'COMPLETED_WITH_GAPS' ? 'اكتمل العمل مع نقص في بعض المحاور — راجع التفاصيل' : 'اكتمل توليد المحاور'}</p>
                         <p>المحور {props.internetRunProgress.axis} من {props.internetRunProgress.total} — أُضيف {props.internetRunProgress.imported} سؤالاً بانتظار المراجعة</p>
+                        {props.internetRunProgress.retryAt && <p className="text-amber-800">سيحاول الخادم مجدداً تلقائياً بعد تعافٍ مؤقت من الخطأ.</p>}
+                        {props.internetRunProgress.axisProgress?.length > 0 && (
+                          <div className="space-y-1 rounded-lg border border-indigo-200 bg-white p-2" aria-label="تقدم المحاور العلمية">
+                            <p className="font-bold">تغطية كل محور من الأسئلة المحفوظة فعلياً</p>
+                            {props.internetRunProgress.axisProgress.map((axis: { topic: string; target: number; saved: number; remaining: number }) => (
+                              <div key={axis.topic} className="flex flex-wrap items-center justify-between gap-1 border-b border-slate-100 py-1 last:border-0">
+                                <span className="max-w-full text-slate-800">{axis.topic}</span>
+                                <span className={axis.remaining ? 'font-bold text-amber-800' : 'font-bold text-emerald-700'}>
+                                  {axis.saved} / {axis.target} {axis.remaining ? `— ينقص ${axis.remaining}` : '— مكتمل'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {props.internetRunProgress.errors.map((error: string, index: number) => <p key={`${index}-${error}`} className="text-amber-800">{error}</p>)}
                       </div>
                     )}
@@ -1240,6 +1394,8 @@ function DetailPanel(props: any) {
                   {props.internetResult.rejectedCount ? `، ${props.internetResult.rejectedCount} مرفوضاً بالتحقق بالدليل` : ''}
                 </p>
               )}
+                </>
+              )}
             </CardContent>
           </Card>
         </>
@@ -1249,16 +1405,32 @@ function DetailPanel(props: any) {
         <CardContent className="space-y-3 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-black">أسئلة الامتحان ({detail.questions.length})</h4>
-            <Select value={statusFilter} onValueChange={setStatusFilter} disabled={props.bulkApproveBusy}>
-              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">كل الحالات</SelectItem>
-                <SelectItem value="PENDING_REVIEW">بانتظار المراجعة</SelectItem>
-                <SelectItem value="APPROVED">معتمدة</SelectItem>
-                <SelectItem value="REJECTED">مرفوضة</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-2">
+              {isDraft && selectable.length > 0 && (
+                <>
+                  <Button size="sm" disabled={props.bulkApproveBusy || selectedVisible.length === 0} onClick={props.onApproveSelected}>
+                    {props.bulkApproveBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    اعتماد المحدد ({selectedVisible.length})
+                  </Button>
+                  {props.bulkApproveBusy && props.bulkApproveProgress && (
+                    <span role="status" className="text-xs text-slate-600">جارٍ معالجة {props.bulkApproveProgress.processed} من {props.bulkApproveProgress.total} سؤالاً…</span>
+                  )}
+                </>
+              )}
+              <Select value={statusFilter} onValueChange={setStatusFilter} disabled={props.bulkApproveBusy}>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">كل الحالات</SelectItem>
+                  <SelectItem value="PENDING_REVIEW">بانتظار المراجعة</SelectItem>
+                  <SelectItem value="APPROVED">معتمدة</SelectItem>
+                  <SelectItem value="REJECTED">مرفوضة</SelectItem>
+                </SelectContent>
+              </Select>
+              <SectionCollapseButton collapsed={!!collapsedSections.questions} onToggle={() => toggleSection('questions')} />
+            </div>
           </div>
+          {!collapsedSections.questions && (
+            <>
           {isDraft && selectable.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
               <label className="flex cursor-pointer items-center gap-2 font-bold">
@@ -1275,13 +1447,6 @@ function DetailPanel(props: any) {
                 />
                 تحديد الكل ({selectable.length} بانتظار المراجعة)
               </label>
-              <Button size="sm" disabled={props.bulkApproveBusy || selectedVisible.length === 0} onClick={props.onApproveSelected}>
-                {props.bulkApproveBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                اعتماد المحدد ({selectedVisible.length})
-              </Button>
-              {props.bulkApproveBusy && props.bulkApproveProgress && (
-                <span role="status" className="text-slate-600">جارٍ معالجة {props.bulkApproveProgress.processed} من {props.bulkApproveProgress.total} سؤالاً…</span>
-              )}
             </div>
           )}
           <div className="space-y-2">
@@ -1290,6 +1455,8 @@ function DetailPanel(props: any) {
             ))}
             {filteredQuestions.length === 0 && <p className="text-xs text-slate-500">لا توجد أسئلة بهذه الحالة بعد.</p>}
           </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -1376,7 +1543,7 @@ type CandidateInvitation = {
   lastSentAt: string | null
   inviteUrl?: string | null
 }
-type CandidateAttempt = { id: string; status: string; score: number | null; passed: boolean | null; startedAt: string; submittedAt: string | null; certificateSerial?: string | null; certificateId?: string | null; certificateUploadedFileKey?: string | null; certificateStampedFileKey?: string | null }
+type CandidateAttempt = { id: string; status: string; score: number | null; passed: boolean | null; startedAt: string; submittedAt: string | null; certificateSerial?: string | null; certificateId?: string | null; certificateUploadedFileKey?: string | null; certificateStampedFileKey?: string | null; certificateQrPosition?: string | null; certificateQrSize?: string | null }
 type CandidateItem = {
   id: string
   fullName: string
@@ -1420,6 +1587,7 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
   const [candidates, setCandidates] = useState<CandidateItem[]>([])
   const [specialization, setSpecialization] = useState<{ id: string; titleAr: string; titleEn?: string | null; category?: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [candidatesCollapsed, setCandidatesCollapsed] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [fullName, setFullName] = useState('')
   const [nationalId, setNationalId] = useState('')
@@ -1436,8 +1604,9 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
   const [showInvitations, setShowInvitations] = useState<Record<string, boolean>>({})
   const [inviteUrlByCandidate, setInviteUrlByCandidate] = useState<Record<string, string>>({})
   const [certFileByCandidate, setCertFileByCandidate] = useState<Record<string, File | null>>({})
-  const [certQrSizeByCandidate, setCertQrSizeByCandidate] = useState<Record<string, string>>({})
-  const [certQrPositionByCandidate, setCertQrPositionByCandidate] = useState<Record<string, string>>({})
+  const [certStampLayoutByCandidate, setCertStampLayoutByCandidate] = useState<Record<string, CertificateStampLayout>>({})
+  const [certSelectedStampFieldByCandidate, setCertSelectedStampFieldByCandidate] = useState<Record<string, CertificateStampField>>({})
+  const [certBackdropUrlByCandidate, setCertBackdropUrlByCandidate] = useState<Record<string, string | null>>({})
   const [certPreviewUrlByCandidate, setCertPreviewUrlByCandidate] = useState<Record<string, string | null>>({})
 
   const loadCandidates = async () => {
@@ -1653,8 +1822,9 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
   // الشهادة الأصلية لا يُعاد رسمها؛ يُضاف QR والرقم التسلسلي فقط فوق
   // الملف كما رُفع، بنفس مسار الختم وحقول التخطيط.
   const certUploadUrl = (c: CandidateItem) => `/api/admin/comprehensive-exams/${examId}/certificates/${c.attempt?.certificateId}/upload`
-  const certQrSize = (c: CandidateItem) => certQrSizeByCandidate[c.id] || 'M'
-  const certQrPosition = (c: CandidateItem) => certQrPositionByCandidate[c.id] || 'BOTTOM_LEFT'
+  const certStampLayout = (c: CandidateItem) => certStampLayoutByCandidate[c.id] || parseCertificateStampLayout(c.attempt?.certificateQrPosition, c.attempt?.certificateQrSize)
+  const certStampLayoutJson = (c: CandidateItem) => serializeStampLayout(certStampLayout(c))
+  const certSelectedStampField = (c: CandidateItem) => certSelectedStampFieldByCandidate[c.id] || 'qr'
 
   const previewCertFile = async (c: CandidateItem) => {
     const certId = c.attempt?.certificateId
@@ -1668,8 +1838,7 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
         // داخل الإطارات.
         const fd = new FormData()
         fd.append('file', file)
-        fd.append('qrPosition', certQrPosition(c))
-        fd.append('qrSize', certQrSize(c))
+        fd.append('stampLayout', certStampLayoutJson(c))
         const res = await fetch(`${certUploadUrl(c)}?preview=true`, { method: 'POST', body: fd })
         if (!res.ok) throw new Error(apiErrorMessage(await res.json().catch(() => ({})), 'تعذر إنشاء المعاينة'))
         const blob = await res.blob()
@@ -1682,7 +1851,7 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
         // داخل الإطار.
         setCertPreviewUrlByCandidate((prevState) => ({
           ...prevState,
-          [c.id]: `${certUploadUrl(c)}?qrSize=${certQrSize(c)}&layout=${encodeURIComponent(certQrPosition(c))}&t=${Date.now()}`,
+          [c.id]: `${certUploadUrl(c)}?layout=${encodeURIComponent(certStampLayoutJson(c))}&t=${Date.now()}`,
         }))
       }
     } catch (e: any) {
@@ -1701,11 +1870,13 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
     try {
       const fd = new FormData()
       if (file) fd.append('file', file)
-      fd.append('qrPosition', certQrPosition(c))
-      fd.append('qrSize', certQrSize(c))
+      fd.append('stampLayout', certStampLayoutJson(c))
       const data = await jsonOrThrow(await fetch(certUploadUrl(c), { method: 'POST', body: fd }), 'تعذر حفظ الشهادة المختومة')
       toast({ title: 'تم حفظ الشهادة المختومة', description: data.stampedFileKey || c.attempt?.certificateSerial || '' })
       setCertFileByCandidate((prev) => ({ ...prev, [c.id]: null }))
+      const backdrop = certBackdropUrlByCandidate[c.id]
+      if (backdrop) URL.revokeObjectURL(backdrop)
+      setCertBackdropUrlByCandidate((prev) => ({ ...prev, [c.id]: null }))
       await loadCandidates()
     } catch (e: any) {
       toast({ title: 'فشل حفظ الملف المختوم', description: e.message || 'حدث خطأ', variant: 'destructive' })
@@ -1722,9 +1893,13 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
             <h4 className="text-sm font-black">المرشحون والدعوات والمحاولات — {examTitle}</h4>
             <p className="mt-0.5 text-[11px] font-bold text-slate-500">التخصص: {specialization?.titleAr || '—'}</p>
           </div>
-          <Button variant="outline" size="sm" onClick={loadCandidates}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={loadCandidates}><RefreshCw className="h-3.5 w-3.5" /> تحديث</Button>
+            <SectionCollapseButton collapsed={candidatesCollapsed} onToggle={() => setCandidatesCollapsed((prev) => !prev)} />
+          </div>
         </div>
-
+        {!candidatesCollapsed && (
+          <>
         {examStatus === 'READY' ? (
           <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs font-black">إدخال مرشح من الإدارة</p>
@@ -1813,33 +1988,27 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
                     <p className="rounded-xl border border-emerald-100 bg-emerald-50 p-2 text-[11px] font-bold leading-5 text-emerald-900">
                       الشهادة الأصلية لا يُعاد رسمها. يتم فقط إضافة QR والرقم التسلسلي فوق الملف كما رفعته.
                     </p>
-                    <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e: ChangeEvent<HTMLInputElement>) => setCertFileByCandidate((prev) => ({ ...prev, [c.id]: e.target.files?.[0] || null }))} />
+                    <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                      const file = e.target.files?.[0] || null
+                      const oldBackdrop = certBackdropUrlByCandidate[c.id]
+                      if (oldBackdrop) URL.revokeObjectURL(oldBackdrop)
+                      setCertBackdropUrlByCandidate((prev) => ({ ...prev, [c.id]: file && file.type.startsWith('image/') ? URL.createObjectURL(file) : null }))
+                      setCertFileByCandidate((prev) => ({ ...prev, [c.id]: file }))
+                    }} />
                     {certFileByCandidate[c.id] && <p className="text-[11px] text-slate-500">{certFileByCandidate[c.id]?.name}</p>}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-black text-slate-600">حجم QR</Label>
-                        <Select value={certQrSize(c)} onValueChange={(v) => setCertQrSizeByCandidate((prev) => ({ ...prev, [c.id]: v }))}>
-                          <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="S">صغير</SelectItem>
-                            <SelectItem value="M">متوسط</SelectItem>
-                            <SelectItem value="L">كبير</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-black text-slate-600">موضع QR</Label>
-                        <Select value={certQrPosition(c)} onValueChange={(v) => setCertQrPositionByCandidate((prev) => ({ ...prev, [c.id]: v }))}>
-                          <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="BOTTOM_LEFT">أسفل اليسار</SelectItem>
-                            <SelectItem value="BOTTOM_RIGHT">أسفل اليمين</SelectItem>
-                            <SelectItem value="TOP_LEFT">أعلى اليسار</SelectItem>
-                            <SelectItem value="TOP_RIGHT">أعلى اليمين</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                    <CertificateStampEditor
+                      layout={certStampLayout(c)}
+                      onLayoutChange={(next) => setCertStampLayoutByCandidate((prev) => ({ ...prev, [c.id]: next }))}
+                      fields={['qr', 'serial']}
+                      fieldTexts={{ qr: 'QR', serial: c.attempt?.certificateSerial || '' }}
+                      backdropUrl={certBackdropUrlByCandidate[c.id] || null}
+                      backdropEmptyText={c.attempt?.certificateUploadedFileKey
+                        ? 'الملف الأصلي PDF — اضبط المواضع هنا ثم اضغط معاينة لرؤية النتيجة تحت المحرر مباشرة.'
+                        : 'ارفع صورة للشهادة لعرضها هنا مباشرة، أو استخدم هذه المساحة لضبط الموضع ثم اضغط معاينة عند رفع PDF.'}
+                      selectedField={certSelectedStampField(c)}
+                      onSelectedFieldChange={(field) => setCertSelectedStampFieldByCandidate((prev) => ({ ...prev, [c.id]: field }))}
+                      hint="اسحب أي عنصر لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره."
+                    />
                     {certPreviewUrlByCandidate[c.id] && (
                       <div className="space-y-1">
                         <Label className="text-[11px] font-black text-slate-600">معاينة بالمواضع الحالية — لم تُحفظ بعد</Label>
@@ -1981,6 +2150,8 @@ function CandidatesPanel({ examId, examStatus, examTitle }: { examId: string; ex
             )
           })}
         </div>
+          </>
+        )}
       </CardContent>
     </Card>
   )

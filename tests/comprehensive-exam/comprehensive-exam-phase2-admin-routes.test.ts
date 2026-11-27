@@ -436,6 +436,20 @@ describe('admin candidates — list shows the invite gate', () => {
     const draft = await (await candidatesRoute.GET(req, { params: Promise.resolve({ id: 'exam-1' }) })).json()
     expect(draft.candidates[0].inviteBlockedReason).toBe('EXAM_NOT_READY')
   })
+  test('the candidates list returns the saved stamp layout for a passed candidate', async () => {
+    const c = seedApprovedCandidate()
+    attempts.push({ id: 'att-1', candidateId: c.id, status: 'GRADED', passed: true, score: 80, startedAt: new Date(), submittedAt: new Date(), createdAt: new Date() })
+    const dragged = JSON.stringify({ qr: { x: 72, y: 30, size: 22, visible: true }, serial: { x: 72, y: 44, width: 34, fontSize: 1.6, visible: true } })
+    certificates.push({ id: 'cert-1', type: 'COMPREHENSIVE_EXAM', comprehensiveExamId: 'exam-1', userEmail: 'a@b.com', serial: 'AACT-C-2026-00042', uploadedFileKey: 'k', stampedFileKey: 's', qrPosition: dragged, qrSize: 'CUSTOM' })
+    const req = new NextRequest('http://localhost/api/admin/comprehensive-exams/exam-1/candidates')
+    const res = await candidatesRoute.GET(req, { params: Promise.resolve({ id: 'exam-1' }) })
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    const row = data.candidates.find((x: any) => x.id === c.id)
+    expect(row.attempt.certificateSerial).toBe('AACT-C-2026-00042')
+    expect(row.attempt.certificateQrPosition).toBe(dragged)
+    expect(row.attempt.certificateQrSize).toBe('CUSTOM')
+  })
 })
 
 describe('admin candidates — review', () => {

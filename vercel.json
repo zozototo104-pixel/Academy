@@ -19,6 +19,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/question-bank-jobs?kind=comprehensive-internet",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/ai-health",
       "schedule": "0 * * * *"
     },
