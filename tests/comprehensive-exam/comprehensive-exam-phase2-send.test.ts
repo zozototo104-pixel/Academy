@@ -52,6 +52,9 @@ function reset() {
   whatsappBehavior = 'OK'
   sentEmails = []
   sentWhatsApps = []
+  archivedWhatsApps = []
+  archiveBehavior = 'OK'
+  returnedMessageId = 'wamid.exam-invite-1'
   delete process.env.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE
   delete process.env.COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE
   delete process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
