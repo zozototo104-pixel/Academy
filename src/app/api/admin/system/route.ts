@@ -275,6 +275,10 @@ export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json()
+    const language = String(body.COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE ?? '').trim()
+    const wabaId = String(body.COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID ?? '').trim()
+    if (language && !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(language)) return NextResponse.json({ error: 'لغة قالب واتساب غير صالحة — مثال: ar_EG' }, { status: 400 })
+    if (wabaId && !/^\d{5,30}$/.test(wabaId)) return NextResponse.json({ error: 'معرّف WABA يجب أن يحتوي أرقامًا فقط' }, { status: 400 })
     const addedIds = (await adminCustomTextAiProviders()).map((entry) => entry.id)
     // Independent model choice for knowledge repair. Never alter global routing
     // for students, books, exams or other AI consumers.
