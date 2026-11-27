@@ -268,6 +268,7 @@ describe('durable background comprehensive-internet jobs', () => {
     const saved = (await status.json()).job
     expect(saved.imported).toBe(2)
     expect(saved.axes).toEqual([{ topic: axis, target: 100 }])
+    expect(saved.axisProgress).toEqual([{ topic: axis, target: 100, saved: 2, remaining: 98 }])
     expect(settings).toHaveLength(1)
     expect(JSON.parse(settings[0].value).leaseId).toBeNull()
   })
