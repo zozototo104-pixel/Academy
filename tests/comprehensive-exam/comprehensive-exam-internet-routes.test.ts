@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server'
 
 let exams: any[] = []
 let questions: any[] = []
+let settings: { key: string; value: string; updatedAt: Date }[] = []
 let qSeq = 0
 
 let tavilyKey: string | null = 'tvly-test-key'
