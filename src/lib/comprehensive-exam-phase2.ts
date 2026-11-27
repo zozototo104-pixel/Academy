@@ -529,9 +529,11 @@ export async function sendComprehensiveExamInvite(input: ComprehensiveInviteSend
       } else {
         // Body placeholders, in order: {{1}} name, {{2}} exam/program,
         // {{3}} expiry date, {{4}} invite link (tappable in WhatsApp).
-        // The template carries an IMAGE header (Meta #132012 without it),
-        // so the platform logo is sent as the header image.
-        const headerImageUrl = `${String(process.env.NEXT_PUBLIC_APP_URL || 'https://aactacademy.com').replace(/\/$/, '')}/logo.png`
+        // Unknown legacy templates without WABA preflight stay body-only.
+        // For a known image template (or a verifiable custom template), offer
+        // the public logo; the sender only attaches it when Meta requires IMAGE.
+        const headerImageUrl = templateName === 'comprehensive_exam_invite_ar' || wabaId
+          ? 'https://www.aactacademy.com/logo.png' : undefined
         await sendOfficialWhatsAppTemplate(phone, templateName, [
           input.fullName,
           input.examTitle,
