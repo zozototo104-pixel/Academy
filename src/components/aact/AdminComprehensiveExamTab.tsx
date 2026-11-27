@@ -1298,7 +1298,9 @@ function DetailPanel(props: any) {
                     </div>
                     {props.internetRunProgress && (
                       <div className="text-xs text-indigo-900 space-y-1" role="status" aria-live="polite">
+                        <p className="font-semibold">{props.internetRunProgress.status === 'QUEUED' ? 'في قائمة الانتظار — سيواصل الخادم التوليد ولو غادرت الصفحة' : props.internetRunProgress.status === 'RUNNING' ? 'جارٍ إنشاء الأسئلة في الخلفية — يمكن مغادرة الصفحة' : props.internetRunProgress.status === 'PAUSED' ? 'متوقف مؤقتاً — راجع التنبيهات ثم استكمل' : props.internetRunProgress.status === 'COMPLETED_WITH_GAPS' ? 'اكتمل العمل مع نقص في بعض المحاور — راجع التفاصيل' : 'اكتمل توليد المحاور'}</p>
                         <p>المحور {props.internetRunProgress.axis} من {props.internetRunProgress.total} — أُضيف {props.internetRunProgress.imported} سؤالاً بانتظار المراجعة</p>
+                        {props.internetRunProgress.retryAt && <p className="text-amber-800">سيحاول الخادم مجدداً تلقائياً بعد تعافٍ مؤقت من الخطأ.</p>}
                         {props.internetRunProgress.errors.map((error: string, index: number) => <p key={`${index}-${error}`} className="text-amber-800">{error}</p>)}
                       </div>
                     )}
