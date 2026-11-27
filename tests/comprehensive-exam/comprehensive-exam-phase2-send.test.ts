@@ -7,6 +7,9 @@ let emailBehavior: 'SENT' | 'SKIPPED' | 'FAILED' | 'THROW' = 'SENT'
 let whatsappBehavior: 'OK' | 'THROW' = 'OK'
 let sentEmails: any[] = []
 let sentWhatsApps: any[] = []
+let archivedWhatsApps: any[] = []
+let archiveBehavior: 'OK' | 'THROW' = 'OK'
+let returnedMessageId: string | null = 'wamid.exam-invite-1'
 
 mock.module('@/lib/db', () => ({
   db: {
