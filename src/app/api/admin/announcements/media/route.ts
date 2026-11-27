@@ -5,11 +5,10 @@ import { audit } from '@/lib/notify'
 import { canManageSiteAnnouncements, readSiteAnnouncements } from '@/lib/site-announcements'
 import { createAnnouncementMediaStorageKey, createSignedStorageUrlForKey, deleteStoredFile, getStorageDownloadPathForKey, inspectUploadedAnnouncementMedia, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 
-// رفع وسائط الإعلانات (فيديو واحد أو صور) إلى التخزين الخارجي نفسه.
-// الحدود صريحة وموثقة: فيديو حتى 500MB (الفيديو التعليمي ~5MB)، صورة حتى 10MB.
-// لا متغيرات بيئة جديدة. الرابط العام المخزّن يجب أن يكون قابلاً للوصول
-// علنًا (الزوار بلا تسجيل)، لذا نتحقق منه بـ HEAD بعد الرفع؛ إن فشل
-// نحذف الملف اليتيم ونرجع 422 بدل حفظ رابط مكسور.
+// وسائط الإعلانات في حاوية R2 الخاصة نفسها: لا نجعل الحاوية عامة.
+// أقل من 4 MiB يمر عبر الخادم؛ الأكبر يرفع مباشرة برابط PUT مؤقت
+// (يحتاج CORS على R2). العرض العام يتم بتوجيه GET موقّع لخمس دقائق.
+// الحدود: فيديو 500MB، صورة 10MB، والتحقق الفعلي بعد الرفع.
 
 const ANNOUNCEMENT_VIDEO_MAX_BYTES = 500 * 1024 * 1024
 const ANNOUNCEMENT_IMAGE_MAX_BYTES = 10 * 1024 * 1024
