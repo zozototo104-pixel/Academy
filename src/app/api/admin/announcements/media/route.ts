@@ -125,26 +125,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: storageErrorMessage(error) }, { status: 422 })
     }
 
-    const publicUrl = stored.url || getPublicStorageUrlForKey(stored.key) || ''
-    if (!publicUrl) {
-      await deleteStoredFile(stored.key)
-      return NextResponse.json({ error: 'تعذر تحديد رابط عام للملف المرفوع — تحقق من إعدادات التخزين العام.' }, { status: 422 })
-    }
-    // رابط محلي نسبي (/uploads/...) يعمل في بيئة التطوير فقط؛ في الإنتاج
-    // الرفع المحلي محظور أصلاً. الروابط المطلقة يجب أن ترد 2xx علنًا.
-    if (/^https?:\/\//i.test(publicUrl)) {
-      let reachable = false
-      try {
-        const head = await fetch(publicUrl, { method: 'HEAD', signal: AbortSignal.timeout(8000) })
-        reachable = head.ok
-      } catch {
-        reachable = false
-      }
-      if (!reachable) {
-        await deleteStoredFile(stored.key)
-        return NextResponse.json({ error: 'تم رفع الملف لكن رابطه العام غير قابل للوصول — تحقق من أن حاوية التخزين عامة القراءة.' }, { status: 422 })
-      }
-    }
+    // Stable same-origin media URL: visitors receive a fresh short-lived S3
+    // redirect on every GET. Never make the existing R2 bucket public.
+    const publicUrl = new URL(getStorageDownloadPathForKey(stored.key), req.url).toString()
 
     await audit(auth.user, 'SYSTEM_UPDATE', 'SITE_ANNOUNCEMENT', stored.key, `رفع وسائط إعلان: ${upload.name}`)
     return NextResponse.json({ url: publicUrl, key: stored.key, size: stored.size, mimeType: stored.mimeType })
