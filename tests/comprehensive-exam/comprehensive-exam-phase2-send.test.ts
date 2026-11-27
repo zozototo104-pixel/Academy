@@ -24,9 +24,9 @@ mock.module('@/lib/mailer', () => ({
   },
 }))
 mock.module('@/lib/whatsapp-cloud', () => ({
-  sendOfficialWhatsAppTemplate: async (to: string, template: string, params: string[]) => {
+  sendOfficialWhatsAppTemplate: async (to: string, template: string, params: string[], options?: { languageCode?: string; wabaId?: string }) => {
     if (whatsappBehavior === 'THROW') throw new Error('Meta: insufficient balance (402)')
-    sentWhatsApps.push({ to, template, params })
+    sentWhatsApps.push({ to, template, params, options })
     return { ok: true }
   },
 }))
@@ -43,6 +43,8 @@ function reset() {
   sentEmails = []
   sentWhatsApps = []
   delete process.env.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE
+  delete process.env.COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE
+  delete process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
 }
 
 const inviteInput = () => ({
@@ -65,12 +67,30 @@ describe('template name resolution', () => {
     settings['COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE'] = 'setting_template_ar'
     expect(await lib.readComprehensiveExamWhatsAppTemplate()).toBe('setting_template_ar')
   })
+  test('language defaults to ar, prefers admin setting, and accepts ar_EG', async () => {
+    reset()
+    expect(await lib.readComprehensiveExamWhatsAppLanguage()).toBe('ar')
+    process.env.COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE = 'en_US'
+    expect(await lib.readComprehensiveExamWhatsAppLanguage()).toBe('en_US')
+    settings.COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE = 'ar_EG'
+    expect(await lib.readComprehensiveExamWhatsAppLanguage()).toBe('ar_EG')
+  })
+  test('WABA ID is optional and uses admin settings before server env', async () => {
+    reset()
+    expect(await lib.readComprehensiveExamWhatsAppWabaId()).toBe('')
+    process.env.WHATSAPP_BUSINESS_ACCOUNT_ID = '123456789000'
+    expect(await lib.readComprehensiveExamWhatsAppWabaId()).toBe('123456789000')
+    settings.COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID = '987654321000'
+    expect(await lib.readComprehensiveExamWhatsAppWabaId()).toBe('987654321000')
+  })
 })
 
 describe('sendComprehensiveExamInvite', () => {
   test('both channels sent, template name from settings, 4 body params in order', async () => {
     reset()
     settings['COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE'] = 'comprehensive_exam_invite_ar'
+    settings['COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE'] = 'ar_EG'
+    settings['COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID'] = '123456789000'
     const d = await lib.sendComprehensiveExamInvite(inviteInput())
     expect(d.email.status).toBe('SENT')
     expect(d.whatsapp.status).toBe('SENT')
@@ -80,6 +100,14 @@ describe('sendComprehensiveExamInvite', () => {
     expect(sentWhatsApps[0].params[1]).toBe('الامتحان الشامل — إدارة الأعمال')
     expect(sentWhatsApps[0].params[3]).toBe('https://aactacademy.com/comprehensive-exam/abc123')
     expect(sentWhatsApps[0].params.length).toBe(4)
+    expect(sentWhatsApps[0].options).toEqual({ languageCode: 'ar_EG', wabaId: '123456789000' })
+  })
+  test('legacy configuration still sends Arabic ar without requiring WABA ID', async () => {
+    reset()
+    settings.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE = 'legacy_invite'
+    const d = await lib.sendComprehensiveExamInvite(inviteInput())
+    expect(d.whatsapp.status).toBe('SENT')
+    expect(sentWhatsApps[0].options).toEqual({ languageCode: 'ar', wabaId: '' })
   })
   test('missing template name: WhatsApp NOT_CONFIGURED with a clear reason, email still sent', async () => {
     reset()
