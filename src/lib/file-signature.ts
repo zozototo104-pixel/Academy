@@ -169,11 +169,6 @@ export type AnnouncementMediaSignatureResult =
   | { ok: true; kind: AnnouncementMediaKind; mimeType: string }
   | { ok: false; error: string }
 
-const ANNOUNCEMENT_MEDIA_MIMES: Record<AnnouncementMediaKind, string[]> = {
-  image: ['image/jpeg', 'image/png', 'image/webp'],
-  video: ['video/mp4', 'video/webm', 'video/quicktime'],
-}
-
 const ANNOUNCEMENT_MEDIA_EXTENSIONS: Record<AnnouncementMediaKind, string[]> = {
   image: ['jpg', 'jpeg', 'png', 'webp'],
   video: ['mp4', 'mov', 'webm'],
