@@ -13,6 +13,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
   }
 
+  // Independent scheduler tick for reviewed comprehensive-exam blueprints.
+  // Do not consume the existing question-bank/knowledge-repair time budget.
+  if (request.nextUrl.searchParams.get('kind') === 'comprehensive-internet') {
+    const job = await runNextComprehensiveInternetBackgroundStep()
+    return NextResponse.json({ ok: true, job }, { headers: { 'Cache-Control': 'no-store' } })
+  }
+
   const endAt = Date.now() + 50_000
   const outcomes: { jobId: string; status: string; saved: number; requested: number }[] = []
   let reason: 'no-job' | 'no-progress' | 'not-queued' | 'time' = 'time'
