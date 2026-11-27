@@ -313,10 +313,11 @@ export function verifyLocalStorageDownloadSignature(key: string, expires: string
   return createHash('sha256').update(signature).digest('hex') === createHash('sha256').update(expected).digest('hex')
 }
 
-export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300): string | null {
+export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300, method: 'GET' | 'PUT' = 'GET'): string | null {
   const cleanKey = cleanStorageKey(key)
+  if (method === 'PUT' && !cleanKey.startsWith('announcements/media/')) throw new Error('STORAGE_UPLOAD_KEY_FORBIDDEN')
   const cfg = getS3Config()
-  if (!cfg) return signLocalStorageDownloadPath(cleanKey, Date.now() + Math.max(1, Math.min(300, expiresSeconds)) * 1000)
+  if (!cfg) return method === 'PUT' ? null : signLocalStorageDownloadPath(cleanKey, Date.now() + Math.max(1, Math.min(300, expiresSeconds)) * 1000)
 
   const endpoint = new URL(cfg.endpoint)
   const privateRepresentative = cleanKey.startsWith('representatives-private/')
