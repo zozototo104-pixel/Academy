@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { validateAnnouncementMediaSignature } from '@/lib/file-signature'
 import { audit } from '@/lib/notify'
-import { canManageSiteAnnouncements } from '@/lib/site-announcements'
+import { canManageSiteAnnouncements, readSiteAnnouncements } from '@/lib/site-announcements'
 import { createAnnouncementMediaStorageKey, createSignedStorageUrlForKey, deleteStoredFile, getStorageDownloadPathForKey, inspectUploadedAnnouncementMedia, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 
 // رفع وسائط الإعلانات (فيديو واحد أو صور) إلى التخزين الخارجي نفسه.
