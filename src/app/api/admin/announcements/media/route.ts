@@ -40,6 +40,52 @@ export async function POST(req: NextRequest) {
     const auth = await requireAnnouncementAdmin()
     if (auth.error || !auth.user) return auth.error || NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
 
+    // Large files bypass Vercel's request-body cap: the browser uploads
+    // directly to the existing PRIVATE R2 bucket using a short-lived PUT URL.
+    if (req.headers.get('content-type')?.includes('application/json')) {
+      const body = await req.json().catch(() => null)
+      if (!body || typeof body !== 'object') return NextResponse.json({ error: 'طلب الرفع غير صالح' }, { status: 400 })
+      if (body.action === 'INIT') {
+        const fileName = String(body.fileName || '')
+        const mimeType = String(body.mimeType || '').split(';')[0].trim().toLowerCase()
+        const size = Number(body.size)
+        if (!ALLOWED_MIME_TYPES.has(mimeType)) return NextResponse.json({ error: 'صيغة الملف غير مدعومة' }, { status: 400 })
+        const maxBytes = mimeType.startsWith('video/') ? ANNOUNCEMENT_VIDEO_MAX_BYTES : ANNOUNCEMENT_IMAGE_MAX_BYTES
+        if (!Number.isSafeInteger(size) || size <= 0 || size > maxBytes) {
+          return NextResponse.json({ error: 'حجم الملف غير صالح أو يتجاوز الحد المسموح' }, { status: 400 })
+        }
+        let key: string
+        try {
+          key = createAnnouncementMediaStorageKey(fileName)
+        } catch {
+          return NextResponse.json({ error: 'اسم الملف أو امتداده غير صالح' }, { status: 400 })
+        }
+        const uploadUrl = createSignedStorageUrlForKey(key, 300, 'PUT')
+        if (!uploadUrl) return NextResponse.json({ error: 'التخزين الخارجي غير مهيأ للرفع المباشر' }, { status: 422 })
+        return NextResponse.json({ uploadUrl, key, expiresInSec: 300 })
+      }
+      if (body.action === 'COMPLETE') {
+        const key = String(body.key || '')
+        if (!/^announcements\/media\/\d{4}-\d{2}-\d{2}\/[0-9a-f-]{36}-.+\.(?:mp4|mov|webm|jpe?g|png|webp)$/i.test(key)) {
+          return NextResponse.json({ error: 'مفتاح وسائط الإعلان غير صالح' }, { status: 400 })
+        }
+        const inspected = await inspectUploadedAnnouncementMedia(key)
+        if (!inspected) return NextResponse.json({ error: 'الملف المرفوع غير موجود' }, { status: 404 })
+        const maxBytes = inspected.mimeType.startsWith('video/') ? ANNOUNCEMENT_VIDEO_MAX_BYTES : ANNOUNCEMENT_IMAGE_MAX_BYTES
+        const signature = validateAnnouncementMediaSignature({
+          buffer: inspected.signatureBytes, fileName: key.split('/').pop() || '', mimeType: inspected.mimeType,
+        })
+        if (!ALLOWED_MIME_TYPES.has(inspected.mimeType) || inspected.size > maxBytes || !signature.ok) {
+          await deleteStoredFile(key)
+          return NextResponse.json({ error: 'محتوى الملف أو حجمه لا يطابق شروط الرفع' }, { status: 400 })
+        }
+        const url = new URL(getStorageDownloadPathForKey(key), req.url).toString()
+        await audit(auth.user, 'SYSTEM_UPDATE', 'SITE_ANNOUNCEMENT', key, 'رفع وسائط إعلان مباشرة إلى التخزين الخاص')
+        return NextResponse.json({ url, key, size: inspected.size, mimeType: signature.mimeType })
+      }
+      return NextResponse.json({ error: 'عملية الرفع غير معروفة' }, { status: 400 })
+    }
+
     let form: FormData
     try {
       form = await req.formData()
