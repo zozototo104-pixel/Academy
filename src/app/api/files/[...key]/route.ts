@@ -49,7 +49,7 @@ async function handleFileGet(req: NextRequest, context: RouteContext, deps: File
       headers: {
         'Content-Type': stored.mimeType || 'application/octet-stream',
         'Cache-Control': 'private, max-age=0, no-store',
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(key.split('/').pop() || 'file')}"`,
+        'Content-Disposition': key.startsWith('announcements/media/') ? 'inline' : `attachment; filename="${encodeURIComponent(key.split('/').pop() || 'file')}"`,
       },
     })
   }
