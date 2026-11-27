@@ -595,13 +595,8 @@ export function AdminComprehensiveExamTab() {
       toast({ title: 'حدد المحاور التي تريد الامتحان فيها، وتأكّد أنها علمية وصالحة وغير مكررة', variant: 'destructive' })
       return
     }
-    // Academic-scope validation is also enforced by each guarded API
-    // request. The UI only distributes the administrator's chosen axes.
-    const perAxis = Math.floor(100 / chosenAxes.length)
-    const allocations = chosenAxes.map((topic, index) => ({ topic, target: perAxis + (index < 100 % chosenAxes.length ? 1 : 0) }))
-    // Store the reviewed selection BEFORE the first request. Every batch is
-    // committed by the API, so another click after stopping/reloading may
-    // resume against the server's saved per-axis counts without duplicates.
+    // The browser persists a copy for editing. The authoritative reviewed
+    // plan and its execution lease are stored server-side before any AI call.
     try {
       localStorage.setItem(internetExamPlanStorageKey(examId), JSON.stringify({
         axesText: writtenAxes.join('\n'),
