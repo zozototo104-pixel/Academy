@@ -14,8 +14,10 @@ const adminUi = readFileSync('src/components/aact/AdminLectures.tsx', 'utf8')
 const schema = readFileSync('prisma/schema.prisma', 'utf8')
 
 describe('lecture video storage independence', () => {
-  test('the platform signer still clamps to 300s and is untouched by the lectures TTL', () => {
-    expect(storageSrc).toContain('Math.min(300, Math.floor(expiresSeconds))')
+  test('private signed URLs stay capped at 300s and lecture playback keeps its independent one-hour signer', () => {
+    // Public announcement media has a scoped 1h exception; private files still use 300s.
+    expect(storageSrc).toContain("method === 'GET' && cleanKey.startsWith('announcements/media/') ? 3600 : 300")
+    expect(storageSrc).toContain('Math.min(maxTtlSeconds, Math.floor(expiresSeconds))')
     expect(LECTURE_VIDEO_URL_TTL_SEC).toBe(3600)
     expect(videoStorage).toContain("method: 'GET', key, expiresSec: LECTURE_VIDEO_URL_TTL_SEC")
   })
