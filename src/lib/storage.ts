@@ -348,6 +348,39 @@ export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300, 
   return `${endpoint.origin}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`
 }
 
+// Public announcements use short-lived signed redirects, not a public bucket.
+export function createAnnouncementMediaStorageKey(fileName: string): string {
+  const safeName = cleanFileName(fileName).slice(-100)
+  if (!/\.(mp4|mov|webm|jpg|jpeg|png|webp)$/i.test(safeName)) throw new Error('INVALID_ANNOUNCEMENT_MEDIA_NAME')
+  return `announcements/media/${isoDateFolder()}/${randomUUID()}-${safeName}`
+}
+
+export async function inspectUploadedAnnouncementMedia(keyInput: string): Promise<{ size: number; mimeType: string; signatureBytes: Buffer } | null> {
+  const key = cleanStorageKey(keyInput)
+  if (!key.startsWith('announcements/media/')) throw new Error('INVALID_ANNOUNCEMENT_MEDIA_KEY')
+  const signedHead = signS3Request({ method: 'HEAD', key, payloadHash: 'UNSIGNED-PAYLOAD' })
+  const signedGet = signS3Request({ method: 'GET', key, payloadHash: 'UNSIGNED-PAYLOAD' })
+  if (!signedHead || !signedGet) throw new Error('FILE_STORAGE_NOT_CONFIGURED')
+  const head = await fetch(signedHead.url, { method: 'HEAD', headers: signedHead.headers, cache: 'no-store' })
+  if (head.status === 404) return null
+  if (!head.ok) throw new Error(`S3_MEDIA_HEAD_FAILED:${head.status}`)
+  const size = Number(head.headers.get('content-length'))
+  if (!Number.isSafeInteger(size) || size <= 0) throw new Error('INVALID_ANNOUNCEMENT_MEDIA_SIZE')
+  const mimeType = String(head.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
+  const range = await fetch(signedGet.url, {
+    method: 'GET',
+    headers: { ...signedGet.headers, range: 'bytes=0-63' },
+    cache: 'no-store',
+  })
+  // A storage backend ignoring Range must not cause us to read a 500 MB object into memory.
+  if (range.status !== 206 && !(range.status === 200 && size <= 64)) {
+    await range.body?.cancel().catch(() => {})
+    throw new Error('S3_MEDIA_RANGE_NOT_SUPPORTED')
+  }
+  const signatureBytes = Buffer.from(await range.arrayBuffer())
+  return { size, mimeType, signatureBytes }
+}
+
 async function putToS3CompatibleStorage(input: { buffer: Buffer }, key: string, mimeType: string): Promise<StoredFileResult | null> {
   const signed = signS3Request({
     method: 'PUT',
