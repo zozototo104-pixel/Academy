@@ -355,6 +355,7 @@ export function AdminComprehensiveExamTab() {
       toast({ title: 'تم إنشاء مسودة الامتحان الشامل', description: 'أضف الأسئلة من المصادر أدناه ثم راجعها قبل النشر' })
       await loadExams()
       await loadDetail(data.examId)
+      if (prepareAxes) await createInternetPlan(data.examId)
     } catch (e: any) {
       toast({ title: 'تعذر إنشاء الامتحان', description: e.message || 'حدث خطأ', variant: 'destructive' })
     } finally {
