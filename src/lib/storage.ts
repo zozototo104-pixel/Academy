@@ -338,7 +338,7 @@ export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300, 
     ['X-Amz-SignedHeaders', signedHeaders],
   ]
   const canonicalQuery = query.map(([k, v]) => `${encodeS3PathPart(k)}=${encodeS3PathPart(v)}`).sort().join('&')
-  const canonicalRequest = ['GET', canonicalUri, canonicalQuery, `host:${endpoint.host}\n`, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n')
+  const canonicalRequest = [method, canonicalUri, canonicalQuery, `host:${endpoint.host}\n`, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n')
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join('\n')
   const kDate = hmac(`AWS4${cfg.secretAccessKey}`, dateStamp)
   const kRegion = hmac(kDate, cfg.region)
