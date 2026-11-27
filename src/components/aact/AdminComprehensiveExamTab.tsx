@@ -333,7 +333,7 @@ export function AdminComprehensiveExamTab() {
     setInternetPlanStored(false)
   }
 
-  const createExam = async () => {
+  const createExam = async (prepareAxes = false) => {
     if (!programId) {
       toast({ title: 'برنامج المعادلة غير موجود — أنشئ برنامج خدمة المعادلة أولاً', variant: 'destructive' })
       return
