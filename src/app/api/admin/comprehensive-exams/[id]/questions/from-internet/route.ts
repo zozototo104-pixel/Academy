@@ -416,9 +416,13 @@ async function startInternetBackgroundJob(
   }
   if (!await readTavilyApiKey()) return NextResponse.json({ error: 'مفتاح Tavily غير محفوظ', code: 'TAVILY_KEY_MISSING' }, { status: 422 })
   const existing = await readInternetBackgroundJob(exam.id)
+  const liveLease = !!existing?.job?.lockedUntil && new Date(existing.job.lockedUntil).getTime() > Date.now()
   if (existing?.job && (existing.job.status === 'QUEUED' ||
-    (existing.job.status === 'RUNNING' && !!existing.job.lockedUntil && new Date(existing.job.lockedUntil).getTime() > Date.now()))) {
-    return NextResponse.json({ error: 'توليد الامتحان يعمل بالفعل في الخلفية', code: 'INTERNET_JOB_ACTIVE', job: publicInternetJob(existing.job) }, { status: 409 })
+    (['RUNNING', 'PAUSED'].includes(existing.job.status) && liveLease))) {
+    return NextResponse.json({
+      error: existing.job.status === 'PAUSED' ? 'الدفعة السابقة ما زالت قيد الإنهاء؛ انتظر قليلاً قبل بدء خطة جديدة' : 'توليد الامتحان يعمل بالفعل في الخلفية',
+      code: 'INTERNET_JOB_ACTIVE', job: publicInternetJob(existing.job),
+    }, { status: 409 })
   }
   const perAxis = Math.floor(COMPREHENSIVE_EXAM_QUESTION_COUNT / axes.length)
   const job: InternetBackgroundJob = {
