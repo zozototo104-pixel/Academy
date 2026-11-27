@@ -252,6 +252,9 @@ mock.module('@/lib/settle-payment', () => ({
 mock.module('@/lib/whatsapp-cloud', () => ({
   sendOfficialWhatsAppTemplate: async () => ({ ok: true }),
 }))
+mock.module('@/lib/whatsapp-conversations', () => ({
+  recordWhatsAppOutboundMessage: async () => ({ id: 'conversation-for-exam-invite' }),
+}))
 mock.module('@/lib/storage', () => ({
   storeFileBuffer: async (input: any) => ({ key: `comprehensive-exam-candidates/test-${input.fileName}`, mimeType: input.mimeType, size: input.buffer.length }),
   getStorageDownloadPathForKey: (key: string) => `/api/files/${key}`,
