@@ -289,6 +289,29 @@ describe('durable background comprehensive-internet jobs', () => {
     expect(questions).toHaveLength(2)
   })
 
+  test('cannot replace a paused plan while its in-flight batch still owns a live lease', async () => {
+    const examId = seedExam('DRAFT', 'exam-background-pause-live-lease', 'specialization-1')
+    const startBody = { action: 'BACKGROUND_START', reviewed: true, axes: [axis] }
+    expect((await route.POST(jsonReq(examId, startBody), ctx(examId))).status).toBe(200)
+    const pending = JSON.parse(settings[0].value)
+    pending.status = 'PAUSED'
+    pending.leaseId = 'batch-still-running'
+    pending.lockedUntil = new Date(Date.now() + 300_000).toISOString()
+    settings[0].value = JSON.stringify(pending)
+
+    const blocked = await route.POST(jsonReq(examId, startBody), ctx(examId))
+    expect(blocked.status).toBe(409)
+    expect((await blocked.json()).code).toBe('INTERNET_JOB_ACTIVE')
+    expect(JSON.parse(settings[0].value).leaseId).toBe('batch-still-running')
+    expect(searchCalls).toHaveLength(0)
+
+    pending.lockedUntil = new Date(Date.now() - 1_000).toISOString()
+    settings[0].value = JSON.stringify(pending)
+    const afterLease = await route.POST(jsonReq(examId, startBody), ctx(examId))
+    expect(afterLease.status).toBe(200)
+    expect((await afterLease.json()).job.status).toBe('QUEUED')
+  })
+
   test('resumes the original axis allocations without a new blueprint or reapproval', async () => {
     const examId = seedExam('DRAFT', 'exam-background-resume', 'specialization-1')
     const axes = [axis, 'القيادة التحويلية وإدارة التغيير التنظيمي']
