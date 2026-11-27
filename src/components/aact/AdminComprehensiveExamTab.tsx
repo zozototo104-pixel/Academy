@@ -840,11 +840,23 @@ export function AdminComprehensiveExamTab() {
               <Input type="number" min={10} max={480} value={durationMin} onChange={(e: ChangeEvent<HTMLInputElement>) => setDurationMin(e.target.value)} />
             </div>
             <div className="flex items-end">
-              <Button onClick={createExam} disabled={creating || !programId || !specializationProgramId}>
+              <Button onClick={() => createExam(false)} disabled={creating || !programId || !specializationProgramId}>
                 {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} إنشاء المسودة
               </Button>
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => createExam(true)} disabled={creating || !programId || !specializationProgramId}>
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} إنشاء مسودة وتحضير محاور التخصص
+            </Button>
+            <span className="text-xs text-slate-600">مسار أسرع: ينشئ المسودة ثم يقترح المحاور؛ أنت تختارها وتوافق عليها قبل البحث وتوليد الأسئلة.</span>
+          </div>
+          {selectedSpecialtyDraft && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900">
+              <span>لديك مسودة سابقة لهذا التخصص ({selectedSpecialtyDraft.counts.approved} معتمد، {selectedSpecialtyDraft.counts.pending} بانتظار المراجعة).</span>
+              <Button variant="outline" size="sm" onClick={() => loadDetail(selectedSpecialtyDraft.id)}>فتح المسودة واستكمالها</Button>
+            </div>
+          )}
             </>
           )}
         </CardContent>
