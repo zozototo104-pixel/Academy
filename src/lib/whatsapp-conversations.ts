@@ -144,19 +144,24 @@ export async function recordWhatsAppOutboundMessage(args: {
       lastMessageText: args.text.slice(0, 1000),
     },
   })
-  await db.whatsAppConversationMessage.create({
+  const savedMessage = db.whatsAppConversationMessage.create({
     data: {
       conversationId: conversation.id,
       whatsappMessageId: args.whatsappMessageId || null,
       direction: 'OUTBOUND',
       sender: args.sender,
       text: args.text.slice(0, 4096),
+      rawType: args.rawType || null,
       status: args.status || 'SENT',
       sentById: args.sentById || null,
       sentByName: args.sentByName || null,
-      meta: { phoneNumberId: args.phoneNumberId || null },
+      meta: { ...args.meta, phoneNumberId: args.phoneNumberId || null },
     },
-  }).catch(() => {})
+  })
+  // Existing notification callers retain best-effort logging. Invitations
+  // opt into a hard persistence check so their UI can warn on archive failure.
+  if (args.requireSavedMessage) await savedMessage
+  else await savedMessage.catch(() => {})
   return conversation
 }
 
