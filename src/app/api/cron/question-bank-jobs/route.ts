@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runNextQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
 import { runNextKnowledgeAiRepairStep } from '@/lib/book-knowledge-v2-scheduler'
+import { runNextComprehensiveInternetBackgroundStep } from '@/app/api/admin/comprehensive-exams/[id]/questions/from-internet/route'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
