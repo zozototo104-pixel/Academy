@@ -123,14 +123,19 @@ describe('site announcements', () => {
     const { __handleFileGetForTests } = await import('../../src/app/api/files/[...key]/route')
     const mediaKey = 'announcements/media/2026-11-27/11111111-1111-4111-8111-111111111111-photo.png'
     const mediaUrl = `https://academy.example/api/files/${mediaKey}`
+    let signedTtlSeconds: number | null = null
     const deps = {
       requireUser: async () => { throw new Error('no session') },
-      createSignedStorageUrlForKey: () => 'https://r2.example/private-object?X-Amz-Signature=test',
+      createSignedStorageUrlForKey: (_key: string, ttlSeconds = 0) => {
+        signedTtlSeconds = ttlSeconds
+        return 'https://r2.example/private-object?X-Amz-Signature=test'
+      },
     }
     const allowed = await __handleFileGetForTests(new NextRequest(mediaUrl), { params: { key: mediaKey.split('/') } }, deps)
     expect(allowed.status).toBe(302)
     expect(allowed.headers.get('location')).toContain('X-Amz-Signature=test')
     expect(allowed.headers.get('cache-control')).toBe('no-store')
+    expect(signedTtlSeconds).toBe(3600)
     const privateKey = 'agent-documents/identity.png'
     const refused = await __handleFileGetForTests(
       new NextRequest(`https://academy.example/api/files/${privateKey}`),
