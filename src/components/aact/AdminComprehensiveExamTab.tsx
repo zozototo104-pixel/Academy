@@ -127,6 +127,7 @@ export function AdminComprehensiveExamTab() {
   const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [exams, setExams] = useState<ExamListItem[]>([])
+  const [examSearch, setExamSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
