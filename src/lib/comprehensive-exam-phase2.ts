@@ -14,6 +14,7 @@ import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { emailTemplate, sendEmailDetailed } from '@/lib/mailer'
 import { createCertificateQrToken, nextCertificateSerial } from '@/lib/certificate-identity'
 import { sendOfficialWhatsAppTemplate } from '@/lib/whatsapp-cloud'
+import { recordWhatsAppOutboundMessage } from '@/lib/whatsapp-conversations'
 import { storeFileBuffer } from '@/lib/storage'
 import { createPasswordResetToken, passwordResetUrl } from '@/lib/password-reset'
 
