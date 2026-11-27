@@ -27,7 +27,8 @@ describe('نافذة الخيارين ولوحة الحالة', () => {
   test('نافذة جاهزية الامتحان تُعرض خارج حركة لوحة الطالب وتظل قابلة للوصول على الهاتف', () => {
     expect(dashboard).toContain('aact-fade-in')
     expect(decisionUi).toContain("import { createPortal } from 'react-dom'")
-    expect(decisionUi).toContain('if (!mounted) return null')
+    expect(decisionUi).toContain("if (typeof document === 'undefined') return null")
+    expect(decisionUi).not.toContain('useEffect(() => { setMounted(true) }, [])')
     expect(decisionUi).toContain('return createPortal(')
     expect(decisionUi).toContain('document.body,')
     expect(decisionUi).toContain('max-h-[92dvh]')
