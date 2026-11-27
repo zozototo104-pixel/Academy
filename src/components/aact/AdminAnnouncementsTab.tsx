@@ -314,8 +314,8 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
               </div>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
-              <Button variant="ghost" onClick={() => setForm(null)} className="font-bold text-slate-500">إلغاء</Button>
-              <Button onClick={save} disabled={saving} className="bg-[#b22234] font-black text-white hover:bg-[#921b2a]">
+              <Button variant="ghost" onClick={() => void cancelForm()} disabled={uploading || saving} className="font-bold text-slate-500">إلغاء</Button>
+              <Button onClick={save} disabled={saving || uploading} className="bg-[#b22234] font-black text-white hover:bg-[#921b2a]">
                 {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />}
                 حفظ الإعلان
               </Button>
