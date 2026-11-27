@@ -222,7 +222,7 @@ function getS3Config() {
 }
 
 function signS3Request(args: {
-  method: 'GET' | 'PUT' | 'DELETE'
+  method: 'GET' | 'PUT' | 'DELETE' | 'HEAD'
   key: string
   payloadHash: string
   extraHeaders?: Record<string, string>
