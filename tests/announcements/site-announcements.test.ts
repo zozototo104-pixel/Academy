@@ -57,6 +57,20 @@ describe('site announcements', () => {
     expect(() => validateAnnouncementInput({ ...base, imageUrls: 'https://example.com/a.jpg' })).toThrow()
   })
 
+  test('media magic bytes must match the exact extension and declared MIME', () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00])
+    expect(validateAnnouncementMediaSignature({ buffer: png, fileName: 'photo.png', mimeType: 'image/png' }).ok).toBe(true)
+    expect(validateAnnouncementMediaSignature({ buffer: png, fileName: 'photo.jpg', mimeType: 'image/jpeg' }).ok).toBe(false)
+    expect(validateAnnouncementMediaSignature({ buffer: png, fileName: 'photo.png', mimeType: 'image/jpeg' }).ok).toBe(false)
+    const mp4 = Buffer.alloc(64)
+    mp4.write('ftypisom', 4, 'ascii')
+    expect(validateAnnouncementMediaSignature({ buffer: mp4, fileName: 'movie.mp4', mimeType: 'video/mp4' }).ok).toBe(true)
+    expect(validateAnnouncementMediaSignature({ buffer: mp4, fileName: 'movie.webm', mimeType: 'video/webm' }).ok).toBe(false)
+    const webm = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x00])
+    expect(validateAnnouncementMediaSignature({ buffer: webm, fileName: 'movie.webm', mimeType: 'video/webm' }).ok).toBe(true)
+    expect(validateAnnouncementMediaSignature({ buffer: webm, fileName: 'movie.mp4', mimeType: 'video/mp4' }).ok).toBe(false)
+  })
+
   test('stored rows without media fields still normalise (back-compat)', () => {
     const items = parseSiteAnnouncementsValue(
       JSON.stringify([{ id: 'old-1', title: 'عنوان قديم', summary: 'ملخص', body: '', display: 'TICKER', active: true }]),
