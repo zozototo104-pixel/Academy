@@ -144,7 +144,8 @@ export function SemesterDecisionDialog({
         </div>
         {!canConfirm ? <p className="mt-2 text-center text-[11px] font-bold text-amber-700">لإنهاء الفصل مبكرًا فعّل موافقة احتساب الأعمال غير المقدَّمة صفرًا أولًا.</p> : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
