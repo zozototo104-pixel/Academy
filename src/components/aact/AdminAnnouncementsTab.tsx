@@ -75,6 +75,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
   // already referenced by an existing announcement.
   const pendingMedia = useRef(new Map<string, string>())
   const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
+  const previewVideo = form?.videoUrl ? announcementVideoDescriptor(form.videoUrl) : null
 
   const cleanupMedia = async (url: string) => {
     const key = pendingMedia.current.get(url)
