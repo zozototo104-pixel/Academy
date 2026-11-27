@@ -380,32 +380,91 @@ export async function sendOfficialWhatsAppHumanFollowup(
   return data
 }
 
-// Generic approved-template sender (used by the comprehensive-exam
-// invitations). The template NAME comes from the caller — never
-// hardcoded here — because the invite template does not exist in Meta
-// yet; the admin saves its name in settings. Body parameters are
-// positional ({{1}}, {{2}}, …) so any template with the documented
-// placeholders works. Throws the provider's own error message so the
-// caller can surface the real failure instead of a silent "sent".
+// Read-only Meta preflight. Template listing requires the optional WABA ID and
+// whatsapp_business_management permission. A failed lookup is UNVERIFIED,
+// never treated as proof that an approved template is missing.
+export async function checkOfficialWhatsAppTemplate(
+  templateName: string,
+  languageCode: string,
+  wabaId: string,
+): Promise<{ checked: boolean; ok: boolean; message: string }> {
+  const name = trim(templateName)
+  const language = trim(languageCode)
+  const accountId = trim(wabaId)
+  if (!name) return { checked: true, ok: false, message: 'اسم قالب واتساب غير محفوظ' }
+  if (!/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(language)) {
+    return { checked: true, ok: false, message: 'رمز لغة القالب غير صالح — مثال: ar أو ar_EG' }
+  }
+  if (!accountId) return { checked: false, ok: false, message: 'أدخل معرّف حساب واتساب التجاري (WABA ID) لفحص القالب في Meta' }
+  if (!/^\d{5,30}$/.test(accountId)) {
+    return { checked: true, ok: false, message: 'معرّف حساب واتساب التجاري غير صالح' }
+  }
+  const config = getWhatsAppCloudConfig()
+  if (!config) return { checked: false, ok: false, message: 'اتصال واتساب غير مهيأ في السيرفر' }
+  try {
+    const query = new URLSearchParams({ name, fields: 'name,language,status', limit: '100' })
+    const response = await fetch(`https://graph.facebook.com/${config.graphVersion}/${accountId}/message_templates?${query}`, {
+      headers: { Authorization: `Bearer ${config.accessToken}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      return {
+        checked: false,
+        ok: false,
+        message: `تعذر فحص القالب عند Meta (${data?.error?.code || response.status}) — تحقق من معرّف WABA وصلاحية whatsapp_business_management`,
+      }
+    }
+    const templates = Array.isArray(data?.data) ? data.data : []
+    const matched = templates.find((item: any) => trim(item?.name) === name && trim(item?.language) === language)
+    if (!matched) {
+      const languages = templates.filter((item: any) => trim(item?.name) === name).map((item: any) => trim(item?.language)).filter(Boolean).slice(0, 8)
+      return {
+        checked: true,
+        ok: false,
+        message: `القالب "${name}" غير موجود باللغة "${language}" في حساب Meta المحدد${languages.length ? ` — اللغات المتاحة: ${languages.join(', ')}` : ''}`,
+      }
+    }
+    if (matched.status !== 'APPROVED') {
+      return { checked: true, ok: false, message: `القالب "${name}" باللغة "${language}" حالته ${matched.status || 'غير معروفة'} وليست APPROVED` }
+    }
+    return { checked: true, ok: true, message: `القالب "${name}" معتمد باللغة "${language}" في حساب Meta المحدد` }
+  } catch {
+    return { checked: false, ok: false, message: 'تعذر الوصول إلى Meta لفحص القالب — تحقق من الاتصال ثم حاول مجددًا' }
+  }
+}
+
+// Generic approved-template sender for comprehensive-exam invitations.
+// Preserve Arabic ("ar") for old callers unless a specific locale is passed.
+// The optional WABA preflight prevents known name/language mismatches;
+// missing management permissions never block an otherwise valid send.
 export async function sendOfficialWhatsAppTemplate(
   to: string,
   templateName: string,
   bodyParameters: string[],
-  options?: { phoneNumberId?: string },
+  options?: { phoneNumberId?: string; languageCode?: string; wabaId?: string },
 ) {
   const config = getWhatsAppCloudConfig(options?.phoneNumberId)
   if (!config) {
     throw new Error('WhatsApp Cloud API is not configured. Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID.')
   }
-  const name = String(templateName || '').trim()
+  const name = trim(templateName)
   if (!name) throw new Error('WhatsApp template name is missing.')
+  const language = trim(options?.languageCode) || 'ar'
+  if (!/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(language)) {
+    throw new Error('رمز لغة قالب واتساب غير صالح — مثال: ar_EG')
+  }
+  if (trim(options?.wabaId)) {
+    const check = await checkOfficialWhatsAppTemplate(name, language, trim(options?.wabaId))
+    if (check.checked && !check.ok) throw new Error(check.message)
+  }
   const body = {
     messaging_product: 'whatsapp',
     to,
     type: 'template',
     template: {
       name,
-      language: { code: 'ar' },
+      language: { code: language },
       components: [
         {
           type: 'body',
@@ -425,6 +484,9 @@ export async function sendOfficialWhatsAppTemplate(
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
+    if (Number(data?.error?.code) === 132001) {
+      throw new Error(`Meta #132001: القالب "${name}" غير موجود باللغة "${language}" في حساب واتساب المرسل — طابق الاسم واللغة وحساب WABA مع Meta`)
+    }
     const message = data?.error?.message || data?.error?.code || `WhatsApp template send failed with status ${response.status}`
     throw new Error(String(message).slice(0, 500))
   }
