@@ -383,6 +383,8 @@ export async function sendOfficialWhatsAppHumanFollowup(
 // Read-only Meta preflight. Template listing requires the optional WABA ID and
 // whatsapp_business_management permission. A failed lookup is UNVERIFIED,
 // never treated as proof that an approved template is missing.
+// Note: this checks name, language and status only — it cannot verify the
+// template's header format (e.g. whether it needs an IMAGE header).
 export async function checkOfficialWhatsAppTemplate(
   templateName: string,
   languageCode: string,
