@@ -807,6 +807,30 @@ export function AdminSystemTab() {
     }
   }
 
+  const checkWhatsAppTemplate = async () => {
+    setTesting(true)
+    try {
+      const d = await api<{ checked: boolean; ok: boolean; message: string }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'check-comprehensive-whatsapp-template',
+          templateName: form.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE,
+          languageCode: form.COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE || 'ar',
+          wabaId: form.COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID,
+        }),
+      })
+      toast({
+        title: d.checked ? (d.ok ? 'القالب معتمد ومتطابق' : 'القالب غير متطابق') : 'تعذّر التحقق من Meta',
+        description: d.message,
+        variant: d.ok ? 'default' : 'destructive',
+      } as any)
+    } catch (e: any) {
+      toast({ title: 'تعذّر فحص قالب واتساب', description: e.message, variant: 'destructive' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
   const testEmail = async () => {
     setTesting(true)
     try {
@@ -1076,7 +1100,7 @@ export function AdminSystemTab() {
         value={form[k] ?? ''}
         onChange={(e) => set(k, e.target.value)}
         placeholder={placeholder}
-        dir={type === 'password' || k.includes('KEY') || k.includes('SECRET') || k.includes('PASS') || k === 'AI_PROVIDER_TIERS' || k === 'AI_FAMILY_QUALITY_ORDER' || k === 'AI_FAMILY_COST_ORDER' ? 'ltr' : undefined}
+        dir={type === 'password' || k.includes('KEY') || k.includes('SECRET') || k.includes('PASS') || k === 'AI_PROVIDER_TIERS' || k === 'AI_FAMILY_QUALITY_ORDER' || k === 'AI_FAMILY_COST_ORDER' || k === 'COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE' || k === 'COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID' ? 'ltr' : undefined}
         className="h-9 min-w-0 w-full max-w-full bg-white text-sm"
       />
       {hint && <p className="text-[10px] leading-relaxed text-slate-400">{hint}</p>}
@@ -1999,7 +2023,12 @@ export function AdminSystemTab() {
               <p className="mt-1 text-[10px] font-bold leading-relaxed text-slate-600">اسم قالب واتساب المعتمد في Meta الذي تُرسَل به دعوة الامتحان الشامل. القالب نفسه يُنشأ ويُعتمَد في حساب Meta (WhatsApp Manager ← Message Templates) ويجب أن يحمل 4 خانات نصية بالترتيب: 1) اسم المرشح 2) عنوان الامتحان 3) تاريخ انتهاء الدعوة 4) رابط الامتحان. بلا اسم محفوظ هنا تُرسَل الدعوة بالبريد فقط وتظهر واتساب «غير مهيأ» — لا إرسال صامت أبداً.</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {F('COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE', 'اسم قالب دعوة الامتحان الشامل', 'مثال: comprehensive_exam_invite_ar', 'text', 'اسم القالب كما هو في Meta بالضبط — ليس سراً ولا مفتاحاً')}
+                {F('COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE', 'لغة القالب المعتمدة في Meta', 'ar_EG', 'text', 'مثل ar_EG للعربية (مصر)، أو ar للعربية العامة. فارغة = ar للحفاظ على القوالب القديمة.')}
+                {F('COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID', 'معرّف حساب واتساب التجاري WABA ID (اختياري)', '123456789012345', 'text', 'يُستخدم للتحقق من حالة القالب ولغته قبل الإرسال. ليس رقم الهاتف ولا Phone Number ID، وفحص Meta يحتاج صلاحية whatsapp_business_management.')}
               </div>
+              <Button type="button" onClick={checkWhatsAppTemplate} disabled={testing || !form.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE?.trim()} variant="outline" className="mt-3 border-teal-300 font-extrabold text-teal-800">
+                {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="ml-2 h-4 w-4" />} فحص القالب عند Meta (بدون إرسال)
+              </Button>
             </div>
           </div>
           </div>

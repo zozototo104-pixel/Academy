@@ -25,7 +25,7 @@ const SYSTEM_KEYS = [
   'TURN_URL', 'TURN_TCP_URL', 'TURN_USERNAME', 'TURN_CREDENTIAL', 'STUN_URLS',
   'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL', 'GEMINI_DISCUSSION_THINKING_LEVEL', 'GEMINI_TTS_VOICE',
   'TAVILY_API_KEY',
-  'COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE',
+  'COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE', 'COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE', 'COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID',
   'AI_KNOWLEDGE_REPAIR_PROVIDER', 'AI_KNOWLEDGE_REPAIR_MODEL', 'AI_KNOWLEDGE_REPAIR_INTERVAL_SECONDS', 'AI_KNOWLEDGE_REPAIR_CALLS_PER_RUN',
   'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES', 'AI_PROVIDER_FALLBACK_ORDER', 'AI_PROVIDER_FALLBACK_ORDER_ENABLED',
   'AI_AUTO_MODE_ENABLED', 'AI_AUTO_MODE_CONFIG',
@@ -275,6 +275,10 @@ export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json()
+    const language = String(body.COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE ?? '').trim()
+    const wabaId = String(body.COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID ?? '').trim()
+    if (language && !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(language)) return NextResponse.json({ error: 'لغة قالب واتساب غير صالحة — مثال: ar_EG' }, { status: 400 })
+    if (wabaId && !/^\d{5,30}$/.test(wabaId)) return NextResponse.json({ error: 'معرّف WABA يجب أن يحتوي أرقامًا فقط' }, { status: 400 })
     const addedIds = (await adminCustomTextAiProviders()).map((entry) => entry.id)
     // Independent model choice for knowledge repair. Never alter global routing
     // for students, books, exams or other AI consumers.
@@ -418,6 +422,15 @@ export async function POST(req: NextRequest) {
     const admin = await requireAdmin()
     const body = await req.json()
     const { action, model: selectedLiveModel, purpose: livePurpose, provider: modelProvider, allowlistItem } = body || {}
+    if (action === 'check-comprehensive-whatsapp-template') {
+      const { checkOfficialWhatsAppTemplate } = await import('@/lib/whatsapp-cloud')
+      const result = await checkOfficialWhatsAppTemplate(
+        String(body?.templateName || ''),
+        String(body?.languageCode || 'ar'),
+        String(body?.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || ''),
+      )
+      return NextResponse.json(result)
+    }
     if (action === 'save-custom-ai-provider') {
       const incomingId = String(body?.id || '').trim()
       const name = String(body?.name || '').trim()

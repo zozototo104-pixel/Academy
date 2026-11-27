@@ -22,6 +22,8 @@ export const COMPREHENSIVE_EXAM_INVITE_TOKEN_BYTES = 32
 export const COMPREHENSIVE_EXAM_CANDIDATE_FILE_MAX_BYTES = 10 * 1024 * 1024 // 10MB per file
 export const COMPREHENSIVE_EXAM_CANDIDATE_FILE_NAMESPACE = 'comprehensive-exam-candidates'
 export const COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE_KEY = 'COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE'
+export const COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE_KEY = 'COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE'
+export const COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID_KEY = 'COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID'
 export const COMPREHENSIVE_EXAM_CANDIDATE_STATUSES = ['PENDING_REVIEW', 'APPROVED', 'REJECTED'] as const
 export const COMPREHENSIVE_EXAM_INVITATION_STATUSES = ['PENDING', 'USED', 'EXPIRED', 'REVOKED'] as const
 
@@ -440,15 +442,24 @@ function formatInviteExpiryDate(expiresAt: Date): string {
   return expiresAt.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
-// The invite template name lives in admin settings (plain value, not
-// a secret) with an env fallback. It is NEVER hardcoded: the template
-// does not exist in Meta yet, and a hardcoded name would fail silently
-// against a template that was never created or approved.
+// Invitation template name, locale and optional WABA ID live in admin
+// settings with env fallbacks. They must match the approved Meta template;
+// the old locale stays "ar" when no explicit language was configured.
 export async function readComprehensiveExamWhatsAppTemplate(): Promise<string | null> {
   const row = await (db as any).setting?.findUnique?.({ where: { key: COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE_KEY } })
   const stored = String(row?.value || '').trim()
   if (stored) return stored
   return process.env.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE?.trim() || null
+}
+
+export async function readComprehensiveExamWhatsAppLanguage(): Promise<string> {
+  const row = await (db as any).setting?.findUnique?.({ where: { key: COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE_KEY } })
+  return String(row?.value || process.env.COMPREHENSIVE_EXAM_WHATSAPP_LANGUAGE || '').trim() || 'ar'
+}
+
+export async function readComprehensiveExamWhatsAppWabaId(): Promise<string> {
+  const row = await (db as any).setting?.findUnique?.({ where: { key: COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID_KEY } })
+  return String(row?.value || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '').trim()
 }
 
 export type ComprehensiveInviteChannelStatus = 'SENT' | 'SKIPPED' | 'FAILED' | 'NOT_CONFIGURED'
@@ -509,6 +520,8 @@ export async function sendComprehensiveExamInvite(input: ComprehensiveInviteSend
         error: 'لم يُحفظ اسم قالب واتساب بعد — احفظه في لوحة الإدارة ← النظام ← قالب واتساب لدعوة الامتحان الشامل',
       }
     } else {
+      const languageCode = await readComprehensiveExamWhatsAppLanguage()
+      const wabaId = await readComprehensiveExamWhatsAppWabaId()
       const phone = normalizePhone(input.phone)
       const digits = phone.replace(/\D/g, '')
       if (digits.length < 8 || digits.length > 15) {
@@ -521,7 +534,7 @@ export async function sendComprehensiveExamInvite(input: ComprehensiveInviteSend
           input.examTitle,
           formatInviteExpiryDate(input.expiresAt),
           input.inviteUrl,
-        ])
+        ], { languageCode, wabaId })
         delivery.whatsapp = { status: 'SENT' }
       }
     }
