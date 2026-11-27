@@ -67,7 +67,25 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  // Only new, unsaved uploads belong to this editor; never delete media
+  // already referenced by an existing announcement.
+  const pendingMedia = useRef(new Map<string, string>())
   const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
+
+  const cleanupMedia = async (url: string) => {
+    const key = pendingMedia.current.get(url)
+    if (!key) return
+    pendingMedia.current.delete(url)
+    await api(`/api/admin/announcements/media?key=${encodeURIComponent(key)}`, { method: 'DELETE' }).catch((error) => {
+      console.warn('Announcement temporary media cleanup failed:', error)
+    })
+  }
+
+  const cancelForm = async () => {
+    const urls = [...pendingMedia.current.keys()]
+    setForm(null)
+    await Promise.allSettled(urls.map((url) => cleanupMedia(url)))
+  }
 
   const updateForm = (patch: Partial<AnnouncementForm>) => setForm((current) => ({ ...(current || emptyForm()), ...patch }))
 
