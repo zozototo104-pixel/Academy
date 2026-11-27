@@ -184,13 +184,14 @@ describe('comprehensive exam review UX', () => {
     expect(parseSavedInternetExamPlan(JSON.stringify({ axesText: 'الإدارة الاستراتيجية وتحليل الميزة التنافسية', selectedTopics: { 'الإدارة الاستراتيجية وتحليل الميزة التنافسية': true }, reviewed: false }))).toBeNull()
   })
 
-  test('offers explicit resume after a saved partial run and keeps the plan on refresh', () => {
+  test('persists the reviewed blueprint and monitors background progress after refresh', () => {
     expect(view).toContain('localStorage.setItem(internetExamPlanStorageKey(examId)')
     expect(view).toContain('localStorage.getItem(internetExamPlanStorageKey(examId))')
     expect(view).toContain('استكمال الأسئلة الناقصة')
-    expect(view).toContain('كل دفعة بحد أقصى 10 أسئلة')
     expect(view).toContain('internetPlanStored')
-    expect(view).toContain('internetStopRef.current = true')
+    expect(view).toContain("action: 'BACKGROUND_STATUS'")
+    expect(view).toContain('window.setInterval(() => { void poll() }, 10_000)')
+    expect(view).toContain('onStopInternetPlan={pauseComprehensiveInternetPlan}')
   })
 
   test('keeps the question panel mounted during approval and edit refresh', () => {
