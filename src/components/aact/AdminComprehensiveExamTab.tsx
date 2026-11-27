@@ -874,8 +874,10 @@ export function AdminComprehensiveExamTab() {
           {!collapsedSections.list && (
             <>
           {exams.length === 0 && <p className="text-xs text-slate-500">لا توجد امتحانات شاملة بعد — أنشئ أول مسودة من الأعلى.</p>}
+          {exams.length > 0 && <Input dir="rtl" value={examSearch} onChange={(e: ChangeEvent<HTMLInputElement>) => setExamSearch(e.target.value)} placeholder="ابحث باسم الامتحان أو التخصص أو الحالة…" aria-label="البحث في الامتحانات الشاملة" />}
+          {exams.length > 0 && visibleExams.length === 0 && <p className="text-xs text-slate-500">لا توجد امتحانات مطابقة للبحث.</p>}
           <div className="space-y-2">
-            {exams.map((exam) => (
+            {visibleExams.map((exam) => (
               <button
                 key={exam.id}
                 type="button"
