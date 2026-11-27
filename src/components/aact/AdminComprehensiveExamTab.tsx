@@ -212,7 +212,7 @@ export function AdminComprehensiveExamTab() {
     if (selectedId !== examId) {
       // Switching exams restores this exam's last reviewed blueprint. A
       // refresh must not discard the ability to resume a partial run.
-      internetStopRef.current = true
+      restoredInternetJobRef.current = null
       activeExamIdRef.current = examId
       let saved: SavedInternetExamPlan | null = null
       try { saved = parseSavedInternetExamPlan(localStorage.getItem(internetExamPlanStorageKey(examId))) } catch { /* private browsing may deny storage */ }
