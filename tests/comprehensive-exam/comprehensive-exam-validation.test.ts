@@ -219,11 +219,10 @@ describe('comprehensive exam review UX', () => {
     expect(view).toContain('const chosenAxes = writtenAxes.filter')
     expect(view).toContain('توليد الأسئلة حسب المخطط')
     expect(view).toContain('!internetPlanReviewed')
-    expect(view).toContain("mode: 'COMPREHENSIVE'")
-    expect(view).toContain('internetStopRef.current = true')
-    expect(view).toContain('axisTarget: axis.target')
-    expect(view).toContain('await refreshDetailAndList(examId)')
-    expect(view).toContain('جميعها بانتظار مراجعتك')
+    expect(view).toContain("action: 'BACKGROUND_START', axes: chosenAxes, reviewed: true")
+    expect(view).toContain("action: 'BACKGROUND_PAUSE'")
+    expect(view).toContain('تستطيع الخروج من الصفحة')
+    expect(view).not.toContain('internetStopRef')
   })
 
   test('batch approval preserves each success and reports failed academic validation', async () => {
