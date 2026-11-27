@@ -529,12 +529,15 @@ export async function sendComprehensiveExamInvite(input: ComprehensiveInviteSend
       } else {
         // Body placeholders, in order: {{1}} name, {{2}} exam/program,
         // {{3}} expiry date, {{4}} invite link (tappable in WhatsApp).
+        // The template carries an IMAGE header (Meta #132012 without it),
+        // so the platform logo is sent as the header image.
+        const headerImageUrl = `${String(process.env.NEXT_PUBLIC_APP_URL || 'https://aactacademy.com').replace(/\/$/, '')}/logo.png`
         await sendOfficialWhatsAppTemplate(phone, templateName, [
           input.fullName,
           input.examTitle,
           formatInviteExpiryDate(input.expiresAt),
           input.inviteUrl,
-        ], { languageCode, wabaId })
+        ], { languageCode, wabaId, headerImageUrl })
         delivery.whatsapp = { status: 'SENT' }
       }
     }

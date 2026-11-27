@@ -438,11 +438,13 @@ export async function checkOfficialWhatsAppTemplate(
 // Preserve Arabic ("ar") for old callers unless a specific locale is passed.
 // The optional WABA preflight prevents known name/language mismatches;
 // missing management permissions never block an otherwise valid send.
+// Pass headerImageUrl when the template carries an IMAGE header — Meta
+// rejects the send with #132012 when the header component is missing.
 export async function sendOfficialWhatsAppTemplate(
   to: string,
   templateName: string,
   bodyParameters: string[],
-  options?: { phoneNumberId?: string; languageCode?: string; wabaId?: string },
+  options?: { phoneNumberId?: string; languageCode?: string; wabaId?: string; headerImageUrl?: string },
 ) {
   const config = getWhatsAppCloudConfig(options?.phoneNumberId)
   if (!config) {
@@ -458,6 +460,21 @@ export async function sendOfficialWhatsAppTemplate(
     const check = await checkOfficialWhatsAppTemplate(name, language, trim(options?.wabaId))
     if (check.checked && !check.ok) throw new Error(check.message)
   }
+  // The invite template carries an IMAGE header: Meta rejects the send with
+  // #132012 when no header component is sent. Only callers that pass a
+  // header image get one; everyone else keeps the body-only payload.
+  const headerImageUrl = trim(options?.headerImageUrl)
+  const components: any[] = []
+  if (headerImageUrl) {
+    components.push({
+      type: 'header',
+      parameters: [{ type: 'image', image: { link: headerImageUrl } }],
+    })
+  }
+  components.push({
+    type: 'body',
+    parameters: bodyParameters.map((text) => ({ type: 'text', text: String(text ?? '') })),
+  })
   const body = {
     messaging_product: 'whatsapp',
     to,
@@ -465,12 +482,7 @@ export async function sendOfficialWhatsAppTemplate(
     template: {
       name,
       language: { code: language },
-      components: [
-        {
-          type: 'body',
-          parameters: bodyParameters.map((text) => ({ type: 'text', text: String(text ?? '') })),
-        },
-      ],
+      components,
     },
   }
 
@@ -486,6 +498,9 @@ export async function sendOfficialWhatsAppTemplate(
   if (!response.ok) {
     if (Number(data?.error?.code) === 132001) {
       throw new Error(`Meta #132001: القالب "${name}" غير موجود باللغة "${language}" في حساب واتساب المرسل — طابق الاسم واللغة وحساب WABA مع Meta`)
+    }
+    if (Number(data?.error?.code) === 132012) {
+      throw new Error(`Meta #132012: صيغة أحد بارامترات القالب "${name}" لا تطابق القالب المعتمد — تحقق من هيدر الصورة (IMAGE) وبارامترات الجسم بالترتيب`)
     }
     const message = data?.error?.message || data?.error?.code || `WhatsApp template send failed with status ${response.status}`
     throw new Error(String(message).slice(0, 500))
