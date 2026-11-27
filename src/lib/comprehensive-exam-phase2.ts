@@ -442,10 +442,9 @@ function formatInviteExpiryDate(expiresAt: Date): string {
   return expiresAt.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
-// The invite template name lives in admin settings (plain value, not
-// a secret) with an env fallback. It is NEVER hardcoded: the template
-// does not exist in Meta yet, and a hardcoded name would fail silently
-// against a template that was never created or approved.
+// Invitation template name, locale and optional WABA ID live in admin
+// settings with env fallbacks. They must match the approved Meta template;
+// the old locale stays "ar" when no explicit language was configured.
 export async function readComprehensiveExamWhatsAppTemplate(): Promise<string | null> {
   const row = await (db as any).setting?.findUnique?.({ where: { key: COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE_KEY } })
   const stored = String(row?.value || '').trim()
