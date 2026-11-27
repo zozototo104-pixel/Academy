@@ -114,6 +114,17 @@ describe('sendComprehensiveExamInvite', () => {
     expect(sentWhatsApps[0].params[3]).toBe('https://aactacademy.com/comprehensive-exam/abc123')
     expect(sentWhatsApps[0].params.length).toBe(4)
     expect(sentWhatsApps[0].options).toEqual({ languageCode: 'ar_EG', wabaId: '123456789000', headerImageUrl: 'https://www.aactacademy.com/logo.png' })
+    expect(archivedWhatsApps).toHaveLength(1)
+    expect(archivedWhatsApps[0]).toMatchObject({
+      waId: '0599123456',
+      displayName: 'أحمد محمد',
+      sender: 'SYSTEM',
+      whatsappMessageId: 'wamid.exam-invite-1',
+      rawType: 'template',
+      requireSavedMessage: true,
+      meta: { templateName: 'comprehensive_exam_invite_ar', languageCode: 'ar_EG' },
+    })
+    expect(archivedWhatsApps[0].text).toContain('https://aactacademy.com/comprehensive-exam/abc123')
   })
   test('invite passes the platform logo as the header image (template IMAGE header, Meta #132012)', async () => {
     reset()
