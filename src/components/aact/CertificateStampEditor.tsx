@@ -12,11 +12,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  normalizeStampLayout,
-  type LegacyStampLayout,
-  type StampTextField,
-} from '@/lib/legacy-certificate-files'
+// The stamping implementation is server-only (pdf-lib, sharp, fs, storage).
+// Keep this UI's layout conversion pure so it cannot pull Node modules into
+// Next.js client bundles. The upload routes normalize the layout again.
+import type { LegacyStampLayout, StampTextField } from '@/lib/legacy-certificate-files'
 
 export type CertificateStampField = 'holderName' | 'program' | 'grade' | 'issuedAt' | 'serial' | 'legacySerial' | 'qr'
 export type CertificateStampTextField = StampTextField
@@ -28,13 +27,87 @@ export const CERTIFICATE_STAMP_FIELDS: CertificateStampField[] = ['holderName', 
 
 // The legacy default: name/program/grade/date hidden (a ready certificate
 // already carries them printed), QR + serial visible at the bottom-left.
-export const DEFAULT_CERTIFICATE_STAMP_LAYOUT: CertificateStampLayout = normalizeStampLayout('BOTTOM_LEFT', 'M')
+function stampNumber(value: unknown, min: number, max: number, fallback: number) {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback
+}
+
+function fallbackStampLayout(positionValue?: string | null, sizeValue?: string | null): CertificateStampLayout {
+  const position = String(positionValue || '').trim().toUpperCase()
+  const size = String(sizeValue || '').trim().toUpperCase()
+  const qrSize = size === 'L' ? 20 : size === 'S' ? 12 : 16
+  const right = position === 'BOTTOM_RIGHT' || position === 'TOP_RIGHT'
+  const top = position === 'TOP_LEFT' || position === 'TOP_RIGHT'
+  const x = right ? 100 - (7 + qrSize / 2) : 7 + qrSize / 2
+  const y = top ? 7 + qrSize / 2 : 100 - (10 + qrSize / 2)
+  const serialY = top ? Math.min(96, y + qrSize / 2 + 4) : 95
+  const text = (tx: number, ty: number, width = 70, fontSize = 2.2, extra: Partial<StampTextField> = {}): StampTextField => ({
+    x: tx, y: ty, width, fontSize, color: '#0f2b46', align: 'center', fontFamily: 'Arial', lang: 'en', visible: true, ...extra,
+  })
+  return {
+    holderName: text(50, 36, 72, 4.2, { visible: false }),
+    program: text(50, 51, 76, 2.5, { color: '#a8841a', visible: false }),
+    grade: text(50, 62, 44, 1.7, { visible: false }),
+    issuedAt: text(18, 90, 26, 1.15, { align: 'left', visible: false }),
+    serial: text(x, serialY, Math.max(20, qrSize * 1.8), size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25),
+    legacySerial: text(x, top ? Math.min(96, serialY + 4) : serialY - 3, Math.max(20, qrSize * 1.8), size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25),
+    qr: { x, y, size: qrSize, visible: true },
+  }
+}
+
+function normalizeStampText(raw: unknown, fallback: StampTextField): StampTextField {
+  if (!raw || typeof raw !== 'object') return { ...fallback }
+  const value = raw as Partial<StampTextField>
+  const lang = value.lang === 'ar' ? 'ar' : fallback.lang || 'en'
+  return {
+    x: stampNumber(value.x, 1, 99, fallback.x),
+    y: stampNumber(value.y, 1, 99, fallback.y),
+    width: stampNumber(value.width, 6, 95, fallback.width),
+    fontSize: stampNumber(value.fontSize, 0.5, 8, fallback.fontSize),
+    color: String(value.color || fallback.color || '#0f2b46'),
+    align: value.align === 'left' || value.align === 'center' || value.align === 'right' ? value.align : fallback.align || 'center',
+    fontFamily: String(value.fontFamily || fallback.fontFamily || (lang === 'ar' ? 'Noto Naskh Arabic' : 'Arial')),
+    lang,
+    visible: typeof value.visible === 'boolean' ? value.visible : fallback.visible,
+  }
+}
+
+function normalizeClientStampLayout(value: unknown, sizeValue: unknown = 'M'): CertificateStampLayout {
+  let raw: unknown = value
+  if (typeof value === 'string' && value.trim().startsWith('{')) {
+    try { raw = JSON.parse(value) } catch { raw = null }
+  }
+  const fallback = fallbackStampLayout(typeof value === 'string' ? value : 'BOTTOM_LEFT', String(sizeValue || 'M'))
+  if (!raw || typeof raw !== 'object') return fallback
+  const fields = raw as Partial<CertificateStampLayout>
+  const qr = fields.qr
+  return {
+    holderName: normalizeStampText(fields.holderName, fallback.holderName),
+    program: normalizeStampText(fields.program, fallback.program),
+    grade: normalizeStampText(fields.grade, fallback.grade),
+    issuedAt: normalizeStampText(fields.issuedAt, fallback.issuedAt),
+    serial: normalizeStampText(fields.serial, fallback.serial),
+    legacySerial: normalizeStampText(fields.legacySerial, fallback.legacySerial),
+    qr: qr && typeof qr === 'object' ? {
+      x: stampNumber(qr.x, 1, 99, fallback.qr.x),
+      y: stampNumber(qr.y, 1, 99, fallback.qr.y),
+      size: stampNumber(qr.size, 4, 45, fallback.qr.size),
+      visible: typeof qr.visible === 'boolean' ? qr.visible : fallback.qr.visible,
+    } : { ...fallback.qr },
+  }
+}
+
+export const DEFAULT_CERTIFICATE_STAMP_LAYOUT: CertificateStampLayout = normalizeClientStampLayout('BOTTOM_LEFT', 'M')
 
 // Saved layouts are stored as JSON in Certificate.qrPosition; older
 // records still carry a corner name (BOTTOM_LEFT …) — both parse to a
 // full layout, exactly like the legacy upload modal does.
 export function parseCertificateStampLayout(positionValue?: string | null, sizeValue?: string | null): CertificateStampLayout {
-  return normalizeStampLayout(positionValue ?? 'BOTTOM_LEFT', sizeValue ?? 'M')
+  return normalizeClientStampLayout(positionValue ?? 'BOTTOM_LEFT', sizeValue ?? 'M')
+}
+
+export function serializeCertificateStampLayout(layout: CertificateStampLayout): string {
+  return JSON.stringify(normalizeClientStampLayout(layout))
 }
 
 const DEFAULT_HINT = 'اسحب أي عنصر لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره. الافتراضي يخفي الاسم والبرنامج والتقدير والتاريخ للشهادات الجاهزة.'
