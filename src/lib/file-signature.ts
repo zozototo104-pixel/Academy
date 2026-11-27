@@ -220,10 +220,21 @@ export function validateAnnouncementMediaSignature(input: {
   if (ext && !ANNOUNCEMENT_MEDIA_EXTENSIONS[kind].includes(ext)) {
     return { ok: false, error: 'امتداد الملف لا يطابق محتواه الحقيقي.' }
   }
-
-  if (mime && mime !== 'application/octet-stream' && !ANNOUNCEMENT_MEDIA_MIMES[kind].includes(mime)) {
+  // The media category alone is insufficient: PNG bytes labeled .jpg (or MP4
+  // bytes labeled .webm) must not pass the signature guard.
+  const exactExtensions = canonicalMime === 'image/jpeg' ? ['jpg', 'jpeg']
+    : canonicalMime === 'image/png' ? ['png']
+    : canonicalMime === 'image/webp' ? ['webp']
+    : canonicalMime === 'video/webm' ? ['webm']
+    : ['mp4', 'mov']
+  if (ext && !exactExtensions.includes(ext)) {
+    return { ok: false, error: 'امتداد الملف لا يطابق محتواه الحقيقي.' }
+  }
+  const allowedExactMimes = canonicalMime === 'video/mp4' ? ['video/mp4', 'video/quicktime'] : [canonicalMime]
+  if (mime && mime !== 'application/octet-stream' && !allowedExactMimes.includes(mime)) {
     return { ok: false, error: 'نوع الملف المعلن لا يطابق محتواه الحقيقي.' }
   }
+  if (kind === 'video' && ext === 'mov') canonicalMime = 'video/quicktime'
 
   return { ok: true, kind, mimeType: canonicalMime }
 }
