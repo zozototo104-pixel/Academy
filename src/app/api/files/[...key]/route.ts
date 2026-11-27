@@ -54,6 +54,17 @@ async function handleFileGet(req: NextRequest, context: RouteContext, deps: File
     })
   }
 
+  // Public announcement media is deliberately isolated by key prefix. The R2
+  // bucket itself stays PRIVATE; each visitor receives a five-minute S3 GET
+  // redirect. Never allow this bypass for student, certificate or agent files.
+  if (/^announcements\/media\/\d{4}-\d{2}-\d{2}\/[0-9a-f-]{36}-.+\.(?:mp4|mov|webm|jpe?g|png|webp)$/i.test(key) && !isPrivateStorageKey(key)) {
+    const url = deps.createSignedStorageUrlForKey(key, SIGNED_URL_TTL_SECONDS)
+    if (!url) return NextResponse.json({ error: 'ملف الإعلان غير متاح' }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+    const redirect = NextResponse.redirect(new URL(url, req.url), 302)
+    redirect.headers.set('Cache-Control', 'no-store')
+    return redirect
+  }
+
   let user: FileRouteUser
   try {
     user = await deps.requireUser()
