@@ -1014,8 +1014,9 @@ export function AdminFinanceTab() {
           : 'لم يتم إرسال بريد، انسخ الكود يدوياً'
       toast({
         title: 'صدر كود المنحة بالنظام المالي الحالي',
-        description: mailNote,
-        variant: result.emailStatus === 'FAILED' ? 'destructive' : undefined,
+        description: mailNote + ' — ' + waiverWhatsAppNote(result.whatsapp)
+          + (result.whatsappArchiveWarning ? ' — ' + result.whatsappArchiveWarning : ''),
+        variant: result.emailStatus === 'FAILED' || result.whatsappArchiveWarning ? 'destructive' : undefined,
       })
       setGrantQuoteDialog(null)
       load()
