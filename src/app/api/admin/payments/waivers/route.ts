@@ -880,7 +880,7 @@ export async function PATCH(req: NextRequest) {
       }
       return NextResponse.json({
         code: result.code, waiver: result.waiver, emailStatus: result.emailStatus,
-        whatsapp: result.whatsapp, organizationWarning,
+        whatsapp: result.whatsapp, whatsappArchiveWarning: result.whatsappArchiveWarning, organizationWarning,
       })
     }
     if (action === 'RESOLVE_GRANT_OPERATION') {
