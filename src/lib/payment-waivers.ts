@@ -356,18 +356,17 @@ function waiverWhatsAppDigits(phone: unknown) {
   return digits.length >= 8 && digits.length <= 15 ? digits : ''
 }
 
-// Meta's response wa_id is authoritative when returned. The same
-// country-aware fallback used for comprehensive-exam invitations handles
-// older/local numbers when Meta does not return the recipient wa_id.
-function waiverArchiveWaId(response: any, phone: string, country?: string | null): string {
+// Meta's recipient wa_id is authoritative when returned. Otherwise use the
+// already-normalized number sent to Meta; normalizing twice can duplicate
+// the country dial code and archive the message in the wrong conversation.
+function waiverArchiveWaId(response: any, sentToDigits: string): string {
   const metaWaId = String(response?.contacts?.[0]?.wa_id || '').replace(/\D/g, '')
-  return /^[0-9]{8,15}$/.test(metaWaId) ? metaWaId : normalizePhoneToInternationalWaId(phone, country)
+  return /^[0-9]{8,15}$/.test(metaWaId) ? metaWaId : sentToDigits
 }
 
 async function archiveWaiverWhatsApp(args: {
   response: any
   phone: string
-  country?: string | null
   name: string
   text: string
   actor: { id?: string | null; name: string }
@@ -375,7 +374,7 @@ async function archiveWaiverWhatsApp(args: {
 }): Promise<string | undefined> {
   try {
     await recordWhatsAppOutboundMessage({
-      waId: waiverArchiveWaId(args.response, args.phone, args.country),
+      waId: waiverArchiveWaId(args.response, args.phone),
       phoneNumberId: null,
       displayName: args.name,
       text: args.text,
@@ -398,7 +397,6 @@ async function archiveWaiverWhatsApp(args: {
 
 async function sendWaiverCodeWhatsApp(params: {
   digits: string
-  country?: string | null
   name: string
   code: string
   invoiceNo: string
@@ -419,14 +417,14 @@ async function sendWaiverCodeWhatsApp(params: {
       const text = `مرحباً ${params.name}، كود الإعفاء الجديد الخاص بك في أكاديمية AACT: ${params.code} — أدخله من بوابة الطالب ضمن بطاقة الفاتورة ${params.invoiceNo}: ${fullLink} — الكود صالح لمدة 7 أيام.`
       const result = await sendOfficialWhatsAppText(params.digits, text)
       const archiveWarning = await archiveWaiverWhatsApp({
-        response: result, phone: params.digits, country: params.country, name: params.name,
+        response: result, phone: params.digits, name: params.name,
         text, actor: params.actor, rawType: 'text',
       })
       return { status: 'sent', ...(archiveWarning ? { archiveWarning } : {}) }
     }
     const result = await sendOfficialWhatsAppHumanFollowup(params.digits, params.name)
     const archiveWarning = await archiveWaiverWhatsApp({
-      response: result, phone: params.digits, country: params.country, name: params.name,
+      response: result, phone: params.digits, name: params.name,
       text: `تم إرسال قالب المتابعة المعتمد human_followup_ar إلى ${params.name}. كود الإعفاء الجديد يُرسل عبر واتساب بعد أن يرد الطالب.`,
       actor: params.actor, rawType: 'template',
     })
@@ -479,7 +477,6 @@ export async function resendPaymentWaiverCode(params: {
   const { emailStatus, waiverLink, recipient } = await deliverWaiverCode({ payment, waiverType: waiver.waiverType, reason: waiver.reason, code, isResend: true })
   const whatsappDelivery = await sendWaiverCodeWhatsApp({
     digits: waiverWhatsAppDigits(normalizePhoneToInternationalWaId(String(recipient?.phone || ''), recipient?.country)),
-    country: recipient?.country,
     name: recipient?.name || 'الطالب',
     code,
     invoiceNo: payment.invoiceNo,
