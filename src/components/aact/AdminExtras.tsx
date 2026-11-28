@@ -1345,7 +1345,7 @@ export function AdminFinanceTab() {
     if (waiverBusy === payment.id) return
     setWaiverBusy(payment.id)
     try {
-      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED'; whatsapp?: string; organizationWarning?: string }>('/api/admin/payments/waivers', {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED'; whatsapp?: string; whatsappArchiveWarning?: string; organizationWarning?: string }>('/api/admin/payments/waivers', {
         method: 'PATCH',
         body: JSON.stringify({ action: 'RESEND', paymentId: payment.id }),
       })
@@ -1365,8 +1365,9 @@ export function AdminFinanceTab() {
       toast({
         title: result.organizationWarning ? 'أعيد إرسال التحقق — ربط المنحة يحتاج مراجعة' : 'تم إعادة إرسال التحقق',
         description: 'الكود الجديد: ' + result.code + ' — ' + mailNote + ' — ' + waNote
+          + (result.whatsappArchiveWarning ? ' — ' + result.whatsappArchiveWarning : '')
           + (result.organizationWarning ? ' — ' + result.organizationWarning : ''),
-        variant: result.organizationWarning ? 'destructive' : undefined,
+        variant: result.organizationWarning || result.whatsappArchiveWarning ? 'destructive' : undefined,
       })
       load()
     } catch (e: any) {
