@@ -6,6 +6,8 @@ import { NextRequest } from 'next/server'
 let waivers: any[] = []
 let conversation: any = null
 let paymentFixture: any = null
+let metaRecipientWaId: string | null = null
+let archiveShouldFail = false
 
 const calls: Record<string, any[]> = {
   paymentUpdate: [],
@@ -15,6 +17,7 @@ const calls: Record<string, any[]> = {
   email: [],
   waText: [],
   waTemplate: [],
+  conversationLookup: [],
   outbound: [],
   notify: [],
   audit: [],
@@ -73,7 +76,7 @@ const db: any = {
     },
   },
   whatsAppConversation: {
-    findUnique: async () => conversation,
+    findUnique: async (args: any) => { calls.conversationLookup.push(args); return conversation },
   },
   $transaction: async (fn: any) => fn(tx),
 }
@@ -95,12 +98,18 @@ mock.module('@/lib/mailer', () => ({
   sendEmailDetailed: async () => ({ status: 'SENT' }),
 }))
 mock.module('@/lib/whatsapp-cloud', () => ({
-  sendOfficialWhatsAppText: async (...args: any[]) => { calls.waText.push(args); return { messages: [{ id: 'wamid-1' }] } },
-  sendOfficialWhatsAppHumanFollowup: async (...args: any[]) => { calls.waTemplate.push(args); return { messages: [{ id: 'wamid-2' }] } },
+  sendOfficialWhatsAppText: async (...args: any[]) => {
+    calls.waText.push(args)
+    return { messages: [{ id: 'wamid-1' }], ...(metaRecipientWaId ? { contacts: [{ wa_id: metaRecipientWaId }] } : {}) }
+  },
+  sendOfficialWhatsAppHumanFollowup: async (...args: any[]) => {
+    calls.waTemplate.push(args)
+    return { messages: [{ id: 'wamid-2' }], ...(metaRecipientWaId ? { contacts: [{ wa_id: metaRecipientWaId }] } : {}) }
+  },
 }))
 mock.module('@/lib/whatsapp-conversations', () => ({
   hashWhatsAppId: (digits: string) => `hash:${digits}`,
-  recordWhatsAppOutboundMessage: async (...args: any[]) => { calls.outbound.push(args) },
+  recordWhatsAppOutboundMessage: async (...args: any[]) => { if (archiveShouldFail) throw new Error('ARCHIVE_WRITE_FAILED'); calls.outbound.push(args) },
 }))
 mock.module('@/lib/settle-payment', () => ({
   finalizeAdmissionAfterSettlement: async () => ({}),
@@ -127,8 +136,8 @@ function basePayment() {
     status: 'UNPAID',
     payerName: null,
     payerEmail: null,
-    user: { id: 'user-1', email: 'student@test.com', name: 'طالب اختبار', phone: '+970599123456' },
-    admission: { id: 'adm-1', userId: 'user-1', email: 'student@test.com', fullName: 'طالب اختبار', phone: '+970599123456' },
+    user: { id: 'user-1', email: 'student@test.com', name: 'طالب اختبار', phone: '+970599123456', country: 'فلسطين' },
+    admission: { id: 'adm-1', userId: 'user-1', email: 'student@test.com', fullName: 'طالب اختبار', phone: '+970599123456', country: 'فلسطين' },
     enrollment: null,
     agent: null,
   }
@@ -171,6 +180,8 @@ beforeEach(() => {
   waivers = []
   conversation = null
   paymentFixture = basePayment()
+  metaRecipientWaId = null
+  archiveShouldFail = false
   for (const key of Object.keys(calls)) calls[key].length = 0
 })
 
@@ -200,6 +211,13 @@ describe('waiver code resend', () => {
     expect(calls.waText[0][1]).toContain(body.code)
     expect(calls.waText[0][1]).toContain('dashboard&tab=payments')
     expect(calls.waTemplate).toHaveLength(0)
+    expect(calls.outbound).toHaveLength(1)
+    expect(calls.outbound[0][0]).toMatchObject({
+      waId: '970599123456', displayName: 'طالب اختبار',
+      sender: 'HUMAN', rawType: 'text', whatsappMessageId: 'wamid-1',
+      requireSavedMessage: true,
+    })
+    expect(calls.outbound[0][0].text).toBe(calls.waText[0][1])
     expect(calls.audit.map((a) => a[1])).toContain('PAYMENT_WAIVER_CODE_RESENT')
   })
 
@@ -214,6 +232,13 @@ describe('waiver code resend', () => {
     expect(calls.waTemplate).toHaveLength(1)
     expect(calls.waTemplate[0][0]).toBe('970599123456')
     expect(calls.waText).toHaveLength(0)
+    expect(calls.outbound).toHaveLength(1)
+    expect(calls.outbound[0][0]).toMatchObject({
+      waId: '970599123456', sender: 'HUMAN', rawType: 'template',
+      whatsappMessageId: 'wamid-2', requireSavedMessage: true,
+      meta: { templateName: 'human_followup_ar' },
+    })
+    expect(calls.outbound[0][0].text).toContain('كود الإعفاء الجديد يُرسل عبر واتساب بعد أن يرد الطالب')
     expect(waivers[0].status).toBe('CANCELLED')
     expect(waivers[1].status).toBe('ISSUED')
   })
@@ -227,6 +252,102 @@ describe('waiver code resend', () => {
     expect(body.whatsapp).toBe('template_pending')
     expect(calls.waTemplate).toHaveLength(1)
     expect(calls.waText).toHaveLength(0)
+  })
+
+  test('local Palestinian number archives to the international thread using application country', async () => {
+    waivers = [waiverFixture()]
+    conversation = { lastInboundAt: new Date() }
+    paymentFixture.user.phone = '0599123456'
+    paymentFixture.admission.phone = '0599123456'
+    const res = await PATCH(patch({ action: 'RESEND', paymentId: 'pay-1' }))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.whatsapp).toBe('sent')
+    expect(calls.waText[0][0]).toBe('972599123456')
+    expect(calls.conversationLookup[0].where.waIdHash).toBe('hash:972599123456')
+    expect(calls.outbound[0][0].waId).toBe('972599123456')
+  })
+
+  test('Saudi local number archives with 966 from the application, not the student profile', async () => {
+    waivers = [waiverFixture()]
+    conversation = { lastInboundAt: new Date() }
+    paymentFixture.user.phone = '0599123456'
+    paymentFixture.user.country = 'فلسطين'
+    paymentFixture.admission.phone = '0599123456'
+    paymentFixture.admission.country = 'السعودية'
+    const res = await PATCH(patch({ action: 'RESEND', paymentId: 'pay-1' }))
+    expect(res.status).toBe(200)
+    expect(calls.waText[0][0]).toBe('966599123456')
+    expect(calls.conversationLookup[0].where.waIdHash).toBe('hash:966599123456')
+    expect(calls.outbound[0][0].waId).toBe('966599123456')
+  })
+
+  test('Meta wa_id wins over a country-derived number', async () => {
+    waivers = [waiverFixture()]
+    conversation = null
+    paymentFixture.user.phone = '0599123456'
+    paymentFixture.admission.phone = '0599123456'
+    metaRecipientWaId = '970599123456'
+    const res = await PATCH(patch({ action: 'RESEND', paymentId: 'pay-1' }))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.whatsapp).toBe('template_pending')
+    expect(calls.waTemplate[0][0]).toBe('972599123456')
+    expect(calls.outbound[0][0].waId).toBe('970599123456')
+    expect(calls.outbound[0][0].rawType).toBe('template')
+  })
+
+  test('missing registered country leaves the original number unchanged (no country guess)', async () => {
+    waivers = [waiverFixture()]
+    conversation = null
+    paymentFixture.user.phone = '0599123456'
+    paymentFixture.user.country = null
+    paymentFixture.admission.phone = '0599123456'
+    paymentFixture.admission.country = null
+    const res = await PATCH(patch({ action: 'RESEND', paymentId: 'pay-1' }))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.whatsapp).toBe('template_pending')
+    expect(calls.waTemplate[0][0]).toBe('0599123456')
+    expect(calls.outbound[0][0].waId).toBe('0599123456')
+  })
+
+  test('a number with an explicit international prefix is not changed by the application country', async () => {
+    waivers = [waiverFixture()]
+    conversation = null
+    paymentFixture.user.phone = '+970599123456'
+    paymentFixture.admission.phone = '+970599123456'
+    paymentFixture.admission.country = 'السعودية'
+    const res = await PATCH(patch({ action: 'RESEND', paymentId: 'pay-1' }))
+    expect(res.status).toBe(200)
+    expect(calls.waTemplate[0][0]).toBe('970599123456')
+    expect(calls.outbound[0][0].waId).toBe('970599123456')
+  })
+
+  test('digit-only Palestinian +970 dial code is already international and must not be prefixed again', async () => {
+    waivers = [waiverFixture()]
+    conversation = null
+    paymentFixture.user.phone = '970599123456'
+    paymentFixture.admission.phone = '970599123456'
+    paymentFixture.admission.country = 'فلسطين'
+    const res = await PATCH(patch({ action: 'RESEND', paymentId: 'pay-1' }))
+    expect(res.status).toBe(200)
+    expect(calls.waTemplate[0][0]).toBe('970599123456')
+    expect(calls.outbound[0][0].waId).toBe('970599123456')
+  })
+
+  test('archive failure warns the admin without falsely reporting a failed Meta send', async () => {
+    waivers = [waiverFixture()]
+    conversation = { lastInboundAt: new Date() }
+    archiveShouldFail = true
+    const res = await PATCH(patch({ action: 'RESEND', paymentId: 'pay-1' }))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.whatsapp).toBe('sent')
+    expect(body.whatsappArchiveWarning).toContain('تعذّر حفظها')
+    expect(calls.waText).toHaveLength(1)
+    expect(calls.outbound).toHaveLength(0)
+    expect(waivers[1].status).toBe('ISSUED')
   })
 
   test('VERIFIED code: resend refused, old code untouched', async () => {
