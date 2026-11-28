@@ -1369,13 +1369,7 @@ export function AdminFinanceTab() {
         : result.emailStatus === 'FAILED'
           ? 'فشل إرسال البريد'
           : 'لم يتم إرسال بريد'
-      const waNote = result.whatsapp === 'sent'
-        ? 'تم إرسال واتساب ✅'
-        : result.whatsapp === 'template_pending'
-          ? 'واتساب: أُرسل قالب الموافقة، والكود يُرسل بعد رد الطالب'
-          : result.whatsapp === 'skipped'
-            ? 'لا يوجد رقم واتساب صالح'
-            : 'فشل إرسال واتساب'
+      const waNote = waiverWhatsAppNote(result.whatsapp)
       toast({
         title: result.organizationWarning ? 'أعيد إرسال التحقق — ربط المنحة يحتاج مراجعة' : 'تم إعادة إرسال التحقق',
         description: 'الكود الجديد: ' + result.code + ' — ' + mailNote + ' — ' + waNote
