@@ -847,6 +847,14 @@ interface Report {
   agentPerformance: { orgName: string; territory: string; due: number; paid: number; entries: number }[]
 }
 
+function waiverWhatsAppNote(status?: string): string {
+  if (status === 'sent') return 'قبلت Meta رسالة واتساب بكود الإعفاء والرابط ✅'
+  if (status === 'waiting_approval') return 'قالب المنحة بانتظار اعتماد Meta أو تعذّر التحقق منه؛ الكود متاح بالبريد فقط'
+  if (status === 'template_pending') return 'أُرسل قالب متابعة فقط؛ الكود لم يُرسل عبر واتساب، وهو موجود بالبريد'
+  if (status === 'skipped') return 'لم يُرسل واتساب: لا يوجد رقم صالح'
+  return 'فشل إرسال واتساب؛ الكود ما زال متاحًا للإرسال يدويًا'
+}
+
 export function AdminFinanceTab() {
   const { toast } = useToast()
   const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
