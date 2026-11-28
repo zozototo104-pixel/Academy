@@ -787,6 +787,6 @@ export async function approvePaymentWaiver(params: { waiverId: string; actor: { 
   if (!settlement) throw new Error('WAIVER_SETTLEMENT_RETRY_EXHAUSTED')
   const { updatedPayment, auditedCents, finalizeAdmissionId } = settlement
   if (finalizeAdmissionId) await finalizeAdmissionAfterSettlement(db, finalizeAdmissionId, { source: 'WAIVER', actor: params.actor })
-  await audit(params.actor, 'PAYMENT_WAIVER_APPROVED', 'Payment', updatedPayment.id, `${updatedPayment.invoiceNo} — ${updatedPayment.waiverType} — ${centsToDollars(auditedCents).toFixed(2)})
+  await audit(params.actor, 'PAYMENT_WAIVER_APPROVED', 'Payment', updatedPayment.id, `${updatedPayment.invoiceNo} — ${updatedPayment.waiverType} — ${centsToDollars(auditedCents).toFixed(2)}$`)
   return updatedPayment
 }
