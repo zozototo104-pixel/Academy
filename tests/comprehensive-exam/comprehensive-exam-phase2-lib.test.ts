@@ -367,14 +367,11 @@ describe('qualification transaction', () => {
       program: { id: 'prog-1', titleAr: 'برنامج المعادلة', titleEn: null },
       admin: { id: null, name: null },
     }
-    await lib.qualifyComprehensiveExamCandidate(fakeDb, {
+    const first = await lib.qualifyComprehensiveExamCandidate(fakeDb, {
       ...base, exam: { id: 'exam-1', programId: 'prog-1' },
       specialization: { id: 'spec-1', titleAr: 'تخصص أول', titleEn: null },
       attempt: { id: 'att-1', score: 80 },
     })
-    // In production the relation resolves through ComprehensiveExam.
-    certificates[0].specializationProgramId = 'spec-1'
-    certificates[0].examProgramId = 'prog-1'
     const second = await lib.qualifyComprehensiveExamCandidate(fakeDb, {
       ...base, exam: { id: 'exam-2', programId: 'prog-1' },
       specialization: { id: 'spec-2', titleAr: 'تخصص ثان', titleEn: null },
@@ -384,6 +381,33 @@ describe('qualification transaction', () => {
     expect(enrollments).toHaveLength(1)
     expect(certificates).toHaveLength(2)
     expect(certificates[1].program).toBe('تخصص ثان')
+    expect(certificates[0].certificateScope).toBe('spec-1')
+    expect(certificates[1].certificateScope).toBe('spec-2')
+    expect(enrollments[0].certificateNo).toBe(first.certificate.serial)
+    expect(enrollments[0].finalScore).toBe(80)
+    expect(certificates[1].grade).toBe('90%')
+  })
+  test('another exam for the same specialization cannot issue a second certificate', async () => {
+    reset()
+    users.push({ id: 'user-9', email: 'a@b.com', name: 'أحمد محمد', role: 'STUDENT', country: null, phone: null })
+    const input = {
+      candidate: { id: 'cand-1', userId: 'user-9', fullName: 'أحمد محمد', nationalId: '111', email: 'a@b.com', phone: null },
+      exam: { id: 'exam-1', programId: 'prog-1' },
+      program: { id: 'prog-1', titleAr: 'المعادلة', titleEn: null },
+      specialization: { id: 'spec-1', titleAr: 'تخصص أول', titleEn: null },
+      attempt: { id: 'att-1', score: 80 },
+      admin: { id: null, name: null },
+    }
+    await lib.qualifyComprehensiveExamCandidate(fakeDb, input)
+    await expect(lib.qualifyComprehensiveExamCandidate(fakeDb, {
+      ...input, exam: { id: 'exam-2', programId: 'prog-1' }, attempt: { id: 'att-2', score: 91 },
+    })).rejects.toMatchObject({ code: 'CERTIFICATE_ALREADY_EXISTS', status: 409 })
+    expect(certificates).toHaveLength(1)
+  })
+  test('only the specialization composite-unique error is converted to a candidate conflict', () => {
+    expect(lib.isComprehensiveCertificateScopeConflict({ code: 'P2002', meta: { target: ['enrollmentId', 'type', 'certificateScope'] } })).toBe(true)
+    expect(lib.isComprehensiveCertificateScopeConflict({ code: 'P2002', meta: { target: ['serial'] } })).toBe(false)
+    expect(lib.isComprehensiveCertificateScopeConflict({ code: 'P2034' })).toBe(false)
   })
   test('resolves the linked user by id first, even when the email differs', async () => {
     reset()
