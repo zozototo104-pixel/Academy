@@ -8,6 +8,10 @@ let conversation: any = null
 let paymentFixture: any = null
 let metaRecipientWaId: string | null = null
 let archiveShouldFail = false
+let wabaConfigured = false
+let waiverTemplateApproved = false
+let waiverTemplateHeaderFormat = 'NONE'
+let waiverTemplateSendFails = false
 
 const calls: Record<string, any[]> = {
   paymentUpdate: [],
@@ -17,6 +21,8 @@ const calls: Record<string, any[]> = {
   email: [],
   waText: [],
   waTemplate: [],
+  waApprovedTemplate: [],
+  templateChecks: [],
   conversationLookup: [],
   outbound: [],
   notify: [],
@@ -78,6 +84,9 @@ const db: any = {
   whatsAppConversation: {
     findUnique: async (args: any) => { calls.conversationLookup.push(args); return conversation },
   },
+  setting: {
+    findUnique: async () => wabaConfigured ? { value: '2182247885673367' } : null,
+  },
   $transaction: async (fn: any) => fn(tx),
 }
 
@@ -98,6 +107,17 @@ mock.module('@/lib/mailer', () => ({
   sendEmailDetailed: async () => ({ status: 'SENT' }),
 }))
 mock.module('@/lib/whatsapp-cloud', () => ({
+  checkOfficialWhatsAppTemplate: async (...args: any[]) => {
+    calls.templateChecks.push(args)
+    return waiverTemplateApproved
+      ? { checked: true, ok: true, headerFormat: waiverTemplateHeaderFormat, bodyParameterCount: 4 }
+      : { checked: true, ok: false, message: 'PENDING' }
+  },
+  sendOfficialWhatsAppTemplate: async (...args: any[]) => {
+    calls.waApprovedTemplate.push(args)
+    if (waiverTemplateSendFails) throw new Error('META_SEND_REJECTED')
+    return { messages: [{ id: 'wamid-waiver-template' }], ...(metaRecipientWaId ? { contacts: [{ wa_id: metaRecipientWaId }] } : {}) }
+  },
   sendOfficialWhatsAppText: async (...args: any[]) => {
     calls.waText.push(args)
     return { messages: [{ id: 'wamid-1' }], ...(metaRecipientWaId ? { contacts: [{ wa_id: metaRecipientWaId }] } : {}) }
@@ -123,7 +143,7 @@ mock.module('@/lib/settings', () => ({
   createPaymentWithInvoiceNo: async (data: any) => ({ ...data, invoiceNo: 'AACT-INV-2026-0002', id: 'pay-created' }),
 }))
 
-const { PATCH } = await import('../../src/app/api/admin/payments/waivers/route')
+const { PATCH, POST } = await import('../../src/app/api/admin/payments/waivers/route')
 
 function basePayment() {
   return {
@@ -176,16 +196,110 @@ function patch(body: any) {
   })
 }
 
+function post(body: any) {
+  return new NextRequest('http://localhost/api/admin/payments/waivers', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+}
+
 beforeEach(() => {
   waivers = []
   conversation = null
   paymentFixture = basePayment()
   metaRecipientWaId = null
   archiveShouldFail = false
+  wabaConfigured = false
+  waiverTemplateApproved = false
+  waiverTemplateHeaderFormat = 'NONE'
+  waiverTemplateSendFails = false
+  delete process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
   for (const key of Object.keys(calls)) calls[key].length = 0
 })
 
 describe('waiver code resend', () => {
+  test('approved waiver template sends four parameters immediately on initial issuance and archives the message', async () => {
+    wabaConfigured = true
+    waiverTemplateApproved = true
+    paymentFixture.user.phone = '0599123456'
+    paymentFixture.admission.phone = '0599123456'
+    const res = await POST(post({ paymentId: 'pay-1', waiverType: 'FULL_SCHOLARSHIP', reason: 'منحة دراسية معتمدة' }))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.emailStatus).toBe('SENT')
+    expect(body.whatsapp).toBe('sent')
+    expect(calls.email[0][1].code).toBe(body.code)
+    expect(calls.templateChecks[0]).toEqual([
+      'aact_waiver_code_ar', 'ar', '2182247885673367', { bodyParameterCount: 4 },
+    ])
+    expect(calls.waApprovedTemplate).toHaveLength(1)
+    expect(calls.waApprovedTemplate[0][0]).toBe('972599123456')
+    expect(calls.waApprovedTemplate[0][1]).toBe('aact_waiver_code_ar')
+    expect(calls.waApprovedTemplate[0][2]).toEqual([
+      'طالب اختبار', 'AACT-INV-2026-0001', body.code,
+      'https://aactacademy.com/?view=dashboard&tab=payments&invoice=AACT-INV-2026-0001&waiver=1',
+    ])
+    expect(calls.waApprovedTemplate[0][3]).toEqual({ languageCode: 'ar' })
+    expect(calls.waTemplate).toHaveLength(0)
+    expect(calls.outbound[0][0]).toMatchObject({
+      waId: '972599123456', rawType: 'template', whatsappMessageId: 'wamid-waiver-template',
+      meta: { templateName: 'aact_waiver_code_ar' }, requireSavedMessage: true,
+    })
+    expect(calls.outbound[0][0].text).toContain(body.code)
+    expect(calls.outbound[0][0].text).toContain('dashboard&tab=payments')
+  })
+
+  test('template in review preserves email-only initial issuance without claiming WhatsApp sent', async () => {
+    wabaConfigured = true
+    waiverTemplateApproved = false
+    const res = await POST(post({ paymentId: 'pay-1', waiverType: 'FULL_SCHOLARSHIP', reason: 'منحة دراسية معتمدة' }))
+    const body = await res.json()
+    expect(body.whatsapp).toBe('waiting_approval')
+    expect(body.emailStatus).toBe('SENT')
+    expect(calls.waApprovedTemplate).toHaveLength(0)
+    expect(calls.waTemplate).toHaveLength(0)
+    expect(calls.outbound).toHaveLength(0)
+  })
+
+  test('approved template replaces freeform resend even inside the customer-care window', async () => {
+    wabaConfigured = true
+    waiverTemplateApproved = true
+    waivers = [waiverFixture()]
+    conversation = { lastInboundAt: new Date() }
+    const res = await PATCH(patch({ action: 'RESEND', paymentId: 'pay-1' }))
+    const body = await res.json()
+    expect(body.whatsapp).toBe('sent')
+    expect(calls.waApprovedTemplate).toHaveLength(1)
+    expect(calls.waApprovedTemplate[0][2][2]).toBe(body.code)
+    expect(calls.waText).toHaveLength(0)
+    expect(calls.waTemplate).toHaveLength(0)
+  })
+
+  test('unexpected IMAGE header never sends the body-only waiver template', async () => {
+    wabaConfigured = true
+    waiverTemplateApproved = true
+    waiverTemplateHeaderFormat = 'IMAGE'
+    waivers = [waiverFixture()]
+    const res = await PATCH(patch({ action: 'RESEND', paymentId: 'pay-1' }))
+    const body = await res.json()
+    expect(body.whatsapp).toBe('template_pending')
+    expect(calls.waApprovedTemplate).toHaveLength(0)
+    expect(calls.waTemplate).toHaveLength(1)
+  })
+
+  test('Meta rejecting an approved template does not falsely report success or revoke the issued code', async () => {
+    wabaConfigured = true
+    waiverTemplateApproved = true
+    waiverTemplateSendFails = true
+    waivers = [waiverFixture()]
+    const res = await PATCH(patch({ action: 'RESEND', paymentId: 'pay-1' }))
+    const body = await res.json()
+    expect(body.whatsapp).toBe('failed')
+    expect(body.emailStatus).toBe('SENT')
+    expect(waivers[1].status).toBe('ISSUED')
+    expect(calls.outbound).toHaveLength(0)
+    expect(calls.waTemplate).toHaveLength(0)
+  })
+
   test('window open: cancels old ISSUED, creates new ISSUED, emails + WhatsApps the new code', async () => {
     waivers = [waiverFixture()]
     conversation = { lastInboundAt: new Date(Date.now() - 60 * 60 * 1000) }
@@ -238,7 +352,7 @@ describe('waiver code resend', () => {
       whatsappMessageId: 'wamid-2', requireSavedMessage: true,
       meta: { templateName: 'human_followup_ar' },
     })
-    expect(calls.outbound[0][0].text).toContain('كود الإعفاء الجديد يُرسل عبر واتساب بعد أن يرد الطالب')
+    expect(calls.outbound[0][0].text).toContain('كود الإعفاء غير موجود في هذا القالب')
     expect(waivers[0].status).toBe('CANCELLED')
     expect(waivers[1].status).toBe('ISSUED')
   })
