@@ -244,6 +244,13 @@ describe('archive waId normalisation (country-aware)', () => {
     expect(d.whatsapp.status).toBe('SENT')
     expect(archivedWhatsApps[0].waId).toBe('972599123456')
   })
+  test('Palestinian 970 number without plus is preserved in the archive', async () => {
+    reset()
+    settings.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE = 'comprehensive_exam_invite_ar'
+    const d = await lib.sendComprehensiveExamInvite({ ...inviteInput(), phone: '970599123456', country: 'فلسطين' })
+    expect(d.whatsapp.status).toBe('SENT')
+    expect(archivedWhatsApps[0].waId).toBe('970599123456')
+  })
   test('unknown country keeps the number as stored — never guessed', async () => {
     reset()
     settings.COMPREHENSIVE_EXAM_WHATSAPP_TEMPLATE = 'comprehensive_exam_invite_ar'
