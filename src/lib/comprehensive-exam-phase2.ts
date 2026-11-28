@@ -773,7 +773,10 @@ export async function qualifyComprehensiveExamCandidate(
 
   await tx.enrollment.update({
     where: { id: enrollment.id },
-    data: { status: 'COMPLETED', certificateNo: certificate.serial, finalScore: score },
+    data: {
+      status: 'COMPLETED',
+      ...(!enrollment.certificateNo ? { certificateNo: certificate.serial, finalScore: score } : {}),
+    },
   })
 
   await tx.auditLog.create({
