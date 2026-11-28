@@ -1274,7 +1274,12 @@ export function AdminFinanceTab() {
         : result.emailStatus === 'FAILED'
           ? 'فشل إرسال البريد، انسخ الكود يدوياً'
           : 'لم يتم إرسال بريد، انسخ الكود يدوياً'
-      toast({ title: 'تم توليد ونسخ كود الإعفاء', description: `الكود: ${result.code} — ${mailNote}` })
+      toast({
+        title: 'تم توليد ونسخ كود الإعفاء',
+        description: `الكود: ${result.code} — ${mailNote} — ${waiverWhatsAppNote(result.whatsapp)}`
+          + (result.whatsappArchiveWarning ? ' — ' + result.whatsappArchiveWarning : ''),
+        variant: result.whatsappArchiveWarning ? 'destructive' : undefined,
+      })
       load()
     } catch (e: any) {
       toast({ title: 'تعذر توليد كود الإعفاء', description: e.message, variant: 'destructive' })
