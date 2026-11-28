@@ -32,6 +32,7 @@ const fakeDb: any = {
         if (where?.enrollment?.programId && c.programId !== where.enrollment.programId) return false
         if (where?.user?.email && c.userEmail !== where.user.email) return false
         if (where?.type && c.type !== where.type) return false
+        if (where?.certificateScope && (c.certificateScope || c.specializationProgramId || 'BASE') !== where.certificateScope) return false
         if (where?.enrollmentId && c.enrollmentId !== where.enrollmentId) return false
         if (Array.isArray(where?.OR)) {
           const ok = where.OR.some(
