@@ -285,7 +285,8 @@ function testDefenseIncompleteCriteriaNeedsReview() {
 function testSchemaAndMigrationSafety() {
   const schema = file('prisma/schema.prisma')
   assert(schema.includes('enrollment   Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)'), 'Certificate.enrollmentId must be a restrictive FK')
-  assert(schema.includes('@@unique([enrollmentId, type])'), 'Certificate must be unique by enrollmentId and type')
+  assert(schema.includes('certificateScope String @default("BASE")'), 'ordinary certificates must retain the BASE scope by default')
+  assert(schema.includes('@@unique([enrollmentId, type, certificateScope])'), 'Certificate must be unique by enrollment, type and specialization scope')
   assert(schema.includes('Enrollment[]') && schema.includes('certificates Certificate[]'), 'User/Enrollment certificate relations must be declared')
   assert(schema.includes('user           User      @relation(fields: [userId], references: [id], onDelete: Restrict)'), 'Enrollment.user must restrict deletes')
   assert(schema.includes('program        Program   @relation(fields: [programId], references: [id], onDelete: Restrict)'), 'Enrollment.program must restrict deletes')
