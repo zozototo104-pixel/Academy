@@ -744,7 +744,7 @@ export async function qualifyComprehensiveExamCandidate(
     where: {
       enrollmentId: enrollment.id,
       type: 'COMPREHENSIVE_EXAM',
-      comprehensiveExam: { specializationProgramId: input.specialization.id },
+      certificateScope: input.specialization.id,
     },
   })
   if (existingCertificate) {
