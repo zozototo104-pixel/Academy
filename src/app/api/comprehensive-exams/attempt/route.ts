@@ -5,6 +5,7 @@ import {
   buildComprehensiveAttemptDisplay,
   buildComprehensiveAttemptSnapshot,
   ComprehensiveExamPhase2Error,
+  isComprehensiveCertificateScopeConflict,
   gradeComprehensiveAttempt,
   parseComprehensiveAttemptSnapshot,
   parseComprehensiveAttemptTerms,
@@ -17,6 +18,9 @@ export const runtime = 'nodejs'
 function phase2ErrorResponse(e: unknown, fallback: string) {
   if (e instanceof ComprehensiveExamPhase2Error) {
     return NextResponse.json({ error: e.message, code: e.code }, { status: e.status })
+  }
+  if (isComprehensiveCertificateScopeConflict(e)) {
+    return NextResponse.json({ error: 'موجود أصلاً كخريج في هذا التخصص', code: 'CERTIFICATE_ALREADY_EXISTS' }, { status: 409 })
   }
   console.error('comprehensive exam attempt error:', e)
   return NextResponse.json({ error: fallback }, { status: 500 })
