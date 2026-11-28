@@ -1052,6 +1052,7 @@ model Certificate {
   user        User?    @relation(fields: [userId], references: [id], onDelete: Restrict)
   enrollmentId String?
   enrollment   Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  certificateScope String @default("BASE") // COMPREHENSIVE_EXAM: specialization Program.id; all other types: BASE
   admission   AdmissionApplication? @relation(fields: [admissionId], references: [id])
   admissionId String?
   agentId     String?
@@ -1059,7 +1060,7 @@ model Certificate {
   comprehensiveExamId String? // الامتحان الشامل الذي أهل صاحبه (المرحلة 2) — فارغ لغير شهادات المعادلة
   comprehensiveExam   ComprehensiveExam? @relation(fields: [comprehensiveExamId], references: [id])
 
-  @@unique([enrollmentId, type])
+  @@unique([enrollmentId, type, certificateScope])
   @@index([valid, revokedAt])
 }
 
