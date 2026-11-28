@@ -324,6 +324,18 @@ describe('waiver code resend', () => {
     expect(calls.outbound[0][0].waId).toBe('970599123456')
   })
 
+  test('digit-only Palestinian +970 dial code is already international and must not be prefixed again', async () => {
+    waivers = [waiverFixture()]
+    conversation = null
+    paymentFixture.user.phone = '970599123456'
+    paymentFixture.admission.phone = '970599123456'
+    paymentFixture.admission.country = 'فلسطين'
+    const res = await PATCH(patch({ action: 'RESEND', paymentId: 'pay-1' }))
+    expect(res.status).toBe(200)
+    expect(calls.waTemplate[0][0]).toBe('970599123456')
+    expect(calls.outbound[0][0].waId).toBe('970599123456')
+  })
+
   test('archive failure warns the admin without falsely reporting a failed Meta send', async () => {
     waivers = [waiverFixture()]
     conversation = { lastInboundAt: new Date() }
