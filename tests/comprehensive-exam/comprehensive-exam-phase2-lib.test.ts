@@ -316,7 +316,7 @@ describe('dedupe', () => {
     reset()
     certificates.push({
       type: 'COMPREHENSIVE_EXAM', userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'prog-1',
-      specializationProgramId: 'spec-1', examProgramId: 'prog-1',
+      certificateScope: 'spec-1', specializationProgramId: 'spec-1', examProgramId: 'prog-1',
     })
     const r = await lib.checkComprehensiveCandidateDuplicate(fakeDb, { examId: 'exam-2', programId: 'prog-1', specializationProgramId: 'spec-2', nationalId: '222', email: 'a@b.com' })
     expect(r).toBeNull()
