@@ -1001,7 +1001,7 @@ export function AdminFinanceTab() {
     const { payment, quote } = grantQuoteDialog
     setGrantSaving(true)
     try {
-      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: string }>('/api/admin/payments/waivers', {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: string; whatsapp?: string; whatsappArchiveWarning?: string }>('/api/admin/payments/waivers', {
         method: 'POST',
         body: JSON.stringify({ action: 'ISSUE_POLICY', paymentId: payment.id, policyId: quote.policy.id, signature: quote.signature }),
       })
