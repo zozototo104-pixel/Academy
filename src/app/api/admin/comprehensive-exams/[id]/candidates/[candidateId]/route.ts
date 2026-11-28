@@ -7,6 +7,7 @@ import { nextInvoiceNo } from '@/lib/settings'
 import { markInvoicePaid } from '@/lib/settle-payment'
 import {
   ComprehensiveExamPhase2Error,
+  isComprehensiveCertificateScopeConflict,
   qualifyComprehensiveExamCandidate,
   sendComprehensiveCandidatePasswordSetup,
 } from '@/lib/comprehensive-exam-phase2'
@@ -16,6 +17,9 @@ export const runtime = 'nodejs'
 function phase2ErrorResponse(e: unknown, fallback: string) {
   if (e instanceof ComprehensiveExamPhase2Error) {
     return NextResponse.json({ error: e.message, code: e.code }, { status: e.status })
+  }
+  if (isComprehensiveCertificateScopeConflict(e)) {
+    return NextResponse.json({ error: 'موجود أصلاً كخريج في هذا التخصص', code: 'CERTIFICATE_ALREADY_EXISTS' }, { status: 409 })
   }
   console.error('comprehensive exam candidate review error:', e)
   return NextResponse.json({ error: fallback }, { status: 500 })
