@@ -732,7 +732,10 @@ export async function qualifyComprehensiveExamCandidate(
   const enrollment = await tx.enrollment.upsert({
     where: { userId_programId: { userId: user.id, programId: input.program.id } },
     create: { userId: user.id, programId: input.program.id, status: 'COMPLETED', finalScore: score },
-    update: { status: 'COMPLETED', finalScore: score },
+    // Shared equivalency enrollment: keep the first issued certificate's
+    // number and grade stable; subsequent specialty certificates live in
+    // Certificate rows with their own grade and serial.
+    update: { status: 'COMPLETED' },
   })
 
   const existingCertificate = await tx.certificate.findFirst({
