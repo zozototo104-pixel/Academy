@@ -39,6 +39,16 @@ export class ComprehensiveExamPhase2Error extends Error {
   }
 }
 
+// A concurrent same-specialization qualification can reach the DB unique
+// index before the in-transaction duplicate check observes the other row.
+// Report this specific conflict as an actionable 409, never a generic 500.
+export function isComprehensiveCertificateScopeConflict(error: unknown): boolean {
+  const e = error as { code?: string; meta?: { target?: unknown } } | null
+  const target = e?.meta?.target
+  return e?.code === 'P2002' && Array.isArray(target) &&
+    ['enrollmentId', 'type', 'certificateScope'].every((field) => target.includes(field))
+}
+
 export function normalizeComprehensiveNationalId(value: unknown): string {
   return normalizeDigits(String(value || '').trim())
     .replace(/[\s-]/g, '')
