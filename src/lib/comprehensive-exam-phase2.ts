@@ -169,7 +169,7 @@ export async function checkComprehensiveCandidateDuplicate(
         enrollment: { programId: input.programId },
         user: { email: input.email },
         type: 'COMPREHENSIVE_EXAM',
-        comprehensiveExam: { specializationProgramId: input.specializationProgramId },
+        certificateScope: input.specializationProgramId,
       },
       select: { id: true },
     })
