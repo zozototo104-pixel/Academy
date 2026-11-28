@@ -7,6 +7,7 @@ import { emailPaymentWaiverCode, isEmailDeliveryConfigured } from '@/lib/mailer'
 import { finalizeAdmissionAfterSettlement } from '@/lib/settle-payment'
 import { sendOfficialWhatsAppHumanFollowup, sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
 import { hashWhatsAppId, recordWhatsAppOutboundMessage } from '@/lib/whatsapp-conversations'
+import { normalizePhoneToInternationalWaId } from '@/lib/admission-validation'
 
 export const PAYMENT_WAIVER_TYPES = ['APPLICATION_FEE', 'PARTIAL_TUITION', 'FULL_SCHOLARSHIP'] as const
 export type PaymentWaiverType = typeof PAYMENT_WAIVER_TYPES[number]
@@ -75,9 +76,9 @@ async function resolveWaiverEmailRecipient(paymentId: string) {
   const payment = await db.payment.findUnique({
     where: { id: paymentId },
     include: {
-      user: { select: { id: true, email: true, name: true, phone: true } },
-      admission: { select: { id: true, userId: true, email: true, fullName: true, phone: true } },
-      enrollment: { include: { user: { select: { id: true, email: true, name: true, phone: true } } } },
+      user: { select: { id: true, email: true, name: true, phone: true, country: true } },
+      admission: { select: { id: true, userId: true, email: true, fullName: true, phone: true, country: true } },
+      enrollment: { include: { user: { select: { id: true, email: true, name: true, phone: true, country: true } } } },
       agent: { select: { email: true, repName: true, orgName: true } },
     },
   })
@@ -86,7 +87,7 @@ async function resolveWaiverEmailRecipient(paymentId: string) {
   const name = payment.payerName || payment.user?.name || payment.admission?.fullName || payment.enrollment?.user?.name || payment.agent?.repName || payment.agent?.orgName || 'الطالب'
   const userId = payment.user?.id || payment.admission?.userId || payment.enrollment?.user?.id || null
   const phone = payment.user?.phone || payment.enrollment?.user?.phone || payment.admission?.phone || ''
-  return { email: email && email.includes('@') ? email : '', name, userId, phone, invoiceNo: payment.invoiceNo, description: payment.description }
+  return { email: email && email.includes('@') ? email : '', name, userId, phone, country: payment.admission?.country || payment.user?.country || payment.enrollment?.user?.country || null, invoiceNo: payment.invoiceNo, description: payment.description }
 }
 
 function addMonths(date: Date, months: number) {
@@ -346,6 +347,8 @@ export async function createPaymentWaiverCode(params: {
 
 export type WaiverWhatsAppOutcome = 'sent' | 'template_pending' | 'skipped' | 'failed'
 
+type WaiverWhatsAppDelivery = { status: WaiverWhatsAppOutcome; archiveWarning?: string }
+
 const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000
 
 function waiverWhatsAppDigits(phone: unknown) {
@@ -353,15 +356,56 @@ function waiverWhatsAppDigits(phone: unknown) {
   return digits.length >= 8 && digits.length <= 15 ? digits : ''
 }
 
+// Meta's response wa_id is authoritative when returned. The same
+// country-aware fallback used for comprehensive-exam invitations handles
+// older/local numbers when Meta does not return the recipient wa_id.
+function waiverArchiveWaId(response: any, phone: string, country?: string | null): string {
+  const metaWaId = String(response?.contacts?.[0]?.wa_id || '').replace(/\D/g, '')
+  return /^[0-9]{8,15}$/.test(metaWaId) ? metaWaId : normalizePhoneToInternationalWaId(phone, country)
+}
+
+async function archiveWaiverWhatsApp(args: {
+  response: any
+  phone: string
+  country?: string | null
+  name: string
+  text: string
+  actor: { id?: string | null; name: string }
+  rawType: 'text' | 'template'
+}): Promise<string | undefined> {
+  try {
+    await recordWhatsAppOutboundMessage({
+      waId: waiverArchiveWaId(args.response, args.phone, args.country),
+      phoneNumberId: null,
+      displayName: args.name,
+      text: args.text,
+      sender: 'HUMAN',
+      whatsappMessageId: String(args.response?.messages?.[0]?.id || '') || null,
+      sentById: args.actor.id || null,
+      sentByName: args.actor.name,
+      rawType: args.rawType,
+      ...(args.rawType === 'template' ? { meta: { templateName: 'human_followup_ar' } } : {}),
+      requireSavedMessage: true,
+    })
+    return undefined
+  } catch (error) {
+    // Meta has already accepted the send. An archive failure must never
+    // masquerade as a failed WhatsApp send or invalidate the new code.
+    console.error('Waiver WhatsApp conversation archive failed after Meta accepted the send:', error)
+    return 'قبلت Meta رسالة واتساب لكن تعذّر حفظها في محادثات المنصة'
+  }
+}
+
 async function sendWaiverCodeWhatsApp(params: {
   digits: string
+  country?: string | null
   name: string
   code: string
   invoiceNo: string
   waiverLink: string
   actor: { id?: string | null; name: string }
-}): Promise<WaiverWhatsAppOutcome> {
-  if (!params.digits) return 'skipped'
+}): Promise<WaiverWhatsAppDelivery> {
+  if (!params.digits) return { status: 'skipped' }
   const conversation = await db.whatsAppConversation.findUnique({
     where: { waIdHash: hashWhatsAppId(params.digits) },
     select: { lastInboundAt: true },
@@ -374,31 +418,22 @@ async function sendWaiverCodeWhatsApp(params: {
     if (windowOpen) {
       const text = `مرحباً ${params.name}، كود الإعفاء الجديد الخاص بك في أكاديمية AACT: ${params.code} — أدخله من بوابة الطالب ضمن بطاقة الفاتورة ${params.invoiceNo}: ${fullLink} — الكود صالح لمدة 7 أيام.`
       const result = await sendOfficialWhatsAppText(params.digits, text)
-      await recordWhatsAppOutboundMessage({
-        waId: params.digits,
-        phoneNumberId: null,
-        text,
-        sender: 'HUMAN',
-        whatsappMessageId: (result as any)?.messages?.[0]?.id || null,
-        sentById: params.actor.id || null,
-        sentByName: params.actor.name,
-      }).catch(() => null)
-      return 'sent'
+      const archiveWarning = await archiveWaiverWhatsApp({
+        response: result, phone: params.digits, country: params.country, name: params.name,
+        text, actor: params.actor, rawType: 'text',
+      })
+      return { status: 'sent', ...(archiveWarning ? { archiveWarning } : {}) }
     }
     const result = await sendOfficialWhatsAppHumanFollowup(params.digits, params.name)
-    await recordWhatsAppOutboundMessage({
-      waId: params.digits,
-      phoneNumberId: null,
+    const archiveWarning = await archiveWaiverWhatsApp({
+      response: result, phone: params.digits, country: params.country, name: params.name,
       text: `تم إرسال قالب المتابعة المعتمد human_followup_ar إلى ${params.name}. كود الإعفاء الجديد يُرسل عبر واتساب بعد أن يرد الطالب.`,
-      sender: 'HUMAN',
-      whatsappMessageId: (result as any)?.messages?.[0]?.id || null,
-      sentById: params.actor.id || null,
-      sentByName: params.actor.name,
-    }).catch(() => null)
-    return 'template_pending'
+      actor: params.actor, rawType: 'template',
+    })
+    return { status: 'template_pending', ...(archiveWarning ? { archiveWarning } : {}) }
   } catch (error) {
     console.warn('Failed to send payment waiver code over WhatsApp.', error)
-    return 'failed'
+    return { status: 'failed' }
   }
 }
 
@@ -442,8 +477,9 @@ export async function resendPaymentWaiverCode(params: {
   })
   await audit(params.actor || { name: 'Admin' }, 'PAYMENT_WAIVER_CODE_RESENT', 'Payment', payment.id, `${payment.invoiceNo} — ${oldWaiver.codePreview} → ${waiver.codePreview}`)
   const { emailStatus, waiverLink, recipient } = await deliverWaiverCode({ payment, waiverType: waiver.waiverType, reason: waiver.reason, code, isResend: true })
-  const whatsapp = await sendWaiverCodeWhatsApp({
-    digits: waiverWhatsAppDigits(recipient?.phone),
+  const whatsappDelivery = await sendWaiverCodeWhatsApp({
+    digits: waiverWhatsAppDigits(normalizePhoneToInternationalWaId(String(recipient?.phone || ''), recipient?.country)),
+    country: recipient?.country,
     name: recipient?.name || 'الطالب',
     code,
     invoiceNo: payment.invoiceNo,
@@ -454,7 +490,7 @@ export async function resendPaymentWaiverCode(params: {
     where: { id: waiver.id },
     data: { emailStatus, emailSentAt: emailStatus === 'SENT' ? new Date() : null },
   })
-  return { code, waiver: savedWaiver, emailStatus, whatsapp }
+  return { code, waiver: savedWaiver, emailStatus, whatsapp: whatsappDelivery.status, whatsappArchiveWarning: whatsappDelivery.archiveWarning }
 }
 
 type VerifyPaymentWaiverFailureReason = 'INVALID' | 'USED' | 'EXPIRED' | 'RATE_LIMIT'
