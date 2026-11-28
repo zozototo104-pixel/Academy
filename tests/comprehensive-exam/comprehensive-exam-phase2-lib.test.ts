@@ -32,6 +32,7 @@ const fakeDb: any = {
         if (where?.enrollment?.programId && c.programId !== where.enrollment.programId) return false
         if (where?.user?.email && c.userEmail !== where.user.email) return false
         if (where?.type && c.type !== where.type) return false
+        if (where?.certificateScope && (c.certificateScope || c.specializationProgramId || 'BASE') !== where.certificateScope) return false
         if (where?.enrollmentId && c.enrollmentId !== where.enrollmentId) return false
         if (Array.isArray(where?.OR)) {
           const ok = where.OR.some(
@@ -49,6 +50,17 @@ const fakeDb: any = {
       return rows[0] || null
     },
     create: async ({ data }: any) => {
+      // Mirror the database unique index, not just the application's
+      // specialization check. The old (enrollmentId, type) index was the
+      // production-only failure when awarding a second specialization.
+      const scope = data.certificateScope || 'BASE'
+      const conflict = certificates.some((c) =>
+        data.enrollmentId && c.enrollmentId === data.enrollmentId && c.type === data.type &&
+        (c.certificateScope || 'BASE') === scope,
+      )
+      if (conflict) {
+        throw Object.assign(new Error('Unique constraint failed on certificate scope'), { code: 'P2002' })
+      }
       const row = { id: `cert-${certificates.length + 1}`, ...data }
       certificates.push(row)
       return row
@@ -295,7 +307,7 @@ describe('dedupe', () => {
     reset()
     certificates.push({
       type: 'COMPREHENSIVE_EXAM', userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'prog-1',
-      specializationProgramId: 'spec-1', examProgramId: 'prog-1',
+      certificateScope: 'spec-1', specializationProgramId: 'spec-1', examProgramId: 'prog-1',
     })
     const r = await lib.checkComprehensiveCandidateDuplicate(fakeDb, { examId: 'exam-1', programId: 'prog-1', specializationProgramId: 'spec-1', nationalId: '222', email: 'a@b.com' })
     expect(r?.code).toBe('EMAIL_ALREADY_GRADUATE')
@@ -304,7 +316,7 @@ describe('dedupe', () => {
     reset()
     certificates.push({
       type: 'COMPREHENSIVE_EXAM', userEmail: 'a@b.com', enrollmentId: 'e1', programId: 'prog-1',
-      specializationProgramId: 'spec-1', examProgramId: 'prog-1',
+      certificateScope: 'spec-1', specializationProgramId: 'spec-1', examProgramId: 'prog-1',
     })
     const r = await lib.checkComprehensiveCandidateDuplicate(fakeDb, { examId: 'exam-2', programId: 'prog-1', specializationProgramId: 'spec-2', nationalId: '222', email: 'a@b.com' })
     expect(r).toBeNull()
@@ -337,11 +349,14 @@ describe('qualification transaction', () => {
     expect(result.certificate.serial).toMatch(/^AACT-C-\d{4}-\d{5}$/)
     expect(enrollments[0].status).toBe('COMPLETED')
     expect(enrollments[0].programId).toBe('prog-1')
+    expect(enrollments[0].certificateNo).toBe(result.certificate.serial)
+    expect(enrollments[0].finalScore).toBe(85)
     expect(certificates[0].type).toBe('COMPREHENSIVE_EXAM')
     expect(certificates[0].legacy).toBe(false)
     expect(certificates[0].program).toBe('دكتوراه في إدارة الأعمال')
     expect(certificates[0].grade).toBe('85%')
     expect(certificates[0].comprehensiveExamId).toBe('exam-1')
+    expect(certificates[0].certificateScope).toBe('spec-1')
     expect(auditRows[0].action).toBe('QUALIFY_COMPREHENSIVE_EXAM')
   })
   test('a graduate can earn a second specialization without duplicating the same-specialty certificate', async () => {
@@ -352,14 +367,11 @@ describe('qualification transaction', () => {
       program: { id: 'prog-1', titleAr: 'برنامج المعادلة', titleEn: null },
       admin: { id: null, name: null },
     }
-    await lib.qualifyComprehensiveExamCandidate(fakeDb, {
+    const first = await lib.qualifyComprehensiveExamCandidate(fakeDb, {
       ...base, exam: { id: 'exam-1', programId: 'prog-1' },
       specialization: { id: 'spec-1', titleAr: 'تخصص أول', titleEn: null },
       attempt: { id: 'att-1', score: 80 },
     })
-    // In production the relation resolves through ComprehensiveExam.
-    certificates[0].specializationProgramId = 'spec-1'
-    certificates[0].examProgramId = 'prog-1'
     const second = await lib.qualifyComprehensiveExamCandidate(fakeDb, {
       ...base, exam: { id: 'exam-2', programId: 'prog-1' },
       specialization: { id: 'spec-2', titleAr: 'تخصص ثان', titleEn: null },
@@ -369,6 +381,33 @@ describe('qualification transaction', () => {
     expect(enrollments).toHaveLength(1)
     expect(certificates).toHaveLength(2)
     expect(certificates[1].program).toBe('تخصص ثان')
+    expect(certificates[0].certificateScope).toBe('spec-1')
+    expect(certificates[1].certificateScope).toBe('spec-2')
+    expect(enrollments[0].certificateNo).toBe(first.certificate.serial)
+    expect(enrollments[0].finalScore).toBe(80)
+    expect(certificates[1].grade).toBe('90%')
+  })
+  test('another exam for the same specialization cannot issue a second certificate', async () => {
+    reset()
+    users.push({ id: 'user-9', email: 'a@b.com', name: 'أحمد محمد', role: 'STUDENT', country: null, phone: null })
+    const input = {
+      candidate: { id: 'cand-1', userId: 'user-9', fullName: 'أحمد محمد', nationalId: '111', email: 'a@b.com', phone: null },
+      exam: { id: 'exam-1', programId: 'prog-1' },
+      program: { id: 'prog-1', titleAr: 'المعادلة', titleEn: null },
+      specialization: { id: 'spec-1', titleAr: 'تخصص أول', titleEn: null },
+      attempt: { id: 'att-1', score: 80 },
+      admin: { id: null, name: null },
+    }
+    await lib.qualifyComprehensiveExamCandidate(fakeDb, input)
+    await expect(lib.qualifyComprehensiveExamCandidate(fakeDb, {
+      ...input, exam: { id: 'exam-2', programId: 'prog-1' }, attempt: { id: 'att-2', score: 91 },
+    })).rejects.toMatchObject({ code: 'CERTIFICATE_ALREADY_EXISTS', status: 409 })
+    expect(certificates).toHaveLength(1)
+  })
+  test('only the specialization composite-unique error is converted to a candidate conflict', () => {
+    expect(lib.isComprehensiveCertificateScopeConflict({ code: 'P2002', meta: { target: ['enrollmentId', 'type', 'certificateScope'] } })).toBe(true)
+    expect(lib.isComprehensiveCertificateScopeConflict({ code: 'P2002', meta: { target: ['serial'] } })).toBe(false)
+    expect(lib.isComprehensiveCertificateScopeConflict({ code: 'P2034' })).toBe(false)
   })
   test('resolves the linked user by id first, even when the email differs', async () => {
     reset()

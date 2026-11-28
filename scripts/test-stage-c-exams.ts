@@ -285,7 +285,8 @@ function testDefenseIncompleteCriteriaNeedsReview() {
 function testSchemaAndMigrationSafety() {
   const schema = file('prisma/schema.prisma')
   assert(schema.includes('enrollment   Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)'), 'Certificate.enrollmentId must be a restrictive FK')
-  assert(schema.includes('@@unique([enrollmentId, type])'), 'Certificate must be unique by enrollmentId and type')
+  assert(schema.includes('certificateScope String @default("BASE")'), 'ordinary certificates must retain the BASE scope by default')
+  assert(schema.includes('@@unique([enrollmentId, type, certificateScope])'), 'Certificate must be unique by enrollment, type and specialization scope')
   assert(schema.includes('Enrollment[]') && schema.includes('certificates Certificate[]'), 'User/Enrollment certificate relations must be declared')
   assert(schema.includes('user           User      @relation(fields: [userId], references: [id], onDelete: Restrict)'), 'Enrollment.user must restrict deletes')
   assert(schema.includes('program        Program   @relation(fields: [programId], references: [id], onDelete: Restrict)'), 'Enrollment.program must restrict deletes')
@@ -300,6 +301,14 @@ function testSchemaAndMigrationSafety() {
   assert(!migration.includes('DELETE FROM "Certificate"'), 'migration must not delete certificates')
   assert(migration.includes('CREATE SEQUENCE IF NOT EXISTS "Certificate_serial_seq"'), 'migration must create an atomic certificate serial sequence')
   assert(migration.includes('ON DELETE RESTRICT'), 'migration must apply restrictive foreign keys')
+
+  const specializationMigration = file('prisma/migrations/20261128210000_comprehensive_certificate_specialization_scope/migration.sql')
+  assert(specializationMigration.includes('ADD COLUMN "certificateScope" TEXT NOT NULL DEFAULT \'BASE\''), 'scope migration must preserve ordinary certificate uniqueness')
+  assert(specializationMigration.includes('SET "certificateScope" = exam."specializationProgramId"'), 'scope migration must backfill comprehensive certificates from their exam specialization')
+  assert(specializationMigration.includes('AND c."comprehensiveExamId" = exam."id"'), 'scope backfill must follow the existing exam linkage')
+  assert(specializationMigration.includes('DROP INDEX "Certificate_enrollmentId_type_key"'), 'scope migration must replace the old enrollment/type unique index')
+  assert(specializationMigration.includes('CREATE UNIQUE INDEX "Certificate_enrollmentId_type_certificateScope_key"'), 'scope migration must enforce uniqueness for each specialty')
+  assert(!specializationMigration.includes('DELETE FROM "Certificate"'), 'scope migration must not delete historical certificates')
 }
 
 function testProgramExamStartContract() {

@@ -39,6 +39,16 @@ export class ComprehensiveExamPhase2Error extends Error {
   }
 }
 
+// A concurrent same-specialization qualification can reach the DB unique
+// index before the in-transaction duplicate check observes the other row.
+// Report this specific conflict as an actionable 409, never a generic 500.
+export function isComprehensiveCertificateScopeConflict(error: unknown): boolean {
+  const e = error as { code?: string; meta?: { target?: unknown } } | null
+  const target = e?.meta?.target
+  return e?.code === 'P2002' && Array.isArray(target) &&
+    ['enrollmentId', 'type', 'certificateScope'].every((field) => target.includes(field))
+}
+
 export function normalizeComprehensiveNationalId(value: unknown): string {
   return normalizeDigits(String(value || '').trim())
     .replace(/[\s-]/g, '')
@@ -159,7 +169,7 @@ export async function checkComprehensiveCandidateDuplicate(
         enrollment: { programId: input.programId },
         user: { email: input.email },
         type: 'COMPREHENSIVE_EXAM',
-        comprehensiveExam: { specializationProgramId: input.specializationProgramId },
+        certificateScope: input.specializationProgramId,
       },
       select: { id: true },
     })
@@ -722,7 +732,10 @@ export async function qualifyComprehensiveExamCandidate(
   const enrollment = await tx.enrollment.upsert({
     where: { userId_programId: { userId: user.id, programId: input.program.id } },
     create: { userId: user.id, programId: input.program.id, status: 'COMPLETED', finalScore: score },
-    update: { status: 'COMPLETED', finalScore: score },
+    // Shared equivalency enrollment: keep the first issued certificate's
+    // number and grade stable; subsequent specialty certificates live in
+    // Certificate rows with their own grade and serial.
+    update: { status: 'COMPLETED' },
   })
 
   const existingCertificate = await tx.certificate.findFirst({
@@ -731,7 +744,7 @@ export async function qualifyComprehensiveExamCandidate(
     where: {
       enrollmentId: enrollment.id,
       type: 'COMPREHENSIVE_EXAM',
-      comprehensiveExam: { specializationProgramId: input.specialization.id },
+      certificateScope: input.specialization.id,
     },
   })
   if (existingCertificate) {
@@ -751,6 +764,7 @@ export async function qualifyComprehensiveExamCandidate(
       issuedAt: new Date(),
       userId: user.id,
       enrollmentId: enrollment.id,
+      certificateScope: input.specialization.id,
       comprehensiveExamId: input.exam.id,
       serial: await nextCertificateSerial(tx),
       qrToken: createCertificateQrToken(),
@@ -759,7 +773,10 @@ export async function qualifyComprehensiveExamCandidate(
 
   await tx.enrollment.update({
     where: { id: enrollment.id },
-    data: { status: 'COMPLETED', certificateNo: certificate.serial, finalScore: score },
+    data: {
+      status: 'COMPLETED',
+      ...(!enrollment.certificateNo ? { certificateNo: certificate.serial, finalScore: score } : {}),
+    },
   })
 
   await tx.auditLog.create({

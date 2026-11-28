@@ -847,6 +847,14 @@ interface Report {
   agentPerformance: { orgName: string; territory: string; due: number; paid: number; entries: number }[]
 }
 
+function waiverWhatsAppNote(status?: string): string {
+  if (status === 'sent') return 'قبلت Meta رسالة واتساب بكود الإعفاء والرابط ✅'
+  if (status === 'waiting_approval') return 'قالب المنحة بانتظار اعتماد Meta أو تعذّر التحقق منه؛ الكود متاح بالبريد فقط'
+  if (status === 'template_pending') return 'أُرسل قالب متابعة فقط؛ الكود لم يُرسل عبر واتساب، وهو موجود بالبريد'
+  if (status === 'skipped') return 'لم يُرسل واتساب: لا يوجد رقم صالح'
+  return 'فشل إرسال واتساب؛ الكود ما زال متاحًا للإرسال يدويًا'
+}
+
 export function AdminFinanceTab() {
   const { toast } = useToast()
   const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
@@ -993,7 +1001,7 @@ export function AdminFinanceTab() {
     const { payment, quote } = grantQuoteDialog
     setGrantSaving(true)
     try {
-      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: string }>('/api/admin/payments/waivers', {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: string; whatsapp?: string; whatsappArchiveWarning?: string }>('/api/admin/payments/waivers', {
         method: 'POST',
         body: JSON.stringify({ action: 'ISSUE_POLICY', paymentId: payment.id, policyId: quote.policy.id, signature: quote.signature }),
       })
@@ -1006,8 +1014,9 @@ export function AdminFinanceTab() {
           : 'لم يتم إرسال بريد، انسخ الكود يدوياً'
       toast({
         title: 'صدر كود المنحة بالنظام المالي الحالي',
-        description: mailNote,
-        variant: result.emailStatus === 'FAILED' ? 'destructive' : undefined,
+        description: mailNote + ' — ' + waiverWhatsAppNote(result.whatsapp)
+          + (result.whatsappArchiveWarning ? ' — ' + result.whatsappArchiveWarning : ''),
+        variant: result.emailStatus === 'FAILED' || result.whatsappArchiveWarning ? 'destructive' : undefined,
       })
       setGrantQuoteDialog(null)
       load()
@@ -1254,7 +1263,7 @@ export function AdminFinanceTab() {
     if (reason === null) return
     setWaiverBusy(payment.id)
     try {
-      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED' }>('/api/admin/payments/waivers', {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED'; whatsapp?: string; whatsappArchiveWarning?: string }>('/api/admin/payments/waivers', {
         method: 'POST',
         body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason }),
       })
@@ -1265,7 +1274,12 @@ export function AdminFinanceTab() {
         : result.emailStatus === 'FAILED'
           ? 'فشل إرسال البريد، انسخ الكود يدوياً'
           : 'لم يتم إرسال بريد، انسخ الكود يدوياً'
-      toast({ title: 'تم توليد ونسخ كود الإعفاء', description: `الكود: ${result.code} — ${mailNote}` })
+      toast({
+        title: 'تم توليد ونسخ كود الإعفاء',
+        description: `الكود: ${result.code} — ${mailNote} — ${waiverWhatsAppNote(result.whatsapp)}`
+          + (result.whatsappArchiveWarning ? ' — ' + result.whatsappArchiveWarning : ''),
+        variant: result.whatsappArchiveWarning ? 'destructive' : undefined,
+      })
       load()
     } catch (e: any) {
       toast({ title: 'تعذر توليد كود الإعفاء', description: e.message, variant: 'destructive' })
@@ -1355,13 +1369,7 @@ export function AdminFinanceTab() {
         : result.emailStatus === 'FAILED'
           ? 'فشل إرسال البريد'
           : 'لم يتم إرسال بريد'
-      const waNote = result.whatsapp === 'sent'
-        ? 'تم إرسال واتساب ✅'
-        : result.whatsapp === 'template_pending'
-          ? 'واتساب: أُرسل قالب الموافقة، والكود يُرسل بعد رد الطالب'
-          : result.whatsapp === 'skipped'
-            ? 'لا يوجد رقم واتساب صالح'
-            : 'فشل إرسال واتساب'
+      const waNote = waiverWhatsAppNote(result.whatsapp)
       toast({
         title: result.organizationWarning ? 'أعيد إرسال التحقق — ربط المنحة يحتاج مراجعة' : 'تم إعادة إرسال التحقق',
         description: 'الكود الجديد: ' + result.code + ' — ' + mailNote + ' — ' + waNote

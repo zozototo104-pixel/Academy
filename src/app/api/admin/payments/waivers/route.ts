@@ -748,7 +748,10 @@ export async function POST(req: NextRequest) {
       select: { userId: true, admission: { select: { userId: true } } },
     }).catch(() => null)
     await pruneWaitlistsQuietly(createdPayment?.userId || createdPayment?.admission?.userId)
-    return NextResponse.json({ code: result.code, waiver: result.waiver, emailStatus: result.emailStatus })
+    return NextResponse.json({
+      code: result.code, waiver: result.waiver, emailStatus: result.emailStatus,
+      whatsapp: result.whatsapp, whatsappArchiveWarning: result.whatsappArchiveWarning,
+    })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     if (e?.code === 'GRANT_NOT_ELIGIBLE') return NextResponse.json({ error: e.message, code: e.code }, { status: e.status || 409 })

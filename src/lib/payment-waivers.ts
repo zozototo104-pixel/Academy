@@ -5,7 +5,7 @@ import { dollarsToCents, paymentAmountCents, centsToDollars } from '@/lib/money'
 import { createPaymentWithInvoiceNo, getSettings } from '@/lib/settings'
 import { emailPaymentWaiverCode, isEmailDeliveryConfigured } from '@/lib/mailer'
 import { finalizeAdmissionAfterSettlement } from '@/lib/settle-payment'
-import { sendOfficialWhatsAppHumanFollowup, sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
+import { checkOfficialWhatsAppTemplate, sendOfficialWhatsAppHumanFollowup, sendOfficialWhatsAppTemplate, sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
 import { hashWhatsAppId, recordWhatsAppOutboundMessage } from '@/lib/whatsapp-conversations'
 import { normalizePhoneToInternationalWaId } from '@/lib/admission-validation'
 
@@ -337,19 +337,30 @@ export async function createPaymentWaiverCode(params: {
   })
 
   await audit(params.actor || { name: 'Admin' }, 'PAYMENT_WAIVER_CODE_CREATED', 'Payment', payment.id, `${payment.invoiceNo} — ${params.waiverType} — ${waiver.codePreview}`)
-  const { emailStatus } = await deliverWaiverCode({ payment, waiverType: params.waiverType, reason, code, isResend: false })
+  const { emailStatus, waiverLink, recipient } = await deliverWaiverCode({ payment, waiverType: params.waiverType, reason, code, isResend: false })
+  const whatsappDelivery = await sendWaiverCodeWhatsApp({
+    digits: waiverWhatsAppDigits(normalizePhoneToInternationalWaId(String(recipient?.phone || ''), recipient?.country)),
+    name: recipient?.name || 'الطالب',
+    code,
+    invoiceNo: payment.invoiceNo,
+    waiverLink,
+    actor: params.actor || { name: 'Admin' },
+    allowLegacyFallback: false,
+  })
   const savedWaiver = await db.paymentWaiverCode.update({
     where: { id: waiver.id },
     data: { emailStatus, emailSentAt: emailStatus === 'SENT' ? new Date() : null },
   })
-  return { code, waiver: savedWaiver, emailStatus }
+  return { code, waiver: savedWaiver, emailStatus, whatsapp: whatsappDelivery.status, whatsappArchiveWarning: whatsappDelivery.archiveWarning }
 }
 
-export type WaiverWhatsAppOutcome = 'sent' | 'template_pending' | 'skipped' | 'failed'
+export type WaiverWhatsAppOutcome = 'sent' | 'template_pending' | 'waiting_approval' | 'skipped' | 'failed'
 
 type WaiverWhatsAppDelivery = { status: WaiverWhatsAppOutcome; archiveWarning?: string }
 
 const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000
+const WAIVER_WHATSAPP_TEMPLATE_NAME = 'aact_waiver_code_ar'
+const WAIVER_WHATSAPP_TEMPLATE_LANGUAGE = 'ar'
 
 function waiverWhatsAppDigits(phone: unknown) {
   const digits = String(phone || '').replace(/\D/g, '')
@@ -371,6 +382,7 @@ async function archiveWaiverWhatsApp(args: {
   text: string
   actor: { id?: string | null; name: string }
   rawType: 'text' | 'template'
+  templateName?: string
 }): Promise<string | undefined> {
   try {
     await recordWhatsAppOutboundMessage({
@@ -383,7 +395,7 @@ async function archiveWaiverWhatsApp(args: {
       sentById: args.actor.id || null,
       sentByName: args.actor.name,
       rawType: args.rawType,
-      ...(args.rawType === 'template' ? { meta: { templateName: 'human_followup_ar' } } : {}),
+      ...(args.rawType === 'template' ? { meta: { templateName: args.templateName || 'human_followup_ar' } } : {}),
       requireSavedMessage: true,
     })
     return undefined
@@ -402,6 +414,7 @@ async function sendWaiverCodeWhatsApp(params: {
   invoiceNo: string
   waiverLink: string
   actor: { id?: string | null; name: string }
+  allowLegacyFallback?: boolean
 }): Promise<WaiverWhatsAppDelivery> {
   if (!params.digits) return { status: 'skipped' }
   const conversation = await db.whatsAppConversation.findUnique({
@@ -413,8 +426,33 @@ async function sendWaiverCodeWhatsApp(params: {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://aactacademy.com').replace(/\/$/, '')
   const fullLink = params.waiverLink.startsWith('http') ? params.waiverLink : `${appUrl}${params.waiverLink}`
   try {
+    // A template under Meta review must never be used as though it were approved.
+    // Reuse the WABA ID already configured for the comprehensive-exam checker.
+    // If verification is unavailable, retain the existing 24-hour/followup flow.
+    const account = await (db as any).setting?.findUnique?.({ where: { key: 'COMPREHENSIVE_EXAM_WHATSAPP_WABA_ID' } }).catch(() => null)
+    const wabaId = String(account?.value || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '').trim()
+    if (wabaId) {
+      const preflight = await checkOfficialWhatsAppTemplate(
+        WAIVER_WHATSAPP_TEMPLATE_NAME, WAIVER_WHATSAPP_TEMPLATE_LANGUAGE, wabaId,
+        { bodyParameterCount: 4 },
+      )
+      if (preflight.checked && preflight.ok && preflight.headerFormat === 'NONE') {
+        const result = await sendOfficialWhatsAppTemplate(params.digits, WAIVER_WHATSAPP_TEMPLATE_NAME,
+          [params.name, params.invoiceNo, params.code, fullLink],
+          { languageCode: WAIVER_WHATSAPP_TEMPLATE_LANGUAGE })
+        const archiveWarning = await archiveWaiverWhatsApp({
+          response: result, phone: params.digits, name: params.name,
+          text: `قالب إعفاء الفاتورة «${WAIVER_WHATSAPP_TEMPLATE_NAME}»\nالطالب: ${params.name}\nرقم الفاتورة: ${params.invoiceNo}\nرمز الإعفاء: ${params.code}\nرابط التأكيد: ${fullLink}`,
+          actor: params.actor, rawType: 'template', templateName: WAIVER_WHATSAPP_TEMPLATE_NAME,
+        })
+        return { status: 'sent', ...(archiveWarning ? { archiveWarning } : {}) }
+      }
+    }
+    // First issuance was email-only before this integration. Until approval,
+    // do not introduce an unsolicited follow-up message on that path.
+    if (params.allowLegacyFallback === false) return { status: 'waiting_approval' }
     if (windowOpen) {
-      const text = `مرحباً ${params.name}، كود الإعفاء الجديد الخاص بك في أكاديمية AACT: ${params.code} — أدخله من بوابة الطالب ضمن بطاقة الفاتورة ${params.invoiceNo}: ${fullLink} — الكود صالح لمدة 7 أيام.`
+      const text = `مرحباً ${params.name}، كود الإعفاء الخاص بك في أكاديمية AACT: ${params.code} — أدخله من بوابة الطالب ضمن بطاقة الفاتورة ${params.invoiceNo}: ${fullLink} — يرجى استخدامه قبل انتهاء صلاحيته.`
       const result = await sendOfficialWhatsAppText(params.digits, text)
       const archiveWarning = await archiveWaiverWhatsApp({
         response: result, phone: params.digits, name: params.name,
@@ -425,7 +463,7 @@ async function sendWaiverCodeWhatsApp(params: {
     const result = await sendOfficialWhatsAppHumanFollowup(params.digits, params.name)
     const archiveWarning = await archiveWaiverWhatsApp({
       response: result, phone: params.digits, name: params.name,
-      text: `تم إرسال قالب المتابعة المعتمد human_followup_ar إلى ${params.name}. كود الإعفاء الجديد يُرسل عبر واتساب بعد أن يرد الطالب.`,
+      text: `تم إرسال قالب المتابعة المعتمد human_followup_ar إلى ${params.name}. كود الإعفاء غير موجود في هذا القالب؛ أُرسل بالبريد ويمكن إعادة إرساله يدويًا بعد رد الطالب.`,
       actor: params.actor, rawType: 'template',
     })
     return { status: 'template_pending', ...(archiveWarning ? { archiveWarning } : {}) }
