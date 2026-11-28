@@ -50,6 +50,17 @@ const fakeDb: any = {
       return rows[0] || null
     },
     create: async ({ data }: any) => {
+      // Mirror the database unique index, not just the application's
+      // specialization check. The old (enrollmentId, type) index was the
+      // production-only failure when awarding a second specialization.
+      const scope = data.certificateScope || 'BASE'
+      const conflict = certificates.some((c) =>
+        data.enrollmentId && c.enrollmentId === data.enrollmentId && c.type === data.type &&
+        (c.certificateScope || 'BASE') === scope,
+      )
+      if (conflict) {
+        throw Object.assign(new Error('Unique constraint failed on certificate scope'), { code: 'P2002' })
+      }
       const row = { id: `cert-${certificates.length + 1}`, ...data }
       certificates.push(row)
       return row
