@@ -764,6 +764,7 @@ export async function qualifyComprehensiveExamCandidate(
       issuedAt: new Date(),
       userId: user.id,
       enrollmentId: enrollment.id,
+      certificateScope: input.specialization.id,
       comprehensiveExamId: input.exam.id,
       serial: await nextCertificateSerial(tx),
       qrToken: createCertificateQrToken(),
