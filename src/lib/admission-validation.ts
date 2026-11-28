@@ -123,6 +123,9 @@ export function normalizePhoneToInternationalWaId(phone: string, country?: strin
   const dialCode = COMPREHENSIVE_INVITE_COUNTRY_DIAL_CODES[String(country || '').trim()]
   if (!dialCode) return digits
   if (digits.startsWith(dialCode)) return digits
+  // Palestinian numbers may already carry the alternative 970 prefix without '+'.
+  // They are international, not local numbers that need 972 added.
+  if (digits.startsWith('970') && digits.length >= 11) return digits
   return `${dialCode}${digits.startsWith('0') ? digits.slice(1) : digits}`
 }
 
